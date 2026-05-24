@@ -19,7 +19,7 @@
          <span>أنت غير متصل بشبكة الإنترنت حالياً. يرجى التحقق من اتصالك.</span>
     </div>
     <flux:sidebar sticky collapsible="mobile"
-        class="border-e border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        class="self-start border-e border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <flux:sidebar.header>
             <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
             <flux:sidebar.collapse class="lg:hidden" />

@@ -13,12 +13,14 @@ new class extends Component {
     public $currentViewTimestamp;
     public $open = false;
     public $showEvents = false;
+    public $showAttendanceDays = false;
 
-    public function mount($label = 'التاريخ (هجري)', $placeholder = 'حدد التاريخ', $buttonClass = null, $showEvents = false)
+    public function mount($label = 'التاريخ (هجري)', $placeholder = 'حدد التاريخ', $buttonClass = null, $showEvents = false, $showAttendanceDays = false)
     {
         $this->label = $label;
         $this->placeholder = $placeholder;
         $this->showEvents = $showEvents;
+        $this->showAttendanceDays = $showAttendanceDays;
         if ($buttonClass) {
             $this->buttonClass = $buttonClass;
         }
@@ -133,6 +135,11 @@ new class extends Component {
                 if ($showEvents && auth()->check()) {
                     $allEvents = \App\Models\AcademicCalendarEvent::visibleTo(auth()->user())->get();
                 }
+
+                $attendancePeriods = collect();
+                if ($showAttendanceDays) {
+                    $attendancePeriods = \App\Models\AcademicCalendarEvent::where('is_attendance_period', true)->get();
+                }
             @endphp
 
             @for ($i = 0; $i < $emptySlots; $i++)
@@ -146,6 +153,17 @@ new class extends Component {
                     $gregDate = date('Y-m-d', $cal->getTime() / 1000);
                     $isSelected = $gregDate === $date;
                     $isToday = $gregDate === date('Y-m-d');
+
+                    $isWorkingDay = false;
+                    if ($showAttendanceDays) {
+                        $period = $attendancePeriods->first(function ($p) use ($gregDate) {
+                            return $gregDate >= $p->start_date->format('Y-m-d') &&
+                                $gregDate <= $p->end_date->format('Y-m-d');
+                        });
+                        if ($period && $period->weekdays) {
+                            $isWorkingDay = in_array($dayOfWeek, $period->weekdays);
+                        }
+                    }
 
                     $dayEvents = collect();
                     if ($showEvents) {
@@ -162,9 +180,13 @@ new class extends Component {
                     }
                 @endphp
                 <button wire:click="selectDate('{{ $gregDate }}')" type="button"
-                    class="relative h-8 w-8 flex flex-col items-center justify-center rounded-lg text-xs   s
-                                {{ $isSelected ? 'bg-indigo-500 text-white font-bold' : ($isToday ? 'border border-indigo-300 text-indigo-600' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300') }}">
+                    class="relative h-8 w-8 flex flex-col items-center justify-center rounded-lg text-xs 
+                                {{ $isSelected ? 'bg-indigo-500 text-white font-bold' : ($isToday ? 'border border-indigo-300 text-indigo-600' : ($isWorkingDay ? 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:hover:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 font-medium' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300')) }}">
                     <span class="{{ $showEvents && $dayEvents->isNotEmpty() ? '-mt-1' : '' }}">{{ $i }}</span>
+
+                    @if($isWorkingDay && !$isSelected)
+                        <span class="absolute top-0.5 right-0.5 size-1 rounded-full bg-emerald-500" title="{{ __('يوم دوام معتمد') }}"></span>
+                    @endif
 
                     @if($showEvents && $dayEvents->isNotEmpty())
                         <div class="absolute bottom-1 flex justify-center gap-[1px] w-full px-1">

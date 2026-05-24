@@ -3,6 +3,7 @@
 use App\Livewire\Teacher\Attendance;
 use App\Livewire\Teacher\LeaderboardGrade;
 use App\Livewire\Teacher\Leaderboards;
+use App\Models\AcademicCalendarEvent;
 use App\Models\Ayah;
 use App\Models\Circle;
 use App\Models\Leaderboard;
@@ -231,4 +232,41 @@ test('teacher leaderboard-grade component listens to student-list-updated event'
     Livewire::test(LeaderboardGrade::class, ['leaderboardId' => $leaderboard->id])
         ->dispatch('student-list-updated')
         ->assertStatus(200);
+});
+
+test('plan creator verifies academic calendar with multi-period distribution and gaps', function () {
+    // 1. Create period A
+    AcademicCalendarEvent::create([
+        'event_name' => 'الفترة الأولى',
+        'start_date' => '2026-06-01',
+        'end_date' => '2026-06-15',
+        'is_attendance_period' => true,
+        'weekdays' => [1, 2, 3, 4], // Sun, Mon, Tue, Wed
+        'is_visible' => true,
+    ]);
+
+    // 2. Create period B (starts after a gap of 5 days)
+    AcademicCalendarEvent::create([
+        'event_name' => 'الفترة الثانية',
+        'start_date' => '2026-06-21',
+        'end_date' => '2026-07-05',
+        'is_attendance_period' => true,
+        'weekdays' => [1, 2, 3, 4, 5], // Sun, Mon, Tue, Wed, Thu
+        'is_visible' => true,
+    ]);
+
+    // Test component behavior
+    $component = Livewire::test('shared.⚡plan-creator')
+        ->set('startDate', '2026-06-01')
+        ->set('daysCount', 15)
+        ->call('checkAttendancePeriod');
+
+    $component->assertSet('isOutsidePeriod', false)
+        ->assertSet('expectedEndDate', '2026-06-24')
+        ->assertSet('totalCalendarDays', 24) // June 1 to June 24 is 24 calendar days
+        ->assertSet('periodDistribution', [
+            'الفترة الأولى' => 9,
+            'خارج فترات الدوام' => 2,
+            'الفترة الثانية' => 4,
+        ]);
 });

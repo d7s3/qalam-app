@@ -36,6 +36,15 @@ new class extends Component {
     public $selectAll = false;
     public $selectionStart = null;
 
+    // Academic Calendar properties
+    public $isOutsidePeriod = false;
+    public $expectedEndDate = null;
+    public $expectedEndDateHijri = null;
+    public $totalCalendarDays = null;
+    public $lastCheckedDate = null;
+    public $periodDistribution = [];
+    public $firstAvailableWorkingDate = null;
+
     // Wizard state
     public $step = 1;
     public $isGenerated = false;
@@ -132,6 +141,157 @@ new class extends Component {
                 $this->step = 2; // skip student selection for student
             }
         }
+
+        $this->checkAttendancePeriod();
+    }
+
+    public function checkAttendancePeriod()
+    {
+        if (!$this->startDate || !$this->daysCount) {
+            $this->isOutsidePeriod = true;
+            $this->expectedEndDate = null;
+            $this->expectedEndDateHijri = null;
+            $this->totalCalendarDays = null;
+            $this->periodDistribution = [];
+            $this->firstAvailableWorkingDate = null;
+            return;
+        }
+
+        $startDateObj = Carbon::parse($this->startDate);
+        
+        $attendancePeriods = \App\Models\AcademicCalendarEvent::where('is_attendance_period', true)
+            ->where('end_date', '>=', $startDateObj->format('Y-m-d'))
+            ->orderBy('start_date', 'asc')
+            ->get();
+
+        $mapping = [
+            1 => 'Sunday',
+            2 => 'Monday',
+            3 => 'Tuesday',
+            4 => 'Wednesday',
+            5 => 'Thursday',
+            6 => 'Friday',
+            7 => 'Saturday',
+        ];
+
+        // 1. Check if the start date itself falls within any attendance period
+        $startStr = $startDateObj->format('Y-m-d');
+        $startPeriod = $attendancePeriods->first(function ($p) use ($startStr) {
+            return $p->start_date->format('Y-m-d') <= $startStr && $p->end_date->format('Y-m-d') >= $startStr;
+        });
+
+        if ($startPeriod) {
+            $this->isOutsidePeriod = false;
+            $this->firstAvailableWorkingDate = null;
+
+            if ($this->lastCheckedDate !== $this->startDate) {
+                $weekdays = $startPeriod->weekdays ?? [];
+                $this->activeDays = array_map(fn($wd) => $mapping[$wd], $weekdays);
+                $this->lastCheckedDate = $this->startDate;
+            }
+        } else {
+            $this->isOutsidePeriod = true;
+            $this->lastCheckedDate = $this->startDate;
+            
+            $firstWorking = null;
+            $tempDate = $startDateObj->copy();
+            for ($i = 0; $i < 365; $i++) {
+                $tempStr = $tempDate->format('Y-m-d');
+                $nextPeriod = $attendancePeriods->first(function ($p) use ($tempStr) {
+                    return $p->start_date->format('Y-m-d') <= $tempStr && $p->end_date->format('Y-m-d') >= $tempStr;
+                });
+                if ($nextPeriod) {
+                    $weekdays = $nextPeriod->weekdays ?? [];
+                    $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
+                    if (in_array($tempDate->format('l'), $periodWeekdays)) {
+                        $firstWorking = $tempDate->copy();
+                        break;
+                    }
+                }
+                $tempDate->addDay();
+            }
+            $this->firstAvailableWorkingDate = $firstWorking ? $firstWorking->format('Y-m-d') : null;
+        }
+
+        // 2. Simulate plan days distribution across periods
+        $currentSimDate = $startDateObj->copy();
+        $scheduledDays = 0;
+        $distribution = [];
+        $lastScheduled = null;
+        $safetyLimit = 0;
+        $maxCalendarDays = 365;
+
+        // Count remaining working days in the first/active period (if it exists and covers start date)
+        $this->remainingWorkingDays = null;
+        if ($startPeriod) {
+            $weekdays = $startPeriod->weekdays ?? [];
+            $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
+            $count = 0;
+            $tempDate = $startDateObj->copy();
+            $endDateObj = Carbon::parse($startPeriod->end_date);
+            while ($tempDate->lte($endDateObj)) {
+                if (in_array($tempDate->format('l'), $periodWeekdays) && in_array($tempDate->format('l'), $this->activeDays)) {
+                    $count++;
+                }
+                $tempDate->addDay();
+            }
+            $this->remainingWorkingDays = $count;
+        }
+
+        $hasPeriods = $attendancePeriods->isNotEmpty();
+
+        while ($scheduledDays < $this->daysCount && $safetyLimit < $maxCalendarDays) {
+            $dateStr = $currentSimDate->format('Y-m-d');
+            $dayOfWeek = $currentSimDate->format('l');
+
+            $isValid = false;
+            $period = null;
+            if (in_array($dayOfWeek, $this->activeDays)) {
+                if ($hasPeriods) {
+                    $period = $attendancePeriods->first(function ($p) use ($dateStr) {
+                        return $p->start_date->format('Y-m-d') <= $dateStr && $p->end_date->format('Y-m-d') >= $dateStr;
+                    });
+                    if ($period) {
+                        $weekdays = $period->weekdays ?? [];
+                        $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
+                        if (in_array($dayOfWeek, $periodWeekdays)) {
+                            $isValid = true;
+                        }
+                    } else {
+                        // Date is outside all periods, schedule it anyway as outside working days
+                        $isValid = true;
+                    }
+                } else {
+                    $isValid = true;
+                }
+            }
+
+            if ($isValid) {
+                $pName = $period ? $period->event_name : ($hasPeriods ? 'خارج فترات الدوام' : 'دوام اعتيادي');
+                $distribution[$pName] = ($distribution[$pName] ?? 0) + 1;
+                $lastScheduled = $currentSimDate->copy();
+                $scheduledDays++;
+            }
+            $currentSimDate->addDay();
+            $safetyLimit++;
+        }
+
+        if ($scheduledDays < $this->daysCount) {
+            $unscheduled = $this->daysCount - $scheduledDays;
+            $distribution['خارج فترات الدوام'] = $unscheduled;
+        }
+
+        $this->periodDistribution = $distribution;
+
+        if ($lastScheduled) {
+            $this->expectedEndDate = $lastScheduled->format('Y-m-d');
+            $this->expectedEndDateHijri = $this->getHijriLabel($lastScheduled);
+            $this->totalCalendarDays = Carbon::parse($this->startDate)->diffInDays($lastScheduled) + 1;
+        } else {
+            $this->expectedEndDate = null;
+            $this->expectedEndDateHijri = null;
+            $this->totalCalendarDays = null;
+        }
     }
 
     public function autoFillActiveDays()
@@ -205,9 +365,20 @@ new class extends Component {
 
     public function updatedStartDate()
     {
+        $this->checkAttendancePeriod();
         if ($this->isGenerated && !empty($this->planDays)) {
             $this->updateStartDate();
         }
+    }
+
+    public function updatedDaysCount()
+    {
+        $this->checkAttendancePeriod();
+    }
+
+    public function updatedActiveDays()
+    {
+        $this->checkAttendancePeriod();
     }
 
 
@@ -283,10 +454,48 @@ new class extends Component {
         $surahId = $ayah->surah_id ?? 114;
         $verseNum = $ayah->verse_number ?? 1;
 
+        $attendancePeriods = \App\Models\AcademicCalendarEvent::where('is_attendance_period', true)
+            ->orderBy('start_date', 'asc')
+            ->get();
+
+        $mapping = [
+            1 => 'Sunday',
+            2 => 'Monday',
+            3 => 'Tuesday',
+            4 => 'Wednesday',
+            5 => 'Thursday',
+            6 => 'Friday',
+            7 => 'Saturday',
+        ];
+
+        $hasPeriods = $attendancePeriods->isNotEmpty();
+
         while ($count < $this->daysCount) {
             $dayOfWeek = $currentDate->format('l');
-            if (in_array($dayOfWeek, $this->activeDays)) {
+            $dateStr = $currentDate->toDateString();
 
+            $isValid = false;
+            if (in_array($dayOfWeek, $this->activeDays)) {
+                if ($hasPeriods) {
+                    $period = $attendancePeriods->first(function ($p) use ($dateStr) {
+                        return $p->start_date->format('Y-m-d') <= $dateStr && $p->end_date->format('Y-m-d') >= $dateStr;
+                    });
+                    if ($period) {
+                        $weekdays = $period->weekdays ?? [];
+                        $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
+                        if (in_array($dayOfWeek, $periodWeekdays)) {
+                            $isValid = true;
+                        }
+                    } else {
+                        // Date is outside all periods, schedule it anyway as outside working days
+                        $isValid = true;
+                    }
+                } else {
+                    $isValid = true;
+                }
+            }
+
+            if ($isValid) {
                 $this->planDays[] = [
                     'date' => $currentDate->toDateString(),
                     'hijri' => $this->getHijriLabel($currentDate),
@@ -315,8 +524,51 @@ new class extends Component {
         $this->validate(['startDate' => 'required|date']);
         $currentDate = Carbon::parse($this->startDate);
 
+        $attendancePeriods = \App\Models\AcademicCalendarEvent::where('is_attendance_period', true)
+            ->orderBy('start_date', 'asc')
+            ->get();
+
+        $mapping = [
+            1 => 'Sunday',
+            2 => 'Monday',
+            3 => 'Tuesday',
+            4 => 'Wednesday',
+            5 => 'Thursday',
+            6 => 'Friday',
+            7 => 'Saturday',
+        ];
+
+        $hasPeriods = $attendancePeriods->isNotEmpty();
+
         foreach ($this->planDays as &$day) {
-            while (!in_array($currentDate->format('l'), $this->activeDays)) {
+            while (true) {
+                $dayOfWeek = $currentDate->format('l');
+                $dateStr = $currentDate->toDateString();
+
+                $isValid = false;
+                if (in_array($dayOfWeek, $this->activeDays)) {
+                    if ($hasPeriods) {
+                        $period = $attendancePeriods->first(function ($p) use ($dateStr) {
+                            return $p->start_date->format('Y-m-d') <= $dateStr && $p->end_date->format('Y-m-d') >= $dateStr;
+                        });
+                        if ($period) {
+                            $weekdays = $period->weekdays ?? [];
+                            $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
+                            if (in_array($dayOfWeek, $periodWeekdays)) {
+                                $isValid = true;
+                            }
+                        } else {
+                            // Date is outside all periods, schedule it anyway as outside working days
+                            $isValid = true;
+                        }
+                    } else {
+                        $isValid = true;
+                    }
+                }
+
+                if ($isValid) {
+                    break;
+                }
                 $currentDate->addDay();
             }
 
@@ -615,7 +867,6 @@ new class extends Component {
                     alert('يرجى تحديد تاريخ البدء ومدة الخطة.');
                     return;
                 }
-                await $wire.autoFillActiveDays();
             }
             if (this.wizardStep === 5) {
                 if (!$wire.get('activeDays') || $wire.get('activeDays').length === 0) {
@@ -679,16 +930,16 @@ new class extends Component {
                         <flux:subheading>{{ __('معالج إنشاء الجدول بخطوات بسيطة') }}</flux:subheading>
                     </div>
                     <div class="text-xs font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-full"
-                        x-text="'{{ __('خطوة') }} ' + wizardStep + ' {{ __('من') }} 6'">
+                        x-text="'{{ __('خطوة') }} ' + wizardStep + ' {{ __('من') }} 5'">
                     </div>
                 </div>
                 <div class="relative w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded overflow-hidden mt-4">
                     <div class="absolute top-0 bottom-0 right-0 bg-indigo-500 duration-300"
-                        x-bind:style="'width: ' + ((wizardStep / 6) * 100) + '%'"></div>
+                        x-bind:style="'width: ' + ((wizardStep / 5) * 100) + '%'"></div>
                 </div>
             </div>
 
-            <div class="p-6 h-[400px] flex flex-col justify-center">
+            <div class="p-6 min-h-[400px] flex flex-col justify-center">
                 <!-- STEP 1: Student -->
                 @if($userLevel == 'teacher')
                     <div x-show="wizardStep == 1" class="space-y-6 text-center animate-in fade-in zoom-in duration-300">
@@ -778,10 +1029,93 @@ new class extends Component {
                     <div class="max-w-md mx-auto space-y-4 text-right">
                         <div class="space-y-1">
                             <flux:label>{{ __('تاريخ البدء') }}</flux:label>
-                            <livewire:teacher.hijri-datepicker wire:model="startDate" />
+                            <livewire:shared.hijri-datepicker wire:model.live="startDate" :show-attendance-days="true" />
                         </div>
                         <flux:input type="number" min="1" max="365" label="{{ __('عدد الأيام المراد جدولتها') }}"
-                            wire:model="daysCount" placeholder="مثال: 16" />
+                            wire:model.live="daysCount" placeholder="مثال: 16" />
+
+                        <!-- Loading Indicator -->
+                        <div wire:loading wire:target="startDate, daysCount" class="w-full">
+                            <div class="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-700/50 rounded-xl p-4 text-sm text-zinc-500 dark:text-zinc-400 flex items-center justify-center gap-2 shadow-sm animate-pulse">
+                                <svg class="animate-spin h-5 w-5 text-rose-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>{{ __('جاري مراجعة التقويم الأكاديمي وفترات الدوام...') }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Results/Summary (Hidden during loading) -->
+                        <div wire:loading.remove wire:target="startDate, daysCount" class="space-y-3">
+                            @if($isOutsidePeriod)
+                                <div class="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300 flex items-start gap-3 shadow-sm">
+                                    <flux:icon icon="exclamation-triangle" class="size-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                                    <div>
+                                        <p class="font-bold mb-1">{{ __('تنبيه: خارج فترات الدوام') }}</p>
+                                        <p class="text-xs leading-relaxed">
+                                            {{ __('تاريخ البدء المحدد يقع خارج فترات الدوام المعتمدة.') }}
+                                            @if($firstAvailableWorkingDate)
+                                                <br>
+                                                <span class="font-semibold text-amber-800 dark:text-amber-200">
+                                                    {{ __('أول يوم دوام متاح في الفترة القادمة سيبدأ من: ') }} {{ \Carbon\Carbon::parse($firstAvailableWorkingDate)->format('Y-m-d') }}
+                                                </span>
+                                            @else
+                                                {{ __('جميع الأيام من التاريخ المحدد وصاعداً ليست ضمن أيام الدوام المعتمدة.') }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                </div>
+                            @endif
+
+                            @if(!empty($periodDistribution))
+                                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-right shadow-sm space-y-3">
+                                    <div class="flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                                        <flux:icon icon="information-circle" class="size-5 text-indigo-500 shrink-0" />
+                                        <span class="font-bold text-sm text-zinc-800 dark:text-zinc-200">{{ __('ملخص الفترة المقترحة للخطة') }}</span>
+                                    </div>
+
+                                    <div class="text-xs space-y-2 text-zinc-600 dark:text-zinc-400 font-medium">
+                                        <div class="flex justify-between items-center py-1 border-b border-zinc-50 dark:border-zinc-900">
+                                            <span>{{ __('تاريخ الانتهاء المتوقع:') }}</span>
+                                            <span class="font-bold text-zinc-800 dark:text-zinc-200 dir-ltr text-left">
+                                                {{ $expectedEndDate ? \Carbon\Carbon::parse($expectedEndDate)->format('Y-m-d') : '—' }} 
+                                                @if($expectedEndDateHijri)
+                                                    <span class="text-zinc-500 font-normal">({{ $expectedEndDateHijri }})</span>
+                                                @endif
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between items-center py-1 border-b border-zinc-50 dark:border-zinc-900">
+                                            <span>{{ __('إجمالي الأيام بالتقويم (شاملاً الإجازات):') }}</span>
+                                            <span class="font-bold text-zinc-800 dark:text-zinc-200">
+                                                {{ $totalCalendarDays ? $totalCalendarDays . ' ' . __('يوماً') : '—' }}
+                                            </span>
+                                        </div>
+
+                                        <!-- Period distribution breakdown -->
+                                        <div class="pt-2">
+                                            <span class="font-semibold text-zinc-700 dark:text-zinc-300 block mb-1.5">{{ __('توزيع أيام الخطة حسب فترات الدوام:') }}</span>
+                                            <div class="space-y-1.5 bg-zinc-50 dark:bg-zinc-800/40 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                                                @foreach($periodDistribution as $periodName => $daysCountInPeriod)
+                                                    <div class="flex justify-between items-center text-xs">
+                                                        <span class="flex items-center gap-1.5">
+                                                            <span class="size-1.5 rounded-full {{ $periodName === 'خارج فترات الدوام' || $periodName === 'أيام خارج فترات الدوام' ? 'bg-amber-400' : 'bg-emerald-500' }}"></span>
+                                                            {{ $periodName }}
+                                                        </span>
+                                                        <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ $daysCountInPeriod }} {{ __('يوم') }}</span>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+
+                                        @if(count(array_keys($periodDistribution)) > 1 && !isset($periodDistribution['خارج فترات الدوام']))
+                                            <div class="mt-2.5 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-lg p-2.5 text-[11px] text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                                                {{ __('تنبيه: ستمتد هذه الخطة عبر فترات دوام متعددة بالتقويم الأكاديمي، وسيتم تطبيق أيام الدوام المعتمدة لكل فترة تلقائياً.') }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
                     </div>
                 </div>
 
@@ -811,79 +1145,6 @@ new class extends Component {
                     </div>
                 </div>
 
-                <!-- STEP 6: Starting Surah / Memorized -->
-                <div x-show="wizardStep == 6" x-cloak class="space-y-6 text-center animate-in fade-in zoom-in duration-300">
-                    <div
-                        class="mx-auto bg-teal-50 dark:bg-zinc-800 w-16 h-16 rounded-full flex items-center justify-center text-teal-500 mb-4">
-                        <flux:icon icon="map-pin" class="size-8" />
-                    </div>
-
-                    <template x-if="planType === 'review'">
-                        <div>
-                            <flux:heading size="lg" class="mb-2">{{ __('إلى أين يحفظ الطالب؟') }}</flux:heading>
-                            <p class="text-sm text-zinc-500 mb-6 px-4">
-                                {{ __('هذا سيمثل الحاجز أو النهاية التي تتوقف عندها خطة المراجعة ولن تتجاوزها.') }}
-                            </p>
-                            <div
-                                class="max-w-md mx-auto text-right space-y-4 bg-zinc-50 dark:bg-zinc-800 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700">
-                                <flux:select wire:model.live="memorizedUpToSurah"
-                                    label="{{ __('غيباً وإتقاناً حتى سورة:') }}">
-                                    @foreach($allSurahs as $surah)
-                                        <flux:select.option value="{{ $surah->id }}">{{ $surah->name_arabic }}
-                                        </flux:select.option>
-                                    @endforeach
-                                </flux:select>
-
-                                <div>
-                                    <flux:label>{{ __('وحتى آية:') }}</flux:label>
-                                    <select wire:model="memorizedUpToVerse"
-                                        class="w-full text-sm p-2 border border-zinc-200 rounded-lg dark:bg-zinc-900 dark:border-zinc-700">
-                                        @php
-                                            $memSurah = $allSurahs->find($memorizedUpToSurah);
-                                            $memCount = $memSurah?->verses_count ?? 1;
-                                        @endphp
-                                        @for($i = 1; $i <= $memCount; $i++)
-                                            <option value="{{ $i }}">{{ __('آية') }} {{ $i }}</option>
-                                        @endfor
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-
-                    <template x-if="planType !== 'review'">
-                        <div>
-                            <flux:heading size="lg" class="mb-2">{{ __('ما هي نقطة البداية الافتراضية للجدول؟') }}
-                            </flux:heading>
-                            <p class="text-sm text-zinc-500 mb-6 px-4">
-                                {{ __('سيتم ملء اليوم الأول بهذه السورة ويمكنك إكمال الجدول تلقائياً منها.') }}
-                            </p>
-                            <div
-                                class="max-w-md mx-auto text-right space-y-4 bg-zinc-50 dark:bg-zinc-800 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700">
-                                <flux:select wire:model.live="bulkStartSurah" label="{{ __('السورة') }}">
-                                    @foreach($allSurahs as $surah)
-                                        <flux:select.option value="{{ $surah->id }}">{{ $surah->name_arabic }}
-                                        </flux:select.option>
-                                    @endforeach
-                                </flux:select>
-
-                                <div>
-                                    <flux:label>{{ __('الآية') }}</flux:label>
-                                    <select wire:model="bulkStartVerse"
-                                        class="w-full text-sm p-2 border border-zinc-200 rounded-lg dark:bg-zinc-900 dark:border-zinc-700">
-                                        @php
-                                            $startSurah = $allSurahs->find($bulkStartSurah);
-                                            $startCount = $startSurah?->verses_count ?? 1;
-                                        @endphp
-                                        @for($i = 1; $i <= $startCount; $i++)
-                                            <option value="{{ $i }}">{{ __('آية') }} {{ $i }}</option>
-                                        @endfor
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
             </div>
 
             <!-- Footer Toolbar -->
@@ -894,15 +1155,15 @@ new class extends Component {
                     {{ __('السابق') }}
                 </flux:button>
 
-                <template x-if="wizardStep < 6">
+                <template x-if="wizardStep < 5">
                     <flux:button variant="primary" @click="goNext" class="min-w-[120px]">
                         {{ __('التالي') }}
                     </flux:button>
                 </template>
-                <template x-if="wizardStep == 6">
-                    <flux:button variant="primary" wire:click="generateDays" icon="sparkles"
+                <template x-if="wizardStep == 5">
+                    <flux:button variant="primary" wire:click="generateDays" icon="calendar"
                         class="min-w-[120px] bg-indigo-600 hover:bg-indigo-700 border-none">
-                        {{ __('توليد وتأكيد الجدول') }}
+                        {{ __('اكمال بيانات الايام') }}
                     </flux:button>
                 </template>
             </div>
@@ -939,7 +1200,7 @@ new class extends Component {
                     class="flex items-center gap-2 bg-white dark:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1">
                     <span class="text-xs text-zinc-500">{{ __('تاريخ البدء:') }}</span>
                     <div class="w-40">
-                        <livewire:teacher.hijri-datepicker wire:model.live="startDate" />
+                        <livewire:shared.hijri-datepicker wire:model.live="startDate" :show-attendance-days="true" />
                     </div>
                 </div>
                 <flux:button wire:click="resetPlan" variant="ghost" icon="arrow-path"
@@ -950,9 +1211,9 @@ new class extends Component {
         </flux:card>
 
         <!-- TABLE SECTION -->
-        <div class="space-y-4 lg:h-[80vh] h-auto -mx-2 sm:mx-0">
+        <div class="space-y-4 lg:h-[80vh] h-auto -mx-2 sm:mx-0 flex flex-col">
             @if(count($planDays) > 0)
-                <flux:card class="p-0 overflow-hidden flex flex-col border-x-0 rounded-none sm:border-x sm:rounded-xl">
+                <flux:card class="p-0 overflow-hidden flex flex-col border-x-0 rounded-none sm:border-x sm:rounded-xl h-full flex-1">
 
                     {{-- Toolbar --}}
                     <div
