@@ -6,6 +6,7 @@ use App\Models\Attendance as AttendanceModel;
 use App\Models\Setting;
 use App\Models\Student;
 use Flux\Flux;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
@@ -54,6 +55,7 @@ class Attendance extends Component
         $this->loadStudents();
     }
 
+    #[On('student-list-updated')]
     public function loadStudents(): void
     {
         if (! $this->selectedCircle) {

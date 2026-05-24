@@ -9,10 +9,17 @@ use App\Services\LeaderboardService;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class LeaderboardGrade extends Component
 {
+    #[On('student-list-updated')]
+    public function refreshStudents(): void
+    {
+        // Livewire automatically re-renders
+    }
+
     public $leaderboardId;
 
     public $date;
@@ -52,7 +59,7 @@ class LeaderboardGrade extends Component
             'date' => 'required|date',
         ]);
 
-        if (!$amount || !$notes) {
+        if (! $amount || ! $notes) {
             return;
         }
 

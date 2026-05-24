@@ -58,6 +58,7 @@ new class extends Component {
         $student = Student::whereNull('circle_id')->findOrFail($studentId);
         $student->update(['circle_id' => $circle->id, 'joined_at' => now()->format('Y-m-d')]);
 
+        $this->dispatch('student-list-updated');
         Flux::toast('تمت إضافة الطالب للحلقة بنجاح', variant: 'success');
     }
 
@@ -82,6 +83,7 @@ new class extends Component {
             'notes' => 'تمت إزالته من الحلقة عبر إدارة الطلاب',
         ]);
 
+        $this->dispatch('student-list-updated');
         Flux::modal('student-details')->close();
         Flux::toast('تم إزالة الطالب من الحلقة بنجاح', variant: 'success');
     }
@@ -126,6 +128,7 @@ new class extends Component {
             'notes' => 'تسجيل جديد',
         ]);
 
+        $this->dispatch('student-list-updated');
         $this->reset(['name', 'phone']);
         $this->resetPage();
 
@@ -204,6 +207,8 @@ new class extends Component {
                 'start_date' => now(),
             ]);
         }
+
+        $this->dispatch('student-list-updated');
 
         if ($statusBlockedByPermission) {
             Flux::toast('تم حفظ البيانات، لكن تغيير الحالة غير مسموح به لك', variant: 'warning');

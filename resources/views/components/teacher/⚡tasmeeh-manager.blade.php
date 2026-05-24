@@ -9,7 +9,6 @@ use Flux\Flux;
 use Livewire\Attributes\On;
 
 new class extends Component {
-    public $navigatedDays = []; // [student_id => day_id]
     public $selectedPlans = []; // [student_id => plan_id]
 
     // Reservation session properties
@@ -31,6 +30,7 @@ new class extends Component {
     #[On('attendance-updated')]
     #[On('attendance-cleared')]
     #[On('plan-created')]
+    #[On('student-list-updated')]
     public function refreshData()
     {
         $this->refreshToggle = ! $this->refreshToggle;
@@ -55,15 +55,19 @@ new class extends Component {
 
         foreach ($students as $student) {
             $sPlans = $studentPlansList[$student->id] ?? collect();
-            if ($sPlans->isEmpty()) continue;
+            if ($sPlans->isEmpty()) {
+                continue;
+            }
 
             $chosenPlanId = $this->selectedPlans[$student->id] ?? null;
-            $activePlan = $chosenPlanId 
-                ? $sPlans->firstWhere('id', $chosenPlanId) 
+            $activePlan = $chosenPlanId
+                ? $sPlans->firstWhere('id', $chosenPlanId)
                 : $sPlans->firstWhere('status', 'active');
-            
-            if (!$activePlan) $activePlan = $sPlans->first(); // fallback to latest
-            
+
+            if (! $activePlan) {
+                $activePlan = $sPlans->first(); // fallback to latest
+            }
+
             $activePlans[$student->id] = $activePlan;
         }
 
@@ -132,7 +136,7 @@ new class extends Component {
                         }
                     }
 
-                    if (!$hasTasks) {
+                    if (! $hasTasks) {
                         $color = 'zinc'; // No actual tasks today
                     } elseif ($totalRequired > 0 && $completedCount === $totalRequired) {
                         $color = 'emerald'; // Full
@@ -161,56 +165,37 @@ new class extends Component {
 
         // Determine the display day for each active plan
         $activePlanIds = collect($activePlans)->pluck('id');
-        $allPlanDays = StudentPlanDay::whereIn('student_plan_id', $activePlanIds)
+        $allPlanDays = StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah', 'plan'])
+            ->whereIn('student_plan_id', $activePlanIds)
             ->orderBy('date', 'asc')
-            ->get(['id', 'student_plan_id', 'date', 'hifz_achievement', 'review_achievement'])
+            ->get()
             ->groupBy('student_plan_id');
 
-        $defaultDayIds = [];
-        foreach ($activePlans as $studentId => $plan) {
-            if (isset($this->navigatedDays[$studentId])) {
-                $defaultDayIds[] = $this->navigatedDays[$studentId];
-            } else {
-                $days = $allPlanDays->get($plan->id) ?? collect();
-                
-                $oldestIncomplete = $days->first(function ($day) use ($plan) {
-                    if ($plan->plan_type === 'hifz') {
-                        return is_null($day->hifz_achievement);
-                    } elseif ($plan->plan_type === 'review') {
-                        return is_null($day->review_achievement);
-                    } else {
-                        return is_null($day->hifz_achievement) || is_null($day->review_achievement);
-                    }
-                });
+        $defaultDayIdsMap = [];
+        $studentPlanDayIdsMap = [];
 
-                if ($oldestIncomplete) {
-                    $defaultDayIds[] = $oldestIncomplete->id;
+        foreach ($activePlans as $studentId => $plan) {
+            $days = $allPlanDays->get($plan->id) ?? collect();
+            $studentPlanDayIdsMap[$studentId] = $days->pluck('id')->toArray();
+
+            $oldestIncomplete = $days->first(function ($day) use ($plan) {
+                if ($plan->plan_type === 'hifz') {
+                    return is_null($day->hifz_achievement);
+                } elseif ($plan->plan_type === 'review') {
+                    return is_null($day->review_achievement);
                 } else {
-                    $lastDay = $days->last();
-                    if ($lastDay) {
-                        $defaultDayIds[] = $lastDay->id;
-                    }
+                    return is_null($day->hifz_achievement) || is_null($day->review_achievement);
+                }
+            });
+
+            if ($oldestIncomplete) {
+                $defaultDayIdsMap[$studentId] = $oldestIncomplete->id;
+            } else {
+                $lastDay = $days->last();
+                if ($lastDay) {
+                    $defaultDayIdsMap[$studentId] = $lastDay->id;
                 }
             }
-        }
-
-        $activeDays = StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah', 'plan'])
-            ->whereIn('id', $defaultDayIds)
-            ->get()
-            ->keyBy(function($day) { return $day->plan->student_id; });
-
-        $hasNext = [];
-        $hasPrev = [];
-        foreach ($activeDays as $studentId => $day) {
-            $days = $allPlanDays->get($day->student_plan_id) ?? collect();
-            $dayDate = \Carbon\Carbon::parse($day->date)->format('Y-m-d');
-
-            $hasNext[$studentId] = $days->contains(function ($d) use ($dayDate) {
-                return \Carbon\Carbon::parse($d->date)->format('Y-m-d') > $dayDate;
-            });
-            $hasPrev[$studentId] = $days->contains(function ($d) use ($dayDate) {
-                return \Carbon\Carbon::parse($d->date)->format('Y-m-d') < $dayDate;
-            });
         }
 
         $studentsWithPlansPresent = collect($studentsWithPlansPresent)->sortBy('turn_number')->values();
@@ -221,9 +206,9 @@ new class extends Component {
             'studentsWithoutPlans' => collect($studentsWithoutPlans),
             'studentPlansList' => $studentPlansList,
             'activePlans' => $activePlans,
-            'activeDays' => $activeDays,
-            'hasNext' => $hasNext,
-            'hasPrev' => $hasPrev,
+            'allPlanDays' => $allPlanDays,
+            'defaultDayIdsMap' => $defaultDayIdsMap,
+            'studentPlanDayIdsMap' => $studentPlanDayIdsMap,
             'activeSession' => $activeSession,
         ];
     }
@@ -231,34 +216,38 @@ new class extends Component {
     public function selectPlan($studentId, $planId)
     {
         $this->selectedPlans[$studentId] = $planId;
-        unset($this->navigatedDays[$studentId]); // Reset to default day for new plan
-    }
 
-    public function previousDay($studentId, $currentDayId)
-    {
-        $currentDay = StudentPlanDay::find($currentDayId);
-        if ($currentDay) {
-            $prev = StudentPlanDay::where('student_plan_id', $currentDay->student_plan_id)
-                ->whereDate('date', '<', \Carbon\Carbon::parse($currentDay->date)->format('Y-m-d'))
-                ->orderBy('date', 'desc')
-                ->first();
-            if ($prev) {
-                $this->navigatedDays[$studentId] = $prev->id;
+        $plan = StudentPlan::find($planId);
+        $defaultDayId = null;
+        $dayIds = [];
+        if ($plan) {
+            $days = StudentPlanDay::where('student_plan_id', $plan->id)
+                ->orderBy('date', 'asc')
+                ->get();
+            $dayIds = $days->pluck('id')->toArray();
+
+            $oldestIncomplete = $days->first(function ($day) use ($plan) {
+                if ($plan->plan_type === 'hifz') {
+                    return is_null($day->hifz_achievement);
+                } elseif ($plan->plan_type === 'review') {
+                    return is_null($day->review_achievement);
+                } else {
+                    return is_null($day->hifz_achievement) || is_null($day->review_achievement);
+                }
+            });
+
+            if ($oldestIncomplete) {
+                $defaultDayId = $oldestIncomplete->id;
+            } else {
+                $lastDay = $days->last();
+                if ($lastDay) {
+                    $defaultDayId = $lastDay->id;
+                }
             }
         }
-    }
 
-    public function nextDay($studentId, $currentDayId)
-    {
-        $currentDay = StudentPlanDay::find($currentDayId);
-        if ($currentDay) {
-            $next = StudentPlanDay::where('student_plan_id', $currentDay->student_plan_id)
-                ->whereDate('date', '>', \Carbon\Carbon::parse($currentDay->date)->format('Y-m-d'))
-                ->orderBy('date', 'asc')
-                ->first();
-            if ($next) {
-                $this->navigatedDays[$studentId] = $next->id;
-            }
+        if ($defaultDayId) {
+            $this->dispatch('plan-default-day-updated', studentId: (int) $studentId, dayId: (int) $defaultDayId, dayIds: $dayIds);
         }
     }
 
@@ -283,13 +272,6 @@ new class extends Component {
         }
 
         StudentPlanDay::where('id', $dayId)->update($updateData);
-        
-        // Lock the navigated day so the UI doesn't suddenly jump to the next incomplete day
-        // which makes it look like the button reverted to an ungraded state
-        $day = StudentPlanDay::with('plan')->find($dayId);
-        if ($day) {
-            $this->navigatedDays[$day->plan->student_id] = $dayId;
-        }
 
         Flux::toast('تم حفظ التقييم', variant: 'success');
     }
@@ -355,7 +337,6 @@ new class extends Component {
         $this->showSessionModal = false;
         Flux::toast('تم حفظ إعدادات حجز الأدوار بنجاح', variant: 'success');
     }
-
 };
 ?>
 
@@ -366,7 +347,42 @@ hifz/review — local state per day card for instant visual feedback
 --}}
 <div class="space-y-6" x-data="{
         activeStudentId: null,
-     }">
+        activeDayId: @js($defaultDayIdsMap),
+        studentPlanDayIds: @js($studentPlanDayIdsMap),
+
+        hasPrevDay(studentId) {
+            const dayIds = this.studentPlanDayIds[studentId] || [];
+            const currentId = this.activeDayId[studentId];
+            const currentIndex = dayIds.indexOf(currentId);
+            return currentIndex > 0;
+        },
+        hasNextDay(studentId) {
+            const dayIds = this.studentPlanDayIds[studentId] || [];
+            const currentId = this.activeDayId[studentId];
+            const currentIndex = dayIds.indexOf(currentId);
+            return currentIndex !== -1 && currentIndex < dayIds.length - 1;
+        },
+        prevDay(studentId) {
+            const dayIds = this.studentPlanDayIds[studentId] || [];
+            const currentId = this.activeDayId[studentId];
+            const currentIndex = dayIds.indexOf(currentId);
+            if (currentIndex > 0) {
+                this.activeDayId[studentId] = dayIds[currentIndex - 1];
+            }
+        },
+        nextDay(studentId) {
+            const dayIds = this.studentPlanDayIds[studentId] || [];
+            const currentId = this.activeDayId[studentId];
+            const currentIndex = dayIds.indexOf(currentId);
+            if (currentIndex !== -1 && currentIndex < dayIds.length - 1) {
+                this.activeDayId[studentId] = dayIds[currentIndex + 1];
+            }
+        }
+     }"
+     @plan-default-day-updated.window="
+        activeDayId[$event.detail.studentId] = $event.detail.dayId;
+        studentPlanDayIds[$event.detail.studentId] = $event.detail.dayIds;
+     ">
 
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -551,9 +567,6 @@ hifz/review — local state per day card for instant visual feedback
                     @php
                         $sPlans = $studentPlansList[$student->id] ?? collect();
                         $activePlan = $activePlans[$student->id] ?? null;
-                        $currentDay = $activeDays[$student->id] ?? null;
-                        $sHasNext = $hasNext[$student->id] ?? false;
-                        $sHasPrev = $hasPrev[$student->id] ?? false;
                     @endphp
 
                     @if($sPlans->isNotEmpty())
@@ -573,21 +586,26 @@ hifz/review — local state per day card for instant visual feedback
                             </flux:select>
                         </div>
 
-                        @if($currentDay)
-                            <flux:card wire:key="day-card-{{ $currentDay->id }}" x-data="{ syncingTask: null }" class="mt-2 border-zinc-200 dark:border-zinc-700">
+                        @php
+                            $days = $activePlan ? ($allPlanDays->get($activePlan->id) ?? collect()) : collect();
+                        @endphp
+
+                        @foreach($days as $day)
+                            @php $currentDay = $day; @endphp
+                            <flux:card wire:key="day-card-{{ $day->id }}" x-show="activeDayId[{{ $student->id }}] === {{ $day->id }}" x-data="{ syncingTask: null }" class="mt-2 border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveAchievement">
 
                                 {{-- Day navigation --}}
                                 <div class="flex items-center justify-between mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-4">
-                                    <flux:button wire:click="previousDay({{ $student->id }}, {{ $currentDay->id }})" :disabled="!$sHasPrev" icon="chevron-right" variant="subtle" size="sm">
+                                    <flux:button type="button" @click="prevDay({{ $student->id }})" x-bind:disabled="!hasPrevDay({{ $student->id }})" icon="chevron-right" variant="subtle" size="sm">
                                         {{ __('اليوم السابق') }}
                                     </flux:button>
 
                                     <div class="text-center">
-                                        <div class="font-bold text-lg">{{ $currentDay->day_name }}</div>
-                                        <div class="text-zinc-500 text-sm dir-ltr">{{ $currentDay->date->format('Y/m/d') }}</div>
+                                        <div class="font-bold text-lg">{{ $day->day_name }}</div>
+                                        <div class="text-zinc-500 text-sm dir-ltr">{{ $day->date->format('Y/m/d') }}</div>
                                     </div>
 
-                                    <flux:button wire:click="nextDay({{ $student->id }}, {{ $currentDay->id }})" :disabled="!$sHasNext" icon-trailing="chevron-left" variant="subtle" size="sm">
+                                    <flux:button type="button" @click="nextDay({{ $student->id }})" x-bind:disabled="!hasNextDay({{ $student->id }})" icon-trailing="chevron-left" variant="subtle" size="sm">
                                         {{ __('اليوم التالي') }}
                                     </flux:button>
                                 </div>
@@ -784,7 +802,7 @@ hifz/review — local state per day card for instant visual feedback
                                     @endif
                                 </div>
                             </flux:card>
-                        @endif
+                        @endforeach
                     @else
                         <div class="flex flex-col items-center justify-center p-12 bg-zinc-50/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl text-center h-full min-h-[400px]">
                             <flux:icon icon="document-text" class="size-16 text-zinc-300 dark:text-zinc-600 mb-4" />

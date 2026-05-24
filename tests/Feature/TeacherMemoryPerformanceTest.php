@@ -1,9 +1,11 @@
 <?php
 
 use App\Livewire\Teacher\Attendance;
+use App\Livewire\Teacher\LeaderboardGrade;
 use App\Livewire\Teacher\Leaderboards;
 use App\Models\Ayah;
 use App\Models\Circle;
+use App\Models\Leaderboard;
 use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
@@ -189,4 +191,44 @@ test('teacher leaderboards component renders efficiently within budgets', functi
     // Leaderboards list circle leaderboards.
     expect($queryCount)->toBeLessThan(15);
     expect($memUsed)->toBeLessThan(15 * 1024 * 1024);
+});
+
+test('teacher student-manager dispatches student-list-updated event on student creation', function () {
+    $teacher = $this->teacher;
+    $permissions = $teacher->permissions ?? [];
+    $permissions['can_create_students'] = true;
+    $teacher->permissions = $permissions;
+    $teacher->save();
+
+    Livewire::test('teacher.⚡student-manager')
+        ->set('name', 'New Student')
+        ->set('phone', '0500000000')
+        ->call('createStudent')
+        ->assertDispatched('student-list-updated');
+});
+
+test('teacher attendance component listens to student-list-updated event', function () {
+    Livewire::test(Attendance::class)
+        ->dispatch('student-list-updated')
+        ->assertStatus(200);
+});
+
+test('teacher tasmeeh-manager component listens to student-list-updated event', function () {
+    Livewire::test('teacher.⚡tasmeeh-manager')
+        ->dispatch('student-list-updated')
+        ->assertStatus(200);
+});
+
+test('teacher leaderboard-grade component listens to student-list-updated event', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'Test Leaderboard',
+        'is_active' => true,
+        'start_date' => now(),
+        'end_date' => now()->addDays(7),
+    ]);
+
+    Livewire::test(LeaderboardGrade::class, ['leaderboardId' => $leaderboard->id])
+        ->dispatch('student-list-updated')
+        ->assertStatus(200);
 });
