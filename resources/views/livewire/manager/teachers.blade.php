@@ -133,8 +133,10 @@
                     <form wire:submit="save" class="space-y-4">
                         <flux:input label="الاسم" wire:model="name" required />
                         <flux:input label="البريد الإلكتروني" wire:model="email" type="email" required />
-                        <flux:input label="رقم الجوال" wire:model="phone" placeholder="9665xxxxxxx" dir="ltr"
-                            class="text-right" />
+                        <div class="flex items-end gap-2">
+                            <flux:input label="رقم الجوال" wire:model="phone" placeholder="9665xxxxxxx" dir="ltr"
+                                class="text-right flex-1" />
+                        </div>
 
                         <div class="space-y-2">
                             <flux:heading size="sm">{{ __('تعيين الحلقات') }}</flux:heading>
@@ -159,6 +161,19 @@
                     </form>
 
                     <flux:separator />
+
+                    @if ($phone)
+                        @php
+                            $whatsappPhone = preg_replace('/[^0-9]/', '', $phone);
+                            $whatsappPhone = ltrim($whatsappPhone, '0');
+                            $whatsappPhone = str_starts_with($whatsappPhone, '966') ? $whatsappPhone : '966' . $whatsappPhone;
+                        @endphp
+                        <flux:button variant="ghost" size="sm" icon="chat-bubble-left-ellipsis"
+                            class="text-emerald-600 dark:text-emerald-400" href="https://wa.me/{{ $whatsappPhone }}"
+                            target="_blank">
+                            {{ __('مراسلة') }}
+                        </flux:button>
+                    @endif
 
                     <!-- Additional Info -->
                     <div class="space-y-4">

@@ -35,6 +35,10 @@ class Students extends Component
 
     public $guardian_id = null;
 
+    public string $editStatus = 'active';
+
+    public string $editJoinedAt = '';
+
     public function mount()
     {
         $this->circles = Circle::with('stage')->get();
@@ -47,8 +51,8 @@ class Students extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('name', 'like', '%' . $this->search . '%')
-                    ->orWhere('email', 'like', '%' . $this->search . '%');
+                $q->where('name', 'like', '%'.$this->search.'%')
+                    ->orWhere('email', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -94,7 +98,7 @@ class Students extends Component
     {
         $student = Student::find($id);
 
-        if (!$student) {
+        if (! $student) {
             Flux::toast(__('الطالب غير موجود'), variant: 'danger');
 
             return;
@@ -110,6 +114,7 @@ class Students extends Component
     }
 
     public $viewingStudent = null;
+
     public $stats = [];
 
     public function edit($id)
@@ -124,7 +129,7 @@ class Students extends Component
             'statusHistories',
         ])->find($id);
 
-        if (!$this->viewingStudent) {
+        if (! $this->viewingStudent) {
             Flux::toast(__('الطالب غير موجود'), variant: 'danger');
 
             return;
@@ -151,7 +156,7 @@ class Students extends Component
     {
         $this->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:students,email,' . $this->editingStudentId,
+            'email' => 'required|email|unique:students,email,'.$this->editingStudentId,
             'circle_id' => 'nullable|exists:circles,id',
             'guardian_id' => 'nullable|exists:guardians,id',
             'editStatus' => 'required|in:active,registering,suspended,left',
@@ -172,7 +177,6 @@ class Students extends Component
         $this->loadData();
         Flux::modal('student-modal')->close();
     }
-
 
     public function resetToken($id)
     {
@@ -196,7 +200,6 @@ class Students extends Component
         $this->loadData();
         Flux::toast(__('تم حذف الطالب بنجاح'), variant: 'success');
     }
-
 
     public function cancel()
     {

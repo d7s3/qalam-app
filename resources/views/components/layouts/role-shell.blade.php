@@ -99,7 +99,7 @@
         <x-layouts.app.header-user-menu />
     </flux:header>
 
-    <flux:main class="!p-1 !pb-32 md:!p-8 lg:!pb-8">
+    <flux:main class="!p-1 !pb-32 md:!p-8 md:!pb-32 lg:!pb-8">
         {{ $slot }}
     </flux:main>
 
