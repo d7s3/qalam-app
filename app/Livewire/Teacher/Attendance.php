@@ -6,6 +6,7 @@ use App\Models\Attendance as AttendanceModel;
 use App\Models\Setting;
 use App\Models\Student;
 use Flux\Flux;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class Attendance extends Component
@@ -14,7 +15,7 @@ class Attendance extends Component
 
     public ?int $selectedCircle = null;
 
-    #[\Livewire\Attributes\Url]
+    #[Url]
     public string $date = '';
 
     public $students;
@@ -68,18 +69,21 @@ class Attendance extends Component
             ->where('is_approved', true)
             ->where(function ($query) {
                 $query->whereNull('joined_at')
-                      ->orWhere('joined_at', '<=', $this->date);
+                    ->orWhere('joined_at', '<=', $this->date);
             })
-            ->with(['statusHistories' => function ($query) {
-                $query->where('start_date', '<=', $this->date)->orderBy('start_date', 'desc');
-            }])
+            ->with([
+                'circle',
+                'statusHistories' => function ($query) {
+                    $query->where('start_date', '<=', $this->date)->orderBy('start_date', 'desc');
+                },
+            ])
             ->orderBy('name')
             ->get();
 
         $this->students = $studentsQuery->filter(function ($student) {
             $history = $student->statusHistories->first();
             $statusOnDate = $history ? $history->status : $student->status;
-            
+
             return in_array($statusOnDate, ['active', 'registering']);
         })->values();
 

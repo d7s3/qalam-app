@@ -68,11 +68,12 @@ new class extends Component {
         }
 
         // We need all today's plan days for the active plans to check the colors
+        $planIdToStudentId = collect($activePlans)->pluck('student_id', 'id')->toArray();
         $todaysPlanDays = StudentPlanDay::whereIn('student_plan_id', collect($activePlans)->pluck('id'))
             ->whereDate('date', $todayStr)
             ->get()
-            ->groupBy(function ($day) {
-                return $day->plan->student_id;
+            ->groupBy(function ($day) use ($planIdToStudentId) {
+                return $planIdToStudentId[$day->student_plan_id] ?? null;
             });
 
         $todayAttendances = \App\Models\Attendance::whereIn('student_id', $students->pluck('id'))
@@ -159,22 +160,33 @@ new class extends Component {
         }
 
         // Determine the display day for each active plan
+        $activePlanIds = collect($activePlans)->pluck('id');
+        $allPlanDays = StudentPlanDay::whereIn('student_plan_id', $activePlanIds)
+            ->orderBy('date', 'asc')
+            ->get(['id', 'student_plan_id', 'date', 'hifz_achievement', 'review_achievement'])
+            ->groupBy('student_plan_id');
+
         $defaultDayIds = [];
         foreach ($activePlans as $studentId => $plan) {
             if (isset($this->navigatedDays[$studentId])) {
                 $defaultDayIds[] = $this->navigatedDays[$studentId];
             } else {
-                $oldestIncomplete = StudentPlanDay::where('student_plan_id', $plan->id)
-                    ->where(function ($q) {
-                        $q->whereNull('hifz_achievement')
-                          ->orWhereNull('review_achievement');
-                    })
-                    ->orderBy('date', 'asc')
-                    ->first();
+                $days = $allPlanDays->get($plan->id) ?? collect();
+                
+                $oldestIncomplete = $days->first(function ($day) use ($plan) {
+                    if ($plan->plan_type === 'hifz') {
+                        return is_null($day->hifz_achievement);
+                    } elseif ($plan->plan_type === 'review') {
+                        return is_null($day->review_achievement);
+                    } else {
+                        return is_null($day->hifz_achievement) || is_null($day->review_achievement);
+                    }
+                });
+
                 if ($oldestIncomplete) {
                     $defaultDayIds[] = $oldestIncomplete->id;
                 } else {
-                    $lastDay = StudentPlanDay::where('student_plan_id', $plan->id)->orderBy('date', 'desc')->first();
+                    $lastDay = $days->last();
                     if ($lastDay) {
                         $defaultDayIds[] = $lastDay->id;
                     }
@@ -190,12 +202,15 @@ new class extends Component {
         $hasNext = [];
         $hasPrev = [];
         foreach ($activeDays as $studentId => $day) {
-            $hasNext[$studentId] = StudentPlanDay::where('student_plan_id', $day->student_plan_id)
-                ->whereDate('date', '>', \Carbon\Carbon::parse($day->date)->format('Y-m-d'))
-                ->exists();
-            $hasPrev[$studentId] = StudentPlanDay::where('student_plan_id', $day->student_plan_id)
-                ->whereDate('date', '<', \Carbon\Carbon::parse($day->date)->format('Y-m-d'))
-                ->exists();
+            $days = $allPlanDays->get($day->student_plan_id) ?? collect();
+            $dayDate = \Carbon\Carbon::parse($day->date)->format('Y-m-d');
+
+            $hasNext[$studentId] = $days->contains(function ($d) use ($dayDate) {
+                return \Carbon\Carbon::parse($d->date)->format('Y-m-d') > $dayDate;
+            });
+            $hasPrev[$studentId] = $days->contains(function ($d) use ($dayDate) {
+                return \Carbon\Carbon::parse($d->date)->format('Y-m-d') < $dayDate;
+            });
         }
 
         $studentsWithPlansPresent = collect($studentsWithPlansPresent)->sortBy('turn_number')->values();
