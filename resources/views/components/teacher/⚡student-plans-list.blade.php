@@ -219,6 +219,8 @@ new class extends Component {
                                         icon="pencil">{{ __('تعديل') }}</flux:menu.item>
                                     <flux:menu.item href="{{ route('teacher.print-plan', $plan->id) }}" target="_blank"
                                         icon="printer">{{ __('عرض وطباعة') }}</flux:menu.item>
+                                    <flux:menu.item href="{{ route('teacher.download-plan-pdf', $plan->id) }}"
+                                        icon="document-arrow-down">{{ __('تحميل كـ PDF') }}</flux:menu.item>
 
                                     <flux:menu.separator />
 

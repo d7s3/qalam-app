@@ -3,15 +3,16 @@
 use App\Livewire\Auth\Manager\Login;
 use App\Livewire\Auth\Manager\Register;
 use App\Livewire\Manager\PendingApprovals;
+use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\Supervisor;
 use App\Models\Surah;
 use App\Models\Teacher;
-use App\Models\Circle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Mccarlosen\LaravelMpdf\Facades\LaravelMpdf;
 
 Route::get('/', function () {
     $stats = [
@@ -185,6 +186,34 @@ Route::middleware(['auth:teacher', 'approved'])->prefix('teacher')->name('teache
 
         return view('teacher.print-plan', compact('plan'));
     })->name('print-plan');
+
+    Route::get('/student-plans/{id}/download-pdf', function ($id) {
+        $plan = StudentPlan::with([
+            'student.circle',
+            'days.fromAyah.surah',
+            'days.toAyah.surah',
+            'days.reviewFromAyah.surah',
+            'days.reviewToAyah.surah',
+        ])->findOrFail($id);
+
+        if (! auth()->guard('teacher')->user()->circles->contains($plan->student->circle_id)) {
+            abort(403);
+        }
+
+        $pdf = LaravelMpdf::loadView('pdf.student-plan', compact('plan'), [], [
+            'format' => 'A4',
+            'autoScriptToLang' => true,
+            'autoLangToFont' => true,
+            'useSubstitutions' => true,
+            'useAdobeCJK' => true,
+        ]);
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'plan_'.$plan->student->name.'.pdf', [
+            'Content-Type' => 'application/pdf',
+        ]);
+    })->name('download-plan-pdf');
 });
 Route::middleware(['auth:student', 'approved'])->prefix('student')->name('student.')->group(function () {
     Route::get('/dashboard', fn () => view('student.dashboard'))->name('dashboard');
