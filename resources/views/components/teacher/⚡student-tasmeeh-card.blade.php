@@ -8,7 +8,9 @@ use Flux\Flux;
 use Livewire\Attributes\Reactive;
 
 new class extends Component {
-    public $studentId;
+    public $student;
+
+    public $sPlans;
 
     public $activePlanId;
 
@@ -17,47 +19,17 @@ new class extends Component {
 
     public $selectedPlanId;
 
-    public function mount()
+    public function mount($student, $sPlans, $activePlanId)
     {
+        $this->student = $student;
+        $this->sPlans = $sPlans;
+        $this->activePlanId = $activePlanId;
         $this->selectedPlanId = $this->activePlanId;
     }
 
     public function selectPlan($planId)
     {
         $this->selectedPlanId = $planId;
-
-        $plan = StudentPlan::find($planId);
-        $defaultDayId = null;
-        $dayIds = [];
-        if ($plan) {
-            $days = StudentPlanDay::where('student_plan_id', $plan->id)
-                ->orderBy('date', 'asc')
-                ->get();
-            $dayIds = $days->pluck('id')->toArray();
-
-            $oldestIncomplete = $days->first(function ($day) use ($plan) {
-                if ($plan->plan_type === 'hifz') {
-                    return is_null($day->hifz_achievement);
-                } elseif ($plan->plan_type === 'review') {
-                    return is_null($day->review_achievement);
-                } else {
-                    return is_null($day->hifz_achievement) || is_null($day->review_achievement);
-                }
-            });
-
-            if ($oldestIncomplete) {
-                $defaultDayId = $oldestIncomplete->id;
-            } else {
-                $lastDay = $days->last();
-                if ($lastDay) {
-                    $defaultDayId = $lastDay->id;
-                }
-            }
-        }
-
-        if ($defaultDayId) {
-            $this->dispatch('plan-default-day-updated', studentId: (int) $this->studentId, dayId: (int) $defaultDayId, dayIds: $dayIds);
-        }
     }
 
     public function saveAchievement($dayId, $type, $value)
@@ -87,25 +59,47 @@ new class extends Component {
 
     public function with()
     {
-        $student = Student::find($this->studentId);
-        $sPlans = StudentPlan::where('student_id', $this->studentId)
-            ->latest()
-            ->get();
-
         $activePlan = null;
         if ($this->selectedPlanId) {
-            $activePlan = $sPlans->firstWhere('id', $this->selectedPlanId);
+            $activePlan = $this->sPlans->firstWhere('id', $this->selectedPlanId);
         }
         if (!$activePlan) {
-            $activePlan = $sPlans->firstWhere('status', 'active') ?: $sPlans->first();
+            $activePlan = $this->sPlans->firstWhere('status', 'active') ?: $this->sPlans->first();
         }
 
         $days = collect();
+        $defaultDayId = null;
+        $dayIds = [];
+
         if ($activePlan) {
-            $days = StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah', 'plan'])
-                ->where('student_plan_id', $activePlan->id)
-                ->orderBy('date', 'asc')
-                ->get();
+            if (app()->bound('tasmeeh_days_cache')) {
+                $days = app('tasmeeh_days_cache')->get($activePlan->id) ?? collect();
+            } else {
+                $days = StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah', 'plan'])
+                    ->where('student_plan_id', $activePlan->id)
+                    ->orderBy('date', 'asc')
+                    ->get();
+            }
+
+            if ($days->isNotEmpty()) {
+                $dayIds = $days->pluck('id')->toArray();
+
+                $oldestIncomplete = $days->first(function ($day) use ($activePlan) {
+                    if ($activePlan->plan_type === 'hifz') {
+                        return is_null($day->hifz_achievement);
+                    } elseif ($activePlan->plan_type === 'review') {
+                        return is_null($day->review_achievement);
+                    } else {
+                        return is_null($day->hifz_achievement) || is_null($day->review_achievement);
+                    }
+                });
+
+                if ($oldestIncomplete) {
+                    $defaultDayId = $oldestIncomplete->id;
+                } else {
+                    $defaultDayId = $days->last()->id;
+                }
+            }
         }
 
         // Request-static cache to completely avoid N+1 queries for Surah loading inside loops
@@ -115,17 +109,52 @@ new class extends Component {
         }
 
         return [
-            'student' => $student,
-            'sPlans' => $sPlans,
+            'student' => $this->student,
+            'sPlans' => $this->sPlans,
             'activePlan' => $activePlan,
             'days' => $days,
             'allSurahs' => $cachedSurahs,
+            'defaultDayId' => $defaultDayId,
+            'dayIds' => $dayIds,
         ];
     }
 };
 ?>
 
-<div>
+<div x-data="{
+    activeDayId: @js($defaultDayId),
+    studentPlanDayIds: @js($dayIds),
+
+    init() {
+        console.log('⚡ Student Tasmeeh Card Init:', {
+            studentId: {{ $student->id }},
+            activeDayId: this.activeDayId,
+            studentPlanDayIds: this.studentPlanDayIds
+        });
+    },
+    hasPrevDay() {
+        const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
+        return index > 0;
+    },
+    hasNextDay() {
+        const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
+        return index !== -1 && index < this.studentPlanDayIds.length - 1;
+    },
+    prevDay() {
+        const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
+        if (index > 0) {
+            this.activeDayId = this.studentPlanDayIds[index - 1];
+        }
+    },
+    nextDay() {
+        const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
+        if (index !== -1 && index < this.studentPlanDayIds.length - 1) {
+            this.activeDayId = this.studentPlanDayIds[index + 1];
+        }
+    }
+}"
+wire:key="student-tasmeeh-container-{{ $student->id }}-{{ $selectedPlanId }}"
+>
     @if($sPlans->isNotEmpty())
         <div class="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm mb-4">
             <flux:select wire:change="selectPlan($event.target.value)" label="{{ __('الخطة القرآنية') }}" placeholder="{{ __('اختر الخطة') }}">
@@ -145,11 +174,11 @@ new class extends Component {
 
         @foreach($days as $day)
             @php $currentDay = $day; @endphp
-            <flux:card wire:key="day-card-{{ $day->id }}" x-show="activeDayId[{{ $student->id }}] === {{ $day->id }}" x-data="{ syncingTask: null }" class="mt-2 border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveAchievement">
+            <flux:card wire:key="day-card-{{ $day->id }}" x-show="activeDayId == {{ $day->id }}" x-data="{ syncingTask: null }" class="mt-2 border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveAchievement">
 
                 {{-- Day navigation --}}
                 <div class="flex items-center justify-between mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-4">
-                    <flux:button type="button" @click="prevDay({{ $student->id }})" x-bind:disabled="!hasPrevDay({{ $student->id }})" icon="chevron-right" variant="subtle" size="sm">
+                    <flux:button type="button" @click="prevDay()" x-bind:disabled="!hasPrevDay()" icon="chevron-right" variant="subtle" size="sm">
                         {{ __('اليوم السابق') }}
                     </flux:button>
 
@@ -158,7 +187,7 @@ new class extends Component {
                         <div class="text-zinc-500 text-sm dir-ltr">{{ $day->date->format('Y/m/d') }}</div>
                     </div>
 
-                    <flux:button type="button" @click="nextDay({{ $student->id }})" x-bind:disabled="!hasNextDay({{ $student->id }})" icon-trailing="chevron-left" variant="subtle" size="sm">
+                    <flux:button type="button" @click="nextDay()" x-bind:disabled="!hasNextDay()" icon-trailing="chevron-left" variant="subtle" size="sm">
                         {{ __('اليوم التالي') }}
                     </flux:button>
                 </div>
