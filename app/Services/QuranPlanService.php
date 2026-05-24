@@ -43,7 +43,7 @@ class QuranPlanService
     /**
      * Get the end ayah for a given start ayah, unit type, and direction.
      */
-    public function getEndAyah(Ayah $startAyah, string $type, string $direction = 'forward', ?Ayah $capAyah = null): Ayah
+    public function getEndAyah(Ayah $startAyah, string $type, string $direction = 'forward', ?Ayah $capAyah = null, bool $isReviewOnlyPlan = false): Ayah
     {
         $currentAyah = clone $startAyah;
         $endAyah = null;
@@ -82,8 +82,19 @@ class QuranPlanService
             $endAyah = $this->traverseLines($currentAyah, 150, $direction); // 10 pages * 15 lines
         } elseif ($type === '5_pages') {
             $endAyah = $this->traverseLines($currentAyah, 75, $direction); // 5 * 15 lines
+        } elseif (str_starts_with($type, 'custom_pages_')) {
+            $pages = (int) str_replace('custom_pages_', '', $type);
+            if ($pages < 1) {
+                $pages = 1;
+            }
+            $endAyah = $this->traverseLines($currentAyah, $pages * 15, $direction);
         } else {
             $endAyah = $startAyah;
+        }
+
+        // Apply page-fill optimization rules if we traversed lines AND it is a review only plan
+        if ($isReviewOnlyPlan && (in_array($type, ['half', 'third', 'page', '5_pages', 'juz', 'half_juz']) || str_starts_with($type, 'custom_pages_'))) {
+            $endAyah = $this->applyPageOptimizationRules($startAyah, $endAyah, $direction);
         }
 
         if ($capAyah && $this->isExceeding($endAyah, $capAyah, $direction)) {
@@ -293,5 +304,115 @@ class QuranPlanService
         }
 
         return null;
+    }
+
+    /**
+     * Get lines between two ayahs (inclusive).
+     */
+    public function getLinesBetween(Ayah $start, Ayah $end): int
+    {
+        if ($start->surah_id !== $end->surah_id) {
+            return 0;
+        }
+
+        $lines = 0;
+        $curr = $start;
+        while ($curr) {
+            $lines += $this->getAyahSize($curr);
+            if ($curr->verse_number >= $end->verse_number) {
+                break;
+            }
+            $curr = $this->findByRef($curr->surah_id, $curr->verse_number + 1);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Get the total lines of a surah.
+     */
+    public function getSurahLinesCount(int $surahId): int
+    {
+        $lastAyah = Ayah::where('surah_id', $surahId)->orderBy('verse_number', 'desc')->first();
+        if (! $lastAyah) {
+            return 0;
+        }
+
+        $firstAyah = Ayah::where('surah_id', $surahId)->orderBy('verse_number', 'asc')->first();
+        if (! $firstAyah) {
+            return 0;
+        }
+
+        return $this->getLinesBetween($firstAyah, $lastAyah);
+    }
+
+    /**
+     * Get the ayah in a surah that is at a specific line offset from verse 1.
+     */
+    public function getAyahAtLineOffset(int $surahId, int $targetLines): Ayah
+    {
+        $curr = $this->findByRef($surahId, 1);
+        $lines = 0;
+        $lastValid = $curr;
+        while ($curr) {
+            $size = $this->getAyahSize($curr);
+            if ($lines + $size > $targetLines) {
+                return $lastValid ?: $curr;
+            }
+            $lines += $size;
+            $lastValid = $curr;
+            $curr = $this->findByRef($surahId, $curr->verse_number + 1);
+        }
+
+        return $lastValid;
+    }
+
+    /**
+     * Apply Quranic page-fill optimization rules (restricted to review only plan).
+     */
+    protected function applyPageOptimizationRules(Ayah $startAyah, Ayah $endAyah, string $direction): Ayah
+    {
+        $startSurahId = $startAyah->surah_id;
+        $endSurahId = $endAyah->surah_id;
+        $rule2Applied = false;
+
+        // Rule 2: Avoiding awkward start of a new surah (if it's less than 15 lines of the new surah)
+        if ($endSurahId !== $startSurahId) {
+            $firstAyahOfNewSurah = Ayah::where('surah_id', $endSurahId)->orderBy('verse_number', 'asc')->first();
+            if ($firstAyahOfNewSurah) {
+                $linesConsumedInNewSurah = $this->getLinesBetween($firstAyahOfNewSurah, $endAyah);
+                if ($linesConsumedInNewSurah < 15) {
+                    $totalNewSurahLines = $this->getSurahLinesCount($endSurahId);
+                    if ($totalNewSurahLines <= 15) {
+                        // Complete the new surah
+                        $lastAyahOfNewSurah = Ayah::where('surah_id', $endSurahId)->orderBy('verse_number', 'desc')->first();
+                        if ($lastAyahOfNewSurah) {
+                            $endAyah = $lastAyahOfNewSurah;
+                        }
+                    } else {
+                        // Read exactly 15 lines (1 page) of the new surah
+                        $endAyah = $this->getAyahAtLineOffset($endSurahId, 15);
+                        $rule2Applied = true;
+                    }
+                    $endSurahId = $endAyah->surah_id; // Update end surah id in case it changed
+                }
+            }
+        }
+
+        // Rule 1: Surah completion if remaining portion of the end surah is <= 1 page (15 lines)
+        if (! $rule2Applied) {
+            $lastAyahOfEndSurah = Ayah::where('surah_id', $endSurahId)->orderBy('verse_number', 'desc')->first();
+            if ($lastAyahOfEndSurah && $endAyah->verse_number < $lastAyahOfEndSurah->verse_number) {
+                $nextVerse = $this->findByRef($endSurahId, $endAyah->verse_number + 1);
+                if ($nextVerse) {
+                    $remainingLines = $this->getLinesBetween($nextVerse, $lastAyahOfEndSurah);
+                    if ($remainingLines <= 15) {
+                        $endAyah = $lastAyahOfEndSurah;
+                    }
+                }
+            }
+        }
+
+        return $endAyah;
     }
 }

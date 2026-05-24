@@ -677,7 +677,7 @@ new class extends Component {
                     }
 
                     // 2. Determine the End of this day's review based on volume
-                    $targetReviewEnd = $service->getEndAyah($actualStart, $type, $this->fillDirection);
+                    $targetReviewEnd = $service->getEndAyah($actualStart, $type, $this->fillDirection, null, $this->planType === 'review');
 
                     // 3. Cap the End so it doesn't overlap limits
                     if ($maxPossibleEnd && $service->isExceeding($targetReviewEnd, $maxPossibleEnd, $this->fillDirection)) {
@@ -716,7 +716,7 @@ new class extends Component {
                         ->first();
                 }
 
-                $end = $service->getEndAyah($currentStart, $type, $this->fillDirection, $hifzStartAyah);
+                $end = $service->getEndAyah($currentStart, $type, $this->fillDirection, $hifzStartAyah, $this->planType === 'review');
 
                 $day[$toSurahKey] = $end->surah_id;
                 $day[$toVerseKey] = $end->verse_number;
@@ -856,6 +856,7 @@ new class extends Component {
         selectAll:      false,
         selectionStart: null,
         filling:        false,
+        customPages:    1,
         
         async goNext() {
             if (this.wizardStep === 1 && this.userLevel === 'teacher' && !$wire.get('studentId')) {
@@ -1191,6 +1192,11 @@ new class extends Component {
                         <span class="flex items-center gap-1">
                             <flux:icon icon="calendar" class="size-3" /> {{ $daysCount }} يوم
                         </span>
+                        @if($planType === 'review')
+                            <span class="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+                                <flux:icon icon="flag" class="size-3" /> {{ __('سقف المراجعة:') }} {{ $allSurahs->firstWhere('id', $memorizedUpToSurah)?->name_arabic ?? '' }} ({{ $memorizedUpToVerse }})
+                            </span>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -1223,6 +1229,29 @@ new class extends Component {
                                 <flux:icon icon="bolt" class="size-4 text-indigo-500" />
                                 {{ __('أدوات الملء التلقائي (التحديد)') }}
                             </flux:heading>
+
+                            @if($planType === 'review')
+                                <div class="flex items-center gap-2 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 px-3 py-1.5 rounded-xl">
+                                    <flux:icon icon="flag" class="size-4 text-amber-500 shrink-0" />
+                                    <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{{ __('سقف التحديد الحالي:') }}</span>
+                                    <div class="flex items-center gap-2">
+                                        <select wire:model.live="memorizedUpToSurah" class="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 outline-none">
+                                            @foreach($allSurahs as $surah)
+                                                <option value="{{ $surah->id }}">{{ $surah->name_arabic }}</option>
+                                            @endforeach
+                                        </select>
+                                        <select wire:model.live="memorizedUpToVerse" class="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 outline-none">
+                                            @php
+                                                $ceilingSurah = $allSurahs->firstWhere('id', $memorizedUpToSurah);
+                                                $versesCount = $ceilingSurah ? $ceilingSurah->verses_count : 1;
+                                            @endphp
+                                            @for($i = 1; $i <= $versesCount; $i++)
+                                                <option value="{{ $i }}">{{ $i }}</option>
+                                            @endfor
+                                        </select>
+                                    </div>
+                                </div>
+                            @endif
 
                             {{-- fillTarget — Alpine only --}}
                             <div x-show="planType === 'hifz_review'"
@@ -1269,6 +1298,15 @@ new class extends Component {
                                 <flux:button size="xs" variant="ghost" @click="doFill('half')">{{ __('1/2 صفحة') }}
                                 </flux:button>
                                 <flux:button size="xs" variant="ghost" @click="doFill('third')">{{ __('1/3 صفحة') }}
+                                </flux:button>
+                            </div>
+
+                            <div class="h-4 w-px bg-zinc-200 dark:bg-zinc-700 mx-2 self-center"></div>
+                            <div class="flex items-center gap-1.5">
+                                <input type="number" min="1" max="604" x-model="customPages" class="w-12 text-center text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 py-1 outline-none font-mono" />
+                                <flux:button size="xs" class="bg-indigo-600 text-white hover:bg-indigo-700"
+                                    @click="doFill('custom_pages_' + customPages)">
+                                    {{ __('صفحات مخصصة') }}
                                 </flux:button>
                             </div>
                         </div>
