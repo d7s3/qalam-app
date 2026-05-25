@@ -34,7 +34,13 @@ new class extends Component {
                 $q->whereNotNull('hifz_achievement')
                   ->orWhereNotNull('review_achievement');
             })
-            ->orderByRaw('COALESCE(hifz_graded_at, review_graded_at, date) DESC')
+            ->orderByRaw('
+                CASE 
+                    WHEN hifz_graded_at IS NOT NULL AND review_graded_at IS NOT NULL THEN
+                        CASE WHEN hifz_graded_at > review_graded_at THEN hifz_graded_at ELSE review_graded_at END
+                    ELSE COALESCE(hifz_graded_at, review_graded_at, date)
+                END DESC
+            ')
             ->paginate(20);
 
         return [
@@ -56,19 +62,31 @@ new class extends Component {
     <flux:card class="p-0 overflow-hidden">
         <flux:table>
             <flux:table.columns>
-                <flux:table.column>{{ __('المقرر (تاريخ الخطة)') }}</flux:table.column>
+                <flux:table.column>{{ __('تاريخ التسميع') }}</flux:table.column>
                 <flux:table.column>{{ __('الحفظ') }}</flux:table.column>
                 <flux:table.column>{{ __('المراجعة') }}</flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
                 @forelse ($logs as $log)
+                    @php
+                        $recitationDate = $log->hifz_graded_at;
+                        if ($log->review_graded_at) {
+                            if (!$recitationDate || $log->review_graded_at->gt($recitationDate)) {
+                                $recitationDate = $log->review_graded_at;
+                            }
+                        }
+                        $recitationDate = $recitationDate ?? $log->date;
+                    @endphp
                     <flux:table.row>
                         <flux:table.cell>
                             <div class="flex flex-col">
-                                <span class="font-medium">{{ $log->date->format('Y-m-d') }}</span>
+                                <span class="font-medium">{{ $recitationDate->format('Y-m-d') }}</span>
                                 <span class="text-xs text-zinc-500 mt-1">
-                                    {{ $log->day_name }}
+                                    {{ $recitationDate->translatedFormat('l') }}
+                                </span>
+                                <span class="text-[10px] text-zinc-400 mt-1">
+                                    {{ __('تاريخ الخطة:') }} {{ $log->date->format('Y-m-d') }} ({{ $log->day_name }})
                                 </span>
                                 <span class="text-[10px] text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded w-fit mt-1">
                                     {{ $log->plan->plan_type === 'hifz_review' ? __('حفظ ومراجعة') : ($log->plan->plan_type === 'hifz' ? __('حفظ') : __('مراجعة')) }} ({{ $log->plan->start_date->format('Y-m-d') }})
