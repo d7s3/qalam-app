@@ -75,10 +75,6 @@ class StudentPlanDay extends Model
         }
 
         // Multiple surahs
-        // Determine logical direction from ID progression
-        // In reverse fill, fromSurah->id > toSurah->id
-        $isForward = $fromSurah->id < $toSurah->id;
-
         $isFromFullStart = ($vFrom == 1);
         $isToFullEnd = ($vTo == $toSurah->verses_count);
 
@@ -86,34 +82,16 @@ class StudentPlanDay extends Model
             return $fromSurah->name_arabic.' - '.$toSurah->name_arabic;
         }
 
-        $fromEndVerse = $fromSurah->verses_count;
-        $firstPart = $fromSurah->name_arabic.' '.$vFrom.'-'.$fromEndVerse;
-        if ($isFromFullStart) {
-            $firstPart = $fromSurah->name_arabic;
+        $firstPart = $fromSurah->name_arabic;
+        if (! $isFromFullStart) {
+            $firstPart .= ' '.$vFrom;
         }
 
-        $nextSurahId = $isForward ? $fromSurah->id + 1 : $fromSurah->id - 1;
-        $nextSurah = Surah::find($nextSurahId);
-
-        if ($nextSurah) {
-            if ($nextSurah->id === $toSurah->id) {
-                $endPart = 'و '.$toSurah->name_arabic.' 1-'.$vTo;
-                if ($isToFullEnd) {
-                    $endPart = 'و '.$toSurah->name_arabic;
-                }
-
-                return $firstPart.' '.$endPart;
-            } else {
-                // Multiple intermediate surahs — just say "fromSurah الى toSurah [verse]"
-                $endPart = 'الى '.$toSurah->name_arabic;
-                if (! $isToFullEnd) {
-                    $endPart .= ' '.$vTo;
-                }
-
-                return $firstPart.' '.$endPart;
-            }
+        $endPart = $toSurah->name_arabic;
+        if (! $isToFullEnd) {
+            $endPart .= ' '.$vTo;
         }
 
-        return $fromSurah->name_arabic.' '.$vFrom.' الى '.$toSurah->name_arabic.' '.$vTo;
+        return $firstPart.' الى '.$endPart;
     }
 }
