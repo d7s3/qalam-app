@@ -118,6 +118,11 @@ new class extends Component {
             'dayIds' => $dayIds,
         ];
     }
+
+    public function placeholder(): string
+    {
+        return '<div class="animate-pulse h-32 rounded-xl bg-zinc-100 dark:bg-zinc-800 mb-2"></div>';
+    }
 };
 ?>
 
