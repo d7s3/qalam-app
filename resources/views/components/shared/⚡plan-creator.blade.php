@@ -634,20 +634,32 @@ new class extends Component {
                 $maxPossibleEnd = null;
 
                 if ($this->planType === 'hifz_review') {
-                    $hifzStartAyah = Ayah::where('surah_id', $day['from_surah_id'])
-                        ->where('verse_number', $day['from_verse'])
-                        ->first();
+                    if ($this->fillDirection === 'reverse') {
+                        $maxPossibleEnd = Ayah::where('surah_id', 1)
+                            ->orderBy('verse_number', 'desc')
+                            ->first();
+                    } else {
+                        $hifzStartAyah = Ayah::where('surah_id', $day['from_surah_id'])
+                            ->where('verse_number', $day['from_verse'])
+                            ->first();
 
-                    if (!$hifzStartAyah || !$fixedReviewStart) {
-                        continue;
+                        if (!$hifzStartAyah || !$fixedReviewStart) {
+                            continue;
+                        }
+
+                        $maxPossibleEnd = $service->getAyahBefore($hifzStartAyah, $this->fillDirection);
                     }
-
-                    $maxPossibleEnd = $service->getAyahBefore($hifzStartAyah, $this->fillDirection);
                 } else {
                     // Pure Review bounds based on exact memorized Ayah
-                    $maxPossibleEnd = Ayah::where('surah_id', $this->memorizedUpToSurah)
-                        ->where('verse_number', $this->memorizedUpToVerse)
-                        ->first();
+                    if ($this->fillDirection === 'reverse') {
+                        $maxPossibleEnd = Ayah::where('surah_id', 1)
+                            ->orderBy('verse_number', 'desc')
+                            ->first();
+                    } else {
+                        $maxPossibleEnd = Ayah::where('surah_id', $this->memorizedUpToSurah)
+                            ->where('verse_number', $this->memorizedUpToVerse)
+                            ->first();
+                    }
                     if (!$fixedReviewStart)
                         continue;
                 }
@@ -1002,19 +1014,19 @@ new class extends Component {
                             :class="fillDirection === 'forward' ? 'ring-2 ring-blue-500 shadow-md bg-blue-50 dark:bg-blue-900/20' : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'"
                             class="flex flex-col items-center p-4 rounded-xl   cursor-pointer text-right relative overflow-hidden">
                             <div class="w-full flex items-center justify-between mb-2">
-                                <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('تصاعدي') }}</span>
-                                <flux:icon icon="arrow-up" class="size-5 text-blue-600 dark:text-blue-400" />
+                                <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('من الفاتحة إلى الناس') }}</span>
+                                <flux:icon icon="arrow-down" class="size-5 text-blue-600 dark:text-blue-400" />
                             </div>
-                            <span class="text-xs text-zinc-500">{{ __('مثال: من الفاتحة إلى البقرة') }}</span>
+                            <span class="text-xs text-zinc-500">{{ __('ترتيب المصحف المعتاد') }}</span>
                         </button>
                         <button @click="fillDirection = 'reverse'"
                             :class="fillDirection === 'reverse' ? 'ring-2 ring-blue-500 shadow-md bg-blue-50 dark:bg-blue-900/20' : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'"
                             class="flex flex-col items-center p-4 rounded-xl   cursor-pointer text-right relative overflow-hidden">
                             <div class="w-full flex items-center justify-between mb-2">
-                                <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('تنازلي') }}</span>
-                                <flux:icon icon="arrow-down" class="size-5 text-blue-600 dark:text-blue-400" />
+                                <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('من الناس إلى الفاتحة') }}</span>
+                                <flux:icon icon="arrow-up" class="size-5 text-blue-600 dark:text-blue-400" />
                             </div>
-                            <span class="text-xs text-zinc-500">{{ __('مثال: من الناس إلى البقرة') }}</span>
+                            <span class="text-xs text-zinc-500">{{ __('الترتيب العكسي للمصحف') }}</span>
                         </button>
                     </div>
                 </div>
@@ -1187,7 +1199,7 @@ new class extends Component {
                         <flux:badge color="zinc" size="sm">
                             {{ $planType === 'hifz' ? __('مسار حفظ') : ($planType === 'review' ? __('مسار مراجعة') : __('حفظ ومراجعة')) }}
                         </flux:badge>
-                        <flux:badge color="zinc" size="sm">{{ $fillDirection === 'forward' ? __('تصاعدي') : __('تنازلي') }}
+                        <flux:badge color="zinc" size="sm">{{ $fillDirection === 'forward' ? __('من الفاتحة إلى الناس') : __('من الناس إلى الفاتحة') }}
                         </flux:badge>
                         <span class="flex items-center gap-1">
                             <flux:icon icon="calendar" class="size-3" /> {{ $daysCount }} يوم

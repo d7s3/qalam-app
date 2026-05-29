@@ -568,3 +568,90 @@ test('plan creator applies page alignment rules on review but not on hifz', func
     expect($planDaysHifz[0]['to_surah_id'])->toBe(6);
     expect($planDaysHifz[0]['to_verse'])->toBe(9); // Not completed/extended (exactly 15 lines total)
 });
+
+test('plan creator supports reverse review auto fill and progresses towards Fatihah', function () {
+    // Create verses 2-7 of Surah 1
+    for ($i = 2; $i <= 7; $i++) {
+        Ayah::create([
+            'id' => $i,
+            'surah_id' => 1,
+            'verse_number' => $i,
+            'page_number' => 1,
+            'line_number_start' => $i,
+            'line_number_end' => $i,
+            'verse_key' => "1:$i",
+            'juz_number' => 1,
+            'hizb_number' => 1,
+            'rub_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => "Ayah $i of Surah 1",
+        ]);
+    }
+
+    // Create Surah 2 with 5 verses
+    Surah::create([
+        'id' => 2,
+        'number' => 2,
+        'name_arabic' => 'البقرة',
+        'name_simple' => 'Al-Baqarah',
+        'revelation_place' => 'madinah',
+        'revelation_order' => 2,
+        'verses_count' => 5,
+        'start_page' => 2,
+        'end_page' => 2,
+    ]);
+
+    for ($i = 1; $i <= 5; $i++) {
+        Ayah::create([
+            'id' => 15 + $i,
+            'surah_id' => 2,
+            'verse_number' => $i,
+            'page_number' => 2,
+            'line_number_start' => $i,
+            'line_number_end' => $i,
+            'verse_key' => "2:$i",
+            'juz_number' => 1,
+            'hizb_number' => 1,
+            'rub_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => "Ayah $i of Surah 2",
+        ]);
+    }
+
+    $component = Livewire::test('shared.⚡plan-creator')
+        ->set('studentId', $this->students->first()->id)
+        ->set('planType', 'review')
+        ->set('fillDirection', 'reverse')
+        ->set('startDate', '2026-06-01')
+        ->set('daysCount', 3)
+        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])
+        ->call('generateDays');
+
+    $component->set('planDays.0.review_from_surah_id', 2)
+        ->set('planDays.0.review_from_verse', 1)
+        ->set('memorizedUpToSurah', 2)
+        ->set('memorizedUpToVerse', 5)
+        ->call('fillSelected', 'third', 'review', [0, 1, 2]);
+
+    $planDays = $component->get('planDays');
+
+    // Day 1: Surah 2, Verse 1 to Surah 2, Verse 5 (5 lines total)
+    expect($planDays[0]['review_from_surah_id'])->toBe(2);
+    expect($planDays[0]['review_from_verse'])->toBe(1);
+    expect($planDays[0]['review_to_surah_id'])->toBe(2);
+    expect($planDays[0]['review_to_verse'])->toBe(5);
+
+    // Day 2: should progress to Surah 1, Verse 1 and read 5 lines (auto-completes to Verse 7 due to page optimization)
+    expect($planDays[1]['review_from_surah_id'])->toBe(1);
+    expect($planDays[1]['review_from_verse'])->toBe(1);
+    expect($planDays[1]['review_to_surah_id'])->toBe(1);
+    expect($planDays[1]['review_to_verse'])->toBe(7);
+
+    // Day 3: should loop back to Surah 2, Verse 1
+    expect($planDays[2]['review_from_surah_id'])->toBe(2);
+    expect($planDays[2]['review_from_verse'])->toBe(1);
+    expect($planDays[2]['review_to_surah_id'])->toBe(2);
+    expect($planDays[2]['review_to_verse'])->toBe(5);
+});
