@@ -75,6 +75,8 @@ class QuranPlanService
         } elseif ($type === 'juz') {
             if ($currentAyah->surah_id == 114 && $currentAyah->verse_number == 1 && $direction === 'reverse') {
                 $endAyah = Ayah::where('surah_id', 78)->orderBy('verse_number', 'desc')->first();
+            } elseif ($currentAyah->surah_id == 78 && $currentAyah->verse_number == 1 && $direction === 'forward') {
+                $endAyah = Ayah::where('surah_id', 114)->orderBy('verse_number', 'desc')->first();
             } else {
                 $endAyah = $this->traverseLines($currentAyah, 300, $direction); // 20 pages * 15 lines
             }

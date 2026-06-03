@@ -631,8 +631,8 @@ test('plan creator supports reverse review auto fill and progresses towards Fati
 
     $component->set('planDays.0.review_from_surah_id', 2)
         ->set('planDays.0.review_from_verse', 1)
-        ->set('memorizedUpToSurah', 2)
-        ->set('memorizedUpToVerse', 5)
+        ->set('memorizedUpToSurah', 1)
+        ->set('memorizedUpToVerse', 7)
         ->call('fillSelected', 'third', 'review', [0, 1, 2]);
 
     $planDays = $component->get('planDays');
@@ -654,4 +654,350 @@ test('plan creator supports reverse review auto fill and progresses towards Fati
     expect($planDays[2]['review_from_verse'])->toBe(1);
     expect($planDays[2]['review_to_surah_id'])->toBe(2);
     expect($planDays[2]['review_to_verse'])->toBe(5);
+});
+
+test('plan creator supports hifz ceiling and wrap around', function () {
+    // Create Surah 30 (Ar-Rum) with 3 verses
+    Surah::create([
+        'id' => 30,
+        'number' => 30,
+        'name_arabic' => 'الروم',
+        'name_simple' => 'Ar-Rum',
+        'revelation_place' => 'makkah',
+        'revelation_order' => 84,
+        'verses_count' => 3,
+        'start_page' => 400,
+        'end_page' => 400,
+    ]);
+
+    for ($i = 1; $i <= 3; $i++) {
+        Ayah::create([
+            'id' => 300 + $i,
+            'surah_id' => 30,
+            'verse_number' => $i,
+            'page_number' => 400,
+            'line_number_start' => $i,
+            'line_number_end' => $i,
+            'verse_key' => "30:$i",
+            'juz_number' => 21,
+            'hizb_number' => 41,
+            'rub_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => "Ar-Rum Ayah $i",
+        ]);
+    }
+
+    // Create Surah 31 (Luqman) with 3 verses
+    Surah::create([
+        'id' => 31,
+        'number' => 31,
+        'name_arabic' => 'لقمان',
+        'name_simple' => 'Luqman',
+        'revelation_place' => 'makkah',
+        'revelation_order' => 85,
+        'verses_count' => 3,
+        'start_page' => 401,
+        'end_page' => 401,
+    ]);
+
+    for ($i = 1; $i <= 3; $i++) {
+        Ayah::create([
+            'id' => 310 + $i,
+            'surah_id' => 31,
+            'verse_number' => $i,
+            'page_number' => 401,
+            'line_number_start' => $i,
+            'line_number_end' => $i,
+            'verse_key' => "31:$i",
+            'juz_number' => 21,
+            'hizb_number' => 41,
+            'rub_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => "Luqman Ayah $i",
+        ]);
+    }
+
+    // Create Al-Fatihah (Surah 1) Ayah 2 to 5 if not exists (Surah 1 Ayah 1 is already in beforeEach)
+    for ($i = 2; $i <= 5; $i++) {
+        Ayah::create([
+            'id' => 10 + $i,
+            'surah_id' => 1,
+            'verse_number' => $i,
+            'page_number' => 1,
+            'line_number_start' => $i,
+            'line_number_end' => $i,
+            'verse_key' => "1:$i",
+            'juz_number' => 1,
+            'hizb_number' => 1,
+            'rub_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => "Al-Fatihah Ayah $i",
+        ]);
+    }
+
+    $component = Livewire::test('shared.⚡plan-creator')
+        ->set('studentId', $this->students->first()->id)
+        ->set('planType', 'hifz')
+        ->set('fillDirection', 'forward')
+        ->set('startDate', '2026-06-01')
+        ->set('daysCount', 3)
+        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])
+        ->call('generateDays');
+
+    // Day 1: start at Surah 30, Verse 1.
+    // Set Hifz ceiling (memorizedUpToSurah) to Surah 30, Verse 3 (Ar-Rum last Ayah)
+    $component->set('planDays.0.from_surah_id', 30)
+        ->set('planDays.0.from_verse', 1)
+        ->set('memorizedUpToSurah', 30)
+        ->set('memorizedUpToVerse', 3)
+        ->call('fillSelected', 'page', 'hifz', [0, 1, 2]);
+
+    $planDays = $component->get('planDays');
+
+    // Day 1: Ar-Rum 1 to Ar-Rum 3 (since volume 'page' is 15 lines, and Ar-Rum 1-3 is 3 lines, but capped at Ar-Rum 3)
+    expect($planDays[0]['from_surah_id'])->toBe(30);
+    expect($planDays[0]['from_verse'])->toBe(1);
+    expect($planDays[0]['to_surah_id'])->toBe(30);
+    expect($planDays[0]['to_verse'])->toBe(3);
+
+    // Day 2: should wrap around to Al-Fatihah (Surah 1), Verse 1 and read 15 lines (capped at 5 since we created only 5 ayahs)
+    expect($planDays[1]['from_surah_id'])->toBe(1);
+    expect($planDays[1]['from_verse'])->toBe(1);
+    expect($planDays[1]['to_surah_id'])->toBe(1);
+    expect($planDays[1]['to_verse'])->toBe(5);
+});
+
+test('plan creator handles reverse hifz and forward review with static review ceiling correctly', function () {
+    // Create Surah 58 (Al-Mujadilah) with 22 verses
+    Surah::create([
+        'id' => 58,
+        'number' => 58,
+        'name_arabic' => 'المجادلة',
+        'name_simple' => 'Al-Mujadilah',
+        'revelation_place' => 'madinah',
+        'revelation_order' => 105,
+        'verses_count' => 22,
+        'start_page' => 542,
+        'end_page' => 545,
+    ]);
+
+    for ($i = 1; $i <= 22; $i++) {
+        $page = 542;
+        $line = $i;
+        if ($i > 15) {
+            $page = 543;
+            $line = $i - 15;
+        }
+
+        Ayah::create([
+            'id' => 58000 + $i,
+            'surah_id' => 58,
+            'verse_number' => $i,
+            'page_number' => $page,
+            'line_number_start' => $line,
+            'line_number_end' => $line,
+            'verse_key' => "58:$i",
+            'juz_number' => 28,
+            'hizb_number' => 55,
+            'rub_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => "Al-Mujadilah Ayah $i",
+        ]);
+    }
+
+    // Create Surah 114 (An-Nas) with 6 verses
+    Surah::create([
+        'id' => 114,
+        'number' => 114,
+        'name_arabic' => 'الناس',
+        'name_simple' => 'Al-Nas',
+        'revelation_place' => 'makkah',
+        'revelation_order' => 21,
+        'verses_count' => 6,
+        'start_page' => 604,
+        'end_page' => 604,
+    ]);
+
+    for ($i = 1; $i <= 6; $i++) {
+        Ayah::create([
+            'id' => 114000 + $i,
+            'surah_id' => 114,
+            'verse_number' => $i,
+            'page_number' => 604,
+            'line_number_start' => $i,
+            'line_number_end' => $i,
+            'verse_key' => "114:$i",
+            'juz_number' => 30,
+            'hizb_number' => 60,
+            'rub_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => "Al-Nas Ayah $i",
+        ]);
+    }
+
+    $component = Livewire::test('shared.⚡plan-creator')
+        ->set('studentId', $this->students->first()->id)
+        ->set('planType', 'review')
+        ->set('fillDirection', 'reverse')
+        ->set('reviewDirection', 'forward')
+        ->set('startDate', '2026-06-01')
+        ->set('daysCount', 1)
+        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])
+        ->call('generateDays');
+
+    // First day review start is set to Surah 58 Verse 1
+    $component->set('planDays.0.review_from_surah_id', 58)
+        ->set('planDays.0.review_from_verse', 1);
+
+    // Set the static review ceiling to Surah 58, Verse 22
+    $component->set('memorizedUpToSurah', 58)
+        ->set('memorizedUpToVerse', 22);
+
+    // Fill selected days with page volume
+    $component->call('fillSelected', 'page', 'review', [0]);
+
+    $planDays = $component->get('planDays');
+
+    // Ensure it started at Surah 58 Verse 1, and went forward to Surah 58 Verse 22 (due to page optimization surah completion)
+    expect($planDays[0]['review_from_surah_id'])->toBe(58);
+    expect($planDays[0]['review_from_verse'])->toBe(1);
+    expect($planDays[0]['review_to_surah_id'])->toBe(58);
+    expect($planDays[0]['review_to_verse'])->toBe(22);
+});
+
+test('plan creator resolves duplicate review days by calculating backwards from ceiling when hit', function () {
+    // Create Surahs and Ayahs for testing.
+    // Surahs: Nas (114, 6 verses), Falaq (113, 5 verses), Ikhlas (112, 4 verses), Masad (111, 5 verses), Kafirun (109, 6 verses), Quraysh (106, 4 verses)
+    $surahDetails = [
+        114 => ['name' => 'الناس', 'verses' => 6],
+        113 => ['name' => 'الفلق', 'verses' => 5],
+        112 => ['name' => 'الإخلاص', 'verses' => 4],
+        111 => ['name' => 'المسد', 'verses' => 5],
+        110 => ['name' => 'النصر', 'verses' => 3],
+        109 => ['name' => 'الكافرون', 'verses' => 6],
+        108 => ['name' => 'الكوثر', 'verses' => 3],
+        107 => ['name' => 'الماعون', 'verses' => 7],
+        106 => ['name' => 'قريش', 'verses' => 6],
+        105 => ['name' => 'الفيل', 'verses' => 5],
+        104 => ['name' => 'الهمزة', 'verses' => 9],
+        103 => ['name' => 'العصر', 'verses' => 3],
+        102 => ['name' => 'التكاثر', 'verses' => 8],
+    ];
+
+    foreach ($surahDetails as $id => $data) {
+        Surah::create([
+            'id' => $id,
+            'number' => $id,
+            'name_arabic' => $data['name'],
+            'name_simple' => 'Surah '.$id,
+            'revelation_place' => 'makkah',
+            'revelation_order' => $id,
+            'verses_count' => $data['verses'],
+            'start_page' => 600 - $id,
+            'end_page' => 600 - $id,
+        ]);
+
+        for ($i = 1; $i <= $data['verses']; $i++) {
+            Ayah::create([
+                'id' => $id * 1000 + $i,
+                'surah_id' => $id,
+                'verse_number' => $i,
+                'page_number' => 600 - $id,
+                'line_number_start' => $i,
+                'line_number_end' => $i,
+                'verse_key' => "$id:$i",
+                'juz_number' => 30,
+                'hizb_number' => 60,
+                'rub_number' => 1,
+                'ruku_number' => 1,
+                'manzil_number' => 7,
+                'text_uthmani' => "Surah $id Ayah $i",
+            ]);
+        }
+    }
+
+    $component = Livewire::test('shared.⚡plan-creator')
+        ->set('studentId', $this->students->first()->id)
+        ->set('planType', 'hifz_review')
+        ->set('fillDirection', 'reverse')
+        ->set('reviewDirection', 'reverse')
+        ->set('startDate', '2026-06-03') // Wednesday
+        ->set('daysCount', 8)
+        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])
+        ->call('generateDays');
+
+    // Index 0: Wednesday (selected)
+    // Index 1-3: Thursday, Friday, Saturday (unselected/empty)
+    // Index 4: Sunday (selected)
+    // Index 5-6: Monday, Tuesday (unselected/empty)
+    // Index 7: Wednesday (selected)
+
+    // Wednesday (Index 0): Hifz starts at Al-Fil 1 (Surah 105), ends at Al-Asr 3
+    $component->set('planDays.0.from_surah_id', 105)
+        ->set('planDays.0.from_verse', 1)
+        ->set('planDays.0.to_surah_id', 103)
+        ->set('planDays.0.to_verse', 3);
+
+    // Sunday (Index 4): Hifz starts at Al-Takathur 1 (Surah 102), ends at Al-Takathur 8
+    $component->set('planDays.4.from_surah_id', 102)
+        ->set('planDays.4.from_verse', 1)
+        ->set('planDays.4.to_surah_id', 102)
+        ->set('planDays.4.to_verse', 8);
+
+    // Wednesday (Index 7): Hifz starts at Al-Humazah 9 (Surah 104), ends at Al-Humazah 1
+    $component->set('planDays.7.from_surah_id', 104)
+        ->set('planDays.7.from_verse', 9)
+        ->set('planDays.7.to_surah_id', 104)
+        ->set('planDays.7.to_verse', 1);
+
+    // First day review start is set to Nas 1 (Surah 114)
+    $component->set('planDays.0.review_from_surah_id', 114)
+        ->set('planDays.0.review_from_verse', 1);
+
+    // Call fillSelected with custom pages (say, 3 pages = 45 lines) for review
+    // Selected indices: Wednesday (0), Sunday (4), Wednesday (7)
+    $component->call('fillSelected', 'custom_pages_3', 'review', [0, 4, 7]);
+
+    $planDays = $component->get('planDays');
+
+    // Index 0 (Wednesday) review:
+    // Hifz start is Al-Fil 1. So ceiling is Quraysh 6.
+    // Starting from Nas 1, we try to read 45 lines in reverse.
+    // Total lines from Nas 1 to Quraysh 6 is 45 lines exactly.
+    // We hit the ceiling. Capped to Quraysh 6.
+    // Backwards calculation from Quraysh 6 starts at Nas 1.
+    // So Index 0 review should be Nas 1 to Quraysh 6.
+    expect($planDays[0]['review_from_surah_id'])->toBe(114);
+    expect($planDays[0]['review_from_verse'])->toBe(1);
+    expect($planDays[0]['review_to_surah_id'])->toBe(106);
+    expect($planDays[0]['review_to_verse'])->toBe(6);
+
+    // Index 4 (Sunday) review:
+    // Thursday, Friday, Saturday (unselected/empty) did not reset progression.
+    // Sunday's normal range would be Nas 1 to Quraysh 6 (duplicate of Wednesday).
+    // Duplicate range check triggers, calculating backwards from Al-Asr 3.
+    // Backwards calculation from Al-Asr 3 starts at Al-Masad 1.
+    // So Index 4 review should be Al-Masad 1 to Al-Asr 3.
+    expect($planDays[4]['review_from_surah_id'])->toBe(111);
+    expect($planDays[4]['review_from_verse'])->toBe(1);
+    expect($planDays[4]['review_to_surah_id'])->toBe(103);
+    expect($planDays[4]['review_to_verse'])->toBe(3);
+
+    // Index 7 (Wednesday) review:
+    // Monday, Tuesday (unselected/empty) did not reset progression.
+    // Sunday review hit the ceiling and set resetNextReview = true.
+    // So Wednesday review resets to the beginning of the review cycle: Nas 1.
+    // Wednesday's ceiling is Al-Humazah 8.
+    // Nas 1 to Al-Humazah 8 is 59 lines. We want 45 lines.
+    // Nas 1 + 45 lines = Quraysh 6.
+    // So Index 7 review should be Nas 1 to Quraysh 6.
+    expect($planDays[7]['review_from_surah_id'])->toBe(114);
+    expect($planDays[7]['review_from_verse'])->toBe(1);
+    expect($planDays[7]['review_to_surah_id'])->toBe(106);
+    expect($planDays[7]['review_to_verse'])->toBe(6);
 });

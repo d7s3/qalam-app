@@ -76,3 +76,69 @@ it('finds next start ayah correctly', function () {
 
     expect($next->id)->toBe(6);
 });
+
+it('calculates juz end from An-Naba 1 to An-Nas last verse correctly', function () {
+    // Create Surah 78 (An-Naba)
+    Surah::create([
+        'id' => 78,
+        'number' => 78,
+        'name_arabic' => 'النبأ',
+        'name_simple' => 'An-Naba',
+        'revelation_place' => 'makkah',
+        'revelation_order' => 80,
+        'verses_count' => 40,
+        'start_page' => 582,
+        'end_page' => 583,
+    ]);
+
+    $start = Ayah::create([
+        'id' => 78001,
+        'surah_id' => 78,
+        'verse_number' => 1,
+        'page_number' => 582,
+        'line_number_start' => 1,
+        'line_number_end' => 1,
+        'verse_key' => '78:1',
+        'juz_number' => 30,
+        'hizb_number' => 59,
+        'rub_number' => 1,
+        'ruku_number' => 1,
+        'manzil_number' => 7,
+        'text_uthmani' => 'An-Naba Ayah 1',
+    ]);
+
+    // Create Surah 114 (An-Nas)
+    Surah::create([
+        'id' => 114,
+        'number' => 114,
+        'name_arabic' => 'الناس',
+        'name_simple' => 'Al-Nas',
+        'revelation_place' => 'makkah',
+        'revelation_order' => 21,
+        'verses_count' => 6,
+        'start_page' => 604,
+        'end_page' => 604,
+    ]);
+
+    // We only need the last ayah of Surah 114 for the query
+    $lastAyah = Ayah::create([
+        'id' => 114006,
+        'surah_id' => 114,
+        'verse_number' => 6,
+        'page_number' => 604,
+        'line_number_start' => 15,
+        'line_number_end' => 15,
+        'verse_key' => '114:6',
+        'juz_number' => 30,
+        'hizb_number' => 60,
+        'rub_number' => 4,
+        'ruku_number' => 1,
+        'manzil_number' => 7,
+        'text_uthmani' => 'An-Nas Ayah 6',
+    ]);
+
+    $service = new QuranPlanService;
+    $end = $service->getEndAyah($start, 'juz', 'forward');
+
+    expect($end->id)->toBe($lastAyah->id);
+});

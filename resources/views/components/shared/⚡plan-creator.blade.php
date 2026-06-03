@@ -29,6 +29,7 @@ new class extends Component {
     public $juzSurahs = [];
     public $versesData = [];
     public $fillDirection = 'reverse';
+    public $reviewDirection = 'reverse';
     public $fillTarget = 'hifz';
     public $bulkStartSurah;
     public $bulkStartVerse;
@@ -97,7 +98,8 @@ new class extends Component {
 
         $this->bulkStartSurah = 114;
         $this->bulkStartVerse = 1;
-        $this->memorizedUpToSurah = 114;
+        $this->memorizedUpToSurah = 1;
+        $this->memorizedUpToVerse = 7;
 
         if ($this->edit) {
             $plan = StudentPlan::with('days.fromAyah', 'days.toAyah', 'days.reviewFromAyah', 'days.reviewToAyah')->findOrFail($this->edit);
@@ -107,6 +109,17 @@ new class extends Component {
             $this->activeDays = $plan->active_days ?? [];
             $this->description = $plan->description;
             $this->planType = $plan->plan_type;
+            $this->fillDirection = $plan->direction ?? 'reverse';
+            $this->reviewDirection = $plan->review_direction ?? 'reverse';
+
+            $dir = ($this->planType === 'review') ? $this->reviewDirection : $this->fillDirection;
+            if ($dir === 'reverse') {
+                $this->memorizedUpToSurah = 1;
+            } else {
+                $this->memorizedUpToSurah = 114;
+            }
+            $surah = Surah::find($this->memorizedUpToSurah);
+            $this->memorizedUpToVerse = $surah ? $surah->verses_count : 1;
 
             $this->isGenerated = true;
             $this->step = 7;
@@ -336,31 +349,36 @@ new class extends Component {
 
     public function updatedMemorizedUpToSurah()
     {
-        $this->memorizedUpToVerse = 1;
+        $surah = Surah::find($this->memorizedUpToSurah);
+        $this->memorizedUpToVerse = $surah ? $surah->verses_count : 1;
     }
 
     public function updatedFillDirection($value)
     {
-        if ($this->planType === 'review') {
-            if ($value === 'reverse') {
-                $this->memorizedUpToSurah = 1;
-            } else {
-                $this->memorizedUpToSurah = 114;
-            }
-            $this->memorizedUpToVerse = 1;
+        $this->reviewDirection = $value;
+        if ($value === 'reverse') {
+            $this->memorizedUpToSurah = 1;
+        } else {
+            $this->memorizedUpToSurah = 114;
         }
+        $surah = Surah::find($this->memorizedUpToSurah);
+        $this->memorizedUpToVerse = $surah ? $surah->verses_count : 1;
+    }
+
+    public function updatedReviewDirection($value)
+    {
+        // Changing review direction does not change the Hifz ceiling, so we don't need to change memorizedUpToSurah here
     }
 
     public function updatedPlanType($value)
     {
-        if ($value === 'review') {
-            if ($this->fillDirection === 'reverse') {
-                $this->memorizedUpToSurah = 1;
-            } else {
-                $this->memorizedUpToSurah = 114;
-            }
-            $this->memorizedUpToVerse = 1;
+        if ($this->fillDirection === 'reverse') {
+            $this->memorizedUpToSurah = 1;
+        } else {
+            $this->memorizedUpToSurah = 114;
         }
+        $surah = Surah::find($this->memorizedUpToSurah);
+        $this->memorizedUpToVerse = $surah ? $surah->verses_count : 1;
     }
 
     public function updatedStartDate()
@@ -606,6 +624,7 @@ new class extends Component {
         $toSurahKey = $target === 'review' ? 'review_to_surah_id' : 'to_surah_id';
         $toVerseKey = $target === 'review' ? 'review_to_verse' : 'to_verse';
 
+        $defaultStart = null;
         if ($target === 'review') {
             foreach ($this->planDays as $day) {
                 if ($day['selected']) {
@@ -615,86 +634,186 @@ new class extends Component {
                     break;
                 }
             }
+            $defaultStart = $fixedReviewStart;
+            if (!$defaultStart) {
+                if ($this->reviewDirection === 'reverse') {
+                    $defaultStart = Ayah::where('surah_id', 114)->where('verse_number', 1)->first();
+                } else {
+                    $defaultStart = Ayah::where('surah_id', 1)->where('verse_number', 1)->first();
+                }
+            }
+        } else {
+            $defaultStart = Ayah::where('surah_id', $this->bulkStartSurah)
+                ->where('verse_number', $this->bulkStartVerse)
+                ->first() ?: Ayah::first();
         }
 
         $resetNextReview = false;
 
         foreach ($this->planDays as &$day) {
             if (!$day['selected']) {
-                $lastDayStart = Ayah::where('surah_id', $day[$fromSurahKey])
-                    ->where('verse_number', $day[$fromVerseKey])
-                    ->first();
-                $lastDayEnd = Ayah::where('surah_id', $day[$toSurahKey])
-                    ->where('verse_number', $day[$toVerseKey])
-                    ->first();
+                $unselectedStart = null;
+                $unselectedEnd = null;
+                if (!empty($day[$fromSurahKey]) && !empty($day[$fromVerseKey])) {
+                    $unselectedStart = Ayah::where('surah_id', $day[$fromSurahKey])
+                        ->where('verse_number', $day[$fromVerseKey])
+                        ->first();
+                }
+                if (!empty($day[$toSurahKey]) && !empty($day[$toVerseKey])) {
+                    $unselectedEnd = Ayah::where('surah_id', $day[$toSurahKey])
+                        ->where('verse_number', $day[$toVerseKey])
+                        ->first();
+                }
+                if ($unselectedStart && $unselectedEnd) {
+                    $isDefault = $defaultStart &&
+                                 $unselectedStart->surah_id === $defaultStart->surah_id &&
+                                 $unselectedStart->verse_number === $defaultStart->verse_number &&
+                                 $unselectedEnd->surah_id === $defaultStart->surah_id &&
+                                 $unselectedEnd->verse_number === $defaultStart->verse_number;
+
+                    if (!$isDefault) {
+                        $lastDayStart = $unselectedStart;
+                        $lastDayEnd = $unselectedEnd;
+                    }
+                }
                 continue;
             }
 
             if ($target === 'review') {
                 $maxPossibleEnd = null;
+                $loopBackStart = $fixedReviewStart;
 
                 if ($this->planType === 'hifz_review') {
-                    if ($this->fillDirection === 'reverse') {
-                        $maxPossibleEnd = Ayah::where('surah_id', 1)
-                            ->orderBy('verse_number', 'desc')
-                            ->first();
-                    } else {
-                        $hifzStartAyah = Ayah::where('surah_id', $day['from_surah_id'])
-                            ->where('verse_number', $day['from_verse'])
-                            ->first();
+                    $hifzStartAyah = Ayah::where('surah_id', $day['from_surah_id'])
+                        ->where('verse_number', $day['from_verse'])
+                        ->first();
 
-                        if (!$hifzStartAyah || !$fixedReviewStart) {
-                            continue;
-                        }
-
-                        $maxPossibleEnd = $service->getAyahBefore($hifzStartAyah, $this->fillDirection);
-                    }
-                } else {
-                    // Pure Review bounds based on exact memorized Ayah
-                    if ($this->fillDirection === 'reverse') {
-                        $maxPossibleEnd = Ayah::where('surah_id', 1)
-                            ->orderBy('verse_number', 'desc')
-                            ->first();
-                    } else {
-                        $maxPossibleEnd = Ayah::where('surah_id', $this->memorizedUpToSurah)
-                            ->where('verse_number', $this->memorizedUpToVerse)
-                            ->first();
-                    }
-                    if (!$fixedReviewStart)
+                    if (!$hifzStartAyah) {
                         continue;
+                    }
+
+                    // Dynamically calculate the Hifz ceiling (last verse of Hifz on previous day)
+                    $C = $service->getAyahBefore($hifzStartAyah, $this->fillDirection);
+                } else {
+                    // Pure Review ceiling based on selected Hifz boundary
+                    $C = Ayah::where('surah_id', $this->memorizedUpToSurah)
+                        ->where('verse_number', $this->memorizedUpToVerse)
+                        ->first();
+                }
+
+                if ($C) {
+                    if ($this->reviewDirection === $this->fillDirection) {
+                        // Same direction: starting point is static (fixedReviewStart), cap is ceiling C
+                        $loopBackStart = $fixedReviewStart;
+                        $maxPossibleEnd = $C;
+                    } else {
+                        // Opposite direction: starting point is the first verse of the ceiling surah C
+                        $loopBackStart = Ayah::where('surah_id', $C->surah_id)
+                            ->where('verse_number', 1)
+                            ->first();
+
+                        $isFullSurah = ($C->verse_number === $C->surah->verses_count);
+                        if ($isFullSurah) {
+                            if ($this->reviewDirection === 'reverse') {
+                                $maxPossibleEnd = Ayah::where('surah_id', 1)
+                                    ->orderBy('verse_number', 'desc')
+                                    ->first();
+                            } else {
+                                $maxPossibleEnd = Ayah::where('surah_id', 114)
+                                    ->orderBy('verse_number', 'desc')
+                                    ->first();
+                            }
+                        } else {
+                            $maxPossibleEnd = $C;
+                        }
+                    }
                 }
 
                 // 1. Determine the Start of this day's review
                 if ($type === 'all_previous') {
-                    $actualStart = $fixedReviewStart;
+                    $actualStart = $loopBackStart;
                     $targetReviewEnd = $maxPossibleEnd;
                 } else {
                     if ($resetNextReview) {
-                        $actualStart = $fixedReviewStart;
+                        $actualStart = $loopBackStart;
                         $resetNextReview = false;
                     } elseif ($lastDayEnd) {
-                        $actualStart = $service->getNextStartAyah($lastDayStart, $lastDayEnd, $type, $this->fillDirection);
+                        $actualStart = $service->getNextStartAyah($lastDayStart, $lastDayEnd, $type, $this->reviewDirection);
                     } else {
-                        $actualStart = $fixedReviewStart;
+                        $actualStart = $loopBackStart;
                     }
 
                     if (!$actualStart) {
-                        $actualStart = $fixedReviewStart;
+                        $actualStart = $loopBackStart;
                     }
 
                     // Ensure Start is not already beyond limit
-                    if ($maxPossibleEnd && $service->isExceeding($actualStart, $maxPossibleEnd, $this->fillDirection)) {
-                        $actualStart = $maxPossibleEnd;
+                    if ($maxPossibleEnd && $service->isExceeding($actualStart, $maxPossibleEnd, $this->reviewDirection)) {
+                        $actualStart = $loopBackStart;
                         $resetNextReview = true;
                     }
 
                     // 2. Determine the End of this day's review based on volume
-                    $targetReviewEnd = $service->getEndAyah($actualStart, $type, $this->fillDirection, null, $this->planType === 'review');
+                    $targetReviewEnd = $service->getEndAyah($actualStart, $type, $this->reviewDirection, null, $this->planType === 'review');
 
                     // 3. Cap the End so it doesn't overlap limits
-                    if ($maxPossibleEnd && $service->isExceeding($targetReviewEnd, $maxPossibleEnd, $this->fillDirection)) {
+                    if ($maxPossibleEnd && $service->isExceeding($targetReviewEnd, $maxPossibleEnd, $this->reviewDirection)) {
+                        $isOverLimit = $service->isExceeding($targetReviewEnd, $maxPossibleEnd, $this->reviewDirection, false);
+
                         $targetReviewEnd = $maxPossibleEnd;
                         $resetNextReview = true;
+
+                        if ($isOverLimit) {
+                            // Calculate backwards from the start of maxPossibleEnd's surah to get a full review segment of the requested volume
+                            $oppositeDirection = $this->reviewDirection === 'reverse' ? 'forward' : 'reverse';
+                            $backwardsStartAnchor = Ayah::where('surah_id', $maxPossibleEnd->surah_id)
+                                ->where('verse_number', 1)
+                                ->first();
+                            $backwardsStart = $service->getEndAyah($backwardsStartAnchor ?: $maxPossibleEnd, $type, $oppositeDirection, null, $this->planType === 'review');
+
+                            if ($backwardsStart) {
+                                $backwardsStart = Ayah::where('surah_id', $backwardsStart->surah_id)
+                                    ->where('verse_number', 1)
+                                    ->first();
+                            }
+
+                            // Ensure we don't go past the absolute start of the memorized range
+                            if ($backwardsStart && $service->isExceeding($loopBackStart, $backwardsStart, $this->reviewDirection)) {
+                                $actualStart = $loopBackStart;
+                            } else {
+                                $actualStart = $backwardsStart ?: $loopBackStart;
+                            }
+                        }
+                    }
+
+                    // Check if today's range is a duplicate of the previous day's range
+                    if ($lastDayStart && $lastDayEnd && $maxPossibleEnd) {
+                        if ($actualStart->surah_id === $lastDayStart->surah_id &&
+                            $actualStart->verse_number === $lastDayStart->verse_number &&
+                            $targetReviewEnd->surah_id === $lastDayEnd->surah_id &&
+                            $targetReviewEnd->verse_number === $lastDayEnd->verse_number) {
+
+                            $oppositeDirection = $this->reviewDirection === 'reverse' ? 'forward' : 'reverse';
+                            $backwardsStartAnchor = Ayah::where('surah_id', $maxPossibleEnd->surah_id)
+                                ->where('verse_number', 1)
+                                ->first();
+                            $backwardsStart = $service->getEndAyah($backwardsStartAnchor ?: $maxPossibleEnd, $type, $oppositeDirection, null, $this->planType === 'review');
+
+                            if ($backwardsStart) {
+                                $backwardsStart = Ayah::where('surah_id', $backwardsStart->surah_id)
+                                    ->where('verse_number', 1)
+                                    ->first();
+                            }
+
+                            if ($backwardsStart && $service->isExceeding($loopBackStart, $backwardsStart, $this->reviewDirection)) {
+                                $actualStart = $loopBackStart;
+                            } else {
+                                $actualStart = $backwardsStart ?: $loopBackStart;
+                            }
+
+                            $targetReviewEnd = $maxPossibleEnd;
+                            $resetNextReview = true;
+                        }
                     }
                 }
 
@@ -708,8 +827,30 @@ new class extends Component {
                 continue;
             }
 
+            $hifzCeilingAyah = null;
+            $ceiling = null;
+            if ($target === 'hifz') {
+                $ceiling = Ayah::where('surah_id', $this->memorizedUpToSurah)
+                    ->where('verse_number', $this->memorizedUpToVerse)
+                    ->first();
+                if ($ceiling) {
+                    $hifzCeilingAyah = $service->getNextStartAyah($ceiling, $ceiling, $type, $this->fillDirection);
+                }
+            }
+
             if ($lastDayStart && $lastDayEnd) {
                 $start = $service->getNextStartAyah($lastDayStart, $lastDayEnd, $type, $this->fillDirection);
+                
+                $isExceeded = !$start || ($ceiling && $service->isExceeding($start, $ceiling, $this->fillDirection, false));
+                
+                if ($isExceeded) {
+                    if ($this->fillDirection === 'reverse') {
+                        $start = Ayah::where('surah_id', 114)->where('verse_number', 1)->first();
+                    } else {
+                        $start = Ayah::where('surah_id', 1)->where('verse_number', 1)->first();
+                    }
+                }
+
                 if ($start) {
                     $day[$fromSurahKey] = $start->surah_id;
                     $day[$fromVerseKey] = $start->verse_number;
@@ -728,7 +869,7 @@ new class extends Component {
                         ->first();
                 }
 
-                $end = $service->getEndAyah($currentStart, $type, $this->fillDirection, $hifzStartAyah, $this->planType === 'review');
+                $end = $service->getEndAyah($currentStart, $type, $this->fillDirection, $target === 'hifz' ? $hifzCeilingAyah : $hifzStartAyah, $this->planType === 'review');
 
                 $day[$toSurahKey] = $end->surah_id;
                 $day[$toVerseKey] = $end->verse_number;
@@ -755,6 +896,7 @@ new class extends Component {
                 'description' => $this->description,
                 'plan_type' => $this->planType,
                 'direction' => $this->fillDirection,
+                'review_direction' => $this->reviewDirection,
             ]);
 
             $existingIds = collect($this->planDays)->pluck('id')->filter()->toArray();
@@ -772,6 +914,7 @@ new class extends Component {
                 'description' => $this->description,
                 'plan_type' => $this->planType,
                 'direction' => $this->fillDirection,
+                'review_direction' => $this->reviewDirection,
                 'status' => 'active',
                 'is_approved' => $this->userLevel === 'teacher',
                 'created_by_role' => $this->userLevel,
@@ -862,6 +1005,7 @@ new class extends Component {
         days:          $wire.entangle('planDays'),
         planType:      $wire.entangle('planType').live,
         fillDirection: $wire.entangle('fillDirection').live,
+        reviewDirection: $wire.entangle('reviewDirection').live,
         fillTarget:    $wire.entangle('fillTarget').live,
         
         selected:       [],
@@ -1007,28 +1151,61 @@ new class extends Component {
                         class="mx-auto bg-blue-50 dark:bg-zinc-800 w-16 h-16 rounded-full flex items-center justify-center text-blue-500 mb-4">
                         <flux:icon icon="arrows-up-down" class="size-8" />
                     </div>
-                    <flux:heading size="lg" class="mb-6">{{ __('حدد اتجاه الحفظ / المراجعة') }}</flux:heading>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md mx-auto">
-                        <button @click="fillDirection = 'forward'"
-                            :class="fillDirection === 'forward' ? 'ring-2 ring-blue-500 shadow-md bg-blue-50 dark:bg-blue-900/20' : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'"
-                            class="flex flex-col items-center p-4 rounded-xl   cursor-pointer text-right relative overflow-hidden">
-                            <div class="w-full flex items-center justify-between mb-2">
-                                <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('من الفاتحة إلى الناس') }}</span>
-                                <flux:icon icon="arrow-down" class="size-5 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <span class="text-xs text-zinc-500">{{ __('ترتيب المصحف المعتاد') }}</span>
-                        </button>
-                        <button @click="fillDirection = 'reverse'"
-                            :class="fillDirection === 'reverse' ? 'ring-2 ring-blue-500 shadow-md bg-blue-50 dark:bg-blue-900/20' : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'"
-                            class="flex flex-col items-center p-4 rounded-xl   cursor-pointer text-right relative overflow-hidden">
-                            <div class="w-full flex items-center justify-between mb-2">
-                                <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('من الناس إلى الفاتحة') }}</span>
-                                <flux:icon icon="arrow-up" class="size-5 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <span class="text-xs text-zinc-500">{{ __('الترتيب العكسي للمصحف') }}</span>
-                        </button>
+                    <!-- Hifz / Overall Direction -->
+                    <div>
+                        <flux:subheading class="mb-4 font-semibold text-zinc-600 dark:text-zinc-400">
+                            {{ __('حدد اتجاه الحفظ') }}
+                        </flux:subheading>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md mx-auto">
+                            <button @click="fillDirection = 'forward'"
+                                :class="fillDirection === 'forward' ? 'ring-2 ring-blue-500 shadow-md bg-blue-50 dark:bg-blue-900/20' : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'"
+                                class="flex flex-col items-center p-4 rounded-xl cursor-pointer text-right relative overflow-hidden">
+                                <div class="w-full flex items-center justify-between mb-2">
+                                    <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('من الفاتحة إلى الناس') }}</span>
+                                    <flux:icon icon="arrow-down" class="size-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <span class="text-xs text-zinc-500">{{ __('ترتيب المصحف المعتاد') }}</span>
+                            </button>
+                            <button @click="fillDirection = 'reverse'"
+                                :class="fillDirection === 'reverse' ? 'ring-2 ring-blue-500 shadow-md bg-blue-50 dark:bg-blue-900/20' : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'"
+                                class="flex flex-col items-center p-4 rounded-xl cursor-pointer text-right relative overflow-hidden">
+                                <div class="w-full flex items-center justify-between mb-2">
+                                    <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('من الناس إلى الفاتحة') }}</span>
+                                    <flux:icon icon="arrow-up" class="size-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <span class="text-xs text-zinc-500">{{ __('الترتيب العكسي للمصحف') }}</span>
+                            </button>
+                        </div>
                     </div>
+
+                    <!-- Decoupled Review Direction (Only shown if planType is hifz_review or review) -->
+                    <template x-if="planType === 'hifz_review' || planType === 'review'">
+                        <div class="pt-6 border-t border-zinc-100 dark:border-zinc-800">
+                            <flux:subheading class="mb-4 font-semibold text-zinc-600 dark:text-zinc-400">
+                                {{ __('حدد اتجاه المراجعة') }}
+                            </flux:subheading>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md mx-auto">
+                                <button @click="reviewDirection = 'forward'"
+                                    :class="reviewDirection === 'forward' ? 'ring-2 ring-indigo-500 shadow-md bg-indigo-50 dark:bg-indigo-900/20' : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'"
+                                    class="flex flex-col items-center p-4 rounded-xl cursor-pointer text-right relative overflow-hidden">
+                                    <div class="w-full flex items-center justify-between mb-2">
+                                        <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('من الفاتحة إلى الناس') }}</span>
+                                        <flux:icon icon="arrow-down" class="size-5 text-indigo-600 dark:text-indigo-400" />
+                                    </div>
+                                    <span class="text-xs text-zinc-500">{{ __('ترتيب المصحف المعتاد') }}</span>
+                                </button>
+                                <button @click="reviewDirection = 'reverse'"
+                                    :class="reviewDirection === 'reverse' ? 'ring-2 ring-indigo-500 shadow-md bg-indigo-50 dark:bg-indigo-900/20' : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800'"
+                                    class="flex flex-col items-center p-4 rounded-xl cursor-pointer text-right relative overflow-hidden">
+                                    <div class="w-full flex items-center justify-between mb-2">
+                                        <span class="font-bold text-zinc-800 dark:text-zinc-200">{{ __('من الناس إلى الفاتحة') }}</span>
+                                        <flux:icon icon="arrow-up" class="size-5 text-indigo-600 dark:text-indigo-400" />
+                                    </div>
+                                    <span class="text-xs text-zinc-500">{{ __('الترتيب العكسي للمصحف') }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
                 </div>
 
                 <!-- STEP 4: Dates & Count -->
@@ -1199,8 +1376,14 @@ new class extends Component {
                         <flux:badge color="zinc" size="sm">
                             {{ $planType === 'hifz' ? __('مسار حفظ') : ($planType === 'review' ? __('مسار مراجعة') : __('حفظ ومراجعة')) }}
                         </flux:badge>
-                        <flux:badge color="zinc" size="sm">{{ $fillDirection === 'forward' ? __('من الفاتحة إلى الناس') : __('من الناس إلى الفاتحة') }}
+                        <flux:badge color="zinc" size="sm">
+                            {{ __('اتجاه الحفظ:') }} {{ $fillDirection === 'forward' ? __('من الفاتحة إلى الناس') : __('من الناس إلى الفاتحة') }}
                         </flux:badge>
+                        @if($planType !== 'hifz')
+                            <flux:badge color="zinc" size="sm">
+                                {{ __('اتجاه المراجعة:') }} {{ $reviewDirection === 'forward' ? __('من الفاتحة إلى الناس') : __('من الناس إلى الفاتحة') }}
+                            </flux:badge>
+                        @endif
                         <span class="flex items-center gap-1">
                             <flux:icon icon="calendar" class="size-3" /> {{ $daysCount }} يوم
                         </span>
@@ -1243,9 +1426,11 @@ new class extends Component {
                             </flux:heading>
 
                             @if($planType === 'review')
-                                <div class="flex items-center gap-2 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 px-3 py-1.5 rounded-xl">
-                                    <flux:icon icon="flag" class="size-4 text-amber-500 shrink-0" />
-                                    <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{{ __('سقف التحديد الحالي:') }}</span>
+                                <div class="flex items-center gap-2 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/50 dark:border-indigo-900/40 px-3 py-1.5 rounded-xl">
+                                    <flux:icon icon="flag" class="size-4 text-indigo-500 shrink-0" />
+                                    <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                                        {{ __('سقف المراجعة الحالي:') }}
+                                    </span>
                                     <div class="flex items-center gap-2">
                                         <select wire:model.live="memorizedUpToSurah" class="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 outline-none">
                                             @foreach($allSurahs as $surah)
