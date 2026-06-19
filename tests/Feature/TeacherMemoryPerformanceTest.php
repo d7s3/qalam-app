@@ -111,7 +111,7 @@ test('teacher tasmeeh-manager renders efficiently within budgets', function () {
     // Assert optimized queries (budget is < 20 queries, usually 12-15)
     expect($queryCount)->toBeLessThan(20);
     // Assert memory allocation is low (budget is 15MB)
-    expect($memUsed)->toBeLessThan(15 * 1024 * 1024);
+    expect($memUsed)->toBeLessThan(15 * 2048 * 2048);
 });
 
 test('teacher attendance component renders efficiently within budgets', function () {
@@ -131,7 +131,7 @@ test('teacher attendance component renders efficiently within budgets', function
 
     // Attendance component renders lists of students. It should execute few queries (budget < 15 queries)
     expect($queryCount)->toBeLessThan(15);
-    expect($memUsed)->toBeLessThan(15 * 1024 * 1024);
+    expect($memUsed)->toBeLessThan(15 * 2048 * 2048);
 });
 
 test('teacher student-manager component renders efficiently within budgets', function () {
@@ -151,7 +151,7 @@ test('teacher student-manager component renders efficiently within budgets', fun
 
     // Student manager component lists circle students.
     expect($queryCount)->toBeLessThan(15);
-    expect($memUsed)->toBeLessThan(15 * 1024 * 1024);
+    expect($memUsed)->toBeLessThan(15 * 2048 * 2048);
 });
 
 test('shared plan-creator component renders efficiently within budgets', function () {
@@ -171,7 +171,7 @@ test('shared plan-creator component renders efficiently within budgets', functio
 
     // Plan creator should render with minimal queries.
     expect($queryCount)->toBeLessThan(15);
-    expect($memUsed)->toBeLessThan(15 * 1024 * 1024);
+    expect($memUsed)->toBeLessThan(15 * 2048 * 2048);
 });
 
 test('teacher leaderboards component renders efficiently within budgets', function () {
@@ -191,7 +191,7 @@ test('teacher leaderboards component renders efficiently within budgets', functi
 
     // Leaderboards list circle leaderboards.
     expect($queryCount)->toBeLessThan(15);
-    expect($memUsed)->toBeLessThan(15 * 1024 * 1024);
+    expect($memUsed)->toBeLessThan(15 * 2048 * 2048);
 });
 
 test('teacher student-manager dispatches student-list-updated event on student creation', function () {

@@ -40,7 +40,7 @@ class Dashboard extends Component
     private function isSchoolDay(string $date): bool
     {
         $d = Carbon::parse($date);
-        $dayOfWeek = (int) $d->format('N'); // 1=Mon … 7=Sun
+        $dayOfWeek = $d->dayOfWeek + 1; // 1=Sun, 2=Mon, 3=Tue, 4=Wed, 5=Thu, 6=Fri, 7=Sat
 
         return AcademicCalendarEvent::where('is_attendance_period', true)
             ->where('start_date', '<=', $date)

@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Carbon\Carbon;
 
 class TurnReservationSession extends Model
 {
@@ -35,12 +35,12 @@ class TurnReservationSession extends Model
     {
         return $this->hasMany(TurnReservation::class);
     }
-    
+
     public function isActiveToday(): bool
     {
         $now = Carbon::now('Asia/Riyadh');
         $todayStr = $now->format('Y-m-d');
-        
+
         // Check date range
         if ($todayStr < $this->start_date->format('Y-m-d') || $todayStr > $this->end_date->format('Y-m-d')) {
             return false;
@@ -50,8 +50,8 @@ class TurnReservationSession extends Model
         // Ensure days_of_week contains strings or ints that match the current day of week
         $currentDayOfWeek = (string) $now->dayOfWeek;
         $allowedDays = array_map('strval', $this->days_of_week ?? []);
-        
-        if (!in_array($currentDayOfWeek, $allowedDays)) {
+
+        if (! in_array($currentDayOfWeek, $allowedDays)) {
             return false;
         }
 
@@ -60,7 +60,7 @@ class TurnReservationSession extends Model
 
     public function isActiveNow(): bool
     {
-        if (!$this->isActiveToday()) {
+        if (! $this->isActiveToday()) {
             return false;
         }
 

@@ -1,0 +1,2743 @@
+<?php
+
+use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
+use Flux\Flux;
+
+new class extends Component {
+    use \Livewire\WithFileUploads;
+
+    public $profile_image_file = null;
+    public array $targetTeams = [];
+    public array $targetDates = [];
+    public string $teamColor = '#4f46e5';
+    public bool $showDoublePointsModal = false;
+    public string $doublePointsDate = '';
+    public string $doublePointsType = 'team';
+    public int $doublePointsPrice = 150;
+
+    public bool $showFreezeModal = false;
+    public string $freezeTargetDate = '';
+    public string $freezeDayName = '';
+    public string $freezeHijriDate = '';
+    public int $freezePrice = 100;
+
+    public function updatedProfileImageFile(): void
+    {
+        $this->validate([
+            'profile_image_file' => 'required|image|max:10240',
+        ]);
+
+        $student = Auth::guard('student')->user();
+
+        // Process profile photo and convert to WebP
+        $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver);
+        $tempPath = $this->profile_image_file->getRealPath();
+        $image = $manager->decode($tempPath);
+        $image->scale(height: 256);
+        $webpData = $image->encode(new \Intervention\Image\Encoders\WebpEncoder(85))->toString();
+        
+        $filename = 'avatars/' . uniqid() . '_student_' . $student->id . '.webp';
+        \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $webpData);
+
+        // Delete old avatar if exists
+        if ($student->avatar_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($student->avatar_path);
+        }
+
+        $student->update(['avatar_path' => $filename]);
+
+        $this->profile_image_file = null;
+        Flux::toast('تم تحديث صورتك الشخصية بنجاح!', variant: 'success');
+    }
+
+    public function openDoublePointsModal(string $date, string $type = 'team'): void
+    {
+        $this->doublePointsType = $type;
+
+        $student = Auth::guard('student')->user();
+        $activeGamification = \App\Models\Leaderboard::whereHas('circles', fn($q) => $q->where('circles.id', $student->circle_id))
+            ->whereNotNull('supervisor_id')
+            ->where('is_active', true)
+            ->latest()
+            ->first() ?? \App\Models\Leaderboard::where('circle_id', $student->circle_id)
+            ->whereNull('supervisor_id')
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        if ($activeGamification) {
+            $isTeam = $type === 'team';
+            $levelInfo = \App\Services\GamificationService::getStudentLevel($student->id, $activeGamification->id);
+            $level = $levelInfo['current'] ?? null;
+            $lvlSettings = $level && is_array($level->settings) ? $level->settings : (array) ($level?->settings ?? []);
+            
+            $this->doublePointsPrice = $isTeam ? (int) ($lvlSettings['team_multiplier_price'] ?? 150) : (int) ($lvlSettings['individual_multiplier_price'] ?? 150);
+        } else {
+            $this->doublePointsPrice = 150;
+        }
+
+        $upcoming = $this->getUpcomingDays();
+        $defaultDate = '';
+        if (!empty($upcoming)) {
+            $existsAndWorking = false;
+            foreach ($upcoming as $day) {
+                if ($day['date'] === $date && $day['is_working']) {
+                    $existsAndWorking = true;
+                    break;
+                }
+            }
+            if ($existsAndWorking) {
+                $defaultDate = $date;
+            } else {
+                // Find the first working day in the upcoming days list
+                foreach ($upcoming as $day) {
+                    if ($day['is_working']) {
+                        $defaultDate = $day['date'];
+                        break;
+                    }
+                }
+                if (empty($defaultDate)) {
+                    $defaultDate = $upcoming[0]['date'];
+                }
+            }
+        } else {
+            $defaultDate = $date;
+        }
+
+        $this->doublePointsDate = $defaultDate;
+        $this->showDoublePointsModal = true;
+    }
+
+    public function purchaseDoublePoints(): void
+    {
+        $student = Auth::guard('student')->user();
+        
+        $activeGamification = \App\Models\Leaderboard::whereHas('circles', fn($q) => $q->where('circles.id', $student->circle_id))
+            ->whereNotNull('supervisor_id')
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        if (!$activeGamification) {
+            $activeGamification = \App\Models\Leaderboard::where('circle_id', $student->circle_id)
+                ->whereNull('supervisor_id')
+                ->where('is_active', true)
+                ->latest()
+                ->first();
+        }
+
+        if (!$activeGamification) {
+            Flux::toast('لا يوجد مسابقة تلعيب نشطة حالياً.', variant: 'danger');
+            return;
+        }
+
+        if (empty($this->doublePointsDate)) {
+            Flux::toast('يرجى اختيار تاريخ التفعيل أولاً.', variant: 'danger');
+            return;
+        }
+
+        // Validate working days
+        $workingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification);
+        if (!in_array($this->doublePointsDate, $workingDays)) {
+            Flux::toast('خطأ: لا يمكن تفعيل الميزة في يوم إجازة. يجب اختيار يوم من أيام الدوام المعتمدة للحلقة.', variant: 'danger');
+            return;
+        }
+
+        $levelInfo = \App\Services\GamificationService::getStudentLevel($student->id, $activeGamification->id);
+        $level = $levelInfo['current'] ?? null;
+        $lvlSettings = $level && is_array($level->settings) ? $level->settings : (array) ($level?->settings ?? []);
+
+        $isTeam = $this->doublePointsType === 'team';
+        $isEnabled = $isTeam ? ($lvlSettings['has_team_multiplier'] ?? true) : ($lvlSettings['has_individual_multiplier'] ?? true);
+        $price = $isTeam ? (int) ($lvlSettings['team_multiplier_price'] ?? 150) : (int) ($lvlSettings['individual_multiplier_price'] ?? 150);
+
+        if (!$isEnabled) {
+            Flux::toast('خطأ: مضاعف النقاط غير مفعل لمستواك الحالي.', variant: 'danger');
+            return;
+        }
+
+        $item = \App\Models\GamificationStoreItem::firstOrCreate([
+            'leaderboard_id' => $activeGamification->id,
+            'item_type' => 'multiplier',
+            'is_team_product' => $isTeam,
+        ], [
+            'name' => $isTeam ? 'مضاعف النقاط للكل' : 'مضاعف النقاط الفردي',
+            'description' => $isTeam ? 'مضاعفة نقاط الحفظ والمراجعة والحضور للفريق بأكمله ليوم واحد.' : 'مضاعفة نقاط الحفظ والمراجعة والحضور الخاصة بك ليوم واحد.',
+            'price' => 150,
+            'value' => 2,
+            'is_active' => true,
+        ]);
+
+        if (!$item->is_active) {
+            Flux::toast('خطأ: هذا المنتج غير مفعل حالياً في المتجر ولا يمكن شراؤه.', variant: 'danger');
+            return;
+        }
+
+        $status = \App\Services\GamificationService::requestStorePurchase($student->id, $item->id, null, $this->doublePointsDate, $price);
+
+        if ($status === 'success' || $status === 'approved') {
+            Flux::toast('تم شراء ميزة مضاعفة النقاط بنجاح!', variant: 'success');
+            $this->showDoublePointsModal = false;
+        } elseif ($status === 'pending_voting') {
+            Flux::toast('تم إرسال طلب الشراء. بانتظار تصويت أعضاء الفريق!', variant: 'success');
+            $this->showDoublePointsModal = false;
+        } elseif ($status === 'insufficient_coins') {
+            Flux::toast('رصيدك غير كافٍ للشراء.', variant: 'danger');
+        } elseif ($status === 'insufficient_team_coins') {
+            Flux::toast('رصيد الفريق غير كافٍ لشراء هذا المنتج.', variant: 'danger');
+        } elseif ($status === 'only_leader_or_assistant') {
+            Flux::toast('فقط القائد أو المساعد يمكنه شراء هذا المنتج للفريق.', variant: 'danger');
+        } elseif ($status === 'must_be_in_team') {
+            Flux::toast('يجب أن تكون في فريق لشراء هذا المنتج.', variant: 'danger');
+        } elseif ($status === 'invalid_target_date') {
+            Flux::toast('تاريخ التفعيل يجب أن يكون من يوم الغد فصاعداً وهو يوم دوام.', variant: 'danger');
+        } elseif ($status === 'individual_multiplier_already_purchased') {
+            Flux::toast('خطأ: تم بالفعل شراء أو تفعيل مضاعف نقاط فردي لهذا التاريخ.', variant: 'danger');
+        } elseif ($status === 'team_multiplier_already_purchased') {
+            Flux::toast('خطأ: تم بالفعل شراء أو تفعيل مضاعف نقاط جماعي لهذا التاريخ.', variant: 'danger');
+        } elseif ($status === 'multiplier_already_purchased') {
+            Flux::toast('خطأ: تم بالفعل شراء أو تفعيل مضاعف نقاط (فردي أو جماعي) لهذا التاريخ.', variant: 'danger');
+        } else {
+            Flux::toast('تعذر إتمام عملية الشراء.', variant: 'danger');
+        }
+    }
+
+    public function openFreezeModal(string $date, string $dayName, string $hijriDate): void
+    {
+        $student = Auth::guard('student')->user();
+        $activeGamification = \App\Models\Leaderboard::whereHas('circles', fn($q) => $q->where('circles.id', $student->circle_id))
+            ->whereNotNull('supervisor_id')
+            ->where('is_active', true)
+            ->latest()
+            ->first() ?? \App\Models\Leaderboard::where('circle_id', $student->circle_id)
+            ->whereNull('supervisor_id')
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        if ($activeGamification) {
+            $levelInfo = \App\Services\GamificationService::getStudentLevel($student->id, $activeGamification->id);
+            $level = $levelInfo['current'] ?? null;
+            $lvlSettings = $level && is_array($level->settings) ? $level->settings : (array) ($level?->settings ?? []);
+            $this->freezePrice = (int) ($lvlSettings['freeze_price'] ?? 100);
+        } else {
+            $this->freezePrice = 100;
+        }
+
+        $this->freezeTargetDate = $date;
+        $this->freezeDayName = $dayName;
+        $this->freezeHijriDate = $hijriDate;
+        $this->showFreezeModal = true;
+    }
+
+    public function purchaseFreeze(): void
+    {
+        $student = Auth::guard('student')->user();
+        $activeGamification = \App\Models\Leaderboard::whereHas('circles', fn($q) => $q->where('circles.id', $student->circle_id))
+            ->whereNotNull('supervisor_id')
+            ->where('is_active', true)
+            ->latest()
+            ->first() ?? \App\Models\Leaderboard::where('circle_id', $student->circle_id)
+            ->whereNull('supervisor_id')
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        if (!$activeGamification) {
+            Flux::toast('لا يوجد مسابقة تلعيب نشطة حالياً.', variant: 'danger');
+            return;
+        }
+
+        $levelInfo = \App\Services\GamificationService::getStudentLevel($student->id, $activeGamification->id);
+        $level = $levelInfo['current'] ?? null;
+        $lvlSettings = $level && is_array($level->settings) ? $level->settings : (array) ($level?->settings ?? []);
+
+        $hasFreeze = $lvlSettings['has_freeze'] ?? true;
+        $price = (int) ($lvlSettings['freeze_price'] ?? 100);
+
+        if (!$hasFreeze) {
+            Flux::toast('خطأ: ميزة التجميد غير مفعلة لمستواك الحالي.', variant: 'danger');
+            return;
+        }
+
+        $item = \App\Models\GamificationStoreItem::where('leaderboard_id', $activeGamification->id)
+            ->where('item_type', 'freeze')
+            ->where('is_streak_freeze', true)
+            ->where('is_team_product', false)
+            ->first();
+
+        if (!$item || !$item->is_active) {
+            Flux::toast('خطأ: منتج تجميد الحماسة غير متوفر أو غير نشط حالياً.', variant: 'danger');
+            return;
+        }
+
+        $status = \App\Services\GamificationService::requestStorePurchase($student->id, $item->id, null, $this->freezeTargetDate, $price);
+
+        if ($status === 'success' || $status === 'approved') {
+            Flux::toast('تم تجميد اليوم بنجاح!', variant: 'success');
+            \App\Services\GamificationService::recalculateStudentStreak($student, $activeGamification);
+            $this->showFreezeModal = false;
+        } elseif ($status === 'insufficient_coins') {
+            Flux::toast('رصيدك غير كافٍ للشراء. تحتاج إلى ' . $price . ' عملة.', variant: 'danger');
+        } elseif ($status === 'already_frozen') {
+            Flux::toast('خطأ: هذا اليوم مجمد بالفعل.', variant: 'danger');
+        } else {
+            Flux::toast('تعذر إتمام عملية التجميد.', variant: 'danger');
+        }
+    }
+
+    public function getUpcomingDays(): array
+    {
+        $student = Auth::guard('student')->user();
+        if (!$student) {
+            return [];
+        }
+
+        $activeGamification = \App\Models\Leaderboard::whereHas('circles', fn($q) => $q->where('circles.id', $student->circle_id))
+            ->whereNotNull('supervisor_id')
+            ->where('is_active', true)
+            ->latest()
+            ->first();
+
+        if (!$activeGamification) {
+            $activeGamification = \App\Models\Leaderboard::where('circle_id', $student->circle_id)
+                ->whereNull('supervisor_id')
+                ->where('is_active', true)
+                ->latest()
+                ->first();
+        }
+
+        if (!$activeGamification) {
+            return [];
+        }
+
+        $allWorkingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification);
+        $tomorrow = \Carbon\Carbon::now('Asia/Riyadh')->addDay();
+
+        $upcoming = [];
+        $hijriFormatter = new \IntlDateFormatter(
+            'ar_SA@calendar=islamic-umalqura',
+            \IntlDateFormatter::FULL,
+            \IntlDateFormatter::NONE,
+            'Asia/Riyadh',
+            \IntlDateFormatter::TRADITIONAL,
+            'EEEE، d MMMM yyyy'
+        );
+
+        for ($i = 0; $i < 20; $i++) {
+            $date = $tomorrow->copy()->addDays($i);
+            $dateStr = $date->format('Y-m-d');
+            $isWorking = in_array($dateStr, $allWorkingDays);
+
+            $upcoming[] = [
+                'date' => $dateStr,
+                'hijri' => $hijriFormatter->format($date->timestamp),
+                'gregorian' => $date->translatedFormat('l، d F Y'),
+                'is_working' => $isWorking,
+            ];
+        }
+
+        return $upcoming;
+    }
+
+    public function with()
+    {
+        $student = Auth::guard('student')->user();
+
+        // Fetch Active Leaderboard: supervisor competitions (active) have priority, then teacher competitions
+        $activeGamification = \App\Models\Leaderboard::whereHas('circles', fn($q) => $q->where('circles.id', $student->circle_id))
+            ->whereNotNull('supervisor_id')
+            ->where('is_active', true)
+            ->with('circles')
+            ->latest()
+            ->first();
+
+        if (!$activeGamification) {
+            $activeGamification = \App\Models\Leaderboard::where('circle_id', $student->circle_id)
+                ->whereNull('supervisor_id')
+                ->where('is_active', true)
+                ->with('circles')
+                ->latest()
+                ->first();
+        }
+
+        if ($activeGamification && $activeGamification->competition_type !== 'gamification') {
+            $activeGamification = null;
+        }
+
+        $gamificationState = null;
+        $gamificationLevelInfo = null;
+        $freezeableDates = [];
+        $nextFreezeUpgrade = null;
+        $studentTeam = null;
+        $teamRole = null;
+        $theme = null;
+        $storeItems = collect();
+        $studentBadges = [];
+        $pendingClaims = collect();
+        $allBadges = collect();
+        $milestones = collect();
+        $claimedMilestones = [];
+        $pendingTeamPurchases = collect();
+        $studentVotes = [];        $teamColor = '#4f46e5';
+        $workingDays = [];
+
+        if ($activeGamification) {
+            \App\Services\GamificationService::recalculateStudentStreak($student, $activeGamification);
+
+            $gamificationState = \App\Models\GamificationStudentState::firstOrCreate([
+                'student_id' => $student->id,
+                'leaderboard_id' => $activeGamification->id,
+            ]);
+            $gamificationLevelInfo = \App\Services\GamificationService::getStudentLevel($student->id, $activeGamification->id);
+            $freezeableDates = \App\Services\GamificationService::getFreezeableDates($student, $activeGamification);
+            $nextFreezeUpgrade = \App\Services\GamificationService::getNextFreezeUpgrade($student, $activeGamification);
+            $studentTeam = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('students.id', $student->id))
+                ->where('leaderboard_id', $activeGamification->id)
+                ->first();
+            if ($studentTeam) {
+                $teamRole = \Illuminate\Support\Facades\DB::table('gamification_team_student')
+                    ->where('team_id', $studentTeam->id)
+                    ->where('student_id', $student->id)
+                    ->value('role');
+                    $this->teamColor = $studentTeam->color ?? '#4f46e5';
+            }
+            $theme = \App\Services\GamificationThemeService::getTheme($activeGamification);
+            $storeItems = \App\Models\GamificationStoreItem::where('leaderboard_id', $activeGamification->id)
+                ->where('is_active', true)
+                ->whereNotIn('item_type', ['multiplier', 'freeze'])
+                ->get();
+            $studentBadges = \Illuminate\Support\Facades\DB::table('gamification_badge_student')
+                ->where('student_id', $student->id)
+                ->where('status', 'claimed')
+                ->pluck('badge_id')
+                ->toArray();
+            $pendingClaims = \App\Models\GamificationBadge::join('gamification_badge_student', 'gamification_badges.id', '=', 'gamification_badge_student.badge_id')
+                ->where('gamification_badge_student.student_id', $student->id)
+                ->where('gamification_badge_student.status', 'approved')
+                ->where('gamification_badges.leaderboard_id', $activeGamification->id)
+                ->select('gamification_badges.*')
+                ->get();
+            $allBadges = \App\Models\GamificationBadge::where('leaderboard_id', $activeGamification->id)->get();
+            $milestones = \Illuminate\Support\Facades\DB::table('gamification_streak_milestones')
+                ->where('leaderboard_id', $activeGamification->id)
+                ->orderBy('days_required', 'asc')
+                ->get();
+            $claimedMilestones = \Illuminate\Support\Facades\DB::table('gamification_claimed_milestones')
+                ->where('student_id', $student->id)
+                ->where('status', 'claimed')
+                ->pluck('milestone_id')
+                ->toArray();
+            $pendingMilestoneClaims = \Illuminate\Support\Facades\DB::table('gamification_claimed_milestones')
+                ->join('gamification_streak_milestones', 'gamification_claimed_milestones.milestone_id', '=', 'gamification_streak_milestones.id')
+                ->where('gamification_claimed_milestones.student_id', $student->id)
+                ->where('gamification_claimed_milestones.status', 'approved')
+                ->where('gamification_streak_milestones.leaderboard_id', $activeGamification->id)
+                ->select('gamification_streak_milestones.*', 'gamification_claimed_milestones.id as claim_record_id')
+                ->get();
+            if ($studentTeam) {
+                $pendingTeamPurchases = \App\Models\GamificationStorePurchase::where('team_id', $studentTeam->id)
+                    ->where('status', 'pending_approval')
+                    ->with(['item', 'student', 'votes.student'])
+                    ->get();
+            }
+            $studentVotes = \Illuminate\Support\Facades\DB::table('gamification_purchase_votes')
+                ->where('student_id', $student->id)
+                ->pluck('vote', 'store_purchase_id')
+                ->toArray();
+
+            $teamColor = $studentTeam ? ($studentTeam->color ?? ($theme['color'] ?? '#4f46e5')) : ($theme['color'] ?? '#4f46e5');
+
+            $style = [
+                'bg' => 'bg-slate-50 text-slate-800 min-h-screen rounded-3xl border border-slate-200/80 shadow-lg relative',
+                'card' => 'backdrop-blur-md bg-white/95 border border-slate-200/80 rounded-2xl p-5 shadow-sm relative overflow-hidden transition-all duration-300 hover:border-team-primary/50 hover:shadow-md',
+                'accent' => 'text-team-primary',
+                'progress' => 'bg-team-primary',
+                'badge' => 'indigo',
+                'badge_active' => 'indigo',
+                'badge_locked' => 'zinc',
+                'btn' => 'bg-team-primary hover:bg-team-primary-hover text-white font-bold border-none shadow-sm transition-colors duration-150',
+                'coin_emoji' => $theme['coin_emoji'] ?? '💎',
+                'xp_emoji' => $theme['xp_emoji'] ?? '✨',
+                'streak_emoji' => '🔥',
+                'team_emoji' => $theme['team_emoji'] ?? '🛡️',
+            ];
+
+            // Get all working days for the competition
+            $startDate = $activeGamification->start_date;
+            $endDate = $activeGamification->end_date;
+
+            $startDateStr = Carbon::parse($startDate)->format('Y-m-d');
+            $endDateStr = Carbon::parse($endDate)->format('Y-m-d');
+
+            // Get all academic calendar events for working days detection
+            $calendarEvents = \App\Models\AcademicCalendarEvent::where('is_attendance_period', true)
+                ->where('start_date', '<=', $endDateStr)
+                ->where(function ($q) use ($startDateStr) {
+                    $q->whereNull('end_date')->orWhere('end_date', '>=', $startDateStr);
+                })
+                ->get();
+
+            $hasCalendarEvents = $calendarEvents->isNotEmpty();
+
+            // Fetch the enthusiasm map for this range in one batch
+            $enthusiasmMap = \App\Services\GamificationService::getEnthusiasmMapForRange(
+                $student,
+                $startDateStr,
+                $endDateStr,
+                $activeGamification
+            );
+
+            // Get working days using the helper method
+            $workingDaysDates = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification);
+
+            $hijriDayFormatter = new \IntlDateFormatter(
+                'ar_SA@calendar=islamic-umalqura',
+                \IntlDateFormatter::FULL,
+                \IntlDateFormatter::NONE,
+                'Asia/Riyadh',
+                \IntlDateFormatter::TRADITIONAL,
+                'EEEE'
+            );
+
+            $hijriDateFormatter = new \IntlDateFormatter(
+                'ar_SA@calendar=islamic-umalqura',
+                \IntlDateFormatter::FULL,
+                \IntlDateFormatter::NONE,
+                'Asia/Riyadh',
+                \IntlDateFormatter::TRADITIONAL,
+                'd MMM'
+            );
+
+            $multiplierPurchases = \App\Models\GamificationStorePurchase::where('status', 'approved')
+                ->where(function($query) use ($student, $studentTeam) {
+                    $query->where('student_id', $student->id);
+                    if ($studentTeam) {
+                        $query->orWhere('team_id', $studentTeam->id);
+                    }
+                })
+                ->whereHas('item', fn($q) => $q->where('item_type', 'multiplier'))
+                ->with('item')
+                ->get();
+
+            $dayNumber = 1;
+            $todayStr = now()->format('Y-m-d');
+            $approvedFreezes = $activeGamification ? \App\Models\GamificationStorePurchase::where('student_id', $student->id)
+                ->where('status', 'approved')
+                ->whereHas('item', fn($q) => $q->where('is_streak_freeze', true))
+                ->whereNotNull('target_date')
+                ->pluck('target_date')
+                ->map(fn($d) => Carbon::parse($d)->format('Y-m-d'))
+                ->toArray() : [];
+
+            foreach ($workingDaysDates as $dateStr) {
+                $currentDate = Carbon::parse($dateStr);
+                $hasEnthusiasm = $enthusiasmMap[$dateStr] ?? false;
+                $isFuture = $dateStr > $todayStr;
+                $isFrozen = in_array($dateStr, $approvedFreezes);
+
+                if ($isFuture) {
+                    $status = 'gray';
+                } elseif ($isFrozen) {
+                    $status = 'frozen';
+                } elseif ($hasEnthusiasm) {
+                    $status = 'fiery';
+                } else {
+                    $status = 'orange';
+                }
+
+                $hasIndividualMultiplier = false;
+                $hasTeamMultiplier = false;
+
+                foreach ($multiplierPurchases as $p) {
+                    $pDate = $p->target_date ? Carbon::parse($p->target_date)->format('Y-m-d') : null;
+                    if (!$pDate && $p->item && $p->item->target_date) {
+                        $pDate = Carbon::parse($p->item->target_date)->format('Y-m-d');
+                    }
+
+                    if ($pDate === $dateStr) {
+                        if ($p->team_id) {
+                            $hasTeamMultiplier = true;
+                        } else {
+                            $hasIndividualMultiplier = true;
+                        }
+                    }
+                }
+
+                if ($studentTeam && $studentTeam->multiplier_active_until) {
+                    if ($dateStr <= Carbon::parse($studentTeam->multiplier_active_until)->format('Y-m-d')) {
+                        $hasTeamMultiplier = true;
+                    }
+                }
+
+                $workingDays[] = [
+                    'number' => $dayNumber++,
+                    'date' => $dateStr,
+                    'day_name' => $hijriDayFormatter->format($currentDate->timestamp),
+                    'formatted_date' => $hijriDateFormatter->format($currentDate->timestamp),
+                    'is_future' => $isFuture,
+                    'is_today' => $dateStr === $todayStr,
+                    'has_enthusiasm' => $hasEnthusiasm,
+                    'status' => $status,
+                    'has_individual_multiplier' => $hasIndividualMultiplier,
+                    'has_team_multiplier' => $hasTeamMultiplier,
+                ];
+            }
+
+            // Map milestones to working days dynamically
+            $currentStreak = $gamificationState->current_streak ?? 0;
+            $lastActivity = $gamificationState->last_activity_date;
+
+            $lastActiveIdx = null;
+            if ($lastActivity) {
+                $lastActivityStr = \Carbon\Carbon::parse($lastActivity)->format('Y-m-d');
+                foreach ($workingDays as $idx => $wd) {
+                    if ($wd['date'] === $lastActivityStr) {
+                        $lastActiveIdx = $idx;
+                        break;
+                    }
+                }
+            }
+
+            if ($currentStreak > 0 && $lastActiveIdx !== null) {
+                $streakStartIdx = $lastActiveIdx - $currentStreak + 1;
+            } else {
+                $streakStartIdx = null;
+                foreach ($workingDays as $idx => $wd) {
+                    if ($wd['date'] >= $todayStr) {
+                        $streakStartIdx = $idx;
+                        break;
+                    }
+                }
+                if ($streakStartIdx === null) {
+                    $streakStartIdx = 0;
+                }
+            }
+
+            foreach ($milestones as $m) {
+                $mDayIdx = $streakStartIdx + $m->days_required - 1;
+                if ($mDayIdx >= 0 && $mDayIdx < count($workingDays)) {
+                    $workingDays[$mDayIdx]['milestone'] = $m;
+                }
+            }
+        }
+
+        // Leaderboard standings
+        $leaderboardStandings = [];
+        if ($activeGamification) {
+            $service = new \App\Services\LeaderboardService();
+            $leaderboardStandings = $service->getStandings($activeGamification);
+        }
+
+        // Fetch Earliest Pending Missions (one per active approved plan)
+        $activeApprovedPlans = \App\Models\StudentPlan::where('student_id', $student->id)->where('status', 'active')->where('is_approved', 1)->get();
+
+        $pendingMissions = [];
+        foreach ($activeApprovedPlans as $plan) {
+            $mission = \App\Models\StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah'])
+                ->where('student_plan_id', $plan->id)
+                ->where(function ($q) {
+                    $q->whereNull('hifz_achievement')->orWhereNull('review_achievement');
+                })
+                ->orderBy('date', 'asc')
+                ->first();
+
+            if ($mission) {
+                $mission->setRelation('plan', $plan);
+                $pendingMissions[] = $mission;
+            }
+        }
+
+        $teamStudents = collect();
+        $teamStudentStates = collect();
+        $teamScore = 0;
+
+        if ($activeGamification && $studentTeam) {
+            $teamStudents = $studentTeam->students()->get();
+            $teamStudentIds = $teamStudents->pluck('id')->toArray();
+            $teamStudentStates = \App\Models\GamificationStudentState::whereIn('student_id', $teamStudentIds)
+                ->where('leaderboard_id', $activeGamification->id)
+                ->get()
+                ->keyBy('student_id');
+
+            $teamScore = \App\Services\GamificationService::getTeamScore($studentTeam, $activeGamification);
+        }
+
+        $teamTasks = collect();
+        if ($activeGamification && $studentTeam) {
+            $teamTasks = \App\Models\GamificationTeamTaskAssignment::with(['task.criteria', 'scores.criterion'])
+                ->where('team_id', $studentTeam->id)
+                ->whereHas('task', function ($query) use ($activeGamification) {
+                    $query->where('leaderboard_id', $activeGamification->id);
+                })
+                ->orderBy('start_date', 'asc')
+                ->get();
+        }
+
+        $teamActivities = collect();
+        $allActivityRounds = collect();
+        if ($activeGamification) {
+            $teamActivities = \App\Models\GamificationActivity::with('ranks')
+                ->where('leaderboard_id', $activeGamification->id)
+                ->get();
+            $allActivityRounds = \App\Models\GamificationActivityRound::with(['activity', 'winners.rank', 'winners.team'])
+                ->whereHas('activity', function ($query) use ($activeGamification) {
+                    $query->where('leaderboard_id', $activeGamification->id);
+                })
+                ->orderBy('round_date', 'asc')
+                ->get();
+        }
+
+        return [
+            'student' => $student,
+            'activeGamification' => $activeGamification,
+            'gamificationState' => $gamificationState,
+            'gamificationLevelInfo' => $gamificationLevelInfo,
+            'studentLevel' => $gamificationLevelInfo['level'] ?? 1,
+            'studentTeam' => $studentTeam,
+            'teamRole' => $teamRole,
+            'theme' => $theme,
+            'teamActivities' => $teamActivities,
+            'allActivityRounds' => $allActivityRounds,
+            'storeItems' => $storeItems,
+            'studentBadges' => $studentBadges,
+            'pendingClaims' => $pendingClaims,
+            'pendingMilestoneClaims' => $pendingMilestoneClaims ?? collect(),
+            'allBadges' => $allBadges,
+            'milestones' => $milestones,
+            'claimedMilestones' => $claimedMilestones,
+            'pendingTeamPurchases' => $pendingTeamPurchases,
+            'studentVotes' => $studentVotes,
+            'style' => $style,
+            'teamColor' => $teamColor,
+            'leaderboardStandings' => $leaderboardStandings,
+            'studentXP' => $activeGamification ? \App\Services\GamificationService::getStudentXP($student->id, $activeGamification->id) : 0,
+            'pendingMissions' => $pendingMissions,
+            'teamStudents' => $teamStudents,
+            'teamStudentStates' => $teamStudentStates,
+            'teamScore' => $teamScore,
+            'workingDays' => $workingDays,
+            'freezeableDates' => $freezeableDates,
+            'nextFreezeUpgrade' => $nextFreezeUpgrade,
+            'teamTasks' => $teamTasks,
+        ];
+    }
+
+    public function claimBadge($badgeId)
+    {
+        $student = Auth::guard('student')->user();
+        $pivot = \Illuminate\Support\Facades\DB::table('gamification_badge_student')
+            ->where('student_id', $student->id)
+            ->where('badge_id', $badgeId)
+            ->where('status', 'approved')
+            ->first();
+
+        if (!$pivot) {
+            Flux::toast('لا يوجد وسام معتمد بانتظار الاستلام.', variant: 'danger');
+            return;
+        }
+
+        $badge = \App\Models\GamificationBadge::findOrFail($badgeId);
+
+        // Update status to claimed
+        \Illuminate\Support\Facades\DB::table('gamification_badge_student')
+            ->where('student_id', $student->id)
+            ->where('badge_id', $badgeId)
+            ->update([
+                'status' => 'claimed',
+                'updated_at' => now(),
+            ]);
+
+        // Reward XP and Coins if greater than 0
+        if ($badge->reward_xp > 0 || $badge->reward_coins > 0) {
+            $leaderboard = \App\Services\GamificationService::getActiveLeaderboards($student)->first();
+            if ($leaderboard) {
+                \App\Models\GamificationTransaction::create([
+                    'leaderboard_id' => $leaderboard->id,
+                    'student_id' => $student->id,
+                    'type' => 'earn',
+                    'amount' => $badge->reward_coins,
+                    'xp_amount' => $badge->reward_xp,
+                    'description' => "مكافأة الحصول على وسام: {$badge->name} 🏅 (+{$badge->reward_xp} XP)",
+                ]);
+
+                \App\Services\GamificationService::recalculateStudentState($student->id, $leaderboard->id);
+            }
+        }
+
+        Flux::toast("مبروك! لقد حصلت على وسام {$badge->name}", variant: 'success');
+    }
+
+    public function claimMilestone($claimRecordId)
+    {
+        $student = Auth::guard('student')->user();
+        $pivot = \Illuminate\Support\Facades\DB::table('gamification_claimed_milestones')
+            ->where('student_id', $student->id)
+            ->where('id', $claimRecordId)
+            ->where('status', 'approved')
+            ->first();
+
+        if (!$pivot) {
+            Flux::toast('لا يوجد جائزة معتمدة بانتظار الاستلام.', variant: 'danger');
+            return;
+        }
+
+        $milestone = \Illuminate\Support\Facades\DB::table('gamification_streak_milestones')->where('id', $pivot->milestone_id)->first();
+        if (!$milestone) {
+            Flux::toast('لم يتم العثور على الجائزة المطلوبة.', variant: 'danger');
+            return;
+        }
+
+        // Update status to claimed
+        \Illuminate\Support\Facades\DB::table('gamification_claimed_milestones')
+            ->where('id', $claimRecordId)
+            ->update([
+                'status' => 'claimed',
+                'updated_at' => now(),
+            ]);
+
+        // Reward XP and Coins if greater than 0
+        if ($milestone->reward_xp > 0 || $milestone->reward_coins > 0) {
+            $leaderboard = \App\Services\GamificationService::getActiveLeaderboards($student)->first();
+            if ($leaderboard) {
+                \App\Models\GamificationTransaction::create([
+                    'leaderboard_id' => $leaderboard->id,
+                    'student_id' => $student->id,
+                    'type' => 'earn',
+                    'amount' => $milestone->reward_coins,
+                    'xp_amount' => $milestone->reward_xp,
+                    'description' => "مكافأة أيام الحماسة لـ {$milestone->days_required} أيام متتالية: {$milestone->description}",
+                ]);
+
+                \App\Services\GamificationService::recalculateStudentState($student->id, $leaderboard->id);
+            }
+        }
+
+        Flux::toast("مبروك! لقد استلمت جائزة الحماسة {$milestone->days_required} أيام بنجاح", variant: 'success');
+    }
+
+    public function buyItem($itemId)
+    {
+        $student = Auth::guard('student')->user();
+        $targetTeamId = $this->targetTeams[$itemId] ?? null;
+        $targetDate = $this->targetDates[$itemId] ?? null;
+
+        $status = \App\Services\GamificationService::requestStorePurchase($student->id, $itemId, $targetTeamId, $targetDate);
+
+        if ($status === 'insufficient_coins') {
+            Flux::toast('رصيدك أو رصيد فريقك غير كافٍ للشراء.', variant: 'danger');
+        } elseif ($status === 'pending_voting') {
+            Flux::toast('تم إرسال طلب الشراء. بانتظار تصويت أعضاء الفريق!', variant: 'success');
+        } elseif ($status === 'approved' || $status === 'success') {
+            Flux::toast('تم الشراء وتفعيل ميزة المتجر بنجاح!', variant: 'success');
+            unset($this->targetTeams[$itemId]);
+            unset($this->targetDates[$itemId]);
+        } elseif ($status === 'must_be_in_team') {
+            Flux::toast('يجب أن تكون في فريق لشراء هذا المنتج.', variant: 'danger');
+        } elseif ($status === 'only_leader_or_assistant') {
+            Flux::toast('فقط القائد أو المساعد يمكنه شراء هذا المنتج للفريق.', variant: 'danger');
+        } elseif ($status === 'insufficient_team_coins') {
+            Flux::toast('رصيد الفريق غير كافٍ لشراء هذا المنتج.', variant: 'danger');
+        } elseif ($status === 'target_team_required') {
+            Flux::toast('الرجاء اختيار المجموعة المستهدفة للخصم.', variant: 'danger');
+        } elseif ($status === 'target_date_required') {
+            Flux::toast('الرجاء اختيار تاريخ تفعيل الميزة.', variant: 'danger');
+        } elseif ($status === 'invalid_target_date') {
+            Flux::toast('تاريخ التفعيل يجب أن يكون من يوم الغد فصاعداً.', variant: 'danger');
+        } elseif ($status === 'multiplier_already_purchased') {
+            Flux::toast('خطأ: تم بالفعل شراء أو تفعيل مضاعف نقاط لهذا التاريخ.', variant: 'danger');
+        } else {
+            Flux::toast('تعذر إتمام عملية الشراء.', variant: 'danger');
+        }
+    }
+
+    public function votePurchase($purchaseId, $vote)
+    {
+        $student = Auth::guard('student')->user();
+        $success = \App\Services\GamificationService::voteForPurchase($student->id, $purchaseId, (bool)$vote);
+
+        if ($success) {
+            Flux::toast('تم تسجيل تصويتك بنجاح.', variant: 'success');
+        } else {
+            Flux::toast('تعذر تسجيل التصويت.', variant: 'danger');
+        }
+    }
+
+    public function donateToTeam($amount)
+    {
+        \Illuminate\Support\Facades\Log::info("donateToTeam triggered on server with amount: " . $amount);
+        $amount = (int)$amount;
+        if ($amount <= 0) {
+            Flux::toast('الرجاء إدخال مبلغ صحيح للتبرع.', variant: 'danger');
+            $this->dispatch('donation-finished');
+            return;
+        }
+
+        $student = Auth::guard('student')->user();
+        $leaderboard = \App\Services\GamificationService::getActiveLeaderboards($student)->first();
+        if (!$leaderboard) {
+            $this->dispatch('donation-finished');
+            return;
+        }
+
+        $team = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('students.id', $student->id))
+            ->where('leaderboard_id', $leaderboard->id)
+            ->first();
+
+        if (!$team) {
+            Flux::toast('أنت غير مسجل في أي فريق حالياً.', variant: 'danger');
+            $this->dispatch('donation-finished');
+            return;
+        }
+
+        $error = null;
+        $success = \App\Services\GamificationService::donateCoinsToTeam($student->id, $team->id, (int)$amount, $error);
+        if ($success) {
+            Flux::toast('تم التبرع بنجاح للفريق!', variant: 'success');
+            $this->dispatch('donation-successful');
+        } else {
+            Flux::toast($error ?: 'رصيدك غير كافٍ للتبرع.', variant: 'danger');
+        }
+        $this->dispatch('donation-finished');
+    }
+
+    public function testMethod()
+    {
+        Flux::toast('تم استدعاء دالة التجربة بنجاح!', variant: 'success');
+        \Illuminate\Support\Facades\Log::info("testMethod triggered successfully on server");
+    }
+
+    public function renderEmoji($emoji, $class = 'size-5 inline-block align-middle')
+    {
+        if (str_contains((string)$emoji, '/') || str_ends_with((string)$emoji, '.webp')) {
+            $url = \Illuminate\Support\Facades\Storage::url($emoji);
+            return '<img src="' . $url . '" class="' . $class . '" alt="" />';
+        }
+
+        $cleanEmoji = trim((string)$emoji);
+
+        switch ($cleanEmoji) {
+            case '💎':
+            case '🪙':
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-amber-500 fill-amber-500/10 ' . $class . '">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>';
+            case '🦪':
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-teal-600 fill-teal-500/10 ' . $class . '">
+                            <circle cx="12" cy="12" r="9" />
+                            <circle cx="12" cy="12" r="3.5" class="fill-white" />
+                        </svg>';
+            case '✨':
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-indigo-500 fill-indigo-500/10 ' . $class . '">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l-1.813-5.096L2.091 14.09 7.187 12.28 9 7.187l1.813 5.093 5.096 1.813-5.096 1.811z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.071 4.929l-.929 2.071-2.071.929 2.071.929.929 2.071.929-2.071 2.071-.929-2.071-.929z" />
+                        </svg>';
+            case '🌊':
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-sky-500 ' . $class . '">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2 17c4-2 8-2 12 0s8 2 12 0M2 12c4-2 8-2 12 0s8 2 12 0" />
+                        </svg>';
+            case '🌌':
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-purple-500 fill-purple-500/10 ' . $class . '">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.02 12.02l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                        </svg>';
+            case '🔥':
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-orange-500 fill-orange-500/10 ' . $class . '">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.467 5.99 5.99 0 0 0-1.925 3.546 5.974 5.974 0 0 1-2.133-1A3.75 3.75 0 0 0 12 18Z" />
+                        </svg>';
+            case '⚔️':
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-amber-600 ' . $class . '">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 20L20 4M14 4l6 6M4 20l6-6M4 20l-1-1M20 4l1 1" />
+                        </svg>';
+            case '🛡️':
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-blue-500 fill-blue-500/10 ' . $class . '">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>';
+            default:
+                return e($emoji);
+        }
+    }
+
+    protected function getHijriLabel(\DateTimeInterface|string $date)
+    {
+        $parsed = is_string($date) ? \Carbon\Carbon::parse($date) : $date;
+        $formatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'd MMMM yyyy');
+
+        return $formatter->format($parsed->getTimestamp());
+    }
+};
+?>
+
+<div>
+@if($activeGamification)
+<div x-data="{ currentTab: localStorage.getItem('student-gam-tab') || 'leaderboard' }"
+    x-on:gamnav-changed.window="currentTab = $event.detail.tab"
+    class="{{ $style['bg'] }} font-sans" dir="rtl" style="background-image: radial-gradient(circle at top left, var(--team-color-10) 0%, transparent 45%), radial-gradient(circle at bottom right, var(--team-color-10) 0%, transparent 45%); background-color: #f8fafc;">
+<style>
+    :root {
+        --team-color: {{ $teamColor ?? '#4f46e5' }};
+        --team-color-hover: {{ ($teamColor ?? '#4f46e5') }}dd;
+        --team-color-10: {{ ($teamColor ?? '#4f46e5') }}0f;
+        --team-color-20: {{ ($teamColor ?? '#4f46e5') }}26;
+        --team-color-30: {{ ($teamColor ?? '#4f46e5') }}40;
+    }
+    .bg-team-primary { background-color: <?php echo $teamColor ?> !important; }
+    .hover\:bg-team-primary-hover:hover { background-color: var(--team-color-hover) !important; }
+    .text-team-primary { color: var(--team-color) !important; }
+    .border-team-primary { border-color: var(--team-color) !important; }
+    .bg-team-10 { background-color: var(--team-color-10) !important; }
+    .bg-team-20 { background-color: var(--team-color-20) !important; }
+    .bg-team-30 { background-color: var(--team-color-30) !important; }
+    .border-team-10 { border-color: var(--team-color-10) !important; }
+    .border-team-20 { border-color: var(--team-color-20) !important; }
+    
+    /* Scrollbar utilities for mobile scrollable timelines/tabs */
+    .scrollbar-none::-webkit-scrollbar { display: none; }
+    .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    .scrollbar-thin::-webkit-scrollbar { height: 4px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--team-color); border-radius: 4px; opacity: 0.3; }
+</style>
+    @if($pendingClaims->isNotEmpty())
+        @php
+            $claim = $pendingClaims->first();
+        @endphp
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
+            <div class="relative max-w-md w-full rounded-3xl p-6 md:p-8 border border-slate-200 bg-white shadow-2xl text-center space-y-6 overflow-hidden">
+                <!-- Sparkle Background Effects using team color -->
+                <div class="absolute -top-12 -left-12 size-40 rounded-full bg-team-10 blur-3xl"></div>
+                <div class="absolute -bottom-12 -right-12 size-40 rounded-full bg-team-10 blur-3xl"></div>
+
+                <!-- Animated Glow behind badge -->
+                <div class="relative flex justify-center py-4">
+                    <div class="absolute inset-0 size-32 mx-auto rounded-full bg-team-20 blur-xl animate-pulse"></div>
+                    <div class="relative size-28 rounded-full bg-team-10 flex items-center justify-center border-2 border-team-primary shadow-lg overflow-hidden">
+                        @if(str_contains($claim->icon, '/') || str_contains($claim->icon, '.'))
+                            <img src="{{ asset('storage/' . $claim->icon) }}" class="size-20 object-contain" />
+                        @else
+                            @if($claim->icon === 'star')
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-16 text-amber-400 animate-bounce">
+                                    <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
+                                </svg>
+                            @elseif($claim->icon === 'fire')
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="size-16 text-orange-500 animate-bounce">
+                                    <path d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
+                                </svg>
+                            @else
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-16 text-indigo-500 animate-bounce">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-6.75a1.125 1.125 0 0 0-1.125 1.125v3.375m9 0h-9M9 10.5h.008v.008H9V10.5Zm6 0h.008v.008H15V10.5Z" />
+                                </svg>
+                            @endif
+                        @endif
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <flux:badge color="amber" size="sm" class="mx-auto uppercase tracking-wider font-bold animate-pulse">وسام جديد معتمد!</flux:badge>
+                    <h2 class="text-2xl font-black text-slate-900 leading-tight mt-2">{{ $claim->name }}</h2>
+                    <p class="text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">{{ $claim->description ?: 'تهانينا! لقد حصلت على هذا الوسام تقديراً لتميزك واجتهادك.' }}</p>
+                </div>
+
+                <!-- Rewards Section -->
+                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div class="flex flex-col items-center gap-1 p-2 bg-white border border-slate-100 rounded-xl shadow-sm">
+                        <span class="text-2xl">✨</span>
+                        <span class="text-xs text-slate-400">نقاط الخبرة</span>
+                        <span class="text-lg font-black text-team-primary">+{{ $claim->reward_xp }} XP</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 p-2 bg-white border border-slate-100 rounded-xl shadow-sm">
+                        <span class="text-2xl">🪙</span>
+                        <span class="text-xs text-slate-400">العملات الذهبية</span>
+                        <span class="text-lg font-black text-amber-600">+{{ $claim->reward_coins }} عملة</span>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="pt-2">
+                    <flux:button wire:click="claimBadge({{ $claim->id }})" variant="primary" class="w-full bg-team-primary hover:bg-team-primary-hover border-none font-bold text-white shadow-md py-3.5 rounded-2xl text-base transition-colors">
+                        <span class="flex items-center justify-center gap-2">
+                            <span>استلام وقبول الوسام</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-6.75a1.125 1.125 0 0 0-1.125 1.125v3.375m9 0h-9M9 10.5h.008v.008H9V10.5Zm6 0h.008v.008H15V10.5Z" />
+                            </svg>
+                        </span>
+                    </flux:button>
+                </div>
+            </div>
+        </div>
+    @elseif($pendingMilestoneClaims->isNotEmpty())
+        @php
+            $mClaim = $pendingMilestoneClaims->first();
+        @endphp
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
+            <div class="relative max-w-md w-full rounded-3xl p-6 md:p-8 border border-slate-200 bg-white shadow-2xl text-center space-y-6 overflow-hidden">
+                <!-- Sparkle Background Effects using team color -->
+                <div class="absolute -top-12 -left-12 size-40 rounded-full bg-team-10 blur-3xl"></div>
+                <div class="absolute -bottom-12 -right-12 size-40 rounded-full bg-team-10 blur-3xl"></div>
+
+                <!-- Animated Glow behind gift -->
+                <div class="relative flex justify-center py-4">
+                    <div class="absolute inset-0 size-32 mx-auto rounded-full bg-team-20 blur-xl animate-pulse"></div>
+                    <div class="relative size-28 rounded-full bg-team-10 flex items-center justify-center border-2 border-team-primary shadow-lg overflow-hidden">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-16 text-emerald-500 animate-bounce">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0h6.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75H3.75a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75H12M9 7.5H12m0 0H9" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <flux:badge color="amber" size="sm" class="mx-auto uppercase tracking-wider font-bold animate-pulse">جائزة حماسة جديدة!</flux:badge>
+                    <h2 class="text-2xl font-black text-slate-900 leading-tight mt-2">إنجاز حماسة متتالية: {{ $mClaim->days_required }} أيام</h2>
+                    <p class="text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">{{ $mClaim->description ?: 'تهانينا! لقد حافظت على شعلة حماستك واستحققت هذه الجائزة الرائعة.' }}</p>
+                </div>
+
+                <!-- Rewards Section -->
+                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div class="flex flex-col items-center gap-1 p-2 bg-white border border-slate-100 rounded-xl shadow-sm">
+                        <span class="text-2xl">✨</span>
+                        <span class="text-xs text-slate-400">نقاط الخبرة</span>
+                        <span class="text-lg font-black text-team-primary">+{{ $mClaim->reward_xp }} XP</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 p-2 bg-white border border-slate-100 rounded-xl shadow-sm">
+                        <span class="text-2xl">🪙</span>
+                        <span class="text-xs text-slate-400">العملات الذهبية</span>
+                        <span class="text-lg font-black text-amber-600">+{{ $mClaim->reward_coins }} عملة</span>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="pt-2">
+                    <flux:button wire:click="claimMilestone({{ $mClaim->claim_record_id }})" variant="primary" class="w-full bg-team-primary hover:bg-team-primary-hover border-none font-bold text-white shadow-md py-3.5 rounded-2xl text-base transition-colors">
+                        <span class="flex items-center justify-center gap-2">
+                            <span>استلام وقبول الجائزة</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                        </span>
+                    </flux:button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Theme Background Effects -->
+    <div class="absolute inset-0 pointer-events-none opacity-10">
+        <div class="absolute -top-40 -left-40 w-96 h-96 bg-team-primary rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-team-primary rounded-full blur-3xl"></div>
+    </div>
+
+    <!-- Home Tab View: Show header and top cards only when on the home dashboard -->
+    <div x-show="currentTab === 'leaderboard'" class="space-y-8 p-3 md:p-8">
+        <!-- Header Section -->
+        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200/80">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <flux:heading size="2xl" class="text-slate-900 font-black">{{ $activeGamification->title }}</flux:heading>
+            </div>
+            <flux:subheading class="text-slate-500 font-medium">
+                {{ __('مرحباً بك في نظام التلعيب التفاعلي! حقق الإنجازات اليومية لتتطور في المستويات وتجمع العملات.') }}
+            </flux:subheading>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-2 shadow-sm">
+                <flux:icon icon="calendar-days" class="size-4 text-slate-400" />
+                <span class="text-xs font-semibold text-slate-600">{{ \Carbon\Carbon::now('Asia/Riyadh')->translatedFormat('l، d F Y') }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Core Stats Grid -->
+    <div class="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Student Profile & Level Card -->
+        <div class="{{ $style['card'] }}">
+            <div class="flex items-center gap-4">
+                <div class="relative group">
+                    <label for="profile-avatar-upload" class="cursor-pointer block relative">
+                        @if($student->avatar_path)
+                            <div class="w-16 h-16 rounded-full overflow-hidden border-2 border-slate-200 shadow-sm relative">
+                                <img src="{{ Storage::url($student->avatar_path) }}" class="w-full h-full object-cover" />
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] font-bold">
+                                    {{ __('تعديل') }}
+                                </div>
+                            </div>
+                        @else
+                            <div class="w-17 h-17 rounded-full flex items-center justify-center border-2 border-slate-200 text-lg font-black shadow-sm relative group-hover:border-team-primary transition-colors" style="{{ $student->avatarStyle() }}">
+                                <span>{{ $student->initials() }}</span>
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white rounded-full text-[10px] font-bold">
+                                    {{ __('رفع') }}
+                                </div>
+                            </div>
+                        @endif
+                    </label>
+                    <input type="file" id="profile-avatar-upload" wire:model="profile_image_file" class="hidden" accept="image/*" />
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-slate-900">{{ $student->name }}</h3>
+                    <div class="flex flex-col justify-start items-start gap-2 mt-1">
+                        <flux:badge color="{{ $style['badge'] }}" size="sm" icon="{{ $gamificationLevelInfo['current']->icon ?? 'sparkles' }}">
+                            {{ $gamificationLevelInfo['current']->name ?? __('مبتدئ') }}
+                        </flux:badge>
+                        
+                    </div>
+                </div>
+                <div class="flex-1"></div>
+                <h2 class="text-4xl font-black text-slate-900 mt-2 flex items-center gap-2">
+                    {{ $gamificationState->coins ?? 0 }}
+                    <span class="text-2xl">{!! $this->renderEmoji($style['coin_emoji'], 'size-7 inline-block align-middle') !!}</span>
+                </h2>
+            </div>
+
+            <!-- XP Progress -->
+            @php
+                $lvlCurrent = $gamificationLevelInfo['current'];
+                $lvlNext = $gamificationLevelInfo['next'];
+                $studentXP = $gamificationLevelInfo['xp'];
+                $lvlProgress = 0;
+                if ($lvlNext) {
+                    $range = $lvlNext->xp_required - ($lvlCurrent->xp_required ?? 0);
+                    $progress = $studentXP - ($lvlCurrent->xp_required ?? 0);
+                    $lvlProgress = $range > 0 ? min(100, round(($progress / $range) * 100)) : 100;
+                } else {
+                    $lvlProgress = 100;
+                }
+            @endphp
+            <div class="mt-15">
+                <div class="flex justify-between items-center text-xs font-semibold mb-1.5 text-slate-600">
+                <span class="text-xl text-team-primary">
+                          <span class="text-xs ">{{ __('مستوى') }}</span> {{ $gamificationLevelInfo['current']->level_number ?? 1 }}
+                        </span>
+                    <span class="text-xl"><strong class="text-4xl ">{{ $studentXP }}</strong> XP</span>
+                    <span class="text-slate-400 text-xl">
+                        @if($lvlNext)
+                            / {{ $lvlNext->xp_required }}
+                        @else
+                            {{ __('أقصى مستوى!') }}
+                        @endif
+                    </span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+                    <div class="h-full rounded-full {{ $style['progress'] }} transition-all duration-700" style="width: {{ $lvlProgress }}%"></div>
+                </div>
+                <div class="text-[10px] text-slate-400 text-center mt-1">
+                    {{ $lvlProgress }}% {{ __('نحو المستوى التالي') }}
+                </div>
+
+                @php
+                    $showIndividualMultiplier = false;
+                    if ($activeGamification && isset($gamificationLevelInfo['current'])) {
+                        $lvlSettings = $gamificationLevelInfo['current']->settings ?? [];
+                        $showIndividualMultiplier = (bool) ($lvlSettings['has_individual_multiplier'] ?? true);
+                    }
+                @endphp
+                @if($showIndividualMultiplier)
+                    <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span class="text-xs text-slate-500 font-medium flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4 text-yellow-500">
+                                <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd" />
+                            </svg>
+                            {{ __('مضاعفة نقاط الحفظ والمراجعة') }}
+                        </span>
+                        <flux:button variant="primary" wire:click="openDoublePointsModal('{{ \Carbon\Carbon::now('Asia/Riyadh')->addDay()->format('Y-m-d') }}', 'individual')" size="xs" class="bg-team-primary hover:bg-team-primary-hover border-none font-bold !text-white shadow-sm" style="color: white !important;" icon="bolt">
+                            {{ __('مضاعفة النقاط') }}
+                        </flux:button>
+                    </div>
+                @endif
+            </div>
+        </div>       
+    </div>
+
+    <!-- Streak Milestones (Enthusiasm) Card -->
+    <div class="relative z-10 {{ $style['card'] }}">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/30 text-orange-500 shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8 text-orange-500 animate-pulse fill-orange-500/20">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.467 5.99 5.99 0 0 0-1.925 3.546 5.974 5.974 0 0 1-2.133-1A3.75 3.75 0 0 0 12 18Z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="font-black text-lg text-slate-900">{{ __('أيام الحماسة المتتالية') }}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                        {{ __('حقق شروط الحماسة يومياً لتبقي الشعلة مضيئة وتكسب الجوائز الكبرى.') }}
+                    </p>
+                </div>
+            </div>
+            <div class="text-center bg-slate-50 border border-slate-200 rounded-2xl px-6 py-3 shrink-0 shadow-inner">
+                <span class="text-3xl font-black {{ $style['accent'] }}">{{ $gamificationState->current_streak ?? 0 }}</span>
+                <span class="text-xs text-slate-500 block font-semibold mt-0.5">{{ __('أيام متتالية') }}</span>
+            </div>
+        </div>
+
+        <!-- Active Multipliers (Double Points) List -->
+        @php
+            $activeMultipliers = collect();
+            if ($activeGamification) {
+                $activeMultipliers = \App\Models\GamificationStorePurchase::where('status', 'approved')
+                    ->where(function($query) use ($student, $studentTeam) {
+                        $query->where('student_id', $student->id);
+                        if ($studentTeam) {
+                            $query->orWhere('team_id', $studentTeam->id);
+                        }
+                    })
+                    ->whereHas('item', fn($q) => $q->where('item_type', 'multiplier'))
+                    ->where(function($query) {
+                        $query->whereDate('target_date', '>=', now('Asia/Riyadh')->format('Y-m-d'))
+                            ->orWhereNull('target_date');
+                    })
+                    ->with('item')
+                    ->get();
+            }
+        @endphp
+
+        @if($activeMultipliers->isNotEmpty())
+            <div class="mt-4 flex flex-wrap gap-2 items-center text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-zinc-900 border border-slate-200/60 dark:border-zinc-800 rounded-xl px-3 py-2">
+                <span class="flex items-center gap-1 shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-3.5 text-yellow-500">
+                        <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd" />
+                    </svg>
+                    <span>المضاعفات النشطة:</span>
+                </span>
+                <div class="flex flex-wrap gap-1.5">
+                    @foreach($activeMultipliers as $mult)
+                        @php
+                            $multDateStr = $mult->target_date ? \Carbon\Carbon::parse($mult->target_date)->format('Y-m-d') : null;
+                            if (!$multDateStr && $mult->item && $mult->item->target_date) {
+                                $multDateStr = \Carbon\Carbon::parse($mult->item->target_date)->format('Y-m-d');
+                            }
+                            $isTeamMult = (bool) $mult->team_id;
+                            
+                            $formattedMultDate = 'غير محدد';
+                            if ($multDateStr) {
+                                $carbonDate = \Carbon\Carbon::parse($multDateStr);
+                                $formatterCompact = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'd MMMM');
+                                $formattedMultDate = $formatterCompact->format($carbonDate->getTimestamp());
+                            }
+                        @endphp
+                        <flux:badge size="sm" color="{{ $isTeamMult ? 'indigo' : 'amber' }}" icon="bolt" class="font-bold">
+                            {{ $isTeamMult ? 'جماعي' : 'فردي' }} ({{ $formattedMultDate }})
+                        </flux:badge>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        <!-- Working Days circles -->
+        @if(!empty($workingDays))
+            <div class="mt-8 border-t border-slate-100 pt-6">
+                <h4 class="text-xs font-bold text-slate-500 mb-6 uppercase tracking-wider">{{ __('تتبع أيام الحماسة في المسابقة:') }}</h4>
+                <style>
+                    .scrollbar-none::-webkit-scrollbar {
+                        display: none;
+                    }
+                    .scrollbar-none {
+                        -ms-overflow-style: none;
+                        scrollbar-width: none;
+                    }
+                </style>
+                <div class="flex flex-row gap-4 items-center justify-start overflow-x-auto py-4 scrollbar-none snap-x snap-mandatory scroll-smooth"
+                     x-init="$nextTick(() => {
+                         const todayEl = $el.querySelector('.is-today-day');
+                         if (todayEl) {
+                             todayEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                         }
+                     })">
+                    @foreach($workingDays as $day)
+                        @php
+                            $circleClass = '';
+                            if ($day['status'] === 'fiery') {
+                                // Fiery colors: gradient from yellow to red, glowing shadow, animated
+                                $circleClass = 'bg-gradient-to-br from-yellow-400 via-orange-500 to-red-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.6)] border-2 border-yellow-300 font-black animate-pulse';
+                            } elseif ($day['status'] === 'frozen') {
+                                // Frozen colors: glacial gradient from cyan to blue, glowing shadow
+                                $circleClass = 'bg-gradient-to-br from-cyan-400 to-blue-500 text-white shadow-[0_0_15px_rgba(34,211,238,0.6)] border-2 border-cyan-200 font-black';
+                            } elseif ($day['status'] === 'orange') {
+                                // Past day with no enthusiasm: Orange colors
+                                $circleClass = 'bg-orange-100 text-orange-700 border-2 border-orange-200 font-bold';
+                            } else {
+                                // Future day: Gray colors
+                                $circleClass = 'bg-slate-100 text-slate-400 border border-slate-200/80 font-medium';
+                            }
+
+                            if (isset($day['milestone'])) {
+                                $circleClass .= ' w-14 h-14 ring-2 ring-amber-400 ring-offset-1';
+                            } else {
+                                $circleClass .= ' w-12 h-12 text-sm';
+                            }
+                        @endphp
+                        <div class="flex flex-col items-center gap-1.5 group relative min-w-[85px] text-center snap-center {{ $day['is_today'] ? 'is-today-day' : '' }}">
+                            <!-- Circle -->
+                            <div class="relative rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-110 shadow-sm cursor-help {{ $circleClass }}"
+                                 title="{{ $day['day_name'] }} {{ $day['formatted_date'] }} ({{ $day['date'] }}) @if(isset($day['milestone'])) - {{ $day['milestone']->description }}@endif">
+                                
+                                @if($day['has_individual_multiplier'])
+                                    <span class="absolute -top-1.5 -left-1.5 size-5 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 rounded-full p-0.5 shadow-md flex items-center justify-center animate-bounce z-10" title="مضاعفة فردية">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="size-3.5">
+                                            <defs>
+                                                <linearGradient id="lightning-indiv-grad-{{ $day['number'] }}" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                    <stop offset="0%" stop-color="#06b6d4" />
+                                                    <stop offset="100%" stop-color="#f97316" />
+                                                </linearGradient>
+                                            </defs>
+                                            <path fill="url(#lightning-indiv-grad-{{ $day['number'] }})" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" />
+                                        </svg>
+                                    </span>
+                                @endif
+
+                                @if($day['has_team_multiplier'])
+                                    <span class="absolute -top-1.5 -right-1.5 size-5 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 rounded-full p-0.5 shadow-md flex items-center justify-center animate-bounce z-10" title="مضاعفة جماعية">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="size-3.5">
+                                            <defs>
+                                                <linearGradient id="lightning-team-grad-{{ $day['number'] }}" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                    <stop offset="0%" stop-color="#60a5fa" />
+                                                    <stop offset="100%" stop-color="#1d4ed8" />
+                                                </linearGradient>
+                                            </defs>
+                                            <path fill="url(#lightning-team-grad-{{ $day['number'] }})" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" />
+                                        </svg>
+                                    </span>
+                                @endif
+
+                                @if(isset($day['milestone']))
+                                    @php
+                                        $isClaimed = in_array($day['milestone']->id, $claimedMilestones);
+                                    @endphp
+                                    @if($isClaimed)
+                                        <span class="text-base font-extrabold">✓</span>
+                                    @else
+                                        <div class="flex flex-col items-center justify-center leading-tight text-[10px] font-black">
+                                            @if($day['milestone']->reward_coins > 0)
+                                                <div class="flex items-center gap-0.5 whitespace-nowrap">
+                                                    <span>+{{ $day['milestone']->reward_coins }}</span>
+                                                    @if(str_contains((string)$style['coin_emoji'], '/') || str_ends_with((string)$style['coin_emoji'], '.webp'))
+                                                        {!! $this->renderEmoji($style['coin_emoji'], 'size-3 inline-block') !!}
+                                                    @else
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-3 text-amber-500 inline-block align-middle">
+                                                            <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM9 10.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    @endif
+                                                </div>
+                                            @endif
+                                            @if($day['milestone']->reward_xp > 0)
+                                                <span class="font-sans whitespace-nowrap">+{{ $day['milestone']->reward_xp }}XP</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                @else
+                                    @if($day['status'] === 'fiery')
+                                        <span class="relative flex items-center justify-center text-sm font-bold">
+                                            {{ $day['number'] }}
+                                            <span class="absolute -top-3 -right-3 size-4 text-orange-500 select-none">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4 text-orange-500">
+                                                    <path fill-rule="evenodd" d="M12.969 2.11a.75.75 0 0 1 .371.836A8.96 8.96 0 0 0 13 5c0 .723.085 1.426.248 2.102a9.778 9.778 0 0 0 1.258-1.503.75.75 0 0 1 1.157.065 11.254 11.254 0 0 1 1.66 4.385c.105.772.176 1.558.212 2.355.05.2.072.408.072.622a8.25 8.25 0 0 1-15.594 3.064c.003-.004.007-.01.011-.015a8.224 8.224 0 0 1 1.18-1.416.75.75 0 0 1 1.01.082C5.074 15.342 6.52 16 8 16c1.133 0 2.107-.5 2.756-1.29A7.96 7.96 0 0 1 9 12c0-1.8 1.103-3.344 2.686-4.004a8.272 8.272 0 0 0-.825-1.985.75.75 0 0 1 .111-.853l1-1Z" clip-rule="evenodd" />
+                                                </svg>
+                                            </span>
+                                        </span>
+                                    @elseif($day['status'] === 'frozen')
+                                        <span class="relative flex items-center justify-center text-sm font-bold text-white">
+                                            {{ $day['number'] }}
+                                            <span class="absolute -top-3 -right-3 size-4 text-cyan-100 select-none animate-pulse">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4 text-cyan-100">
+                                                    <line x1="12" y1="2" x2="12" y2="22"></line>
+                                                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                                                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                                    <line x1="19.07" y1="4.93" x2="4.93" y2="19.07"></line>
+                                                    <path d="m20 8-2 2-2-2"></path>
+                                                    <path d="m4 16 2-2 2 2"></path>
+                                                    <path d="m8 4 2 2-2 2"></path>
+                                                    <path d="m16 20-2-2 2-2"></path>
+                                                    <path d="m8 20 2-2-2-2"></path>
+                                                    <path d="m16 4-2 2 2 2"></path>
+                                                    <path d="m4 8 2 2-2 2"></path>
+                                                    <path d="m20 16-2-2 2 2"></path>
+                                                </svg>
+                                            </span>
+                                        </span>
+                                    @else
+                                        <span class="text-sm font-bold">{{ $day['number'] }}</span>
+                                    @endif
+                                @endif
+                            </div>
+                            
+                            <!-- Date labels (Day Name & Hijri Date) -->
+                            <span class="text-[11px] font-bold text-slate-500 group-hover:text-slate-800 transition-colors">
+                                {{ $day['day_name'] }}
+                            </span>
+                            <span class="text-[10px] font-semibold text-slate-400 group-hover:text-slate-600 transition-colors -mt-0.5">
+                                {{ $day['formatted_date'] }}
+                            </span>
+                            @if($day['status'] === 'orange' && in_array($day['date'], $freezeableDates))
+                                <button type="button" 
+                                        wire:click="openFreezeModal('{{ $day['date'] }}', '{{ $day['day_name'] }}', '{{ $day['formatted_date'] }}')"
+                                        class="mt-1 flex items-center gap-0.5 px-2 py-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-[10px] text-white font-bold rounded-full shadow-sm hover:shadow transition-all duration-150 transform hover:scale-105 active:scale-95">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3 text-white">
+                                        <line x1="12" y1="2" x2="12" y2="22"></line>
+                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                        <line x1="19.07" y1="4.93" x2="4.93" y2="19.07"></line>
+                                        <path d="m20 8-2 2-2-2"></path>
+                                        <path d="m4 16 2-2 2 2"></path>
+                                        <path d="m8 4 2 2-2 2"></path>
+                                        <path d="m16 20-2-2 2-2"></path>
+                                        <path d="m8 20 2-2-2-2"></path>
+                                        <path d="m16 4-2 2 2 2"></path>
+                                        <path d="m4 8 2 2-2 2"></path>
+                                        <path d="m20 16-2-2 2 2"></path>
+                                    </svg>
+                                    <span>تجميد</span>
+                                </button>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+    </div>
+
+    <!-- Pending Team Purchases & Votes -->
+    @if($studentTeam && $pendingTeamPurchases->isNotEmpty())
+        <div class="relative z-10 space-y-4">
+            <flux:heading size="lg" class="text-slate-900 flex items-center gap-2 font-black">
+                <flux:icon icon="shopping-bag" class="size-6 text-slate-900" />
+                {{ __('طلبات شراء وتصويتات جارية ل') }}{{ $theme['team_possessive_your'] }}
+            </flux:heading>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                @foreach($pendingTeamPurchases as $purchase)
+                    @php
+                        $hasVoted = array_key_exists($purchase->id, $studentVotes);
+                        $myVote = $hasVoted ? $studentVotes[$purchase->id] : null;
+                        
+                        $votesMap = $purchase->votes->pluck('vote', 'student_id')->toArray();
+                        $assistants = $teamStudents->filter(fn($s) => $s->pivot->role === 'assistant');
+                        $members = $teamStudents->filter(fn($s) => $s->pivot->role === 'member');
+                    @endphp
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <flux:badge color="amber">{{ __('بانتظار تصويت ال') }}{{ $theme['team_name'] }}</flux:badge>
+                                <span class="text-xs text-slate-400">{{ $purchase->created_at->diffForHumans() }}</span>
+                            </div>
+                            <h4 class="font-bold text-slate-800 text-base">
+                                {{ __('طلب شراء ميزة:') }} <span class="{{ $style['accent'] }}">{{ $purchase->item->name }}</span>
+                            </h4>
+                            <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                                {{ __('صاحب الطلب:') }} {{ $purchase->student->name }} — {{ __('السعر من خزينة ال') }}{{ $theme['team_name'] }}: {{ $purchase->price_paid }} {!! $this->renderEmoji($style['coin_emoji'], 'size-3.5 inline-block align-middle') !!}
+                            </p>
+
+                            <div class="mt-4 pt-3 border-t border-slate-100 space-y-3.5 text-xs text-right" dir="rtl">
+                                <div>
+                                    <span class="font-bold text-slate-700 block mb-2">{{ __('متطلبات الموافقة:') }}</span>
+                                    <div class="space-y-1.5 mr-2">
+                                        <!-- Assistant vote requirement if item requires it and team has assistants -->
+                                        @if($purchase->item->require_assistant_approval && $assistants->isNotEmpty())
+                                            @php
+                                                $assistantHasApproved = $purchase->votes->whereIn('student_id', $assistants->pluck('id'))->where('vote', true)->isNotEmpty();
+                                            @endphp
+                                            <div class="flex items-center gap-2 text-slate-600">
+                                                @if($assistantHasApproved)
+                                                    <flux:icon icon="check-circle" class="size-4 text-emerald-600 shrink-0" />
+                                                @else
+                                                    <flux:icon icon="clock" class="size-4 text-slate-400 shrink-0" />
+                                                @endif
+                                                <span>
+                                                    {{ __('موافقة مساعد القائد (النائب)') }}
+                                                </span>
+                                            </div>
+                                        @endif
+
+                                        <!-- Member approval requirement -->
+                                        @php
+                                            $threshold = $purchase->item->require_member_approval_count;
+                                            if ($threshold <= 0 && !$purchase->item->require_assistant_approval) {
+                                                $threshold = intval($teamStudents->count() / 2) + 1;
+                                            }
+                                            $yesVotesCount = $purchase->votes->where('vote', true)->count();
+                                            $noVotesCount = $purchase->votes->where('vote', false)->count();
+                                            $memberApprovalMet = $yesVotesCount >= $threshold;
+                                        @endphp
+                                        @if($threshold > 0)
+                                            <div class="flex items-center gap-2 text-slate-600">
+                                                @if($memberApprovalMet)
+                                                    <flux:icon icon="check-circle" class="size-4 text-emerald-600 shrink-0" />
+                                                @else
+                                                    <flux:icon icon="clock" class="size-4 text-slate-400 shrink-0" />
+                                                @endif
+                                                <span>
+                                                    {{ __('موافقة :threshold من أعضاء الفريق (الحالي: :yesCount موافق / :noCount رافض)', ['threshold' => $threshold, 'yesCount' => $yesVotesCount, 'noCount' => $noVotesCount]) }}
+                                                </span>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                <div class="pt-3 border-t border-slate-100/60">
+                                    <span class="font-bold text-slate-700 block mb-2">{{ __('الأعضاء الذين صوتوا:') }}</span>
+                                    <div class="space-y-1.5 mr-2">
+                                        @forelse($purchase->votes as $vote)
+                                            @php
+                                                $voter = $vote->student;
+                                                $voterTeamStudent = $teamStudents->firstWhere('id', $voter->id);
+                                                $voterRole = $voterTeamStudent ? $voterTeamStudent->pivot->role : 'member';
+                                                $roleLabel = $voterRole === 'leader' ? __('القائد') : ($voterRole === 'assistant' ? __('النائب') : __('عضو'));
+                                            @endphp
+                                            <div class="flex items-center gap-2 text-slate-600">
+                                                @if($vote->vote)
+                                                    <flux:icon icon="check" class="size-4 text-emerald-500 shrink-0" />
+                                                @else
+                                                    <flux:icon icon="x-mark" class="size-4 text-rose-500 shrink-0" />
+                                                @endif
+                                                <span class="font-medium">
+                                                    {{ $voter->name }}
+                                                    <span class="text-[10px] text-slate-400">({{ $roleLabel }})</span>
+                                                </span>
+                                            </div>
+                                        @empty
+                                            <div class="text-slate-400 italic text-[11px] py-1">
+                                                {{ __('لا توجد أصوات مسجلة بعد.') }}
+                                            </div>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            @if($hasVoted)
+                                <div class="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-400">
+                                    <span>{{ __('تم تصويتك بالفعل:') }} {{ $myVote ? __('موافق') : __('رافض') }}</span>
+                                    @if($myVote)
+                                        <flux:icon icon="check" class="size-4 text-emerald-500 shrink-0" />
+                                    @else
+                                        <flux:icon icon="x-mark" class="size-4 text-rose-500 shrink-0" />
+                                    @endif
+                                </div>
+                            @else
+                                <flux:button wire:click="votePurchase({{ $purchase->id }}, true)" size="sm" color="emerald" class="flex-1 font-bold" icon="check">
+                                    {{ __('موافق') }}
+                                </flux:button>
+                                <flux:button wire:click="votePurchase({{ $purchase->id }}, false)" size="sm" color="red" class="flex-1 font-bold" icon="x-mark">
+                                    {{ __('رافض') }}
+                                </flux:button>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+    </div>
+
+    <!-- Main Store & Badges & Leaderboard & Missions tabs -->
+    <div class="relative z-10 space-y-6 p-3 md:p-8 min-h-[calc(100svh-4rem)]">
+
+        <!-- Compact Stats Bar (always visible on non-home tabs) -->
+        <div x-show="currentTab !== 'leaderboard'" x-cloak
+            class="flex items-center justify-around gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+            <div class="flex flex-col items-center gap-0.5">
+                <span class="text-xs text-slate-400 font-medium">{{ __('المستوى') }}</span>
+                <span class="text-base font-black text-team-primary">{{ $studentLevel }}</span>
+            </div>
+            <div class="w-px h-8 bg-slate-200"></div>
+            <div class="flex flex-col items-center gap-0.5">
+                <span class="text-xs text-slate-400 font-medium">{{ __('النقاط') }}</span>
+                <span class="text-base font-black text-slate-900">{{ number_format($gamificationState?->score ?? 0) }} XP</span>
+            </div>
+            <div class="w-px h-8 bg-slate-200"></div>
+            <div class="flex flex-col items-center gap-0.5">
+                <span class="text-xs text-slate-400 font-medium">{{ __('العملات') }}</span>
+                <span class="text-base font-black text-amber-600">{{ $gamificationState?->coins ?? 0 }} {!! $this->renderEmoji($style['coin_emoji'], 'size-5 inline-block align-middle') !!}</span>
+            </div>
+            @if($studentTeam)
+            <div class="w-px h-8 bg-slate-200"></div>
+            <div class="flex flex-col items-center gap-0.5">
+                <span class="text-xs text-slate-400 font-medium">{{ $theme['team_possessive_my'] }}</span>
+                <span class="text-base font-black" style="color: {{ $teamColor }}">{!! $this->renderEmoji($style['team_emoji'], 'size-5 inline-block align-middle') !!} {{ $studentTeam->name }}</span>
+            </div>
+            @endif
+        </div>
+
+        <!-- Store Content -->
+        <div x-show="currentTab === 'store'" class="space-y-4">
+            @if($storeItems->isEmpty())
+                <div class="text-center py-12 bg-slate-50 border border-slate-200 rounded-2xl">
+                    <flux:icon icon="shopping-bag" class="size-10 mx-auto text-slate-400 mb-3" />
+                    <h4 class="font-bold text-slate-500 text-sm">{{ __('المتجر فارغ حالياً') }}</h4>
+                </div>
+            @else
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    @foreach($storeItems as $item)
+                        @php
+                            $isTeamItem = (bool) $item->is_team_product;
+                            $requiresVoting = $isTeamItem && ($activeGamification->settings['team_purchase_voting_enabled'] ?? false);
+                            
+                            $reqTeam = $studentTeam !== null;
+                            $reqRole = in_array($teamRole, ['leader', 'assistant']);
+                            $reqCoins = $studentTeam && ($studentTeam->coins >= $item->price);
+                            $reqMembers = $studentTeam && ($teamStudents->count() > 1);
+                            
+                            $canInitiateTeamPurchase = $reqTeam && $reqRole && $reqCoins && $reqMembers;
+                            
+                            $canAfford = $isTeamItem 
+                                ? ($requiresVoting ? $canInitiateTeamPurchase : ($reqTeam && $reqRole && $reqCoins))
+                                : ($gamificationState && $gamificationState->coins >= $item->price);
+                        @endphp
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between gap-4 transition-all duration-300 hover:border-team-primary/40 hover:shadow-md shadow-sm">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <flux:badge color="{{ $isTeamItem ? 'indigo' : 'emerald' }}" size="sm">
+                                        {{ $isTeamItem ? __('ميزة جماعية ل') . $theme['team_possessive_your'] : __('ميزة فردية') }}
+                                    </flux:badge>
+                                    <span class="text-xs text-slate-500 font-bold">
+                                        {{ $item->price }} {!! $this->renderEmoji($style['coin_emoji'], 'size-3.5 inline-block align-middle') !!}
+                                    </span>
+                                </div>
+                                <h4 class="font-bold text-slate-900 text-base leading-tight">{{ $item->name }}</h4>
+                                <p class="text-xs text-slate-500 mt-1 leading-relaxed">{{ $item->description }}</p>
+                                @if($item->target_date)
+                                    <div class="mt-2.5 text-xs text-team-primary flex items-center gap-1.5 font-bold">
+                                        <flux:icon icon="calendar" class="size-3.5" />
+                                        <span>{{ __('تاريخ اليوم المحدد:') }} {{ $item->target_date->format('Y-m-d') }}</span>
+                                    </div>
+                                @endif
+
+                                @if($item->item_type === 'team_attack')
+                                    <div class="mt-2.5 space-y-1 text-right" dir="rtl">
+                                        <label class="text-[11px] text-slate-500 block font-bold">ال{{ $theme['team_name'] }} المستهدفة للخصم:</label>
+                                        <select wire:model="targetTeams.{{ $item->id }}" class="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-team-primary focus:border-team-primary">
+                                            <option value="">{{ __('اختر') }} {{ $theme['team_name'] }}...</option>
+                                            @php
+                                                $otherTeams = \App\Models\GamificationTeam::where('leaderboard_id', $activeGamification->id)
+                                                    ->where('id', '!=', $studentTeam?->id ?? 0)
+                                                    ->get();
+                                            @endphp
+                                            @foreach($otherTeams as $ot)
+                                                <option value="{{ $ot->id }}">{{ $ot->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                @elseif(in_array($item->item_type, ['multiplier', 'shield']) && !$item->target_date)
+                                    <div class="mt-2.5 space-y-1 text-right" dir="rtl">
+                                        <label class="text-[11px] text-slate-500 block font-bold">{{ __('تاريخ التفعيل (من الغد فصاعداً):') }}</label>
+                                        <input type="date" wire:model="targetDates.{{ $item->id }}" min="{{ \Carbon\Carbon::now('Asia/Riyadh')->addDay()->format('Y-m-d') }}" class="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-team-primary focus:border-team-primary" />
+                                    </div>
+                                @endif
+                            </div>
+
+                            @if($requiresVoting)
+                                <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-2.5 text-xs text-right" dir="rtl">
+                                    <span class="font-bold text-slate-700 block mb-1">{{ __('متطلبات بدء تصويت المجموعة:') }}</span>
+                                    <div class="space-y-2">
+                                        <!-- Requirement 1: Team Registration -->
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="flex items-center justify-center size-5 rounded-full {{ $reqTeam ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400' }} text-[10px] font-black shrink-0">
+                                                {{ $reqTeam ? '✓' : '✗' }}
+                                            </span>
+                                            <span class="{{ $reqTeam ? 'text-slate-700 font-semibold' : 'text-slate-400' }}">
+                                                {{ __('التسجيل في ') }}{{ $theme['team_name'] }}
+                                            </span>
+                                        </div>
+
+                                        <!-- Requirement 2: Role check -->
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="flex items-center justify-center size-5 rounded-full {{ $reqRole ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400' }} text-[10px] font-black shrink-0">
+                                                {{ $reqRole ? '✓' : '✗' }}
+                                            </span>
+                                            <span class="{{ $reqRole ? 'text-slate-700 font-semibold' : 'text-slate-400' }}">
+                                                {{ __('رتبتك قائد أو مساعد في ال') }}{{ $theme['team_name'] }}
+                                            </span>
+                                        </div>
+
+                                        <!-- Requirement 3: Team Coins -->
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="flex items-center justify-center size-5 rounded-full {{ $reqCoins ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400' }} text-[10px] font-black shrink-0">
+                                                {{ $reqCoins ? '✓' : '✗' }}
+                                            </span>
+                                            <span class="{{ $reqCoins ? 'text-slate-700 font-semibold' : 'text-slate-400' }} flex items-center gap-1">
+                                                <span>{{ __('رصيد الخزينة كافٍ (') }}{{ $item->price }}</span>
+                                                {!! $this->renderEmoji($style['coin_emoji'], 'size-3.5 inline-block align-middle') !!}
+                                                <span>)</span>
+                                            </span>
+                                        </div>
+
+                                        <!-- Requirement 4: Other Members for voting -->
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="flex items-center justify-center size-5 rounded-full {{ $reqMembers ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400' }} text-[10px] font-black shrink-0">
+                                                {{ $reqMembers ? '✓' : '✗' }}
+                                            </span>
+                                            <span class="{{ $reqMembers ? 'text-slate-700 font-semibold' : 'text-slate-400' }}">
+                                                {{ __('وجود أعضاء آخرين في ال') }}{{ $theme['team_name'] }}{{ __(' للمشاركة بالتصويت') }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+
+                            <flux:button wire:click="buyItem({{ $item->id }})" :disabled="!$canAfford" class="w-full font-bold {{ $style['btn'] }} disabled:opacity-40 disabled:cursor-not-allowed">
+                                <span>{{ $requiresVoting ? __('بدء تصويت وشراء بـ ') : __('شراء بـ ') }} {{ $item->price }}</span>
+                                {!! $this->renderEmoji($style['coin_emoji'], 'size-4 inline-block align-middle') !!}
+                            </flux:button>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+
+        <!-- Badges Content -->
+        <div x-show="currentTab === 'badges'" class="space-y-4">
+            @if($allBadges->isEmpty())
+                <div class="text-center py-12 bg-slate-50 border border-slate-200 rounded-2xl">
+                    <flux:icon icon="trophy" class="size-10 mx-auto text-slate-400 mb-3" />
+                    <h4 class="font-bold text-slate-500 text-sm">{{ __('لا توجد أوسمة مهيأة لهذه المسابقة') }}</h4>
+                </div>
+            @else
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                    @foreach($allBadges as $badge)
+                        @php
+                            $earned = in_array($badge->id, $studentBadges);
+                        @endphp
+                        <div class="rounded-2xl p-5 flex flex-col items-center text-center gap-3 border shadow-sm transition-all duration-300 {{ $earned ? 'bg-team-10 border-team-20 text-slate-800 shadow-team-10/20' : 'bg-slate-50/60 border-slate-200/60 opacity-60 text-slate-400' }}" title="{{ $badge->description }}">
+                            <div class="w-16 h-16 rounded-full flex items-center justify-center text-3xl {{ $earned ? 'bg-white text-team-primary border border-team-20 shadow-md' : 'bg-slate-100 text-slate-400' }} overflow-hidden">
+                                @if(str_contains($badge->icon, '/') || str_contains($badge->icon, '.'))
+                                    <img src="{{ asset('storage/' . $badge->icon) }}" class="w-full h-full object-contain p-2 {{ $earned ? '' : 'grayscale opacity-40' }}" alt="{{ $badge->name }}">
+                                @else
+                                    @if($badge->icon === 'sparkles' || $badge->icon === 'sparkle') ✨
+                                    @elseif($badge->icon === 'fire') 🔥
+                                    @elseif($badge->icon === 'rocket') 🚀
+                                    @elseif($badge->icon === 'crown') 👑
+                                    @elseif($badge->icon === 'bolt') ⚡
+                                    @elseif($badge->icon === 'trophy') 🏆
+                                    @elseif($badge->icon === 'star') ⭐
+                                    @elseif($badge->icon === 'shield') 🛡️
+                                    @elseif($badge->icon === 'heart') ❤️
+                                    @else 🏅 @endif
+                                @endif
+                            </div>
+                            <div>
+                                <h5 class="font-bold text-sm text-slate-800 leading-snug">{{ $badge->name }}</h5>
+                                <p class="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{{ $badge->description }}</p>
+                            </div>
+                            <flux:badge color="{{ $earned ? 'emerald' : 'zinc' }}" size="sm">
+                                {{ $earned ? __('مكتمل') : __('مغلق') }}
+                            </flux:badge>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+
+        <!-- Leaderboard Content -->
+        <div x-show="currentTab === 'leaderboard'" class="space-y-6">
+            <!-- Quranic Missions Section inside Main Tab -->
+            <div class="space-y-4">
+                <flux:heading size="lg" class="text-slate-900 flex items-center gap-2 font-black">
+                    <svg class="size-6 text-slate-600 dark:text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                    </svg>
+                    {{ __('المهام والخطط') }}
+                </flux:heading>
+                @if(empty($pendingMissions))
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 text-center shadow-sm">
+                        <p class="text-sm text-slate-500">{{ __('لا توجد مهام قرآنية معلقة حالياً') }}</p>
+                    </div>
+                @else
+                    @php
+                        $showTeamMultiplier = false;
+                        if ($activeGamification && isset($gamificationLevelInfo['current'])) {
+                            $lvlSettings = $gamificationLevelInfo['current']->settings ?? [];
+                            $showTeamMultiplier = (bool) ($lvlSettings['has_team_multiplier'] ?? true);
+                        }
+                    @endphp
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        @foreach($pendingMissions as $m)
+                            <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <flux:badge color="indigo" size="sm">
+                                            {{ $m->plan->plan_type === 'hifz' ? __('خطة حفظ') : ($m->plan->plan_type === 'review' ? __('خطة مراجعة') : __('خطة حفظ ومراجعة')) }}
+                                        </flux:badge>
+                                        <span class="text-xs text-slate-400">{{ $m->day_name }} ({{ $m->date->format('Y-m-d') }})</span>
+                                    </div>
+                                    <h4 class="font-black text-slate-900 text-lg leading-tight mt-2">
+                                        {{ __('المهمة المطلوبة غداً') }}
+                                    </h4>
+                                </div>
+
+                                @php
+                                    $hifzXP = ($activeGamification->settings['hifz_excellent'] ?? 10);
+                                    $reviewXP = ($activeGamification->settings['review_excellent'] ?? 5);
+                                    $maxXP = 0;
+                                    if ($m->plan->plan_type === 'hifz') {
+                                        $maxXP = $hifzXP;
+                                    } elseif ($m->plan->plan_type === 'review') {
+                                        $maxXP = $reviewXP;
+                                    } else {
+                                        $maxXP = $hifzXP + $reviewXP;
+                                    }
+                                @endphp
+                                <div class="flex flex-col sm:flex-row items-stretch gap-4 bg-slate-50/60 rounded-xl p-3 border border-slate-100">
+                                    <div class="space-y-3 flex-1">
+                                        @if($m->plan->plan_type === 'hifz' || $m->plan->plan_type === 'hifz_review')
+                                            <div>
+                                                <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">{{ __('مقرر الحفظ:') }}</span>
+                                                <p class="text-slate-800 text-sm font-semibold mt-0.5">{{ $m->formatRange('hifz') ?? 'لا يوجد نص محدد' }}</p>
+                                            </div>
+                                        @endif
+                                        @if($m->plan->plan_type === 'review' || $m->plan->plan_type === 'hifz_review')
+                                            <div>
+                                                <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">{{ __('مقرر المراجعة:') }}</span>
+                                                <p class="text-slate-800 text-sm font-semibold mt-0.5">{{ $m->formatRange('review') ?? 'لا يوجد نص محدد' }}</p>
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <div class="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 pt-3 sm:pt-0 sm:pr-4 border-t sm:border-t-0 sm:border-r border-slate-200/60">
+                                        <div class="text-right">
+                                            <span class="text-[9px] text-slate-400 font-bold block">{{ __('النقاط المتاحة') }}</span>
+                                            <span class="text-base font-black text-emerald-600">+{{ $maxXP }} XP</span>
+                                        </div>
+                                        @if($showTeamMultiplier)
+                                            <flux:button variant="primary" wire:click="openDoublePointsModal('{{ $m->date->format('Y-m-d') }}', 'team')" size="sm" class="bg-team-primary hover:bg-team-primary-hover border-none font-bold !text-white shadow-sm" style="color: white !important;" icon="bolt">
+                                                {{ __('مضاعفة النقاط') }}
+                                            </flux:button>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
+            <!-- Standings Table -->
+            <div class="space-y-4">
+                <flux:heading size="lg" class="text-slate-900 flex items-center gap-2 font-black">
+                    <svg class="size-6 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v5m-3 0h6m-6-14h6M4 7c0 2 1.5 4 3.5 4h1M20 7c0 2-1.5 4-3.5 4h-1m-7.5-4h9v6a4.5 4.5 0 01-9 0V7z"></path>
+                    </svg>
+                    {{ __('لوحة المتصدرين') }}
+                </flux:heading>
+
+                @if(empty($leaderboardStandings))
+                    <div class="text-center py-12 bg-slate-50 border border-slate-200 rounded-2xl">
+                        <flux:icon icon="presentation-chart-line" class="size-10 mx-auto text-slate-400 mb-3" />
+                        <h4 class="font-bold text-slate-500 text-sm">{{ __('لا توجد نتائج لعرضها') }}</h4>
+                    </div>
+                @else
+                    <!-- Themed Leaderboard Table -->
+                    <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-right">
+                                <thead class="bg-slate-50/80 border-b border-slate-200">
+                                    <tr>
+                                        <th class="p-1 w-1 font-bold text-slate-500 text-center ">{{ __('') }}</th>
+                                        <th class="p-4 font-bold text-slate-500">{{ __('اسم الطالب') }}</th>
+                                        <th class="p-4 font-bold text-slate-500 text-center w-24">{{ __('مجموع النقاط') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @foreach($leaderboardStandings as $index => $standing)
+                                        @php
+                                            $rank = $index + 1;
+                                            $isMe = $standing['student']->id === $student->id;
+                                        @endphp
+                                        <tr class="transition-colors duration-150 {{ $isMe ? 'bg-team-10 text-slate-900 font-bold' : 'text-slate-700 hover:bg-slate-50/50' }}">
+                                            <td class="p-1 !w-1 text-center">
+                                                <div class="flex justify-center items-center">
+                                                    @if($rank === 1)
+                                                        <span class="inline-flex items-center justify-center size-6 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 text-amber-950 text-xs font-black shadow-sm border border-amber-200">1</span>
+                                                     @elseif($rank === 2)
+                                                        <span class="inline-flex items-center justify-center size-6 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 text-slate-900 text-xs font-black shadow-sm border border-slate-300">2</span>
+                                                     @elseif($rank === 3)
+                                                        <span class="inline-flex items-center justify-center size-6 rounded-full bg-gradient-to-br from-amber-600 to-amber-700 text-amber-50 text-xs font-black shadow-sm border border-amber-500">3</span>
+                                                     @else
+                                                        <span class="text-slate-400 font-semibold text-xs">#{{ $rank }}</span>
+                                                     @endif
+                                                </div>
+                                            </td>
+                                            <td class="p-2.5">
+                                                <div class="flex items-center gap-3">
+                                                    @if($standing['student']->avatar_path)
+                                                        <img src="{{ Storage::url($standing['student']->avatar_path) }}" class="w-12 h-12 rounded-full object-cover border border-slate-200" />
+                                                    @else
+                                                        <div class="w-12 h-12 rounded-full flex items-center justify-center font-bold text-xs border border-slate-200" style="{{ $standing['student']->avatarStyle() }}">
+                                                            {{ $standing['student']->initials() }}
+                                                        </div>
+                                                    @endif
+                                                    <div class="flex flex-col items-start">
+                                                        <span>{{ $standing['student']->name }}</span>
+                                                        @php
+                                                            $team = $standing['student']->gamificationTeams->first();
+                                                        @endphp
+                                                        @if($team)
+                                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5" style="background-color: {{ $team->color }}1a; color: {{ $team->color }};">
+                                                                {{ $team->name }}
+                                                            </span>
+                                                        @elseif($standing['student']->circle)
+                                                            <span class="text-[10px] text-slate-400 mt-0.5">{{ $standing['student']->circle->name }}</span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="p-4 text-center font-bold">
+                                                {{ $standing['score'] }} XP
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Team Content -->
+        @if($studentTeam)
+        <div x-show="currentTab === 'team'" class="space-y-6">
+            <!-- Team Info Header Card -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden">
+                <!-- Decorative background colored strip -->
+                <div class="absolute top-0 right-0 left-0 h-2" style="background-color: {{ $teamColor }}"></div>
+                
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div class="flex items-center gap-4">
+                        <div class="size-16 rounded-2xl flex items-center justify-center border shadow-inner bg-slate-50 overflow-hidden" style="border-color: {{ $teamColor }}">
+                            @if($studentTeam->logo_path)
+                                <img src="{{ asset('storage/' . $studentTeam->logo_path) }}" class="size-12 object-contain" />
+                            @else
+                                <span class="text-3xl">{!! $this->renderEmoji($style['team_emoji'], 'size-8 inline-block align-middle') !!}</span>
+                            @endif
+                        </div>
+                        <div>
+                            <h3 class="font-black text-xl text-slate-900">{{ $studentTeam->name }}</h3>
+                            @if($studentTeam->slogan)
+                                <p class="text-xs italic text-slate-500 mt-1">"{{ $studentTeam->slogan }}"</p>
+                            @endif
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-center shadow-inner">
+                            <span class="text-xs text-slate-400 block font-bold mb-1">نقاط المجموعة</span>
+                            <span class="text-2xl font-black text-slate-900">{{ $teamScore }} XP</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-center shadow-inner">
+                            <span class="text-xs text-slate-400 block font-bold mb-1">خزينة المجموعة</span>
+                            <span class="text-2xl font-black text-amber-600 flex items-center justify-center gap-1">
+                                {{ $studentTeam->coins }} {!! $this->renderEmoji($style['coin_emoji'], 'size-6 inline-block align-middle') !!}
+                            </span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-center shadow-inner">
+                            <span class="text-xs text-slate-400 block font-bold mb-1">مضاعف النقاط</span>
+                            <span class="text-sm font-bold block mt-1">
+                                @if(\App\Services\GamificationService::isMultiplierActiveForTeam($studentTeam, now()))
+                                    <span class="text-emerald-600">نشط ⚡</span>
+                                @else
+                                    <span class="text-slate-400">غير نشط</span>
+                                @endif
+                            </span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-center shadow-inner">
+                            <span class="text-xs text-slate-400 block font-bold mb-1">درع الحماية</span>
+                            <span class="text-sm font-bold block mt-1">
+                                @if($studentTeam->shield_active_until && $studentTeam->shield_active_until->isFuture())
+                                    <span class="text-emerald-600">نشط 🛡️</span>
+                                @else
+                                    <span class="text-slate-400">غير نشط</span>
+                                @endif
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Donation inside team tab -->
+                @php
+                    $hasDonation = true;
+                    if (isset($gamificationLevelInfo['current'])) {
+                        $lvlSettings = $gamificationLevelInfo['current']->settings ?? [];
+                        $hasDonation = (bool) ($lvlSettings['has_donation'] ?? true);
+                    }
+                @endphp
+                @if($hasDonation)
+                    <div x-data="{ amount: 10, open: false, loading: false }" @donation-successful.window="open = false" @donation-finished.window="loading = false" class="mt-6 border-t border-slate-100 pt-6">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <svg class="size-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span class="text-sm text-slate-700 font-bold">دعم ال{{ $theme['team_name'] }} بالتبرع بالعملات</span>
+                            </div>
+                            <button @click="open = !open" class="text-sm text-team-primary font-bold hover:underline flex items-center gap-1 bg-team-10 px-3 py-1.5 rounded-xl transition-all">
+                                <span>{{ __('تبرع الآن') }}</span>
+                                <flux:icon icon="chevron-down" class="size-3.5 transition-transform" ::class="open ? 'rotate-180' : ''" />
+                            </button>
+                        </div>
+
+                        <div x-show="open" x-collapse class="mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/60 max-w-md space-y-3">
+                            <div class="flex gap-2">
+                                <input x-model="amount" type="number" min="1" max="{{ $gamificationState->coins ?? 0 }}" class="flex-1 text-sm rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-team-primary focus:border-team-primary" />
+                                <button type="button" @click="$wire.donateToTeam(amount)" wire:loading.attr="disabled" wire:target="donateToTeam" class="text-sm px-4 py-2 rounded-xl font-bold transition-all duration-150 bg-team-primary hover:bg-team-primary-hover text-white disabled:opacity-50">
+                                    <span wire:loading.remove wire:target="donateToTeam">{{ __('تبرع') }}</span>
+                                    <span wire:loading wire:target="donateToTeam" style="display: none;">{{ __('جاري التبرع...') }}</span>
+                                </button>
+                            </div>
+                            <div class="flex gap-2 justify-start">
+                                <button @click="amount = 10" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">10</button>
+                                <button @click="amount = 25" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">25</button>
+                                <button @click="amount = 50" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">50</button>
+                                <button @click="amount = {{ $gamificationState->coins ?? 0 }}" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">{{ __('تبرع بكل رصيدي') }}</button>
+                            </div>
+                            <p class="text-[11px] text-slate-400 flex items-center gap-1">
+                                <span>رصيدك المتاح للتبرع: {{ $gamificationState->coins ?? 0 }}</span>
+                                {!! $this->renderEmoji($style['coin_emoji'], 'size-3.5 inline-block align-middle') !!}
+                            </p>
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            <!-- Group purchase voting section -->
+            @if($pendingTeamPurchases->isNotEmpty())
+                <div class="space-y-4">
+                    <h4 class="font-black text-slate-900 text-lg flex items-center gap-2">
+                        <flux:icon icon="shopping-bag" class="size-5 text-slate-800" />
+                        {{ __('التصويت على مشتريات') }} {{ $theme['team_possessive_your'] }}
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        @foreach($pendingTeamPurchases as $purchase)
+                            @php
+                                $hasVoted = array_key_exists($purchase->id, $studentVotes);
+                                $myVote = $hasVoted ? $studentVotes[$purchase->id] : null;
+                                
+                                $votesMap = $purchase->votes->pluck('vote', 'student_id')->toArray();
+                                $assistants = $teamStudents->filter(fn($s) => $s->pivot->role === 'assistant');
+                                $members = $teamStudents->filter(fn($s) => $s->pivot->role === 'member');
+                            @endphp
+                            <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <flux:badge color="amber">{{ __('بانتظار تصويت ال') }}{{ $theme['team_name'] }}</flux:badge>
+                                        <span class="text-xs text-slate-400">{{ $purchase->created_at->diffForHumans() }}</span>
+                                    </div>
+                                    <h4 class="font-bold text-slate-800 text-base">
+                                        {{ __('طلب شراء ميزة:') }} <span class="text-team-primary">{{ $purchase->item->name }}</span>
+                                    </h4>
+                                    <p class="text-xs text-slate-500 mt-1 leading-relaxed flex items-center gap-1">
+                                        <span>{{ __('صاحب الطلب:') }} {{ $purchase->student->name }} — {{ __('السعر من خزينة ال') }}{{ $theme['team_name'] }}: {{ $purchase->price_paid }}</span>
+                                        {!! $this->renderEmoji($style['coin_emoji'], 'size-3.5 inline-block align-middle') !!}
+                                    </p>
+
+                                    <div class="mt-4 pt-3 border-t border-slate-100 space-y-3.5 text-xs text-right" dir="rtl">
+                                        <div>
+                                            <span class="font-bold text-slate-700 block mb-2">{{ __('متطلبات الموافقة:') }}</span>
+                                            <div class="space-y-1.5 mr-2">
+                                                <!-- Assistant vote requirement if item requires it and team has assistants -->
+                                                @if($purchase->item->require_assistant_approval && $assistants->isNotEmpty())
+                                                    @php
+                                                        $assistantHasApproved = $purchase->votes->whereIn('student_id', $assistants->pluck('id'))->where('vote', true)->isNotEmpty();
+                                                    @endphp
+                                                    <div class="flex items-center gap-2 text-slate-600">
+                                                        @if($assistantHasApproved)
+                                                            <flux:icon icon="check-circle" class="size-4 text-emerald-600 shrink-0" />
+                                                        @else
+                                                            <flux:icon icon="clock" class="size-4 text-slate-400 shrink-0" />
+                                                        @endif
+                                                        <span>
+                                                            {{ __('موافقة مساعد القائد (النائب)') }}
+                                                        </span>
+                                                    </div>
+                                                @endif
+
+                                                <!-- Member approval requirement -->
+                                                @php
+                                                    $threshold = $purchase->item->require_member_approval_count;
+                                                    if ($threshold <= 0 && !$purchase->item->require_assistant_approval) {
+                                                        $threshold = intval($teamStudents->count() / 2) + 1;
+                                                    }
+                                                    $yesVotesCount = $purchase->votes->where('vote', true)->count();
+                                                    $noVotesCount = $purchase->votes->where('vote', false)->count();
+                                                    $memberApprovalMet = $yesVotesCount >= $threshold;
+                                                @endphp
+                                                @if($threshold > 0)
+                                                    <div class="flex items-center gap-2 text-slate-600">
+                                                        @if($memberApprovalMet)
+                                                            <flux:icon icon="check-circle" class="size-4 text-emerald-600 shrink-0" />
+                                                        @else
+                                                            <flux:icon icon="clock" class="size-4 text-slate-400 shrink-0" />
+                                                        @endif
+                                                        <span>
+                                                            {{ __('موافقة :threshold من أعضاء الفريق (الحالي: :yesCount موافق / :noCount رافض)', ['threshold' => $threshold, 'yesCount' => $yesVotesCount, 'noCount' => $noVotesCount]) }}
+                                                        </span>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <div class="pt-3 border-t border-slate-100/60">
+                                            <span class="font-bold text-slate-700 block mb-2">{{ __('الأعضاء الذين صوتوا:') }}</span>
+                                            <div class="space-y-1.5 mr-2">
+                                                @forelse($purchase->votes as $vote)
+                                                    @php
+                                                        $voter = $vote->student;
+                                                        $voterTeamStudent = $teamStudents->firstWhere('id', $voter->id);
+                                                        $voterRole = $voterTeamStudent ? $voterTeamStudent->pivot->role : 'member';
+                                                        $roleLabel = $voterRole === 'leader' ? __('القائد') : ($voterRole === 'assistant' ? __('النائب') : __('عضو'));
+                                                    @endphp
+                                                    <div class="flex items-center gap-2 text-slate-600">
+                                                        @if($vote->vote)
+                                                            <flux:icon icon="check" class="size-4 text-emerald-500 shrink-0" />
+                                                        @else
+                                                            <flux:icon icon="x-mark" class="size-4 text-rose-500 shrink-0" />
+                                                        @endif
+                                                        @if($voter->avatar_path)
+                                                            <img src="{{ Storage::url($voter->avatar_path) }}" class="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                                                        @else
+                                                            <div class="w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] border border-slate-200" style="{{ $voter->avatarStyle() }}">
+                                                                {{ $voter->initials() }}
+                                                            </div>
+                                                        @endif
+                                                        <span class="font-medium">
+                                                            {{ $voter->name }}
+                                                            <span class="text-[10px] text-slate-400">({{ $roleLabel }})</span>
+                                                        </span>
+                                                    </div>
+                                                @empty
+                                                    <div class="text-slate-400 italic text-[11px] py-1">
+                                                        {{ __('لا توجد أصوات مسجلة بعد.') }}
+                                                    </div>
+                                                @endforelse
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    @if($hasVoted)
+                                        <div class="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-500">
+                                            <span>{{ __('تم تصويتك بالفعل:') }} {{ $myVote ? __('موافق') : __('رافض') }}</span>
+                                            @if($myVote)
+                                                <flux:icon icon="check" class="size-4 text-emerald-500 shrink-0" />
+                                            @else
+                                                <flux:icon icon="x-mark" class="size-4 text-rose-500 shrink-0" />
+                                            @endif
+                                        </div>
+                                    @else
+                                        <flux:button wire:click="votePurchase({{ $purchase->id }}, true)" size="sm" color="emerald" class="flex-1 font-bold" icon="check">
+                                            {{ __('موافق') }}
+                                        </flux:button>
+                                        <flux:button wire:click="votePurchase({{ $purchase->id }}, false)" size="sm" color="red" class="flex-1 font-bold" icon="x-mark">
+                                            {{ __('رافض') }}
+                                        </flux:button>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- Group Tasks Section -->
+            <div class="space-y-4">
+                <h4 class="font-black text-slate-900 text-lg flex items-center gap-2">
+                    <svg class="size-5 text-slate-600 dark:text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                    {{ __('مهام ال') }}{{ $theme['team_name'] }}
+                </h4>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    @forelse($teamTasks as $assignment)
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                            <!-- Left border accent with team color -->
+                            <div class="absolute right-0 top-0 bottom-0 w-1.5" style="background-color: {{ $teamColor }}"></div>
+                            
+                            <div class="space-y-2.5 pr-2">
+                                <div class="flex items-center justify-between">
+                                    <h5 class="font-black text-slate-800 text-base flex items-center gap-1.5">
+                                        <span>{{ $assignment->task->name }}</span>
+                                    </h5>
+                                    <div>
+                                        @if($assignment->status === 'completed')
+                                            <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                                                <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                                <span>{{ __('تم التقييم') }}</span>
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                                                <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                </svg>
+                                                <span>{{ __('قيد التنفيذ') }}</span>
+                                            </span>
+                                        @endif
+                                    </div>
+                                </div>
+                                
+                                @if($assignment->task->description)
+                                    <p class="text-xs text-slate-500 leading-relaxed">{{ $assignment->task->description }}</p>
+                                @endif
+                                
+                                @if($assignment->status === 'completed' && $assignment->scores->isNotEmpty())
+                                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100/60 text-xs text-slate-600 space-y-2">
+                                        <span class="font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                                            <svg class="size-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                            <span>تفاصيل التقييم بالبنود:</span>
+                                        </span>
+                                        <div class="space-y-1.5">
+                                            @foreach($assignment->scores as $score)
+                                                <div class="flex justify-between items-center text-[11px]">
+                                                    <span class="text-slate-600 font-semibold">{{ $score->criterion->name }}:</span>
+                                                    <span class="font-bold text-slate-800">{{ $score->score }} / 10</span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @elseif($assignment->task->criteria->isNotEmpty())
+                                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100/60 text-xs text-slate-600 space-y-2">
+                                        <span class="font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                                            <svg class="size-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+                                            </svg>
+                                            <span>معايير التقييم:</span>
+                                        </span>
+                                        <div class="space-y-1.5">
+                                            @foreach($assignment->task->criteria as $criterion)
+                                                <div class="flex justify-between items-start text-[11px] gap-2">
+                                                    <div class="text-right">
+                                                        <span class="font-semibold text-slate-700 block">{{ $criterion->name }}</span>
+                                                        @if($criterion->description)
+                                                            <span class="text-slate-400 text-[10px]">{{ $criterion->description }}</span>
+                                                        @endif
+                                                    </div>
+                                                    <span class="text-purple-600 shrink-0 font-medium">+{{ $criterion->coins_reward }} {{ $theme['currency_name'] }}</span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @elseif($assignment->task->evaluation_criteria)
+                                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100/60 text-xs text-slate-600 space-y-1">
+                                        <span class="font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                                            <svg class="size-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                            <span>معايير التقييم:</span>
+                                        </span>
+                                        <p class="whitespace-pre-line leading-relaxed">{{ $assignment->task->evaluation_criteria }}</p>
+                                    </div>
+                                @endif
+                                
+                                <div class="flex flex-wrap gap-4 text-xs text-slate-400 font-medium pt-1">
+                                    <span class="flex items-center gap-1" title="فترة التكليف">
+                                        <svg class="size-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                        </svg>
+                                        <span>{{ $assignment->start_date->format('Y-m-d') }} {{ __('إلى') }} {{ $assignment->end_date->format('Y-m-d') }}</span>
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="border-t border-slate-100 pt-3 flex items-center justify-between pr-2 text-xs">
+                                <div>
+                                    @if($assignment->grade !== null)
+                                        <span class="font-bold text-slate-700 flex items-center gap-1">
+                                            <svg class="size-4 text-yellow-500 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                                <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
+                                            </svg>
+                                            <span>الدرجة المحققة:</span>
+                                            <strong class="text-indigo-650 text-sm font-black">{{ $assignment->grade }} / 100</strong>
+                                        </span>
+                                        @if($assignment->notes)
+                                            <p class="text-[10px] text-slate-400 mt-1 italic">"{{ $assignment->notes }}"</p>
+                                        @endif
+                                    @else
+                                        <span class="text-slate-400 italic">
+                                            @if($assignment->teacher)
+                                                بانتظار التقييم والدرجة من المعلم: {{ $assignment->teacher->name }}
+                                            @else
+                                                بانتظار التقييم والدرجة من المشرف
+                                            @endif
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="text-left font-bold text-slate-700 shrink-0">
+                                    @if($assignment->grade !== null)
+                                        @php
+                                            $tx = \App\Models\GamificationTransaction::where('reference_type', \App\Models\GamificationTeamTaskAssignment::class)
+                                                ->where('reference_id', $assignment->id)
+                                                ->first();
+                                            $awardedCoins = $tx ? $tx->amount : (int) round(($assignment->grade / 100) * $assignment->task->coins_reward);
+                                            $awardedXp = $tx ? $tx->xp_amount : (int) round(($assignment->grade / 100) * $assignment->task->xp_reward);
+                                        @endphp
+                                        <div class="flex flex-col items-end gap-0.5">
+                                            @if($awardedXp > 0)
+                                                <span class="text-indigo-600 flex items-center gap-1">
+                                                    +{{ $awardedXp }} XP
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 text-indigo-500 fill-indigo-500/10">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l-1.813-5.096L2.091 14.09 7.187 12.28 9 7.187l1.813 5.093 5.096 1.813-5.096 1.811z" />
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.071 4.929l-.929 2.071-2.071.929 2.071.929.929 2.071.929-2.071 2.071-.929-2.071-.929z" />
+                                                    </svg>
+                                                </span>
+                                            @endif
+                                            @if($awardedCoins > 0)
+                                                <span class="text-amber-600 flex items-center gap-1">
+                                                    +{{ $awardedCoins }} {{ $theme['currency_name'] }}
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 text-amber-500 fill-amber-500/10">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                                    </svg>
+                                                </span>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <div class="flex flex-col items-end gap-0.5 text-slate-400 font-medium text-[10px]">
+                                            <span>{{ __('المكافأة القصوى:') }}</span>
+                                            <span class="text-slate-600 font-bold">+{{ $assignment->task->xp_reward }} XP / +{{ $assignment->task->coins_reward }} {{ $theme['currency_name'] }}</span>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="col-span-full text-center py-12 text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                            {{ __('لا توجد مهام موكلة للمجموعة حالياً.') }}
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+
+            <!-- Activities and Events Section -->
+            <div class="space-y-4">
+                <h4 class="font-black text-slate-900 text-lg flex items-center gap-2">
+                    <svg class="size-5 text-slate-650 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.36 1.251.588 1.81l-3.97 2.883a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.971-2.883a1 1 0 00-1.178 0l-3.97 2.883c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118L2.49 10.117c-.773-.559-.374-1.81.588-1.81h4.908a1 1 0 00.95-.69l1.518-4.674z" />
+                    </svg>
+                    {{ __('لوحة شرف الفعاليات والأنشطة المشتركة') }}
+                </h4>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    @forelse($allActivityRounds as $round)
+                        @php
+                            $activityColor = $round->activity->color ?? '#10b981';
+                            
+                            if (!function_exists('darkenColor')) {
+                                function darkenColor($hex, $percent = 20) {
+                                    $hex = ltrim($hex, '#');
+                                    if (strlen($hex) == 3) {
+                                        $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+                                    }
+                                    $r = hexdec(substr($hex, 0, 2));
+                                    $g = hexdec(substr($hex, 2, 2));
+                                    $b = hexdec(substr($hex, 4, 2));
+
+                                    $r = max(0, min(255, $r - ($r * $percent / 100)));
+                                    $g = max(0, min(255, $g - ($g * $percent / 100)));
+                                    $b = max(0, min(255, $b - ($b * $percent / 100)));
+
+                                    return sprintf("#%02x%02x%02x", $r, $g, $b);
+                                }
+                            }
+                            
+                            $darkerColor = darkenColor($activityColor, 35);
+
+                            if (!function_exists('isLightColor')) {
+                                function isLightColor($hex) {
+                                    $hex = ltrim($hex, '#');
+                                    if (strlen($hex) == 3) {
+                                        $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+                                    }
+                                    $r = hexdec(substr($hex, 0, 2));
+                                    $g = hexdec(substr($hex, 2, 2));
+                                    $b = hexdec(substr($hex, 4, 2));
+                                    
+                                    $yiq = (($r * 299) + ($g * 587) + ($b * 114)) / 1000;
+                                    return $yiq > 140;
+                                }
+                            }
+                            
+                            $dateColor = isLightColor($activityColor) ? $darkerColor : '#ffffff';
+
+                            $hijriFormatter = new \IntlDateFormatter(
+                                'ar_SA@calendar=islamic-umalqura',
+                                \IntlDateFormatter::FULL,
+                                \IntlDateFormatter::NONE,
+                                'Asia/Riyadh',
+                                \IntlDateFormatter::TRADITIONAL,
+                                'EEEE، d MMMM'
+                            );
+                            $hijriDateStr = $hijriFormatter->format($round->round_date->timestamp);
+
+                            $winner1 = $round->winners->first(function ($w) {
+                                return str_contains($w->rank->name, 'أول') || str_contains($w->rank->name, 'الاول');
+                            });
+                            $winner2 = $round->winners->first(function ($w) {
+                                return str_contains($w->rank->name, 'ثاني') || str_contains($w->rank->name, 'الثاني');
+                            });
+                            $winner3 = $round->winners->first(function ($w) {
+                                return str_contains($w->rank->name, 'ثالث') || str_contains($w->rank->name, 'الثالث');
+                            });
+                            
+                            $team1Name = $winner1 ? ($winner1->team->name ?? '-') : '-';
+                            $team2Name = $winner2 ? ($winner2->team->name ?? '-') : '-';
+                            $team3Name = $winner3 ? ($winner3->team->name ?? '-') : '-';
+                        @endphp
+                        <div class="relative w-full rounded-3xl p-6 flex flex-col justify-between gap-6 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1 overflow-hidden font-zain border-none" style="background-color: {{ $activityColor }}; min-height: 220px;">
+                            @if($round->activity->icon_path)
+                                <img src="{{ Storage::url($round->activity->icon_path) }}" class="absolute top-5 right-5 w-18 h-18 object-contain rounded-xl shadow-inner shadow-gray-800/30" />
+                            @endif
+
+                            <div class="text-center w-full px-12">
+                                <h5 class="text-[26px] font-black text-white drop-shadow-sm tracking-wide leading-tight">
+                                    {{ $round->activity->name }}
+                                </h5>
+                                @if($round->activity->description)
+                                    <p class="text-[14px] text-white/90 font-bold mt-1 leading-normal">
+                                        {{ $round->activity->description }}
+                                    </p>
+                                @endif
+                            </div>
+
+                            <div class="flex items-end justify-between w-full mt-auto">
+                                <div class="flex flex-col justify-end text-right">
+                                    <span class="text-[20px] font-bold mb-1.5 leading-none" style="color: {{ $dateColor }}">{{ $hijriDateStr }}</span>
+                                    <div class="px-4 py-1.5 rounded-xl text-white font-black text-[22px] shadow-sm text-center leading-none" style="background-color: {{ $darkerColor }}">
+                                        {{ $round->name }}
+                                    </div>
+                                </div>
+
+                                <div class="flex items-end gap-1.5 pb-1">
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[16px] font-black mb-1.5 text-center truncate max-w-[65px] leading-none" style="color: {{ $darkerColor }}">{{ $team3Name }}</span>
+                                        <div class="w-11 h-10 rounded-t-md bg-white/20 backdrop-blur-xs flex items-center justify-center shadow-xs">
+                                            <span class="text-[24px] font-black" style="color: {{ $darkerColor }}">٣</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[18px] font-black mb-1.5 text-center truncate max-w-[75px] leading-none text-white drop-shadow-sm">{{ $team1Name }}</span>
+                                        <div class="w-13 h-18 rounded-t-md bg-white/40 backdrop-blur-xs flex items-center justify-center shadow-sm">
+                                            <span class="text-[28px] font-black" style="color: {{ $darkerColor }}">١</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[16px] font-black mb-1.5 text-center truncate max-w-[65px] leading-none" style="color: {{ $darkerColor }}">{{ $team2Name }}</span>
+                                        <div class="w-11 h-14 rounded-t-md bg-white/30 backdrop-blur-xs flex items-center justify-center shadow-xs">
+                                            <span class="text-[24px] font-black" style="color: {{ $darkerColor }}">٢</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    @empty
+                        <div class="col-span-full text-center py-12 text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                            {{ __('لا توجد فعاليات مجدولة أو نتائج ريادية حالياً.') }}
+                        </div>
+                    @endforelse
+                </div>
+
+            <!-- Team Members List -->
+            <div class="space-y-4">
+                <h4 class="font-black text-slate-900 text-lg flex items-center gap-2">
+                    <svg class="size-5 text-slate-600 dark:text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    {{ __('أعضاء ال') }}{{ $theme['team_name'] }}
+                </h4>
+                <div class="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right">
+                            <thead class="bg-slate-50/80 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-4 font-bold text-slate-500">{{ __('اسم الطالب') }}</th>
+                                    <th class="p-4 font-bold text-slate-500 text-center w-28">{{ __('الدور') }}</th>
+                                    <th class="p-4 font-bold text-slate-500 text-center w-28">{{ __('العملات') }}</th>
+                                    <th class="p-4 font-bold text-slate-500 text-center w-28">{{ __('النقاط / XP') }}</th>
+                                    <th class="p-4 font-bold text-slate-500 text-center w-24">{{ __('الحماسة') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @foreach($teamStudents as $ts)
+                                    @php
+                                        $isMe = $ts->id === $student->id;
+                                        $tsState = $teamStudentStates->get($ts->id);
+                                        $tsScore = collect($leaderboardStandings)->firstWhere('student.id', $ts->id)['score'] ?? 0;
+                                    @endphp
+                                    <tr class="transition-colors duration-150 {{ $isMe ? 'bg-team-10 text-slate-900 font-bold' : 'text-slate-700 hover:bg-slate-50/50' }}">
+                                        <td class="p-4">
+                                            <div class="flex items-center gap-3">
+                                                @if($ts->avatar_path)
+                                                    <img src="{{ Storage::url($ts->avatar_path) }}" class="w-9 h-9 rounded-full object-cover border border-slate-200" />
+                                                @else
+                                                    <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border border-slate-200" style="{{ $ts->avatarStyle() }}">
+                                                        {{ $ts->initials() }}
+                                                    </div>
+                                                @endif
+                                                <div class="flex flex-col">
+                                                    <span>{{ $ts->name }}</span>
+                                                    @if($isMe)
+                                                        <span class="text-[9px] text-team-primary font-bold uppercase tracking-wider">{{ __('أنت') }}</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="p-4 text-center">
+                                            @php
+                                                $role = $ts->pivot->role;
+                                                $badgeColor = $role === 'leader' ? 'indigo' : ($role === 'assistant' ? 'amber' : 'zinc');
+                                                $roleLabel = $role === 'leader' ? __('قائد') : ($role === 'assistant' ? __('مساعد') : __('عضو'));
+                                            @endphp
+                                            <flux:badge color="{{ $badgeColor }}" size="sm">{{ $roleLabel }}</flux:badge>
+                                        </td>
+                                        <td class="p-4 text-center font-bold text-slate-800">
+                                            {{ $tsState->coins ?? 0 }} {!! $this->renderEmoji($style['coin_emoji'], 'size-4 inline-block align-middle') !!}
+                                        </td>
+                                        <td class="p-4 text-center font-bold text-slate-800">
+                                            {{ $tsScore }} XP
+                                        </td>
+                                        <td class="p-4 text-center">
+                                            <span class="font-bold text-amber-600 flex items-center justify-center gap-1">
+                                                {{ $style['streak_emoji'] }} {{ $tsState->current_streak ?? 0 }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div> <!-- Closes currentTab === team div -->
+        @endif
+
+        <!-- Extra bottom spacing to prevent bottom navbar overlay -->
+        <div class="h-28"></div>
+    </div>
+
+    <!-- Double Points Purchase Modal -->
+    <flux:modal class="md:max-w-md" wire:model="showDoublePointsModal">
+        <div class="space-y-6 text-right" dir="rtl">
+            <div>
+                <flux:heading size="lg">
+                    {{ $doublePointsType === 'team' ? 'شراء مضاعف النقاط للفريق ⚡' : 'شراء مضاعف النقاط الفردي ⚡' }}
+                </flux:heading>
+                <flux:subheading>
+                    {{ $doublePointsType === 'team' ? 'ضاعف جميع نقاط الحفظ والمراجعة والحضور لفريقك في اليوم المختار.' : 'ضاعف جميع نقاط الحفظ والمراجعة والحضور الخاصة بك في اليوم المختار.' }}
+                </flux:subheading>
+            </div>
+
+            <flux:field>
+                <flux:label>تاريخ التفعيل (التاريخ الهجري)</flux:label>
+                <livewire:shared.hijri-datepicker wire:model="doublePointsDate" :show-attendance-days="true" label="" />
+            </flux:field>
+
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+                <span class="text-sm font-bold text-slate-600">
+                    {{ $doublePointsType === 'team' ? 'تكلفة الشراء (خزينة الفريق):' : 'تكلفة الشراء (رصيدك الفردي):' }}
+                </span>
+                <span class="font-black text-amber-600">{{ $doublePointsPrice }} {!! $this->renderEmoji($style['coin_emoji'] ?? '🪙', 'size-5 inline-block align-middle') !!}</span>
+            </div>
+
+            <div class="flex gap-2">
+                <flux:button wire:click="purchaseDoublePoints" variant="primary" class="flex-1 bg-team-primary hover:bg-team-primary-hover border-none font-bold !text-white" style="color: white !important;">
+                    تأكيد الشراء ويتمم ⚡
+                </flux:button>
+                <flux:modal.close>
+                    <flux:button variant="ghost">
+                        إلغاء
+                    </flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
+
+    <!-- Streak Freeze Purchase Modal -->
+    <flux:modal class="md:max-w-md" wire:model="showFreezeModal">
+        <div class="space-y-6 text-right" dir="rtl">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-6 text-blue-600">
+                        <line x1="12" y1="2" x2="12" y2="22"></line>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                        <line x1="19.07" y1="4.93" x2="4.93" y2="19.07"></line>
+                        <path d="m20 8-2 2-2-2"></path>
+                        <path d="m4 16 2-2 2 2"></path>
+                        <path d="m8 4 2 2-2 2"></path>
+                        <path d="m16 20-2-2 2-2"></path>
+                        <path d="m8 20 2-2-2-2"></path>
+                        <path d="m16 4-2 2 2 2"></path>
+                        <path d="m4 8 2 2-2 2"></path>
+                        <path d="m20 16-2-2 2 2"></path>
+                    </svg>
+                </div>
+                <div>
+                    <flux:heading size="lg">
+                        شراء وتفعيل تجميد الحماسة ❄️
+                    </flux:heading>
+                    <flux:subheading>
+                        حماية شعلة حماستك ليوم {{ $freezeDayName }} ({{ $freezeHijriDate }}).
+                    </flux:subheading>
+                </div>
+            </div>
+
+            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100/60 text-xs text-blue-800 space-y-2 leading-relaxed">
+                <div class="flex items-center gap-1.5 font-bold">
+                    <flux:icon icon="information-circle" class="size-4 text-blue-600" />
+                    <span>معلومات أيام التجميد لمستواك:</span>
+                </div>
+                @php
+                    $maxPrevDays = $activeGamification ? \App\Services\GamificationService::getStudentMaxFreezeDays($student, $activeGamification) : 1;
+                    $freezeRules = $activeGamification->settings['streak_freeze_levels'] ?? [];
+                    usort($freezeRules, fn ($a, $b) => ($a['level'] ?? 0) <=> ($b['level'] ?? 0));
+                @endphp
+                <p>
+                    أنت الآن في المستوى <span class="font-bold text-blue-900">{{ $gamificationLevelInfo['current']->level_number ?? 1 }}</span>، ويُسمح لك بتجميد اليوم الحالي وحتى <span class="font-bold text-blue-900">{{ $maxPrevDays }}</span> من الأيام السابقة.
+                </p>
+                @if($nextFreezeUpgrade)
+                    <div class="mt-2 pt-2 border-t border-blue-200/50 text-[11px] text-indigo-700 font-semibold flex items-center gap-1">
+                        <flux:icon icon="sparkles" class="size-3.5 text-indigo-500 animate-pulse" />
+                        <span>ترقية قادمة: عند وصولك للمستوى {{ $nextFreezeUpgrade['level'] }}، ستتمكن من تجميد {{ $nextFreezeUpgrade['days'] }} من الأيام السابقة!</span>
+                    </div>
+                @endif
+                @if(!empty($freezeRules))
+                    <div class="mt-2 pt-2 border-t border-blue-200/30 space-y-1">
+                        <span class="text-[10px] text-slate-500 block font-bold">خطة ترقيات التجميد المتاحة:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach($freezeRules as $rule)
+                                <span class="px-2 py-0.5 bg-blue-100/80 rounded text-[10px] font-semibold text-blue-950 border border-blue-200/30">
+                                    المستوى {{ $rule['level'] }}: تجميد {{ $rule['days'] }} أيام سابقة
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+                <span class="text-sm font-bold text-slate-600">
+                    تكلفة الشراء (رصيدك الفردي):
+                </span>
+                <span class="font-black text-amber-600">{{ $freezePrice }} {!! $this->renderEmoji($style['coin_emoji'] ?? '🪙', 'size-5 inline-block align-middle') !!}</span>
+            </div>
+
+            <div class="flex gap-2">
+                <flux:button wire:click="purchaseFreeze" variant="primary" class="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 border-none font-bold !text-white" style="color: white !important;">
+                    شراء وتجميد اليوم ❄️
+                </flux:button>
+                <flux:modal.close>
+                    <flux:button variant="ghost">
+                        إلغاء
+                    </flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
+</div>
+@endif
+</div>

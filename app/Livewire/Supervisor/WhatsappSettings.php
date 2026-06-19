@@ -71,12 +71,12 @@ class WhatsappSettings extends Component
     public function startNodeServer(): void
     {
         $basePath = base_path('whatsapp-service');
-        
+
         // Check if running on port 3000
         $output = shell_exec('lsof -nP -i :3000 2>/dev/null');
         $isRunning = $output && strpos($output, 'node') !== false;
-        
-        if (!$isRunning) {
+
+        if (! $isRunning) {
             // Using pclose(popen()) guarantees that PHP will not wait for the process to finish
             pclose(popen("cd {$basePath} && nohup node index.js > node.log 2>&1 &", 'r'));
             sleep(2); // Wait a moment for it to initialize

@@ -85,6 +85,11 @@ new class extends Component {
             $leaderboardStandings = $service->getStandings($leaderboard);
         }
 
+        $activeGamification = null;
+        if ($leaderboard && $leaderboard->competition_type === 'gamification') {
+            $activeGamification = $leaderboard;
+        }
+
         // Last Attended Day Logic
         $lastAttendance = \App\Models\Attendance::where('student_id', $student->id)
             ->whereIn('status', ['present', 'late'])
@@ -261,6 +266,7 @@ new class extends Component {
             'pendingChallenges' => $pendingChallenges,
             'activeChallenges' => $activeChallenges,
             'nextExam' => $nextExam,
+            'activeGamification' => $activeGamification,
         ];
     }
 
@@ -337,7 +343,11 @@ new class extends Component {
 };
 ?>
 
-<div class="space-y-8" dir="rtl">
+<div>
+    @if($activeGamification)
+        <livewire:student.gamification-dashboard />
+    @else
+        <div class="space-y-8" dir="rtl">
     <div class="flex items-center justify-between gap-4 px-1">
         <div>
             <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">
@@ -1556,3 +1566,5 @@ new class extends Component {
                         @endif
                     </div>
                 </div>
+@endif
+</div>

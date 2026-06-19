@@ -1,0 +1,194 @@
+<?php
+
+use App\Livewire\Teacher\Attendance;
+use App\Livewire\Teacher\LeaderboardGrade;
+use App\Models\Attendance as AttendanceModel;
+use App\Models\Circle;
+use App\Models\GamificationStudentState;
+use App\Models\GamificationTransaction;
+use App\Models\Leaderboard;
+use App\Models\LeaderboardCriterion;
+use App\Models\LeaderboardScore;
+use App\Models\Stage;
+use App\Models\Student;
+use App\Models\Teacher;
+use App\Services\GamificationService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Livewire\Livewire;
+
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->stage = Stage::create(['name' => 'مرحلة اختبار دمج المعلم']);
+    $this->circle = Circle::create(['name' => 'حلقة اختبار دمج المعلم', 'stage_id' => $this->stage->id]);
+
+    $this->teacher = Teacher::create([
+        'name' => 'أحمد المعلم',
+        'email' => 'teacher-integration@example.com',
+        'password' => bcrypt('password'),
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $this->teacher->circles()->attach($this->circle->id);
+
+    $this->student = Student::create([
+        'name' => 'طالب دمج التلغيب',
+        'email' => 'student-int@example.com',
+        'password' => bcrypt('password'),
+        'circle_id' => $this->circle->id,
+        'is_approved' => true,
+        'status' => 'active',
+    ]);
+
+    // Active Gamification Competition
+    $this->leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة الحماسة والدمج',
+        'competition_type' => 'gamification',
+        'theme_key' => 'space',
+        'start_date' => now()->subDays(5),
+        'end_date' => now()->addDays(5),
+        'is_active' => true,
+        'settings' => [
+            'hifz_enabled' => true,
+            'hifz_excellent' => 10,
+            'hifz_good' => 7,
+            'hifz_acceptable' => 4,
+            'review_enabled' => true,
+            'review_excellent' => 5,
+            'review_good' => 3,
+            'attendance_enabled' => true,
+            'attendance_present' => 4,
+            'attendance_late' => 2,
+            'enthusiasm_enabled' => true,
+            'enthusiasm_type' => 'both',
+            'enthusiasm_min_grade' => 2,
+            'extra_points_enabled' => true,
+        ],
+    ]);
+    $this->leaderboard->circles()->attach($this->circle->id);
+
+    $this->criterion = LeaderboardCriterion::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'الانضباط والتحية',
+        'points' => 5,
+        'is_enthusiasm_trigger' => true,
+    ]);
+
+    $this->actingAs($this->teacher, 'teacher');
+});
+
+it('syncs attendance points on marking attendance present or late', function () {
+    Livewire::test(Attendance::class)
+        ->set('selectedCircle', $this->circle->id)
+        ->call('markStatus', $this->student->id, 'present');
+
+    // Assert attendance record is created
+    $attendance = AttendanceModel::where('student_id', $this->student->id)
+        ->whereDate('date', now()->format('Y-m-d'))
+        ->first();
+
+    expect($attendance)->not->toBeNull();
+    expect($attendance->status)->toBe('present');
+
+    // Assert gamification transaction is created
+    $transaction = GamificationTransaction::where('student_id', $this->student->id)
+        ->where('reference_type', AttendanceModel::class)
+        ->where('reference_id', $attendance->id)
+        ->first();
+
+    expect($transaction)->not->toBeNull();
+    expect($transaction->amount)->toBe(4); // attendance_present = 4
+
+    // Assert state coins are updated
+    $state = GamificationStudentState::where('student_id', $this->student->id)
+        ->where('leaderboard_id', $this->leaderboard->id)
+        ->first();
+    expect($state)->not->toBeNull();
+    expect($state->coins)->toBe(4);
+});
+
+it('removes attendance points when clearing day attendance', function () {
+    // Manually mark attendance first
+    $attendance = AttendanceModel::create([
+        'student_id' => $this->student->id,
+        'circle_id' => $this->circle->id,
+        'teacher_id' => $this->teacher->id,
+        'date' => now()->format('Y-m-d'),
+        'status' => 'present',
+    ]);
+    GamificationService::syncStudentAttendanceXP($attendance);
+
+    expect(AttendanceModel::where('student_id', $this->student->id)->count())->toBe(1);
+    expect(GamificationTransaction::where('student_id', $this->student->id)->count())->toBe(1);
+
+    // Call clearDayAttendance via Livewire component
+    Livewire::test(Attendance::class)
+        ->set('selectedCircle', $this->circle->id)
+        ->set('date', now()->format('Y-m-d'))
+        ->call('loadStudents')
+        ->call('clearDayAttendance');
+
+    // Assert database is cleared
+    expect(AttendanceModel::where('student_id', $this->student->id)->count())->toBe(0);
+    expect(GamificationTransaction::where('student_id', $this->student->id)->count())->toBe(0);
+
+    $state = GamificationStudentState::where('student_id', $this->student->id)
+        ->where('leaderboard_id', $this->leaderboard->id)
+        ->first();
+    expect($state->coins)->toBe(0);
+});
+
+it('syncs custom criteria points on toggleScore', function () {
+    Livewire::test(LeaderboardGrade::class, ['leaderboardId' => $this->leaderboard->id])
+        ->call('toggleScore', $this->student->id, $this->criterion->id, $this->criterion->points);
+
+    $score = LeaderboardScore::where('student_id', $this->student->id)
+        ->where('leaderboard_criterion_id', $this->criterion->id)
+        ->first();
+
+    expect($score)->not->toBeNull();
+
+    // Assert gamification transaction
+    $transaction = GamificationTransaction::where('student_id', $this->student->id)
+        ->where('reference_type', LeaderboardScore::class)
+        ->where('reference_id', $score->id)
+        ->first();
+    expect($transaction)->not->toBeNull();
+    expect($transaction->amount)->toBe(5); // points = 5
+
+    // Toggle again to remove score
+    Livewire::test(LeaderboardGrade::class, ['leaderboardId' => $this->leaderboard->id])
+        ->call('toggleScore', $this->student->id, $this->criterion->id, $this->criterion->points);
+
+    expect(LeaderboardScore::where('student_id', $this->student->id)->count())->toBe(0);
+    expect(GamificationTransaction::where('student_id', $this->student->id)->count())->toBe(0);
+});
+
+it('syncs extra points on saveExtraPoints', function () {
+    Livewire::test(LeaderboardGrade::class, ['leaderboardId' => $this->leaderboard->id])
+        ->call('saveExtraPoints', $this->student->id, 15, 'عمل متميز إضافي');
+
+    $extraPoint = DB::table('leaderboard_extra_points')
+        ->where('student_id', $this->student->id)
+        ->first();
+
+    expect($extraPoint)->not->toBeNull();
+    expect((int) $extraPoint->points)->toBe(15);
+
+    // Assert gamification transaction
+    $transaction = GamificationTransaction::where('student_id', $this->student->id)
+        ->where('reference_type', 'leaderboard_extra_points')
+        ->where('reference_id', $extraPoint->id)
+        ->first();
+    expect($transaction)->not->toBeNull();
+    expect($transaction->amount)->toBe(15);
+
+    // Delete extra points
+    Livewire::test(LeaderboardGrade::class, ['leaderboardId' => $this->leaderboard->id])
+        ->call('deleteExtraPoints', $extraPoint->id);
+
+    expect(DB::table('leaderboard_extra_points')->where('student_id', $this->student->id)->count())->toBe(0);
+    expect(GamificationTransaction::where('student_id', $this->student->id)->count())->toBe(0);
+});

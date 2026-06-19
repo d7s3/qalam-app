@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Leaderboard extends Model
 {
@@ -48,5 +49,35 @@ class Leaderboard extends Model
     public function scores()
     {
         return $this->hasMany(LeaderboardScore::class);
+    }
+
+    /** @return HasMany<GamificationTeam, $this> */
+    public function gamificationTeams(): HasMany
+    {
+        return $this->hasMany(GamificationTeam::class);
+    }
+
+    /** @return HasMany<GamificationStoreItem, $this> */
+    public function gamificationStoreItems(): HasMany
+    {
+        return $this->hasMany(GamificationStoreItem::class);
+    }
+
+    /** @return HasMany<GamificationBadge, $this> */
+    public function gamificationBadges(): HasMany
+    {
+        return $this->hasMany(GamificationBadge::class);
+    }
+
+    /** @return HasMany<GamificationStreakMilestone, $this> */
+    public function gamificationStreakMilestones(): HasMany
+    {
+        return $this->hasMany(GamificationStreakMilestone::class);
+    }
+
+    /** @return HasMany<GamificationLevel, $this> */
+    public function gamificationLevels(): HasMany
+    {
+        return $this->hasMany(GamificationLevel::class);
     }
 }

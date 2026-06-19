@@ -124,9 +124,13 @@ Route::middleware(['auth:manager', 'approved'])->get('/manager/dashboard', fn ()
 Route::middleware(['auth:supervisor', 'approved'])->prefix('supervisor')->name('supervisor.')->group(function () {
     Route::get('/dashboard', fn () => view('supervisor.dashboard'))->name('dashboard');
     Route::view('/teachers', 'supervisor.teachers')->name('teachers');
+    Route::view('/odes', 'supervisor.odes')->name('odes');
+    Route::view('/odes/plans', 'supervisor.ode-plans')->name('odes.plans');
+    Route::view('/odes/create-plan', 'supervisor.ode-plan-creator')->name('odes.create-plan');
     Route::view('/circles', 'supervisor.circles')->name('circles');
     Route::view('/students', 'supervisor.students')->name('students');
     Route::view('/competitions', 'supervisor.competitions')->name('competitions');
+    Route::get('/competitions/{competition}/gamification', fn ($competition) => view('supervisor.gamification', ['competitionId' => $competition]))->name('competitions.gamification');
     Route::view('/exceeded-limits', 'supervisor.exceeded-limits')->name('exceeded-limits');
     Route::view('/academic-calendar', 'supervisor.academic-calendar')->name('academic-calendar');
     Route::view('/yearly-attendance', 'supervisor.yearly-attendance')->name('yearly-attendance');
@@ -154,6 +158,8 @@ Route::middleware(['auth:teacher', 'approved'])->prefix('teacher')->name('teache
     Route::view('/discipline', 'teacher.discipline')->name('discipline');
     Route::view('/quranic-discipline', 'teacher.quranic-discipline')->name('quranic-discipline');
     Route::view('/student-plans', 'teacher.student-plans')->name('student-plans');
+    Route::view('/ode-plan-creator', 'teacher.ode-plan-creator')->name('ode-plan-creator');
+    Route::view('/ode-plans', 'teacher.ode-plans')->name('ode-plans');
     Route::view('/exceeded-limits', 'teacher.exceeded-limits')->name('exceeded-limits');
     Route::view('/pairs', 'teacher.pairs')->name('pairs');
     Route::view('/student-exams', 'teacher.student-exams')->name('student-exams');

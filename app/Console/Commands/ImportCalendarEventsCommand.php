@@ -23,7 +23,7 @@ class ImportCalendarEventsCommand extends Command
         $clear = $this->option('clear');
 
         // التحقق من وجود الملف
-        if (!file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             $this->error("الملف غير موجود: {$filePath}");
 
             return self::FAILURE;
@@ -31,7 +31,7 @@ class ImportCalendarEventsCommand extends Command
 
         // التحقق من وجود المدير
         $manager = Manager::find($managerId);
-        if (!$manager) {
+        if (! $manager) {
             $this->error("لا يوجد مدير بالمعرف: {$managerId}");
 
             return self::FAILURE;
@@ -40,14 +40,14 @@ class ImportCalendarEventsCommand extends Command
         $json = file_get_contents($filePath);
         $events = json_decode($json, true);
 
-        if (!is_array($events) || empty($events)) {
+        if (! is_array($events) || empty($events)) {
             $this->error('الملف فارغ أو تنسيقه غير صحيح.');
 
             return self::FAILURE;
         }
 
         if ($clear) {
-            if (!$this->confirm('سيتم حذف جميع الأحداث الموجودة. هل أنت متأكد؟')) {
+            if (! $this->confirm('سيتم حذف جميع الأحداث الموجودة. هل أنت متأكد؟')) {
                 $this->info('تم إلغاء العملية.');
 
                 return self::SUCCESS;

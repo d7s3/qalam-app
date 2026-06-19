@@ -40,4 +40,5 @@ class Task extends Model
     public function events()
     {
         return $this->belongsToMany(AcademicCalendarEvent::class, 'academic_calendar_event_task');
-    }}
+    }
+}

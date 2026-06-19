@@ -192,7 +192,7 @@ class QuranPlanService
         $i = 1;
 
         while ($curr) {
-            $var_for_dump .= $curr->text_uthmani . ' {' . $i++ . '} ';
+            $var_for_dump .= $curr->text_uthmani.' {'.$i++.'} ';
             $linesOnCurrentPage += $this->getAyahSize($curr);
 
             if ($curr->id == $currentPageEnd->id) {

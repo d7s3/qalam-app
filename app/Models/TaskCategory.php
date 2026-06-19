@@ -23,4 +23,5 @@ class TaskCategory extends Model
     public function tasks()
     {
         return $this->hasMany(Task::class, 'task_category_id');
-    }}
+    }
+}

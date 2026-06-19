@@ -1,6 +1,9 @@
+@php
+    $currentUser = auth('student')->check() ? auth('student')->user() : auth()->user();
+@endphp
 <flux:dropdown position="top" align="end">
     <flux:profile
-        :initials="auth()->user()->initials()"
+        :initials="$currentUser?->initials()"
         icon-trailing="chevron-down"
     />
 
@@ -9,13 +12,13 @@
             <div class="p-0 text-sm font-normal text-right">
                 <div class="flex items-center gap-2 px-1 py-1.5 text-right text-sm">
                     <flux:avatar
-                        :name="auth()->user()->name"
-                        :initials="auth()->user()->initials()"
+                        :name="$currentUser?->name"
+                        :initials="$currentUser?->initials()"
                     />
 
                     <div class="grid flex-1 text-right text-sm leading-tight">
-                        <flux:heading class="truncate">{{ auth()->user()->name }}</flux:heading>
-                        <flux:text class="truncate">{{ auth()->user()->email }}</flux:text>
+                        <flux:heading class="truncate">{{ $currentUser?->name }}</flux:heading>
+                        <flux:text class="truncate">{{ $currentUser?->email }}</flux:text>
                     </div>
                 </div>
             </div>
@@ -24,14 +27,24 @@
         <flux:menu.separator />
 
         <flux:menu.radio.group>
-            <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
-                {{ __('الإعدادات') }}
-            </flux:menu.item>
+            @if(auth('student')->check())
+                <flux:menu.item :href="route('student.settings')" icon="cog" wire:navigate>
+                    {{ __('الإعدادات') }}
+                </flux:menu.item>
+            @else
+                <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
+                    {{ __('الإعدادات') }}
+                </flux:menu.item>
+            @endif
         </flux:menu.radio.group>
 
         <flux:menu.separator />
 
-        <form method="POST" action="{{ route('logout') }}" class="w-full">
+        @if(auth('student')->check())
+            <form method="POST" action="{{ route('student.logout') }}" class="w-full">
+        @else
+            <form method="POST" action="{{ route('logout') }}" class="w-full">
+        @endif
             @csrf
             <flux:menu.item
                 as="button"

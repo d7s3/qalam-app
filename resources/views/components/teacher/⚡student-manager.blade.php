@@ -146,6 +146,9 @@ new class extends Component {
             'plans' => function ($q) {
                 $q->latest();
             },
+            'odePlans' => function ($q) {
+                $q->latest();
+            },
             'attendances',
             'statusHistories',
         ])
@@ -509,6 +512,43 @@ new class extends Component {
                         <flux:button as="a" href="{{ route('teacher.student-recitation-log', $viewingStudent->id) }}" variant="outline" size="sm" icon="clipboard-document-list" class="w-full">
                             {{ __('سجل التسميع الدقيق (الأداء الفعلي)') }}
                         </flux:button>
+                    </div>
+                </div>
+
+                <flux:separator />
+
+                <!-- Ode Plans -->
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <flux:heading size="sm">
+                            {{ __('خطط المنظومات (' . $viewingStudent->odePlans->count() . ')') }}
+                        </flux:heading>
+                        <flux:button size="xs" variant="filled" as="a" href="{{ route('teacher.ode-plan-creator', ['student_id' => $viewingStudent->id]) }}">
+                            إنشاء خطة منظومة
+                        </flux:button>
+                    </div>
+
+                    <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
+                        @forelse($viewingStudent->odePlans as $plan)
+                            <div class="flex items-center justify-between p-3 border border-zinc-200 dark:border-zinc-700/50 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                                <div class="flex flex-col">
+                                    <span class="text-sm font-medium">
+                                        {{ $plan->ode->name }}
+                                    </span>
+                                    <span class="text-xs text-zinc-500">
+                                        {{ $plan->start_date->format('Y/m/d') }} • 
+                                        {{ $plan->days->count() }} يوم •
+                                        @if($plan->status === 'active')
+                                            <span class="text-green-600 font-semibold">نشطة</span>
+                                        @else
+                                            <span class="text-zinc-400 font-semibold">مكتملة</span>
+                                        @endif
+                                    </span>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="text-sm text-zinc-500 text-center py-4">{{ __('ليس لديه خطط منظومات مسجلة.') }}</div>
+                        @endforelse
                     </div>
                 </div>
 

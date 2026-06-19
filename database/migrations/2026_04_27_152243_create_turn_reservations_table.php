@@ -18,7 +18,7 @@ return new class extends Migration
             $table->date('date');
             $table->integer('turn_number');
             $table->timestamps();
-            
+
             $table->unique(['turn_reservation_session_id', 'student_id', 'date'], 'unique_student_reservation_date');
             $table->unique(['turn_reservation_session_id', 'date', 'turn_number'], 'unique_turn_number_date');
         });

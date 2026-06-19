@@ -16,7 +16,7 @@ return new class extends Migration
         });
 
         // The user requested existing events to have has_tasks = false.
-        \DB::table('academic_calendar_events')->update(['has_tasks' => false]);
+        DB::table('academic_calendar_events')->update(['has_tasks' => false]);
     }
 
     /**

@@ -7,6 +7,10 @@
         @include('student.sidebar-nav')
     </x-slot:sidebar>
 
+    <x-slot:bottomNav>
+        <x-student-gamification-nav />
+    </x-slot:bottomNav>
+
     <div class="md:p-8">
         <livewire:student.guardian-notice />
         <livewire:student.dashboard />

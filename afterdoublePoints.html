@@ -1,0 +1,1416 @@
+<html lang="en" dir="rtl" class="">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>
+        الرئيسية - Laravel
+    </title>
+
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+    <link rel="preconnect" href="https://fonts.bunny.net">
+
+    <link rel="preload" as="style" href="http://127.0.0.1:8001/build/assets/app-I-yAiuJo.css">
+    <link rel="modulepreload" as="script" href="http://127.0.0.1:8001/build/assets/app-34mOoJaZ.js">
+    <link rel="stylesheet" href="http://127.0.0.1:8001/build/assets/app-I-yAiuJo.css" data-navigate-track="reload">
+    <script type="module" src="http://127.0.0.1:8001/build/assets/app-34mOoJaZ.js"
+        data-navigate-track="reload"></script>
+    <style>
+        :root.dark {
+            color-scheme: dark;
+        }
+    </style>
+    <script>
+        window.Flux = {
+            applyAppearance(appearance) {
+                let applyDark = () => document.documentElement.classList.add('dark')
+                let applyLight = () => document.documentElement.classList.remove('dark')
+
+                if (appearance === 'system') {
+                    let media = window.matchMedia('(prefers-color-scheme: dark)')
+
+                    window.localStorage.removeItem('flux.appearance')
+
+                    media.matches ? applyDark() : applyLight()
+                } else if (appearance === 'dark') {
+                    window.localStorage.setItem('flux.appearance', 'dark')
+
+                    applyDark()
+                } else if (appearance === 'light') {
+                    window.localStorage.setItem('flux.appearance', 'light')
+
+                    applyLight()
+                }
+            }
+        }
+
+        window.Flux.applyAppearance(window.localStorage.getItem('flux.appearance') || 'system')
+    </script>
+    <title>الرئيسية</title>
+    <script>
+        document.documentElement.classList.remove('dark');
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class' && document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark');
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    </script>
+    <script id="browser-logger-active">
+        (function () {
+            const ENDPOINT = 'http://127.0.0.1:8001/_boost/browser-logs';
+            const logQueue = [];
+            let flushTimeout = null;
+
+            console.log('🔍 Browser logger active (MCP server detected). Posting to: ' + ENDPOINT);
+
+            // Store original console methods
+            const originalConsole = {
+                log: console.log,
+                info: console.info,
+                error: console.error,
+                warn: console.warn,
+                table: console.table
+            };
+
+            // Helper to safely stringify values
+            function safeStringify(obj) {
+                const seen = new WeakSet();
+                return JSON.stringify(obj, (key, value) => {
+                    if (typeof value === 'object' && value !== null) {
+                        if (seen.has(value)) return '[Circular]';
+                        seen.add(value);
+                    }
+                    if (value instanceof Error) {
+                        return {
+                            name: value.name,
+                            message: value.message,
+                            stack: value.stack
+                        };
+                    }
+                    return value;
+                });
+            }
+
+            // Batch and send logs
+            function flushLogs() {
+                if (logQueue.length === 0) return;
+
+                const batch = logQueue.splice(0, logQueue.length);
+
+                fetch(ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ logs: batch })
+                }).catch(err => {
+                    // Silently fail to avoid infinite loops
+                    originalConsole.error('Failed to send logs:', err);
+                });
+            }
+
+            // Debounced flush (100ms)
+            function scheduleFlush() {
+                if (flushTimeout) clearTimeout(flushTimeout);
+                flushTimeout = setTimeout(flushLogs, 100);
+            }
+
+            // Intercept console methods
+            ['log', 'info', 'error', 'warn', 'table'].forEach(method => {
+                console[method] = function (...args) {
+                    // Call original method
+                    originalConsole[method].apply(console, args);
+
+                    // Capture log data
+                    try {
+                        logQueue.push({
+                            type: method,
+                            timestamp: new Date().toISOString(),
+                            data: args.map(arg => {
+                                try {
+                                    return typeof arg === 'object' ? JSON.parse(safeStringify(arg)) : arg;
+                                } catch (e) {
+                                    return String(arg);
+                                }
+                            }),
+                            url: window.location.href,
+                            userAgent: navigator.userAgent
+                        });
+
+                        scheduleFlush();
+                    } catch (e) {
+                        // Fail silently
+                    }
+                };
+            });
+
+            // Global error handlers for uncaught errors
+            const originalOnError = window.onerror;
+            window.onerror = function boostErrorHandler(errorMsg, url, lineNumber, colNumber, error) {
+                try {
+                    logQueue.push({
+                        type: 'uncaught_error',
+                        timestamp: new Date().toISOString(),
+                        data: [{
+                            message: errorMsg,
+                            filename: url,
+                            lineno: lineNumber,
+                            colno: colNumber,
+                            error: error ? {
+                                name: error.name,
+                                message: error.message,
+                                stack: error.stack
+                            } : null
+                        }],
+                        url: window.location.href,
+                        userAgent: navigator.userAgent
+                    });
+
+                    scheduleFlush();
+                } catch (e) {
+                    // Fail silently
+                }
+
+                // Call original handler if it exists
+                if (originalOnError && typeof originalOnError === 'function') {
+                    return originalOnError(errorMsg, url, lineNumber, colNumber, error);
+                }
+
+                // Let the error continue to propagate
+                return false;
+            }
+            window.addEventListener('error', (event) => {
+                try {
+                    logQueue.push({
+                        type: 'window_error',
+                        timestamp: new Date().toISOString(),
+                        data: [{
+                            message: event.message,
+                            filename: event.filename,
+                            lineno: event.lineno,
+                            colno: event.colno,
+                            error: event.error ? {
+                                name: event.error.name,
+                                message: event.error.message,
+                                stack: event.error.stack
+                            } : null
+                        }],
+                        url: window.location.href,
+                        userAgent: navigator.userAgent
+                    });
+
+                    scheduleFlush();
+                } catch (e) {
+                    // Fail silently
+                }
+
+                // Let the error continue to propagate
+                return false;
+            });
+            window.addEventListener('unhandledrejection', (event) => {
+                try {
+                    logQueue.push({
+                        type: 'error',
+                        timestamp: new Date().toISOString(),
+                        data: [{
+                            message: 'Unhandled Promise Rejection',
+                            reason: event.reason instanceof Error ? {
+                                name: event.reason.name,
+                                message: event.reason.message,
+                                stack: event.reason.stack
+                            } : event.reason
+                        }],
+                        url: window.location.href,
+                        userAgent: navigator.userAgent
+                    });
+
+                    scheduleFlush();
+                } catch (e) {
+                    // Fail silently
+                }
+
+                // Let the rejection continue to propagate
+                return false;
+            });
+
+            // Flush on page unload
+            window.addEventListener('beforeunload', () => {
+                if (logQueue.length > 0) {
+                    navigator.sendBeacon(ENDPOINT, JSON.stringify({ logs: logQueue }));
+                }
+            });
+        })();
+    </script>
+    <!-- Livewire Styles -->
+    <style>
+        [wire\:loading][wire\:loading],
+        [wire\:loading\.delay][wire\:loading\.delay],
+        [wire\:loading\.list-item][wire\:loading\.list-item],
+        [wire\:loading\.inline-block][wire\:loading\.inline-block],
+        [wire\:loading\.inline][wire\:loading\.inline],
+        [wire\:loading\.block][wire\:loading\.block],
+        [wire\:loading\.flex][wire\:loading\.flex],
+        [wire\:loading\.table][wire\:loading\.table],
+        [wire\:loading\.grid][wire\:loading\.grid],
+        [wire\:loading\.inline-flex][wire\:loading\.inline-flex] {
+            display: none;
+        }
+
+        [wire\:loading\.delay\.none][wire\:loading\.delay\.none],
+        [wire\:loading\.delay\.shortest][wire\:loading\.delay\.shortest],
+        [wire\:loading\.delay\.shorter][wire\:loading\.delay\.shorter],
+        [wire\:loading\.delay\.short][wire\:loading\.delay\.short],
+        [wire\:loading\.delay\.default][wire\:loading\.delay\.default],
+        [wire\:loading\.delay\.long][wire\:loading\.delay\.long],
+        [wire\:loading\.delay\.longer][wire\:loading\.delay\.longer],
+        [wire\:loading\.delay\.longest][wire\:loading\.delay\.longest] {
+            display: none;
+        }
+
+        [wire\:offline][wire\:offline] {
+            display: none;
+        }
+
+        [wire\:dirty]:not(textarea):not(input):not(select) {
+            display: none;
+        }
+
+        :root {
+            --livewire-progress-bar-color: #2299dd;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        [wire\:cloak] {
+            display: none !important;
+        }
+
+        dialog#livewire-error::backdrop {
+            background-color: rgba(0, 0, 0, .6);
+        }
+    </style>
+    <style>
+        /* Make clicks pass-through */
+
+        #nprogress {
+            pointer-events: none;
+        }
+
+        #nprogress .bar {
+            background: var(--livewire-progress-bar-color, #29d);
+
+            position: fixed;
+            z-index: 1031;
+            top: 0;
+            left: 0;
+
+            width: 100%;
+            height: 2px;
+        }
+
+        /* Fancy blur effect */
+        #nprogress .peg {
+            display: block;
+            position: absolute;
+            right: 0px;
+            width: 100px;
+            height: 100%;
+            box-shadow: 0 0 10px var(--livewire-progress-bar-color, #29d), 0 0 5px var(--livewire-progress-bar-color, #29d);
+            opacity: 1.0;
+
+            -webkit-transform: rotate(3deg) translate(0px, -4px);
+            -ms-transform: rotate(3deg) translate(0px, -4px);
+            transform: rotate(3deg) translate(0px, -4px);
+        }
+
+        /* Remove these to get rid of the spinner */
+        #nprogress .spinner {
+            display: block;
+            position: fixed;
+            z-index: 1031;
+            top: 15px;
+            right: 15px;
+        }
+
+        #nprogress .spinner-icon {
+            width: 18px;
+            height: 18px;
+            box-sizing: border-box;
+
+            border: solid 2px transparent;
+            border-top-color: var(--livewire-progress-bar-color, #29d);
+            border-left-color: var(--livewire-progress-bar-color, #29d);
+            border-radius: 50%;
+
+            -webkit-animation: nprogress-spinner 400ms linear infinite;
+            animation: nprogress-spinner 400ms linear infinite;
+        }
+
+        .nprogress-custom-parent {
+            overflow: hidden;
+            position: relative;
+        }
+
+        .nprogress-custom-parent #nprogress .spinner,
+        .nprogress-custom-parent #nprogress .bar {
+            position: absolute;
+        }
+
+        @-webkit-keyframes nprogress-spinner {
+            0% {
+                -webkit-transform: rotate(0deg);
+            }
+
+            100% {
+                -webkit-transform: rotate(360deg);
+            }
+        }
+
+        @keyframes nprogress-spinner {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <link rel="stylesheet"
+        href="http://127.0.0.1:8001/livewire-91eb4a92/css/student--gamification-dashboard.css?v=990838569">
+    <script src="chrome-extension://liecbddmkiiihnedobmlmillhodjkdmb/js/recordConsoleEvents.js"></script>
+</head>
+
+<body class="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased">
+    <!-- Offline Indicator -->
+    <div x-data="{ online: navigator.onLine }" @online.window="online = true" @offline.window="online = false"
+        x-show="!online" x-transition.opacity.duration.500ms="" style="display: none;"
+        class="fixed top-0 left-0 right-0 z-[100] bg-red-500 text-white text-center py-1.5 px-4 text-sm font-bold shadow-md flex items-center justify-center gap-2">
+        <svg class="shrink-0 [:where(&amp;)]:size-6 size-4" data-flux-icon="" xmlns="http://www.w3.org/2000/svg"
+            fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"
+            data-slot="icon">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z">
+            </path>
+        </svg>
+
+        <span>أنت غير متصل بشبكة الإنترنت حالياً. يرجى التحقق من اتصالك.</span>
+    </div>
+    <ui-sidebar-toggle
+        class="z-20 fixed inset-0 bg-black/10 hidden data-flux-sidebar-on-mobile:not-data-flux-sidebar-collapsed-mobile:block"
+        data-flux-sidebar-backdrop="" data-flux-sidebar-on-mobile=""
+        data-flux-sidebar-collapsed-mobile=""></ui-sidebar-toggle>
+
+    <ui-sidebar
+        class="[grid-area:sidebar] z-1 flex flex-col gap-4 [:where(&amp;)]:w-64 p-4 data-flux-sidebar-collapsed-desktop:w-14 data-flux-sidebar-collapsed-desktop:px-2 data-flux-sidebar-collapsed-desktop:cursor-e-resize rtl:data-flux-sidebar-collapsed-desktop:cursor-w-resize max-lg:data-flux-sidebar-cloak:hidden data-flux-sidebar-on-mobile:data-flux-sidebar-collapsed-mobile:-translate-x-full data-flux-sidebar-on-mobile:data-flux-sidebar-collapsed-mobile:rtl:translate-x-full z-20! data-flux-sidebar-on-mobile:start-0! data-flux-sidebar-on-mobile:fixed! data-flux-sidebar-on-mobile:top-0! data-flux-sidebar-on-mobile:min-h-dvh! data-flux-sidebar-on-mobile:max-h-dvh! max-h-dvh overflow-y-auto overscroll-contain hidden lg:flex self-start border-e border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900 transition-transform"
+        x-init="$el.classList.add('transition-transform')" collapsible="mobile" sticky="" x-data="" data-flux-sidebar=""
+        data-flux-sidebar-on-mobile="" data-flux-sidebar-collapsed-mobile=""
+        style="position: sticky; top: 0px; max-height: calc(0px + 100dvh);">
+        <div class="flex items-center justify-between gap-2 min-h-10" data-flux-sidebar-header="">
+            <a href="http://127.0.0.1:8001"
+                class="h-10 flex items-center px-2 in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:px-0 in-data-flux-sidebar-collapsed-desktop:justify-center in-data-flux-sidebar-collapsed-desktop:in-data-flux-sidebar-active:absolute in-data-flux-sidebar-collapsed-desktop:in-data-flux-sidebar-active:opacity-0 gap-2 text-maroon dark:text-white"
+                wire:navigate="" data-flux-sidebar-brand="">
+                <div
+                    class="flex items-center justify-center [:where(&amp;)]:h-6 [:where(&amp;)]:min-w-6 [:where(&amp;)]:rounded-sm overflow-hidden shrink-0 flex items-center justify-center">
+                    <img src="http://127.0.0.1:8001/images/altag_logo.png" alt="Logo" class="h-8 object-contain">
+                </div>
+
+                <div
+                    class="text-sm font-medium truncate [:where(&amp;)]:text-zinc-800 dark:[:where(&amp;)]:text-zinc-100 in-data-flux-sidebar-collapsed-desktop:hidden">
+                    مجمع التاج القرآني</div>
+            </a>
+            <ui-sidebar-toggle
+                class="w-10 h-8 flex items-center justify-center in-data-flux-sidebar-collapsed-desktop:opacity-0 in-data-flux-sidebar-collapsed-desktop:absolute in-data-flux-sidebar-collapsed-desktop:in-data-flux-sidebar-active:opacity-100  lg:hidden"
+                data-flux-sidebar-collapse="" data-flux-sidebar-on-mobile="" data-flux-sidebar-collapsed-mobile="">
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <button type="button"
+                        class="size-10 relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none text-sm rounded-lg inline-flex  bg-transparent hover:bg-zinc-800/5 dark:hover:bg-white/15 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white in-data-flux-sidebar-collapsed-desktop:cursor-e-resize rtl:in-data-flux-sidebar-collapsed-desktop:cursor-w-resize [&amp;[collapsible=&quot;mobile&quot;]]:in-data-flux-sidebar-on-desktop:hidden rtl:rotate-180"
+                        aria-labelledby="lofi-tooltip-02229b35bee18">
+                        <svg class="text-zinc-500 dark:text-zinc-400" width="20" height="20" viewBox="0 0 20 20"
+                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M7.5 3.75V16.25M3.4375 16.25H16.5625C17.08 16.25 17.5 15.83 17.5 15.3125V4.6875C17.5 4.17 17.08 3.75 16.5625 3.75H3.4375C2.92 3.75 2.5 4.17 2.5 4.6875V15.3125C2.5 15.83 2.92 16.25 3.4375 16.25Z"
+                                stroke="currentColor" stroke-width="1.25" stroke-linecap="round"
+                                stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible"
+                        data-flux-tooltip-content="" id="lofi-tooltip-02229b35bee18" aria-hidden="true" role="tooltip">
+                        Toggle sidebar
+
+                    </div>
+                </ui-tooltip>
+            </ui-sidebar-toggle>
+        </div>
+        <div class="flex flex-col in-data-flux-sidebar-collapsed-desktop:hidden grid" data-flux-sidebar-group="">
+            <div class="px-3 py-2">
+                <div class="text-sm text-zinc-400 font-medium leading-none">المنصة</div>
+            </div>
+
+            <div class="flex flex-col">
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <a href="http://127.0.0.1:8001/student/dashboard" data-current="data-current" wire:current.ignore=""
+                        class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600!"
+                        data-flux-sidebar-item="data-flux-sidebar-item" wire:navigate=""
+                        aria-describedby="lofi-tooltip-0c36b75f8bc36">
+                        <div class="relative">
+                            <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                                data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25">
+                                </path>
+                            </svg>
+
+
+                        </div>
+
+                        <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                            data-content="">الرئيسية</div>
+                    </a>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                        data-flux-tooltip-content="" id="lofi-tooltip-0c36b75f8bc36" aria-hidden="true" role="tooltip">
+                        الرئيسية
+
+                    </div>
+
+                </ui-tooltip>
+            </div>
+        </div>
+
+        <div class="flex flex-col in-data-flux-sidebar-collapsed-desktop:hidden grid" data-flux-sidebar-group="">
+            <div class="px-3 py-2">
+                <div class="text-sm text-zinc-400 font-medium leading-none">التعلم والمتابعة</div>
+            </div>
+
+            <div class="flex flex-col">
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <a href="http://127.0.0.1:8001/student/plan" wire:current.ignore=""
+                        class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600!"
+                        data-flux-sidebar-item="data-flux-sidebar-item" wire:navigate=""
+                        aria-describedby="lofi-tooltip-533cc9add04af8">
+                        <div class="relative">
+                            <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                                data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25">
+                                </path>
+                            </svg>
+
+
+                        </div>
+
+                        <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                            data-content="">مساري القرآني</div>
+                    </a>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                        data-flux-tooltip-content="" id="lofi-tooltip-533cc9add04af8" aria-hidden="true" role="tooltip">
+                        مساري القرآني
+
+                    </div>
+
+                </ui-tooltip>
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <a href="http://127.0.0.1:8001/student/attendance" wire:current.ignore=""
+                        class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600!"
+                        data-flux-sidebar-item="data-flux-sidebar-item" wire:navigate=""
+                        aria-describedby="lofi-tooltip-e2eb27c929f01">
+                        <div class="relative">
+                            <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                                data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75">
+                                </path>
+                            </svg>
+
+
+                        </div>
+
+                        <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                            data-content="">سجل الانضباط</div>
+                    </a>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                        data-flux-tooltip-content="" id="lofi-tooltip-e2eb27c929f01" aria-hidden="true" role="tooltip">
+                        سجل الانضباط
+
+                    </div>
+
+                </ui-tooltip>
+            </div>
+        </div>
+
+        <div class="flex-1" data-flux-spacer=""></div>
+
+        <nav class="flex flex-col overflow-visible min-h-auto" data-flux-sidebar-nav="">
+            <ui-tooltip position="right center" data-flux-tooltip="">
+                <a href="http://127.0.0.1:8001/student/settings" wire:current.ignore=""
+                    class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600!"
+                    data-flux-sidebar-item="data-flux-sidebar-item" wire:navigate=""
+                    aria-describedby="lofi-tooltip-6be1fec88951a">
+                    <div class="relative">
+                        <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                            data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M4.5 12a7.5 7.5 0 0 0 15 0m-15 0a7.5 7.5 0 1 1 15 0m-15 0H3m16.5 0H21m-1.5 0H12m-8.457 3.077 1.41-.513m14.095-5.13 1.41-.513M5.106 17.785l1.15-.964m11.49-9.642 1.149-.964M7.501 19.795l.75-1.3m7.5-12.99.75-1.3m-6.063 16.658.26-1.477m2.605-14.772.26-1.477m0 17.726-.26-1.477M10.698 4.614l-.26-1.477M16.5 19.794l-.75-1.299M7.5 4.205 12 12m6.894 5.785-1.149-.964M6.256 7.178l-1.15-.964m15.352 8.864-1.41-.513M4.954 9.435l-1.41-.514M12.002 12l-3.75 6.495">
+                            </path>
+                        </svg>
+
+
+                    </div>
+
+                    <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                        data-content="">إعدادات الحساب</div>
+                </a>
+
+                <div popover="manual"
+                    class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                    data-flux-tooltip-content="" id="lofi-tooltip-6be1fec88951a" aria-hidden="true" role="tooltip">
+                    إعدادات الحساب
+
+                </div>
+
+            </ui-tooltip>
+
+            <form method="POST" action="http://127.0.0.1:8001/student/logout" class="w-full">
+                <input type="hidden" name="_token" value="U4zidACQq7O50ACO8CfN05zIWUYb7YMSxu88jL7Z" autocomplete="off">
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <button type="submit"
+                        class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600! w-full cursor-pointer"
+                        data-flux-sidebar-item="data-flux-sidebar-item" aria-describedby="lofi-tooltip-aa42f3be97a6a">
+                        <div class="relative">
+                            <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                                data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9">
+                                </path>
+                            </svg>
+
+
+                        </div>
+
+                        <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                            data-content="">تسجيل الخروج</div>
+                    </button>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                        data-flux-tooltip-content="" id="lofi-tooltip-aa42f3be97a6a" aria-hidden="true" role="tooltip">
+                        تسجيل الخروج
+
+                    </div>
+
+                </ui-tooltip>
+            </form>
+        </nav>
+
+        <ui-dropdown position="bottom start" data-flux-dropdown="">
+            <button type="button"
+                class="group flex items-center rounded-lg has-data-[circle=true]:rounded-full [ui-dropdown&gt;&amp;]:w-full p-1 hover:bg-zinc-800/5 dark:hover:bg-white/10"
+                data-test="sidebar-menu-button" data-flux-sidebar-profile="" aria-haspopup="true"
+                aria-controls="lofi-dropdown-f56833dbc785b" aria-expanded="false">
+                <div class="shrink-0">
+                    <div data-flux-avatar="data-flux-avatar" data-slot="avatar" data-size="sm"
+                        class="[:where(&amp;)]:size-8 [:where(&amp;)]:text-sm [--avatar-radius:var(--radius-md)] relative flex-none isolate flex items-center justify-center [:where(&amp;)]:font-medium rounded-[var(--avatar-radius)] [:where(&amp;)]:bg-zinc-200 [:where(&amp;)]:dark:bg-zinc-600 [:where(&amp;)]:text-zinc-800 [:where(&amp;)]:dark:text-white  after:absolute after:inset-0 after:inset-ring-[1px] after:inset-ring-black/7 dark:after:inset-ring-white/10 after:rounded-md">
+                        <span class="select-none">با</span>
+                    </div>
+                </div>
+
+                <span
+                    class="in-data-flux-sidebar-collapsed-desktop:hidden mx-2 text-sm text-zinc-500 dark:text-white/80 group-hover:text-zinc-800 dark:group-hover:text-white font-medium truncate">
+                    باسل محمد الأسمري
+                </span>
+
+                <div
+                    class="in-data-flux-sidebar-collapsed-desktop:hidden shrink-0 ms-auto size-8 flex justify-center items-center">
+                    <svg class="shrink-0 [:where(&amp;)]:size-4 text-zinc-400 dark:text-white/80 group-hover:text-zinc-800 dark:group-hover:text-white"
+                        data-flux-icon="" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true" data-slot="icon">
+                        <path d="m7 15 5 5 5-5"></path>
+                        <path d="m7 9 5-5 5 5"></path>
+                    </svg>
+                </div>
+            </button>
+
+            <ui-menu
+                class="[:where(&amp;)]:min-w-48 p-[.3125rem] rounded-lg shadow-xs border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:outline-hidden"
+                popover="manual" data-flux-menu="" id="lofi-dropdown-f56833dbc785b" role="menu" tabindex="-1">
+                <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
+                    <div data-flux-avatar="data-flux-avatar" data-slot="avatar" data-size="md"
+                        class="[:where(&amp;)]:size-10 [:where(&amp;)]:text-sm [--avatar-radius:var(--radius-lg)] relative flex-none isolate flex items-center justify-center [:where(&amp;)]:font-medium rounded-[var(--avatar-radius)] [:where(&amp;)]:bg-zinc-200 [:where(&amp;)]:dark:bg-zinc-600 [:where(&amp;)]:text-zinc-800 [:where(&amp;)]:dark:text-white  after:absolute after:inset-0 after:inset-ring-[1px] after:inset-ring-black/7 dark:after:inset-ring-white/10 after:rounded-lg">
+                        <span class="select-none">با</span>
+                    </div>
+                    <div class="grid flex-1 text-start text-sm leading-tight">
+                        <div class="font-medium [:where(&amp;)]:text-zinc-800 [:where(&amp;)]:dark:text-white text-sm [&amp;:has(+[data-flux-subheading])]:mb-2 [[data-flux-subheading]+&amp;]:mt-2 truncate"
+                            data-flux-heading="">باسل محمد الأسمري</div>
+                        <p class="[:where(&amp;)]:font-normal [:where(&amp;)]:text-sm [:where(&amp;)]:text-zinc-500 [:where(&amp;)]:dark:text-white/70 truncate"
+                            data-flux-text="">s_69e73f11ed622@example.com</p>
+                    </div>
+                </div>
+                <div class="-mx-[.3125rem] my-[.3125rem] h-px" data-flux-menu-separator="">
+                    <div data-orientation="horizontal" role="none"
+                        class="border-0 [print-color-adjust:exact] bg-zinc-800/15 dark:bg-white/20 h-px w-full dark:bg-zinc-600!"
+                        data-flux-separator=""></div>
+                </div>
+                <ui-menu-radio-group data-flux-menu-radio-group="" role="group">
+                    <a href="http://127.0.0.1:8001/student/settings" data-flux-menu-item="data-flux-menu-item"
+                        data-flux-menu-item-has-icon="data-flux-menu-item-has-icon"
+                        class="flex items-center px-2 py-1.5 w-full focus:outline-hidden rounded-md text-start text-sm font-medium [&amp;[disabled]]:opacity-50 text-zinc-800 data-active:bg-zinc-50 dark:text-white dark:data-active:bg-zinc-600 **:data-flux-menu-item-icon:text-zinc-400 dark:**:data-flux-menu-item-icon:text-white/60 [&amp;[data-active]_[data-flux-menu-item-icon]]:text-current"
+                        wire:navigate="" id="lofi-menu-item-c30e46011360a8" role="menuitem" tabindex="-1">
+                        <svg class="shrink-0 [:where(&amp;)]:size-5 me-2"
+                            data-flux-menu-item-icon="data-flux-menu-item-icon" data-flux-icon=""
+                            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                            aria-hidden="true" data-slot="icon">
+                            <path
+                                d="M13.024 9.25c.47 0 .827-.433.637-.863a4 4 0 0 0-4.094-2.364c-.468.05-.665.576-.43.984l1.08 1.868a.75.75 0 0 0 .649.375h2.158ZM7.84 7.758c-.236-.408-.79-.5-1.068-.12A3.982 3.982 0 0 0 6 10c0 .884.287 1.7.772 2.363.278.38.832.287 1.068-.12l1.078-1.868a.75.75 0 0 0 0-.75L7.839 7.758ZM9.138 12.993c-.235.408-.039.934.43.984a4 4 0 0 0 4.094-2.364c.19-.43-.168-.863-.638-.863h-2.158a.75.75 0 0 0-.65.375l-1.078 1.868Z">
+                            </path>
+                            <path fill-rule="evenodd"
+                                d="m14.13 4.347.644-1.117a.75.75 0 0 0-1.299-.75l-.644 1.116a6.954 6.954 0 0 0-2.081-.556V1.75a.75.75 0 0 0-1.5 0v1.29a6.954 6.954 0 0 0-2.081.556L6.525 2.48a.75.75 0 1 0-1.3.75l.645 1.117A7.04 7.04 0 0 0 4.347 5.87L3.23 5.225a.75.75 0 1 0-.75 1.3l1.116.644A6.954 6.954 0 0 0 3.04 9.25H1.75a.75.75 0 0 0 0 1.5h1.29c.078.733.27 1.433.556 2.081l-1.116.645a.75.75 0 1 0 .75 1.298l1.117-.644a7.04 7.04 0 0 0 1.523 1.523l-.645 1.117a.75.75 0 1 0 1.3.75l.644-1.116a6.954 6.954 0 0 0 2.081.556v1.29a.75.75 0 0 0 1.5 0v-1.29a6.954 6.954 0 0 0 2.081-.556l.645 1.116a.75.75 0 0 0 1.299-.75l-.645-1.117a7.042 7.042 0 0 0 1.523-1.523l1.117.644a.75.75 0 0 0 .75-1.298l-1.116-.645a6.954 6.954 0 0 0 .556-2.081h1.29a.75.75 0 0 0 0-1.5h-1.29a6.954 6.954 0 0 0-.556-2.081l1.116-.644a.75.75 0 0 0-.75-1.3l-1.117.645a7.04 7.04 0 0 0-1.524-1.523ZM10 4.5a5.475 5.475 0 0 0-2.781.754A5.527 5.527 0 0 0 5.22 7.277 5.475 5.475 0 0 0 4.5 10a5.475 5.475 0 0 0 .752 2.777 5.527 5.527 0 0 0 2.028 2.004c.802.458 1.73.719 2.72.719a5.474 5.474 0 0 0 2.78-.753 5.527 5.527 0 0 0 2.001-2.027c.458-.802.719-1.73.719-2.72a5.475 5.475 0 0 0-.753-2.78 5.528 5.528 0 0 0-2.028-2.002A5.475 5.475 0 0 0 10 4.5Z"
+                                clip-rule="evenodd"></path>
+                        </svg>
+
+
+                        Settings
+                    </a>
+                    <form method="POST" action="http://127.0.0.1:8001/student/logout" class="w-full">
+                        <input type="hidden" name="_token" value="U4zidACQq7O50ACO8CfN05zIWUYb7YMSxu88jL7Z"
+                            autocomplete="off"> <button type="submit"
+                            class="flex items-center px-2 py-1.5 w-full focus:outline-hidden rounded-md text-start text-sm font-medium [&amp;[disabled]]:opacity-50 text-zinc-800 data-active:bg-zinc-50 dark:text-white dark:data-active:bg-zinc-600 **:data-flux-menu-item-icon:text-zinc-400 dark:**:data-flux-menu-item-icon:text-white/60 [&amp;[data-active]_[data-flux-menu-item-icon]]:text-current w-full cursor-pointer"
+                            data-flux-menu-item="data-flux-menu-item"
+                            data-flux-menu-item-has-icon="data-flux-menu-item-has-icon" data-test="logout-button"
+                            id="lofi-menu-item-766cef78a282a" role="menuitem" tabindex="-1">
+                            <svg class="shrink-0 [:where(&amp;)]:size-5 me-2"
+                                data-flux-menu-item-icon="data-flux-menu-item-icon" data-flux-icon=""
+                                xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                                aria-hidden="true" data-slot="icon">
+                                <path fill-rule="evenodd"
+                                    d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z"
+                                    clip-rule="evenodd"></path>
+                                <path fill-rule="evenodd"
+                                    d="M6 10a.75.75 0 0 1 .75-.75h9.546l-1.048-.943a.75.75 0 1 1 1.004-1.114l2.5 2.25a.75.75 0 0 1 0 1.114l-2.5 2.25a.75.75 0 1 1-1.004-1.114l1.048-.943H6.75A.75.75 0 0 1 6 10Z"
+                                    clip-rule="evenodd"></path>
+                            </svg>
+
+
+                            Log out
+                        </button>
+                    </form>
+                </ui-menu-radio-group>
+            </ui-menu>
+        </ui-dropdown>
+    </ui-sidebar>
+
+    <!-- Mobile Menu -->
+    <ui-sidebar-toggle
+        class="z-20 fixed inset-0 bg-black/10 hidden data-flux-sidebar-on-mobile:not-data-flux-sidebar-collapsed-mobile:block"
+        data-flux-sidebar-backdrop="" data-flux-sidebar-on-mobile=""
+        data-flux-sidebar-collapsed-mobile=""></ui-sidebar-toggle>
+
+    <ui-sidebar
+        class="[grid-area:sidebar] z-1 flex flex-col gap-4 [:where(&amp;)]:w-64 p-4 data-flux-sidebar-collapsed-desktop:w-14 data-flux-sidebar-collapsed-desktop:px-2 data-flux-sidebar-collapsed-desktop:cursor-e-resize rtl:data-flux-sidebar-collapsed-desktop:cursor-w-resize max-lg:data-flux-sidebar-cloak:hidden data-flux-sidebar-on-mobile:data-flux-sidebar-collapsed-mobile:-translate-x-full data-flux-sidebar-on-mobile:data-flux-sidebar-collapsed-mobile:rtl:translate-x-full z-20! data-flux-sidebar-on-mobile:start-0! data-flux-sidebar-on-mobile:fixed! data-flux-sidebar-on-mobile:top-0! data-flux-sidebar-on-mobile:min-h-dvh! data-flux-sidebar-on-mobile:max-h-dvh! max-h-dvh overflow-y-auto overscroll-contain lg:hidden border-e border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900 transition-transform"
+        x-init="$el.classList.add('transition-transform')" collapsible="mobile" sticky="" x-data="" data-flux-sidebar=""
+        data-flux-sidebar-on-mobile="" data-flux-sidebar-collapsed-mobile=""
+        style="position: sticky; top: 0px; max-height: calc(0px + 100dvh);">
+        <div class="flex items-center justify-between gap-2 min-h-10" data-flux-sidebar-header="">
+            <a href="http://127.0.0.1:8001"
+                class="h-10 flex items-center px-2 in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:px-0 in-data-flux-sidebar-collapsed-desktop:justify-center in-data-flux-sidebar-collapsed-desktop:in-data-flux-sidebar-active:absolute in-data-flux-sidebar-collapsed-desktop:in-data-flux-sidebar-active:opacity-0 gap-2 text-maroon dark:text-white"
+                wire:navigate="" data-flux-sidebar-brand="">
+                <div
+                    class="flex items-center justify-center [:where(&amp;)]:h-6 [:where(&amp;)]:min-w-6 [:where(&amp;)]:rounded-sm overflow-hidden shrink-0 flex items-center justify-center">
+                    <img src="http://127.0.0.1:8001/images/altag_logo.png" alt="Logo" class="h-8 object-contain">
+                </div>
+
+                <div
+                    class="text-sm font-medium truncate [:where(&amp;)]:text-zinc-800 dark:[:where(&amp;)]:text-zinc-100 in-data-flux-sidebar-collapsed-desktop:hidden">
+                    مجمع التاج القرآني</div>
+            </a>
+            <ui-sidebar-toggle
+                class="w-10 h-8 flex items-center justify-center in-data-flux-sidebar-collapsed-desktop:opacity-0 in-data-flux-sidebar-collapsed-desktop:absolute in-data-flux-sidebar-collapsed-desktop:in-data-flux-sidebar-active:opacity-100  in-data-flux-sidebar-on-desktop:not-in-data-flux-sidebar-collapsed-desktop:-mr-2"
+                data-flux-sidebar-collapse="" data-flux-sidebar-on-mobile="" data-flux-sidebar-collapsed-mobile="">
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <button type="button"
+                        class="size-10 relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none text-sm rounded-lg inline-flex  bg-transparent hover:bg-zinc-800/5 dark:hover:bg-white/15 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white in-data-flux-sidebar-collapsed-desktop:cursor-e-resize rtl:in-data-flux-sidebar-collapsed-desktop:cursor-w-resize [&amp;[collapsible=&quot;mobile&quot;]]:in-data-flux-sidebar-on-desktop:hidden rtl:rotate-180"
+                        aria-labelledby="lofi-tooltip-962f6511a261f8">
+                        <svg class="text-zinc-500 dark:text-zinc-400" width="20" height="20" viewBox="0 0 20 20"
+                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M7.5 3.75V16.25M3.4375 16.25H16.5625C17.08 16.25 17.5 15.83 17.5 15.3125V4.6875C17.5 4.17 17.08 3.75 16.5625 3.75H3.4375C2.92 3.75 2.5 4.17 2.5 4.6875V15.3125C2.5 15.83 2.92 16.25 3.4375 16.25Z"
+                                stroke="currentColor" stroke-width="1.25" stroke-linecap="round"
+                                stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible"
+                        data-flux-tooltip-content="" id="lofi-tooltip-962f6511a261f8" aria-hidden="true" role="tooltip">
+                        Toggle sidebar
+
+                    </div>
+                </ui-tooltip>
+            </ui-sidebar-toggle>
+        </div>
+        <div class="flex flex-col in-data-flux-sidebar-collapsed-desktop:hidden grid" data-flux-sidebar-group="">
+            <div class="px-3 py-2">
+                <div class="text-sm text-zinc-400 font-medium leading-none">المنصة</div>
+            </div>
+
+            <div class="flex flex-col">
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <a href="http://127.0.0.1:8001/student/dashboard" data-current="data-current" wire:current.ignore=""
+                        class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600!"
+                        data-flux-sidebar-item="data-flux-sidebar-item" wire:navigate=""
+                        aria-describedby="lofi-tooltip-7042d718cca618">
+                        <div class="relative">
+                            <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                                data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25">
+                                </path>
+                            </svg>
+
+
+                        </div>
+
+                        <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                            data-content="">الرئيسية</div>
+                    </a>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                        data-flux-tooltip-content="" id="lofi-tooltip-7042d718cca618" aria-hidden="true" role="tooltip">
+                        الرئيسية
+
+                    </div>
+
+                </ui-tooltip>
+            </div>
+        </div>
+
+        <div class="flex flex-col in-data-flux-sidebar-collapsed-desktop:hidden grid" data-flux-sidebar-group="">
+            <div class="px-3 py-2">
+                <div class="text-sm text-zinc-400 font-medium leading-none">التعلم والمتابعة</div>
+            </div>
+
+            <div class="flex flex-col">
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <a href="http://127.0.0.1:8001/student/plan" wire:current.ignore=""
+                        class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600!"
+                        data-flux-sidebar-item="data-flux-sidebar-item" wire:navigate=""
+                        aria-describedby="lofi-tooltip-44da3ceb6d93c">
+                        <div class="relative">
+                            <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                                data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25">
+                                </path>
+                            </svg>
+
+
+                        </div>
+
+                        <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                            data-content="">مساري القرآني</div>
+                    </a>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                        data-flux-tooltip-content="" id="lofi-tooltip-44da3ceb6d93c" aria-hidden="true" role="tooltip">
+                        مساري القرآني
+
+                    </div>
+
+                </ui-tooltip>
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <a href="http://127.0.0.1:8001/student/attendance" wire:current.ignore=""
+                        class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600!"
+                        data-flux-sidebar-item="data-flux-sidebar-item" wire:navigate=""
+                        aria-describedby="lofi-tooltip-c82323e7181008">
+                        <div class="relative">
+                            <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                                data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75">
+                                </path>
+                            </svg>
+
+
+                        </div>
+
+                        <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                            data-content="">سجل الانضباط</div>
+                    </a>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                        data-flux-tooltip-content="" id="lofi-tooltip-c82323e7181008" aria-hidden="true" role="tooltip">
+                        سجل الانضباط
+
+                    </div>
+
+                </ui-tooltip>
+            </div>
+        </div>
+
+        <div class="flex-1" data-flux-spacer=""></div>
+
+        <nav class="flex flex-col overflow-visible min-h-auto" data-flux-sidebar-nav="">
+            <ui-tooltip position="right center" data-flux-tooltip="">
+                <a href="http://127.0.0.1:8001/student/settings" wire:current.ignore=""
+                    class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600!"
+                    data-flux-sidebar-item="data-flux-sidebar-item" wire:navigate=""
+                    aria-describedby="lofi-tooltip-2cc2ab4d0c046">
+                    <div class="relative">
+                        <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                            data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M4.5 12a7.5 7.5 0 0 0 15 0m-15 0a7.5 7.5 0 1 1 15 0m-15 0H3m16.5 0H21m-1.5 0H12m-8.457 3.077 1.41-.513m14.095-5.13 1.41-.513M5.106 17.785l1.15-.964m11.49-9.642 1.149-.964M7.501 19.795l.75-1.3m7.5-12.99.75-1.3m-6.063 16.658.26-1.477m2.605-14.772.26-1.477m0 17.726-.26-1.477M10.698 4.614l-.26-1.477M16.5 19.794l-.75-1.299M7.5 4.205 12 12m6.894 5.785-1.149-.964M6.256 7.178l-1.15-.964m15.352 8.864-1.41-.513M4.954 9.435l-1.41-.514M12.002 12l-3.75 6.495">
+                            </path>
+                        </svg>
+
+
+                    </div>
+
+                    <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                        data-content="">الإعدادات</div>
+                </a>
+
+                <div popover="manual"
+                    class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                    data-flux-tooltip-content="" id="lofi-tooltip-2cc2ab4d0c046" aria-hidden="true" role="tooltip">
+                    الإعدادات
+
+                </div>
+
+            </ui-tooltip>
+            <form method="POST" action="http://127.0.0.1:8001/student/logout" class="w-full">
+                <input type="hidden" name="_token" value="U4zidACQq7O50ACO8CfN05zIWUYb7YMSxu88jL7Z" autocomplete="off">
+                <ui-tooltip position="right center" data-flux-tooltip="">
+                    <button type="submit"
+                        class="h-8 in-data-flux-sidebar-on-mobile:h-10 relative flex items-center gap-3 rounded-lg in-data-flux-sidebar-collapsed-desktop:w-10 in-data-flux-sidebar-collapsed-desktop:justify-center py-0 text-start w-full px-3 has-data-flux-navlist-badge:not-in-data-flux-sidebar-collapsed-desktop:pe-1.5 my-px text-zinc-500 dark:text-white/80 data-current:text-(--color-accent-content) hover:data-current:text-(--color-accent-content) data-current:bg-white dark:data-current:bg-white/[7%] data-current:border data-current:border-zinc-200 dark:data-current:border-transparent hover:text-zinc-800 dark:hover:text-white dark:hover:bg-white/[7%] hover:bg-zinc-800/5  border border-transparent in-data-flux-sidebar-group-dropdown:w-auto! in-data-flux-sidebar-group-dropdown:px-2! in-data-flux-sidebar-group-dropdown:text-zinc-800! in-data-flux-sidebar-group-dropdown:bg-white! in-data-flux-sidebar-group-dropdown:hover:bg-zinc-50! dark:in-data-flux-sidebar-group-dropdown:text-white! dark:in-data-flux-sidebar-group-dropdown:bg-transparent! dark:in-data-flux-sidebar-group-dropdown:hover:bg-zinc-600! w-full cursor-pointer"
+                        data-flux-sidebar-item="data-flux-sidebar-item" aria-describedby="lofi-tooltip-45e517ca6bb998">
+                        <div class="relative">
+                            <svg class="shrink-0 [:where(&amp;)]:size-6 size-4 in-data-flux-sidebar-group-dropdown:text-zinc-400! dark:in-data-flux-sidebar-group-dropdown:text-white/80! [[data-flux-sidebar-item]:hover_&amp;]:text-current!"
+                                data-flux-icon="" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9">
+                                </path>
+                            </svg>
+
+
+                        </div>
+
+                        <div class="
+                in-data-flux-sidebar-collapsed-desktop:not-in-data-flux-sidebar-group-dropdown:hidden
+                flex-1 text-sm font-medium truncate [[data-nav-footer]_&amp;]:hidden [[data-nav-sidebar]_[data-nav-footer]_&amp;]:block"
+                            data-content="">تسجيل الخروج</div>
+                    </button>
+
+                    <div popover="manual"
+                        class="relative py-2 px-2.5 rounded-md text-xs text-white font-medium bg-zinc-800 dark:bg-zinc-700 dark:border dark:border-white/10 p-0 overflow-visible not-in-data-flux-sidebar-collapsed-desktop:hidden in-data-flux-sidebar-group-dropdown:hidden cursor-default"
+                        data-flux-tooltip-content="" id="lofi-tooltip-45e517ca6bb998" aria-hidden="true" role="tooltip">
+                        تسجيل الخروج
+
+                    </div>
+
+                </ui-tooltip>
+            </form>
+        </nav>
+    </ui-sidebar>
+
+    <header class="[grid-area:header] z-10 min-h-14 flex items-center px-6 lg:px-8 lg:hidden" data-flux-header="">
+        <button type="button"
+            class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none justify-center h-10 text-sm rounded-lg w-10 inline-flex -ms-2.5 bg-transparent hover:bg-zinc-800/5 dark:hover:bg-white/15 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white      shrink-0 lg:hidden"
+            data-flux-button="data-flux-button" x-data="" x-on:click="$dispatch('flux-sidebar-toggle')"
+            aria-label="Toggle sidebar" data-flux-sidebar-toggle="data-flux-sidebar-toggle">
+            <svg class="shrink-0 [:where(&amp;)]:size-5" data-flux-icon="" xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" data-slot="icon">
+                <path fill-rule="evenodd"
+                    d="M2 6.75A.75.75 0 0 1 2.75 6h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 6.75Zm0 6.5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"
+                    clip-rule="evenodd"></path>
+            </svg>
+        </button>
+        <div class="flex-1" data-flux-spacer=""></div>
+        <ui-dropdown position="top end" data-flux-dropdown="">
+            <button type="button"
+                class="group flex items-center rounded-lg has-data-[circle=true]:rounded-full [ui-dropdown&gt;&amp;]:w-full p-1 hover:bg-zinc-800/5 dark:hover:bg-white/15"
+                data-flux-profile="" aria-haspopup="true" aria-controls="lofi-dropdown-662a1831207bd8"
+                aria-expanded="false">
+                <div class="shrink-0">
+                    <div data-flux-avatar="data-flux-avatar" data-slot="avatar" data-size="sm"
+                        class="[:where(&amp;)]:size-8 [:where(&amp;)]:text-sm [--avatar-radius:var(--radius-md)] relative flex-none isolate flex items-center justify-center [:where(&amp;)]:font-medium rounded-[var(--avatar-radius)] [:where(&amp;)]:bg-zinc-200 [:where(&amp;)]:dark:bg-zinc-600 [:where(&amp;)]:text-zinc-800 [:where(&amp;)]:dark:text-white  after:absolute after:inset-0 after:inset-ring-[1px] after:inset-ring-black/7 dark:after:inset-ring-white/10 after:rounded-md">
+                        <span class="select-none">با</span>
+                    </div>
+                </div>
+
+
+                <div class="shrink-0 ms-auto size-8 flex justify-center items-center">
+                    <svg class="shrink-0 [:where(&amp;)]:size-4 text-zinc-400 dark:text-white/80 group-hover:text-zinc-800 dark:group-hover:text-white"
+                        data-flux-icon="" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor"
+                        aria-hidden="true" data-slot="icon">
+                        <path fill-rule="evenodd"
+                            d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+
+                </div>
+            </button>
+
+            <ui-menu
+                class="[:where(&amp;)]:min-w-48 p-[.3125rem] rounded-lg shadow-xs border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 focus:outline-hidden"
+                popover="manual" data-flux-menu="" id="lofi-dropdown-662a1831207bd8" role="menu" tabindex="-1">
+                <ui-menu-radio-group data-flux-menu-radio-group="" role="group">
+                    <div class="p-0 text-sm font-normal text-right">
+                        <div class="flex items-center gap-2 px-1 py-1.5 text-right text-sm">
+                            <div data-flux-avatar="data-flux-avatar" data-slot="avatar" data-size="md"
+                                class="[:where(&amp;)]:size-10 [:where(&amp;)]:text-sm [--avatar-radius:var(--radius-lg)] relative flex-none isolate flex items-center justify-center [:where(&amp;)]:font-medium rounded-[var(--avatar-radius)] [:where(&amp;)]:bg-zinc-200 [:where(&amp;)]:dark:bg-zinc-600 [:where(&amp;)]:text-zinc-800 [:where(&amp;)]:dark:text-white  after:absolute after:inset-0 after:inset-ring-[1px] after:inset-ring-black/7 dark:after:inset-ring-white/10 after:rounded-lg">
+                                <span class="select-none">با</span>
+                            </div>
+
+                            <div class="grid flex-1 text-right text-sm leading-tight">
+                                <div class="font-medium [:where(&amp;)]:text-zinc-800 [:where(&amp;)]:dark:text-white text-sm [&amp;:has(+[data-flux-subheading])]:mb-2 [[data-flux-subheading]+&amp;]:mt-2 truncate"
+                                    data-flux-heading="">باسل محمد الأسمري</div>
+                                <p class="[:where(&amp;)]:font-normal [:where(&amp;)]:text-sm [:where(&amp;)]:text-zinc-500 [:where(&amp;)]:dark:text-white/70 truncate"
+                                    data-flux-text="">s_69e73f11ed622@example.com</p>
+                            </div>
+                        </div>
+                    </div>
+                </ui-menu-radio-group>
+
+                <div class="-mx-[.3125rem] my-[.3125rem] h-px" data-flux-menu-separator="">
+                    <div data-orientation="horizontal" role="none"
+                        class="border-0 [print-color-adjust:exact] bg-zinc-800/15 dark:bg-white/20 h-px w-full dark:bg-zinc-600!"
+                        data-flux-separator=""></div>
+                </div>
+
+                <ui-menu-radio-group data-flux-menu-radio-group="" role="group">
+                    <a href="http://127.0.0.1:8001/settings/profile" data-flux-menu-item="data-flux-menu-item"
+                        data-flux-menu-item-has-icon="data-flux-menu-item-has-icon"
+                        class="flex items-center px-2 py-1.5 w-full focus:outline-hidden rounded-md text-start text-sm font-medium [&amp;[disabled]]:opacity-50 text-zinc-800 data-active:bg-zinc-50 dark:text-white dark:data-active:bg-zinc-600 **:data-flux-menu-item-icon:text-zinc-400 dark:**:data-flux-menu-item-icon:text-white/60 [&amp;[data-active]_[data-flux-menu-item-icon]]:text-current"
+                        wire:navigate="" id="lofi-menu-item-801f439d7f5998" role="menuitem" tabindex="-1">
+                        <svg class="shrink-0 [:where(&amp;)]:size-5 me-2"
+                            data-flux-menu-item-icon="data-flux-menu-item-icon" data-flux-icon=""
+                            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                            aria-hidden="true" data-slot="icon">
+                            <path
+                                d="M13.024 9.25c.47 0 .827-.433.637-.863a4 4 0 0 0-4.094-2.364c-.468.05-.665.576-.43.984l1.08 1.868a.75.75 0 0 0 .649.375h2.158ZM7.84 7.758c-.236-.408-.79-.5-1.068-.12A3.982 3.982 0 0 0 6 10c0 .884.287 1.7.772 2.363.278.38.832.287 1.068-.12l1.078-1.868a.75.75 0 0 0 0-.75L7.839 7.758ZM9.138 12.993c-.235.408-.039.934.43.984a4 4 0 0 0 4.094-2.364c.19-.43-.168-.863-.638-.863h-2.158a.75.75 0 0 0-.65.375l-1.078 1.868Z">
+                            </path>
+                            <path fill-rule="evenodd"
+                                d="m14.13 4.347.644-1.117a.75.75 0 0 0-1.299-.75l-.644 1.116a6.954 6.954 0 0 0-2.081-.556V1.75a.75.75 0 0 0-1.5 0v1.29a6.954 6.954 0 0 0-2.081.556L6.525 2.48a.75.75 0 1 0-1.3.75l.645 1.117A7.04 7.04 0 0 0 4.347 5.87L3.23 5.225a.75.75 0 1 0-.75 1.3l1.116.644A6.954 6.954 0 0 0 3.04 9.25H1.75a.75.75 0 0 0 0 1.5h1.29c.078.733.27 1.433.556 2.081l-1.116.645a.75.75 0 1 0 .75 1.298l1.117-.644a7.04 7.04 0 0 0 1.523 1.523l-.645 1.117a.75.75 0 1 0 1.3.75l.644-1.116a6.954 6.954 0 0 0 2.081.556v1.29a.75.75 0 0 0 1.5 0v-1.29a6.954 6.954 0 0 0 2.081-.556l.645 1.116a.75.75 0 0 0 1.299-.75l-.645-1.117a7.042 7.042 0 0 0 1.523-1.523l1.117.644a.75.75 0 0 0 .75-1.298l-1.116-.645a6.954 6.954 0 0 0 .556-2.081h1.29a.75.75 0 0 0 0-1.5h-1.29a6.954 6.954 0 0 0-.556-2.081l1.116-.644a.75.75 0 0 0-.75-1.3l-1.117.645a7.04 7.04 0 0 0-1.524-1.523ZM10 4.5a5.475 5.475 0 0 0-2.781.754A5.527 5.527 0 0 0 5.22 7.277 5.475 5.475 0 0 0 4.5 10a5.475 5.475 0 0 0 .752 2.777 5.527 5.527 0 0 0 2.028 2.004c.802.458 1.73.719 2.72.719a5.474 5.474 0 0 0 2.78-.753 5.527 5.527 0 0 0 2.001-2.027c.458-.802.719-1.73.719-2.72a5.475 5.475 0 0 0-.753-2.78 5.528 5.528 0 0 0-2.028-2.002A5.475 5.475 0 0 0 10 4.5Z"
+                                clip-rule="evenodd"></path>
+                        </svg>
+
+
+                        الإعدادات
+                    </a>
+                </ui-menu-radio-group>
+
+                <div class="-mx-[.3125rem] my-[.3125rem] h-px" data-flux-menu-separator="">
+                    <div data-orientation="horizontal" role="none"
+                        class="border-0 [print-color-adjust:exact] bg-zinc-800/15 dark:bg-white/20 h-px w-full dark:bg-zinc-600!"
+                        data-flux-separator=""></div>
+                </div>
+
+                <form method="POST" action="http://127.0.0.1:8001/logout" class="w-full">
+                    <input type="hidden" name="_token" value="U4zidACQq7O50ACO8CfN05zIWUYb7YMSxu88jL7Z"
+                        autocomplete="off"> <button type="submit"
+                        class="flex items-center px-2 py-1.5 w-full focus:outline-hidden rounded-md text-start text-sm font-medium [&amp;[disabled]]:opacity-50 text-zinc-800 data-active:bg-zinc-50 dark:text-white dark:data-active:bg-zinc-600 **:data-flux-menu-item-icon:text-zinc-400 dark:**:data-flux-menu-item-icon:text-white/60 [&amp;[data-active]_[data-flux-menu-item-icon]]:text-current w-full cursor-pointer"
+                        data-flux-menu-item="data-flux-menu-item"
+                        data-flux-menu-item-has-icon="data-flux-menu-item-has-icon" data-test="logout-button"
+                        id="lofi-menu-item-1adf3fde2a4058" role="menuitem" tabindex="-1">
+                        <svg class="shrink-0 [:where(&amp;)]:size-5 me-2"
+                            data-flux-menu-item-icon="data-flux-menu-item-icon" data-flux-icon=""
+                            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                            aria-hidden="true" data-slot="icon">
+                            <path fill-rule="evenodd"
+                                d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z"
+                                clip-rule="evenodd"></path>
+                            <path fill-rule="evenodd"
+                                d="M6 10a.75.75 0 0 1 .75-.75h9.546l-1.048-.943a.75.75 0 1 1 1.004-1.114l2.5 2.25a.75.75 0 0 1 0 1.114l-2.5 2.25a.75.75 0 1 1-1.004-1.114l1.048-.943H6.75A.75.75 0 0 1 6 10Z"
+                                clip-rule="evenodd"></path>
+                        </svg>
+
+
+                        تسجيل الخروج
+                    </button>
+                </form>
+            </ui-menu>
+        </ui-dropdown>
+    </header>
+
+    <div class="[grid-area:main] p-6 lg:p-8 [[data-flux-container]_&amp;]:px-0  !p-1 !pb-32 md:!p-8 md:!pb-32 lg:!pb-8"
+        data-flux-main="">
+        <div class="md:p-8">
+            <div wire:key="lw-3318256738-0"
+                wire:snapshot="{&quot;data&quot;:{&quot;show&quot;:false,&quot;guardian_name&quot;:&quot;&quot;,&quot;guardian_phone&quot;:&quot;&quot;},&quot;memo&quot;:{&quot;id&quot;:&quot;Ap8dQ8HYyt5i7nsNyN7P&quot;,&quot;name&quot;:&quot;student.guardian-notice&quot;,&quot;path&quot;:&quot;student\/dashboard&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;release&quot;:&quot;a-a-a&quot;,&quot;children&quot;:[],&quot;scripts&quot;:[],&quot;assets&quot;:[],&quot;errors&quot;:[],&quot;locale&quot;:&quot;en&quot;,&quot;islands&quot;:[]},&quot;checksum&quot;:&quot;9e9f04eff9e4fd62edb67244da2effcc0b458ab484c7cf34aa3969df9445dd46&quot;}"
+                wire:effects="[]" wire:id="Ap8dQ8HYyt5i7nsNyN7P" wire:name="student.guardian-notice">
+                <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->
+            </div>
+            <div wire:key="lw-3318256738-1"
+                wire:snapshot="{&quot;data&quot;:[],&quot;memo&quot;:{&quot;id&quot;:&quot;bdjoVYm8l6LG684hcEms&quot;,&quot;name&quot;:&quot;student.dashboard&quot;,&quot;path&quot;:&quot;student\/dashboard&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;release&quot;:&quot;a-a-a&quot;,&quot;children&quot;:{&quot;lw-1636808510-0&quot;:[&quot;&quot;,&quot;QC32VGKMCgwJ0CB627I4&quot;]},&quot;scripts&quot;:[],&quot;assets&quot;:[],&quot;errors&quot;:[],&quot;locale&quot;:&quot;en&quot;,&quot;islands&quot;:[]},&quot;checksum&quot;:&quot;3708e07ec4f362adb89c35649dbe72981c4442e1bc72557837ac9143b9082c60&quot;}"
+                wire:effects="[]" wire:id="bdjoVYm8l6LG684hcEms" wire:name="student.dashboard">
+                <!--[if BLOCK]><![endif]--> <!--[if BLOCK]><![endif]-->
+                <style>
+                    :root {
+                        --team-color: #d97706;
+                        --team-color-hover: #d97706dd;
+                        --team-color-10: #d977060f;
+                        --team-color-20: #d9770626;
+                        --team-color-30: #d9770640;
+                    }
+
+                    .bg-team-primary {
+                        background-color: #d97706 !important;
+                    }
+
+                    .hover\:bg-team-primary-hover:hover {
+                        background-color: var(--team-color-hover) !important;
+                    }
+
+                    .text-team-primary {
+                        color: var(--team-color) !important;
+                    }
+
+                    .border-team-primary {
+                        border-color: var(--team-color) !important;
+                    }
+
+                    .bg-team-10 {
+                        background-color: var(--team-color-10) !important;
+                    }
+
+                    .bg-team-20 {
+                        background-color: var(--team-color-20) !important;
+                    }
+
+                    .bg-team-30 {
+                        background-color: var(--team-color-30) !important;
+                    }
+
+                    .border-team-10 {
+                        border-color: var(--team-color-10) !important;
+                    }
+
+                    .border-team-20 {
+                        border-color: var(--team-color-20) !important;
+                    }
+
+                    /* Scrollbar utilities for mobile scrollable timelines/tabs */
+                    .scrollbar-none::-webkit-scrollbar {
+                        display: none;
+                    }
+
+                    .scrollbar-none {
+                        -ms-overflow-style: none;
+                        scrollbar-width: none;
+                    }
+
+                    .scrollbar-thin::-webkit-scrollbar {
+                        height: 4px;
+                    }
+
+                    .scrollbar-thin::-webkit-scrollbar-track {
+                        background: #f1f5f9;
+                        border-radius: 4px;
+                    }
+
+                    .scrollbar-thin::-webkit-scrollbar-thumb {
+                        background: var(--team-color);
+                        border-radius: 4px;
+                        opacity: 0.3;
+                    }
+                </style>
+                <style
+                    wire:snapshot="{&quot;data&quot;:{&quot;profile_image_file&quot;:null,&quot;targetTeams&quot;:[[],{&quot;s&quot;:&quot;arr&quot;}],&quot;targetDates&quot;:[[],{&quot;s&quot;:&quot;arr&quot;}],&quot;teamColor&quot;:&quot;#d97706&quot;,&quot;showDoublePointsModal&quot;:true,&quot;doublePointsDate&quot;:&quot;2026-06-12&quot;},&quot;memo&quot;:{&quot;id&quot;:&quot;QC32VGKMCgwJ0CB627I4&quot;,&quot;name&quot;:&quot;student.gamification-dashboard&quot;,&quot;path&quot;:&quot;student\/dashboard&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;release&quot;:&quot;a-a-a&quot;,&quot;children&quot;:[],&quot;scripts&quot;:[],&quot;assets&quot;:[],&quot;errors&quot;:[],&quot;locale&quot;:&quot;en&quot;,&quot;islands&quot;:[]},&quot;checksum&quot;:&quot;e3cba78d33120327fd08113ee21bee1273312be9a92fa6fc41ffa170a3e4c53a&quot;}"
+                    wire:effects="{&quot;returns&quot;:[null]}">
+                    :root {
+                        --team-color: #d97706;
+                        --team-color-hover: #d97706dd;
+                        --team-color-10: #d977060f;
+                        --team-color-20: #d9770626;
+                        --team-color-30: #d9770640;
+                    }
+
+                    .bg-team-primary {
+                        background-color: #d97706 !important;
+                    }
+
+                    .hover\:bg-team-primary-hover:hover {
+                        background-color: var(--team-color-hover) !important;
+                    }
+
+                    .text-team-primary {
+                        color: var(--team-color) !important;
+                    }
+
+                    .border-team-primary {
+                        border-color: var(--team-color) !important;
+                    }
+
+                    .bg-team-10 {
+                        background-color: var(--team-color-10) !important;
+                    }
+
+                    .bg-team-20 {
+                        background-color: var(--team-color-20) !important;
+                    }
+
+                    .bg-team-30 {
+                        background-color: var(--team-color-30) !important;
+                    }
+
+                    .border-team-10 {
+                        border-color: var(--team-color-10) !important;
+                    }
+
+                    .border-team-20 {
+                        border-color: var(--team-color-20) !important;
+                    }
+
+                    /* Scrollbar utilities for mobile scrollable timelines/tabs */
+                    .scrollbar-none::-webkit-scrollbar {
+                        display: none;
+                    }
+
+                    .scrollbar-none {
+                        -ms-overflow-style: none;
+                        scrollbar-width: none;
+                    }
+
+                    .scrollbar-thin::-webkit-scrollbar {
+                        height: 4px;
+                    }
+
+                    .scrollbar-thin::-webkit-scrollbar-track {
+                        background: #f1f5f9;
+                        border-radius: 4px;
+                    }
+
+                    .scrollbar-thin::-webkit-scrollbar-thumb {
+                        background: var(--team-color);
+                        border-radius: 4px;
+                        opacity: 0.3;
+                    }
+                </style>
+                <!--[if ENDBLOCK]><![endif]--> <!--[if ENDBLOCK]><![endif]-->
+            </div>
+        </div>
+    </div>
+
+
+    <div x-data="{ activeTab: localStorage.getItem('student-gam-tab') || 'leaderboard' }"
+        x-on:gamnav-changed.window="activeTab = $event.detail.tab; localStorage.setItem('student-gam-tab', $event.detail.tab)"
+        class="fixed bottom-0 left-0 right-0 z-[9999] lg:hidden border-t border-white/10 shadow-none"
+        style="background-color: #d97706; padding-bottom: env(safe-area-inset-bottom, 12px);">
+        <div class="flex items-center justify-around px-2 min-h-18 max-w-lg mx-auto">
+
+            <button
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                :class="activeTab === 'leaderboard' ? 'text-white' : 'text-white/60 hover:text-white'"
+                class="relative flex flex-col items-center justify-center duration-300 ease-out h-full flex-1 py-2 cursor-pointer text-white">
+
+                <div :class="activeTab === 'leaderboard' ? 'bg-white/15 px-6 py-2' : 'p-2'"
+                    class="relative flex items-center justify-center min-h-15 rounded-full duration-300 bg-white/15 px-6 py-2">
+                    <svg class="shrink-0 [:where(&amp;)]:size-6 size-7 shrink-0"
+                        x-bind:variant="activeTab === 'leaderboard' ? 'solid' : 'outline'" data-flux-icon=""
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" aria-hidden="true" data-slot="icon" variant="solid">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25">
+                        </path>
+                    </svg>
+
+                    <span x-show="activeTab === 'leaderboard'"
+                        class="ms-2 font-bold text-sm truncate block">الرئيسية</span>
+                </div>
+            </button>
+            <button
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'store' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                :class="activeTab === 'store' ? 'text-white' : 'text-white/60 hover:text-white'"
+                class="relative flex flex-col items-center justify-center duration-300 ease-out h-full flex-1 py-2 cursor-pointer text-white/60 hover:text-white">
+
+                <div :class="activeTab === 'store' ? 'bg-white/15 px-6 py-2' : 'p-2'"
+                    class="relative flex items-center justify-center min-h-15 rounded-full duration-300 p-2">
+                    <svg class="shrink-0 [:where(&amp;)]:size-6 size-7 shrink-0"
+                        x-bind:variant="activeTab === 'store' ? 'solid' : 'outline'" data-flux-icon=""
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" aria-hidden="true" data-slot="icon" variant="outline">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z">
+                        </path>
+                    </svg>
+
+                    <span x-show="activeTab === 'store'" class="ms-2 font-bold text-sm truncate block"
+                        style="display: none;">المتجر</span>
+                </div>
+            </button>
+            <button
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'badges' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                :class="activeTab === 'badges' ? 'text-white' : 'text-white/60 hover:text-white'"
+                class="relative flex flex-col items-center justify-center duration-300 ease-out h-full flex-1 py-2 cursor-pointer text-white/60 hover:text-white">
+
+                <div :class="activeTab === 'badges' ? 'bg-white/15 px-6 py-2' : 'p-2'"
+                    class="relative flex items-center justify-center min-h-15 rounded-full duration-300 p-2">
+                    <svg class="shrink-0 [:where(&amp;)]:size-6 size-7 shrink-0"
+                        x-bind:variant="activeTab === 'badges' ? 'solid' : 'outline'" data-flux-icon=""
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" aria-hidden="true" data-slot="icon" variant="outline">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0">
+                        </path>
+                    </svg>
+
+                    <span x-show="activeTab === 'badges'" class="ms-2 font-bold text-sm truncate block"
+                        style="display: none;">الأوسمة</span>
+                </div>
+            </button>
+            <button
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'team' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                :class="activeTab === 'team' ? 'text-white' : 'text-white/60 hover:text-white'"
+                class="relative flex flex-col items-center justify-center duration-300 ease-out h-full flex-1 py-2 cursor-pointer text-white/60 hover:text-white">
+
+                <div :class="activeTab === 'team' ? 'bg-white/15 px-6 py-2' : 'p-2'"
+                    class="relative flex items-center justify-center min-h-15 rounded-full duration-300 p-2">
+                    <svg class="shrink-0 [:where(&amp;)]:size-6 size-7 shrink-0"
+                        x-bind:variant="activeTab === 'team' ? 'solid' : 'outline'" data-flux-icon=""
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" aria-hidden="true" data-slot="icon" variant="outline">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z">
+                        </path>
+                    </svg>
+
+                    <span x-show="activeTab === 'team'" class="ms-2 font-bold text-sm truncate block"
+                        style="display: none;">كتيبتي</span>
+                </div>
+            </button>
+
+        </div>
+    </div>
+
+    <div x-persist="toast">
+        <ui-toast x-data=""
+            x-on:toast-show.document="! $el.closest('ui-toast-group') &amp;&amp; $el.showToast($event.detail)"
+            popover="manual" position="bottom end" wire:ignore="" role="status">
+            <template>
+                <div class="max-w-sm in-[ui-toast-group]:max-w-auto in-[ui-toast-group]:w-xs sm:in-[ui-toast-group]:w-sm"
+                    data-variant="" data-flux-toast-dialog="">
+                    <div
+                        class="p-2 flex rounded-xl shadow-lg bg-white border border-zinc-200 border-b-zinc-300/80 dark:bg-zinc-700 dark:border-zinc-600">
+                        <div class="flex-1 flex items-start gap-4 overflow-hidden">
+                            <div class="flex-1 py-1.5 ps-2.5 flex gap-2">
+
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor"
+                                    class="hidden [[data-flux-toast-dialog][data-variant=success]_&amp;]:block shrink-0 mt-0.5 size-4 text-lime-600 dark:text-lime-400">
+                                    <path fill-rule="evenodd"
+                                        d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm3.844-8.791a.75.75 0 0 0-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 1 0-1.114 1.004l2.25 2.5a.75.75 0 0 0 1.15-.043l4.25-5.5Z"
+                                        clip-rule="evenodd"></path>
+                                </svg>
+
+
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor"
+                                    class="hidden [[data-flux-toast-dialog][data-variant=warning]_&amp;]:block shrink-0 mt-0.5 size-4 text-amber-500 dark:text-amber-400">
+                                    <path fill-rule="evenodd"
+                                        d="M6.701 2.25c.577-1 2.02-1 2.598 0l5.196 9a1.5 1.5 0 0 1-1.299 2.25H2.804a1.5 1.5 0 0 1-1.3-2.25l5.197-9ZM8 4a.75.75 0 0 1 .75.75v3a.75.75 0 1 1-1.5 0v-3A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                                        clip-rule="evenodd"></path>
+                                </svg>
+
+
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor"
+                                    class="hidden [[data-flux-toast-dialog][data-variant=danger]_&amp;]:block shrink-0 mt-0.5 size-4 text-rose-500 dark:text-rose-400">
+                                    <path fill-rule="evenodd"
+                                        d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14ZM8 4a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                                        clip-rule="evenodd"></path>
+                                </svg>
+
+                                <div>
+
+                                    <div
+                                        class="font-medium text-sm text-zinc-800 dark:text-white [&amp;:not(:empty)+div]:font-normal [&amp;:not(:empty)+div]:text-zinc-500 [&amp;:not(:empty)+div]:dark:text-zinc-300 [&amp;:not(:empty)]:pb-2">
+                                        <slot name="heading"></slot>
+                                    </div>
+
+
+                                    <div class="font-medium text-sm text-zinc-800 dark:text-white">
+                                        <slot name="text"></slot>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <ui-close class="flex items-center">
+                                <button type="button"
+                                    class="inline-flex items-center font-medium justify-center gap-2 truncate disabled:opacity-50 dark:disabled:opacity-75 disabled:cursor-default h-8 text-sm rounded-md w-8 bg-transparent hover:bg-zinc-800/5 dark:hover:bg-white/15 text-zinc-400 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white"
+                                    as="button">
+                                    <div>
+                                        <svg class="[:where(&amp;)]:size-5" xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" data-slot="icon">
+                                            <path
+                                                d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z">
+                                            </path>
+                                        </svg>
+                                    </div>
+                                </button>
+                            </ui-close>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </ui-toast>
+    </div>
+
+    <script src="http://127.0.0.1:8001/flux/flux.js?id=9692f2aa" data-navigate-once=""></script>
+    <!-- Livewire Scripts -->
+    <script src="http://127.0.0.1:8001/livewire-91eb4a92/livewire.js?id=1c586ae0"
+        data-csrf="U4zidACQq7O50ACO8CfN05zIWUYb7YMSxu88jL7Z" data-module-url="http://127.0.0.1:8001/livewire-91eb4a92"
+        data-update-uri="http://127.0.0.1:8001/livewire-91eb4a92/update" data-navigate-once="true"></script>
+
+
+    <amino-inspect></amino-inspect>
+</body>
+
+</html>

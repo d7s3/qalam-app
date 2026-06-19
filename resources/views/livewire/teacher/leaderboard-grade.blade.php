@@ -17,6 +17,21 @@
         </div>
     </div>
 
+    @if($pendingBadges->isNotEmpty())
+        <div class="mb-6 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10 flex items-center justify-between flex-wrap gap-4">
+            <div class="flex items-center gap-3">
+                <div class="size-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center animate-bounce text-xl">
+                    🏅
+                </div>
+                <div>
+                    <h4 class="font-bold text-zinc-900 dark:text-white text-sm">أوسمة معلقة بانتظار الاعتماد!</h4>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">هناك {{ $pendingBadges->count() }} طلب(ات) منح أوسمة للطلاب بحاجة لموافقتك.</p>
+                </div>
+            </div>
+            <flux:button x-on:click="$flux.modal('pending-badges-modal').show()" variant="primary" color="amber" size="sm" icon="check-badge">مراجعة واعتماد</flux:button>
+        </div>
+    @endif
+
     @if($leaderboard->criteria->isEmpty() && empty($leaderboard->settings['extra_points_enabled']))
         <div
             class="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700">
@@ -38,7 +53,12 @@
                             @foreach($leaderboard->criteria as $criterion)
                                 <th class="p-4 font-semibold text-zinc-800 dark:text-zinc-200 text-center">
                                     <div class="flex flex-col items-center">
-                                        <span>{{ $criterion->name }}</span>
+                                        <span class="flex items-center gap-1 justify-center">
+                                            @if($criterion->is_enthusiasm_trigger)
+                                                <span title="{{ __('مغذي للحماسة') }}">🔥</span>
+                                            @endif
+                                            <span>{{ $criterion->name }}</span>
+                                        </span>
                                         <flux:badge color="emerald" size="sm" class="mt-1">{{ $criterion->points }}
                                             {{ __('نقاط') }}</flux:badge>
                                     </div>
@@ -279,5 +299,46 @@
             </div>
         </flux:card>
     @endif
+
+    {{-- MODAL: PENDING BADGES APPROVAL --}}
+    <flux:modal name="pending-badges-modal" class="md:w-[600px]">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">مراجعة واعتماد الأوسمة</flux:heading>
+                <flux:subheading>راجع أداء الطلاب الذين استوفوا متطلبات الأوسمة واعتمد منحها لهم.</flux:subheading>
+            </div>
+
+            <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                @forelse($pendingBadges as $pb)
+                    <div class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="size-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden border">
+                                @if(str_contains($pb->badge_icon, '/') || str_contains($pb->badge_icon, '.'))
+                                    <img src="{{ asset('storage/' . $pb->badge_icon) }}" class="size-8 object-contain" />
+                                @else
+                                    <span class="text-2xl">{{ $pb->badge_icon === 'star' ? '⭐' : ($pb->badge_icon === 'fire' ? '🔥' : '🏅') }}</span>
+                                @endif
+                            </div>
+                            <div>
+                                <div class="font-bold text-sm text-zinc-900 dark:text-white">{{ $pb->student_name }}</div>
+                                <div class="text-xs text-zinc-500 mt-0.5">يستحق وسام: <span class="font-semibold text-zinc-700 dark:text-zinc-300">{{ $pb->badge_name }}</span></div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <flux:button wire:click="rejectBadge({{ $pb->badge_id }}, {{ $pb->student_id }})" variant="ghost" color="danger" size="sm" icon="x-mark">رفض</flux:button>
+                            <flux:button wire:click="approveBadge({{ $pb->badge_id }}, {{ $pb->student_id }})" variant="filled" color="success" size="sm" icon="check">اعتماد</flux:button>
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-center py-6 text-zinc-500">لا توجد أوسمة معلقة حالياً.</div>
+                @endforelse
+            </div>
+
+            <div class="flex justify-end pt-4">
+                <flux:button x-on:click="$flux.modal('pending-badges-modal').hide()" variant="ghost">إغلاق</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 
 </div>

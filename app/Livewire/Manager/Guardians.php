@@ -5,6 +5,8 @@ namespace App\Livewire\Manager;
 use App\Models\Guardian;
 use App\Models\Student;
 use Flux\Flux;
+use Illuminate\Support\Str;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
 
 class Guardians extends Component
@@ -32,18 +34,18 @@ class Guardians extends Component
         $this->loadData();
     }
 
-    #[\Livewire\Attributes\Computed]
+    #[Computed]
     public function groupedStudents()
     {
         $query = Student::with('circle');
-        
+
         if ($this->studentSearch) {
-            $query->where('name', 'like', '%' . $this->studentSearch . '%');
+            $query->where('name', 'like', '%'.$this->studentSearch.'%');
         }
-        
+
         $students = $query->get();
-        
-        return $students->groupBy(function($s) {
+
+        return $students->groupBy(function ($s) {
             return $s->circle ? $s->circle->name : 'بدون حلقة';
         });
     }
@@ -153,7 +155,7 @@ class Guardians extends Component
         $guardian = Guardian::find($id);
         if ($guardian) {
             $guardian->update([
-                'access_token' => \Illuminate\Support\Str::random(32),
+                'access_token' => Str::random(32),
             ]);
             $this->loadData();
             // Update viewingGuardian so the modal shows the new token immediately

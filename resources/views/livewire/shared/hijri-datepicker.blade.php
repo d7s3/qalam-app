@@ -156,12 +156,16 @@ new class extends Component {
 
                     $isWorkingDay = false;
                     if ($showAttendanceDays) {
-                        $period = $attendancePeriods->first(function ($p) use ($gregDate) {
-                            return $gregDate >= $p->start_date->format('Y-m-d') &&
-                                $gregDate <= $p->end_date->format('Y-m-d');
-                        });
-                        if ($period && $period->weekdays) {
-                            $isWorkingDay = in_array($dayOfWeek, $period->weekdays);
+                        if ($attendancePeriods->isNotEmpty()) {
+                            $period = $attendancePeriods->first(function ($p) use ($gregDate) {
+                                return $gregDate >= $p->start_date->format('Y-m-d') &&
+                                    $gregDate <= $p->end_date->format('Y-m-d');
+                            });
+                            if ($period && $period->weekdays) {
+                                $isWorkingDay = in_array($dayOfWeek, $period->weekdays);
+                            }
+                        } else {
+                            $isWorkingDay = in_array($dayOfWeek, [1, 2, 3, 4, 5]); // Sun-Thu fallback
                         }
                     }
 

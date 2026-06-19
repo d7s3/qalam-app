@@ -29,7 +29,7 @@ class YearlyAttendance extends Component
     public function selectDate($date, $hijriDay, $monthName)
     {
         $this->selectedDate = $date;
-        $dayName = \Carbon\Carbon::parse($date)->locale('ar')->translatedFormat('l');
+        $dayName = Carbon::parse($date)->locale('ar')->translatedFormat('l');
         $this->selectedDateHijri = "$dayName $hijriDay $monthName $this->year";
 
         $supervisor = auth()->guard('supervisor')->user();

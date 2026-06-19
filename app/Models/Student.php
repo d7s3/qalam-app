@@ -6,6 +6,7 @@ use App\Models\Concerns\HasProfile;
 use Database\Factories\StudentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -41,10 +42,41 @@ class Student extends Authenticatable
         return $this->hasMany(StudentPlan::class);
     }
 
+    /** @return HasMany<StudentOdePlan, $this> */
+    public function odePlans(): HasMany
+    {
+        return $this->hasMany(StudentOdePlan::class);
+    }
+
     /** @return HasMany<StudentStatusHistory, $this> */
     public function statusHistories(): HasMany
     {
         return $this->hasMany(StudentStatusHistory::class)->orderBy('start_date', 'desc');
+    }
+
+    /** @return BelongsToMany<GamificationTeam, $this> */
+    public function gamificationTeams(): BelongsToMany
+    {
+        return $this->belongsToMany(GamificationTeam::class, 'gamification_team_student', 'student_id', 'team_id')
+            ->withPivot('role');
+    }
+
+    /** @return HasMany<GamificationTransaction, $this> */
+    public function gamificationTransactions(): HasMany
+    {
+        return $this->hasMany(GamificationTransaction::class);
+    }
+
+    /** @return BelongsToMany<GamificationBadge, $this> */
+    public function gamificationBadges(): BelongsToMany
+    {
+        return $this->belongsToMany(GamificationBadge::class, 'gamification_badge_student', 'student_id', 'badge_id');
+    }
+
+    /** @return HasMany<GamificationStudentState, $this> */
+    public function gamificationStates(): HasMany
+    {
+        return $this->hasMany(GamificationStudentState::class);
     }
 
     /**
@@ -66,6 +98,7 @@ class Student extends Authenticatable
         'birth_date',
         'joined_at',
         'status',
+        'avatar_path',
     ];
 
     /**

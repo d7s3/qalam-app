@@ -36,7 +36,7 @@ class HijriDatepicker extends Component
 
     public function getHijriFormattedDateProperty()
     {
-        if (!$this->date) {
+        if (! $this->date) {
             return '';
         }
         $formatter = new \IntlDateFormatter(

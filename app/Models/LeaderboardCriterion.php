@@ -11,6 +11,10 @@ class LeaderboardCriterion extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'is_enthusiasm_trigger' => 'boolean',
+    ];
+
     public function leaderboard()
     {
         return $this->belongsTo(Leaderboard::class);

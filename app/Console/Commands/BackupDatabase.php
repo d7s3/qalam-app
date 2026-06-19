@@ -16,19 +16,20 @@ class BackupDatabase extends Command
     public function handle()
     {
         $dbPath = config('database.connections.sqlite.database');
-        if (!file_exists($dbPath)) {
+        if (! file_exists($dbPath)) {
             $this->error('ملف قاعدة البيانات غير موجود.');
+
             return;
         }
 
-        $filename = 'scheduled_' . now()->format('Y-m-d_H-i-s') . '.sqlite';
+        $filename = 'scheduled_'.now()->format('Y-m-d_H-i-s').'.sqlite';
         $backupDir = storage_path('app/backups');
-        
-        if (!file_exists($backupDir)) {
+
+        if (! file_exists($backupDir)) {
             mkdir($backupDir, 0755, true);
         }
 
-        if (copy($dbPath, $backupDir . '/' . $filename)) {
+        if (copy($dbPath, $backupDir.'/'.$filename)) {
             $this->info("تم أخذ النسخة الاحتياطية بنجاح: {$filename}");
         } else {
             $this->error('فشل في أخذ النسخة الاحتياطية.');

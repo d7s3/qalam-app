@@ -27,11 +27,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Blaze::optimize()
-            ->in(resource_path('views/components'))
-            ->in(resource_path('views/components/teacher'), fold: true)
-            ->in(resource_path('views/components/guardian'), fold: true)
-            ->in(resource_path('views/components/manager'), fold: true)
-            ->in(resource_path('views/components/shared'), fold: true);
+            ->in(resource_path('views/components'));
     }
 
     /**

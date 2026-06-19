@@ -12,7 +12,9 @@ use Livewire\Component;
 class CreateChallenge extends Component
 {
     public $studentId;
+
     public $student;
+
     public $studentPlans;
 
     public function mount($studentId)
@@ -84,6 +86,7 @@ class CreateChallenge extends Component
         }
 
         session()->flash('status', 'تم إنشاء التحدي بنجاح، وهو الآن بانتظار قبول ابنك!');
+
         return redirect()->route('guardian.dashboard');
     }
 

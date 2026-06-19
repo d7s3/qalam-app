@@ -5,6 +5,9 @@ namespace App\Livewire\Manager;
 use App\Models\Setting;
 use Flux\Flux;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -13,8 +16,11 @@ class Settings extends Component
     use WithFileUploads;
 
     public $absenceLimit;
+
     public $latenessLimit;
+
     public $calculationPeriodDays;
+
     public $uploadedBackup;
 
     public function mount()
@@ -42,38 +48,42 @@ class Settings extends Component
     public function downloadBackup()
     {
         $dbPath = config('database.connections.sqlite.database');
-        if (!file_exists($dbPath)) {
+        if (! file_exists($dbPath)) {
             Flux::toast('ملف قاعدة البيانات غير موجود.', variant: 'danger');
+
             return;
         }
 
-        $filename = 'manual_' . now()->format('Y-m-d_H-i-s') . '.sqlite';
+        $filename = 'manual_'.now()->format('Y-m-d_H-i-s').'.sqlite';
+
         return response()->download($dbPath, $filename);
     }
 
     public function saveBackupToServer()
     {
         $dbPath = config('database.connections.sqlite.database');
-        if (!file_exists($dbPath)) {
+        if (! file_exists($dbPath)) {
             Flux::toast('ملف قاعدة البيانات غير موجود.', variant: 'danger');
+
             return;
         }
 
-        $filename = 'manual_' . now()->format('Y-m-d_H-i-s') . '.sqlite';
+        $filename = 'manual_'.now()->format('Y-m-d_H-i-s').'.sqlite';
         $backupDir = storage_path('app/backups');
 
-        if (!file_exists($backupDir)) {
+        if (! file_exists($backupDir)) {
             mkdir($backupDir, 0755, true);
         }
 
-        copy($dbPath, $backupDir . '/' . $filename);
+        copy($dbPath, $backupDir.'/'.$filename);
         Flux::toast('تم حفظ النسخة الاحتياطية على الخادم بنجاح.', variant: 'success');
     }
 
     public function uploadBackup()
     {
-        if (!$this->uploadedBackup) {
+        if (! $this->uploadedBackup) {
             Flux::toast('لم يتم استلام أي ملف بعد. يرجى الانتظار قليلاً بعد اختيار الملف.', variant: 'danger');
+
             return;
         }
         $this->validate([
@@ -81,22 +91,23 @@ class Settings extends Component
         ]);
 
         $filename = $this->uploadedBackup->getClientOriginalName();
-        if (!str_ends_with($filename, '.sqlite') && !str_ends_with($filename, '.db')) {
+        if (! str_ends_with($filename, '.sqlite') && ! str_ends_with($filename, '.db')) {
 
             Flux::toast('يجب أن يكون الملف بصيغة sqlite أو db.', variant: 'danger');
+
             return;
         }
 
-        $newFilename = 'uploaded_' . now()->format('Y-m-d_H-i-s') . '.sqlite';
+        $newFilename = 'uploaded_'.now()->format('Y-m-d_H-i-s').'.sqlite';
         $backupDir = storage_path('app/backups');
-        if (!file_exists($backupDir) && !str_ends_with($backupDir, '/')) {
+        if (! file_exists($backupDir) && ! str_ends_with($backupDir, '/')) {
             $backupDir .= '/';
         }
-        if (!file_exists($backupDir)) {
+        if (! file_exists($backupDir)) {
             mkdir($backupDir, 0755, true);
         }
 
-        copy($this->uploadedBackup->getRealPath(), $backupDir . '/' . $newFilename);
+        copy($this->uploadedBackup->getRealPath(), $backupDir.'/'.$newFilename);
 
         $this->uploadedBackup = null;
         Flux::toast('تم رفع النسخة الاحتياطية بنجاح.', variant: 'success');
@@ -104,7 +115,7 @@ class Settings extends Component
 
     public function downloadSpecificBackup($filename)
     {
-        $path = storage_path('app/backups/' . $filename);
+        $path = storage_path('app/backups/'.$filename);
         if (file_exists($path)) {
             return response()->download($path);
         }
@@ -113,7 +124,7 @@ class Settings extends Component
 
     public function deleteBackup($filename)
     {
-        $path = storage_path('app/backups/' . $filename);
+        $path = storage_path('app/backups/'.$filename);
         if (file_exists($path)) {
             unlink($path);
             Flux::toast('تم حذف النسخة الاحتياطية.', variant: 'success');
@@ -124,32 +135,33 @@ class Settings extends Component
 
     public function restoreFullBackup($filename)
     {
-        $backupPath = storage_path('app/backups/' . $filename);
-        if (!file_exists($backupPath)) {
+        $backupPath = storage_path('app/backups/'.$filename);
+        if (! file_exists($backupPath)) {
             Flux::toast('ملف النسخة الاحتياطية غير موجود.', variant: 'danger');
+
             return;
         }
 
         $dbPath = config('database.connections.sqlite.database');
-        
+
         // Create a safety backup of current state before replacing
-        $safetyFilename = 'safety_pre_restore_' . now()->format('Y-m-d_H-i-s') . '.sqlite';
+        $safetyFilename = 'safety_pre_restore_'.now()->format('Y-m-d_H-i-s').'.sqlite';
         $backupDir = storage_path('app/backups');
-        copy($dbPath, $backupDir . '/' . $safetyFilename);
+        copy($dbPath, $backupDir.'/'.$safetyFilename);
 
         // Replace the current database with the selected backup
         copy($backupPath, $dbPath);
 
         // Re-run migrations one by one to safely apply any missing updates
         // If a migration fails (e.g., table already exists), we catch the error, mark it as completed, and continue
-        $files = \Illuminate\Support\Facades\File::files(database_path('migrations'));
-        $ran = \Illuminate\Support\Facades\DB::table('migrations')->pluck('migration')->toArray();
-        $batch = \Illuminate\Support\Facades\DB::table('migrations')->max('batch') + 1;
-        
+        $files = File::files(database_path('migrations'));
+        $ran = DB::table('migrations')->pluck('migration')->toArray();
+        $batch = DB::table('migrations')->max('batch') + 1;
+
         $pending = [];
         foreach ($files as $file) {
             $name = str_replace('.php', '', $file->getFilename());
-            if (!in_array($name, $ran)) {
+            if (! in_array($name, $ran)) {
                 $pending[] = $name;
             }
         }
@@ -158,17 +170,17 @@ class Settings extends Component
         foreach ($pending as $migration) {
             try {
                 Artisan::call('migrate', [
-                    '--path' => 'database/migrations/' . $migration . '.php',
-                    '--force' => true
+                    '--path' => 'database/migrations/'.$migration.'.php',
+                    '--force' => true,
                 ]);
             } catch (\Exception $e) {
                 $conflictOccurred = true;
                 // Mark as run to skip it in the future
-                \Illuminate\Support\Facades\DB::table('migrations')->insert([
+                DB::table('migrations')->insert([
                     'migration' => $migration,
-                    'batch' => $batch
+                    'batch' => $batch,
                 ]);
-                \Illuminate\Support\Facades\Log::warning("Skipped migration due to error (assumed already applied): {$migration}. Error: " . $e->getMessage());
+                Log::warning("Skipped migration due to error (assumed already applied): {$migration}. Error: ".$e->getMessage());
             }
         }
 
@@ -177,7 +189,7 @@ class Settings extends Component
         } else {
             Flux::toast('تم استرجاع النسخة وتحديث هيكل البيانات بنجاح.', variant: 'success');
         }
-        
+
         // Force a page reload to refresh all data connections
         $this->js('setTimeout(() => window.location.reload(), 1500)');
     }
@@ -190,12 +202,12 @@ class Settings extends Component
 
         $backupDir = storage_path('app/backups');
         if (file_exists($backupDir)) {
-            $files = \Illuminate\Support\Facades\File::files($backupDir);
+            $files = File::files($backupDir);
             foreach ($files as $file) {
                 if ($file->getExtension() === 'sqlite') {
                     $item = [
                         'name' => $file->getFilename(),
-                        'size' => round($file->getSize() / 1024 / 1024, 2) . ' MB',
+                        'size' => round($file->getSize() / 2048 / 2048, 2).' MB',
                         'time' => date('Y-m-d H:i:s', $file->getMTime()),
                     ];
 

@@ -4,6 +4,19 @@
 <head>
     @include('partials.head')
     <title>{{ $title ?? config('app.name') }}</title>
+    @if(auth('student')->check())
+        <script>
+            document.documentElement.classList.remove('dark');
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.attributeName === 'class' && document.documentElement.classList.contains('dark')) {
+                        document.documentElement.classList.remove('dark');
+                    }
+                });
+            });
+            observer.observe(document.documentElement, { attributes: true });
+        </script>
+    @endif
 </head>
 
 <body class="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased">
@@ -19,7 +32,7 @@
          <span>أنت غير متصل بشبكة الإنترنت حالياً. يرجى التحقق من اتصالك.</span>
     </div>
     <flux:sidebar sticky collapsible="mobile"
-        class="self-start border-e border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        class="hidden lg:flex self-start border-e border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <flux:sidebar.header>
             <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
             <flux:sidebar.collapse class="lg:hidden" />
@@ -53,7 +66,10 @@
             </form>
         </flux:sidebar.nav>
 
-        <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
+        @php
+            $currentUser = auth('student')->check() ? auth('student')->user() : auth()->user();
+        @endphp
+        <x-desktop-user-menu class="hidden lg:block" :name="$currentUser?->name" />
     </flux:sidebar>
 
     <!-- Mobile Menu -->
@@ -106,6 +122,12 @@
     @if(str_contains(request()->url(), '/teacher/'))
         <x-teacher-bottom-nav />
     @endif
+
+    {{ $bottomNav ?? '' }}
+
+    @persist('toast')
+        <flux:toast />
+    @endpersist
 
     @fluxScripts
 </body>

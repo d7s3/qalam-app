@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ExamLevel extends Model
 {
@@ -39,7 +40,7 @@ class ExamLevel extends Model
         return $this->belongsTo(ExamLevel::class, 'previous_level_id');
     }
 
-    public function nextLevel(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function nextLevel(): HasOne
     {
         return $this->hasOne(ExamLevel::class, 'previous_level_id');
     }

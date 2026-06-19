@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -16,7 +17,7 @@ return new class extends Migration
         });
 
         // Update existing rows
-        \Illuminate\Support\Facades\DB::table('student_plans')->update(['direction' => 'reverse']);
+        DB::table('student_plans')->update(['direction' => 'reverse']);
     }
 
     /**

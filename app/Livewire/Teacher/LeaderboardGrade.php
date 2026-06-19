@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Teacher;
 
+use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardScore;
 use App\Models\Student;
+use App\Services\GamificationService;
 use App\Services\LeaderboardService;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
@@ -42,14 +44,24 @@ class LeaderboardGrade extends Component
             ->first();
 
         if ($score) {
+            $scoreId = $score->id;
             $score->delete(); // Untoggle
+
+            // Delete corresponding gamification transaction if any
+            GamificationTransaction::where('reference_type', LeaderboardScore::class)
+                ->where('reference_id', $scoreId)
+                ->delete();
+            GamificationService::recalculateStudentState($studentId, $this->leaderboardId);
+            GamificationService::syncStudentBadges($studentId, $this->leaderboardId);
         } else {
-            LeaderboardScore::create([
+            $newScore = LeaderboardScore::create([
                 'leaderboard_id' => $this->leaderboardId,
                 'student_id' => $studentId,
                 'leaderboard_criterion_id' => $criterionId,
                 'date' => $this->date,
             ]);
+
+            GamificationService::syncStudentCustomCriterionXP($newScore);
         }
     }
 
@@ -63,7 +75,7 @@ class LeaderboardGrade extends Component
             return;
         }
 
-        DB::table('leaderboard_extra_points')->insert([
+        $id = DB::table('leaderboard_extra_points')->insertGetId([
             'leaderboard_id' => $this->leaderboardId,
             'student_id' => $studentId,
             'date' => $this->date,
@@ -73,12 +85,38 @@ class LeaderboardGrade extends Component
             'updated_at' => now(),
         ]);
 
+        GamificationService::syncStudentExtraPointsXP($id);
+
         Flux::toast('تم حفظ النقاط الإضافية بنجاح', variant: 'success');
     }
 
     public function deleteExtraPoints($id)
     {
         DB::table('leaderboard_extra_points')->where('id', $id)->delete();
+        GamificationService::syncStudentExtraPointsXP($id);
+    }
+
+    public function approveBadge(int $badgeId, int $studentId): void
+    {
+        DB::table('gamification_badge_student')
+            ->where('badge_id', $badgeId)
+            ->where('student_id', $studentId)
+            ->update([
+                'status' => 'approved',
+                'updated_at' => now(),
+            ]);
+
+        Flux::toast('تم اعتماد منح الوسام للطالب بنجاح', variant: 'success');
+    }
+
+    public function rejectBadge(int $badgeId, int $studentId): void
+    {
+        DB::table('gamification_badge_student')
+            ->where('badge_id', $badgeId)
+            ->where('student_id', $studentId)
+            ->delete();
+
+        Flux::toast('تم رفض منح الوسام', variant: 'neutral');
     }
 
     public function render()
@@ -110,12 +148,21 @@ class LeaderboardGrade extends Component
         $service = new LeaderboardService;
         $dailyScores = $service->getDailyScores($leaderboard, \Carbon\Carbon::parse($this->date)->format('Y-m-d'));
 
+        $pendingBadges = DB::table('gamification_badge_student')
+            ->join('gamification_badges', 'gamification_badges.id', '=', 'gamification_badge_student.badge_id')
+            ->join('students', 'students.id', '=', 'gamification_badge_student.student_id')
+            ->where('gamification_badges.leaderboard_id', $this->leaderboardId)
+            ->where('gamification_badge_student.status', 'pending_approval')
+            ->select('gamification_badge_student.*', 'gamification_badges.name as badge_name', 'gamification_badges.icon as badge_icon', 'students.name as student_name')
+            ->get();
+
         return view('livewire.teacher.leaderboard-grade', [
             'leaderboard' => $leaderboard,
             'students' => $students,
             'scoresMap' => $scores,
             'extraPointsMap' => $extraPointsMap,
             'dailyScores' => $dailyScores,
+            'pendingBadges' => $pendingBadges,
         ]);
     }
 }

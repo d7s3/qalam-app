@@ -6,10 +6,23 @@ use App\Models\Circle;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
 use Flux\Flux;
+use Illuminate\Support\Facades\Storage;
+use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\Encoders\WebpEncoder;
+use Intervention\Image\ImageManager;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class Competitions extends Component
 {
+    use WithFileUploads;
+
+    public $coin_image_file = null;
+
+    public $xp_image_file = null;
+
+    public $team_image_file = null;
+
     public $competitions;
 
     // Form
@@ -19,7 +32,35 @@ class Competitions extends Component
 
     public $editingId = null;
 
+    public int $currentStep = 1;
+
     public string $title = '';
+
+    public string $competition_type = 'normal';
+
+    public ?string $theme_key = 'custom';
+
+    public string $custom_theme_name = 'فرسان الحفظ';
+
+    public string $custom_theme_color = '#4f46e5';
+
+    public string $custom_theme_currency = 'جوهرة';
+
+    public string $custom_theme_currency_emoji = '💎';
+
+    public string $custom_theme_xp = 'طاقة الخبرة';
+
+    public string $custom_theme_xp_emoji = '✨';
+
+    public string $custom_theme_team = 'كتيبة';
+
+    public string $custom_theme_team_plural = 'كتائب';
+
+    public string $custom_theme_team_emoji = '🛡️';
+
+    public string $custom_theme_team_possessive_your = 'كتيبتك';
+
+    public string $custom_theme_team_possessive_my = 'كتيبتي';
 
     public string $start_date = '';
 
@@ -58,7 +99,7 @@ class Competitions extends Component
 
     protected function rules(): array
     {
-        return [
+        $rules = [
             'title' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
@@ -67,7 +108,27 @@ class Competitions extends Component
             'selectedCircles.*' => 'exists:circles,id',
             'criteria.*.name' => 'required|string|max:255',
             'criteria.*.points' => 'required|numeric|min:0',
+            'competition_type' => 'required|in:normal,gamification',
+            'theme_key' => 'required_if:competition_type,gamification|nullable|string',
         ];
+
+        if ($this->competition_type === 'gamification') {
+            $rules['custom_theme_name'] = 'required|string|max:255';
+            $rules['custom_theme_color'] = 'required|string|max:7';
+            $rules['custom_theme_currency'] = 'required|string|max:255';
+            $rules['custom_theme_currency_emoji'] = 'required|string|max:255';
+            $rules['custom_theme_xp'] = 'required|string|max:255';
+            $rules['custom_theme_team'] = 'required|string|max:255';
+            $rules['custom_theme_team_plural'] = 'required|string|max:255';
+            $rules['custom_theme_team_emoji'] = 'required|string|max:255';
+            $rules['custom_theme_team_possessive_your'] = 'required|string|max:255';
+            $rules['custom_theme_team_possessive_my'] = 'required|string|max:255';
+
+            $rules['coin_image_file'] = 'nullable|image|max:10240';
+            $rules['team_image_file'] = 'nullable|image|max:10240';
+        }
+
+        return $rules;
     }
 
     protected $messages = [
@@ -78,6 +139,11 @@ class Competitions extends Component
     public function mount(): void
     {
         $this->loadData();
+
+        if (request()->query('create_gamification') == '1') {
+            $this->create();
+            $this->competition_type = 'gamification';
+        }
     }
 
     private function getSupervisorCircleIds(): array
@@ -104,6 +170,22 @@ class Competitions extends Component
     public function create(): void
     {
         $this->reset('title', 'end_date', 'editingId', 'selectedCircles', 'criteria');
+        $this->coin_image_file = null;
+        $this->xp_image_file = null;
+        $this->team_image_file = null;
+        $this->competition_type = 'normal';
+        $this->theme_key = 'custom';
+        $this->custom_theme_name = 'فرسان الحفظ';
+        $this->custom_theme_color = '#4f46e5';
+        $this->custom_theme_currency = 'جوهرة';
+        $this->custom_theme_currency_emoji = '💎';
+        $this->custom_theme_xp = 'طاقة الخبرة';
+        $this->custom_theme_xp_emoji = '✨';
+        $this->custom_theme_team = 'كتيبة';
+        $this->custom_theme_team_plural = 'كتائب';
+        $this->custom_theme_team_emoji = '🛡️';
+        $this->custom_theme_team_possessive_your = 'كتيبتك';
+        $this->custom_theme_team_possessive_my = 'كتيبتي';
         $this->start_date = now()->format('Y-m-d');
         $this->is_active = true;
         $this->hifz_enabled = true;
@@ -118,7 +200,43 @@ class Competitions extends Component
         $this->attendance_late = 2;
         $this->extra_points_enabled = true;
         $this->isEditing = false;
+        $this->currentStep = 1;
         $this->showModal = true;
+    }
+
+    public function nextStep(): void
+    {
+        if ($this->currentStep === 1) {
+            $this->validateOnly('competition_type');
+            if ($this->competition_type === 'gamification') {
+                $this->validateOnly('theme_key');
+                $this->validateOnly('custom_theme_name');
+                $this->validateOnly('custom_theme_color');
+                $this->validateOnly('custom_theme_currency');
+                $this->validateOnly('custom_theme_currency_emoji');
+                $this->validateOnly('custom_theme_xp');
+                $this->validateOnly('custom_theme_xp_emoji');
+                $this->validateOnly('custom_theme_team');
+                $this->validateOnly('custom_theme_team_plural');
+                $this->validateOnly('custom_theme_team_emoji');
+                $this->validateOnly('custom_theme_team_possessive_your');
+                $this->validateOnly('custom_theme_team_possessive_my');
+            }
+        } elseif ($this->currentStep === 2) {
+            $this->validateOnly('title');
+        } elseif ($this->currentStep === 3) {
+            $this->validateOnly('start_date');
+            $this->validateOnly('end_date');
+        }
+
+        $this->currentStep++;
+    }
+
+    public function prevStep(): void
+    {
+        if ($this->currentStep > 1) {
+            $this->currentStep--;
+        }
     }
 
     public function edit($id): void
@@ -129,6 +247,11 @@ class Competitions extends Component
             ->findOrFail($id);
 
         $this->editingId = $competition->id;
+        $this->coin_image_file = null;
+        $this->xp_image_file = null;
+        $this->team_image_file = null;
+        $this->competition_type = $competition->competition_type ?? 'normal';
+        $this->theme_key = $competition->theme_key ?? 'custom';
         $this->title = $competition->title;
         $this->start_date = $competition->start_date->format('Y-m-d');
         $this->end_date = $competition->end_date ? $competition->end_date->format('Y-m-d') : '';
@@ -136,6 +259,32 @@ class Competitions extends Component
         $this->selectedCircles = $competition->circles->pluck('id')->toArray();
 
         $settings = $competition->settings ?? [];
+        if (isset($settings['theme'])) {
+            $t = $settings['theme'];
+            $this->custom_theme_name = $t['name'] ?? 'فرسان الحفظ';
+            $this->custom_theme_color = $t['color'] ?? '#4f46e5';
+            $this->custom_theme_currency = $t['currency_name'] ?? 'جوهرة';
+            $this->custom_theme_currency_emoji = $t['coin_emoji'] ?? '💎';
+            $this->custom_theme_xp = $t['xp_name'] ?? 'طاقة الخبرة';
+            $this->custom_theme_xp_emoji = $t['xp_emoji'] ?? '✨';
+            $this->custom_theme_team = $t['team_name'] ?? 'كتيبة';
+            $this->custom_theme_team_plural = $t['team_plural'] ?? 'كتائب';
+            $this->custom_theme_team_emoji = $t['team_emoji'] ?? '🛡️';
+            $this->custom_theme_team_possessive_your = $t['team_possessive_your'] ?? 'كتيبتك';
+            $this->custom_theme_team_possessive_my = $t['team_possessive_my'] ?? 'كتيبتي';
+        } else {
+            $this->custom_theme_name = 'فرسان الحفظ';
+            $this->custom_theme_color = '#4f46e5';
+            $this->custom_theme_currency = 'جوهرة';
+            $this->custom_theme_currency_emoji = '💎';
+            $this->custom_theme_xp = 'طاقة الخبرة';
+            $this->custom_theme_xp_emoji = '✨';
+            $this->custom_theme_team = 'كتيبة';
+            $this->custom_theme_team_plural = 'كتائب';
+            $this->custom_theme_team_emoji = '🛡️';
+            $this->custom_theme_team_possessive_your = 'كتيبتك';
+            $this->custom_theme_team_possessive_my = 'كتيبتي';
+        }
         $this->hifz_enabled = $settings['hifz_enabled'] ?? true;
         $this->hifz_excellent = $settings['hifz_excellent'] ?? 10;
         $this->hifz_good = $settings['hifz_good'] ?? 7;
@@ -200,25 +349,99 @@ class Competitions extends Component
     {
         $this->validate();
 
+        // Process coin/currency icon file upload and convert to WebP
+        if ($this->coin_image_file) {
+            $manager = new ImageManager(new Driver);
+            $tempPath = $this->coin_image_file->getRealPath();
+            $image = $manager->decode($tempPath);
+            $image->scale(height: 128);
+            $webpData = $image->encode(new WebpEncoder(80))->toString();
+            $filename = 'custom_themes/'.uniqid().'_coin.webp';
+            Storage::disk('public')->put($filename, $webpData);
+            $this->custom_theme_currency_emoji = $filename;
+        }
+
+        // Process Team icon file upload and convert to WebP
+        if ($this->team_image_file) {
+            $manager = new ImageManager(new Driver);
+            $tempPath = $this->team_image_file->getRealPath();
+            $image = $manager->decode($tempPath);
+            $image->scale(height: 128);
+            $webpData = $image->encode(new WebpEncoder(80))->toString();
+            $filename = 'custom_themes/'.uniqid().'_team.webp';
+            Storage::disk('public')->put($filename, $webpData);
+            $this->custom_theme_team_emoji = $filename;
+        }
+
         $supervisorId = auth()->guard('supervisor')->id();
         $allowedCircleIds = $this->getSupervisorCircleIds();
 
         // Ensure selected circles are within scope
         $validCircles = array_intersect($this->selectedCircles, $allowedCircleIds);
+        $existingCompetition = $this->editingId ? Leaderboard::find($this->editingId) : null;
+        $existingSettings = $existingCompetition ? ($existingCompetition->settings ?? []) : [];
 
         $settings = [
-            'hifz_enabled' => $this->hifz_enabled,
-            'hifz_excellent' => (int) $this->hifz_excellent,
-            'hifz_good' => (int) $this->hifz_good,
-            'hifz_acceptable' => (int) $this->hifz_acceptable,
-            'review_enabled' => $this->review_enabled,
-            'review_excellent' => (int) $this->review_excellent,
-            'review_good' => (int) $this->review_good,
-            'attendance_enabled' => $this->attendance_enabled,
-            'attendance_present' => (int) $this->attendance_present,
-            'attendance_late' => (int) $this->attendance_late,
             'extra_points_enabled' => $this->extra_points_enabled,
+            'enthusiasm_enabled' => $this->competition_type === 'gamification' || ($existingSettings['enthusiasm_enabled'] ?? false),
+            'enthusiasm_type' => $existingSettings['enthusiasm_type'] ?? 'both',
+            'enthusiasm_min_grade' => $existingSettings['enthusiasm_min_grade'] ?? 2,
+            'team_purchase_voting_enabled' => $existingSettings['team_purchase_voting_enabled'] ?? true,
         ];
+
+        if ($this->competition_type === 'gamification') {
+            $settings['hifz_enabled'] = $existingSettings['hifz_enabled'] ?? true;
+            $settings['hifz_excellent_xp'] = $existingSettings['hifz_excellent_xp'] ?? ($existingSettings['hifz_excellent'] ?? 10);
+            $settings['hifz_excellent_coins'] = $existingSettings['hifz_excellent_coins'] ?? ($existingSettings['hifz_excellent'] ?? 10);
+            $settings['hifz_good_xp'] = $existingSettings['hifz_good_xp'] ?? ($existingSettings['hifz_good'] ?? 7);
+            $settings['hifz_good_coins'] = $existingSettings['hifz_good_coins'] ?? ($existingSettings['hifz_good'] ?? 7);
+            $settings['hifz_acceptable_xp'] = $existingSettings['hifz_acceptable_xp'] ?? ($existingSettings['hifz_acceptable'] ?? 4);
+            $settings['hifz_acceptable_coins'] = $existingSettings['hifz_acceptable_coins'] ?? ($existingSettings['hifz_acceptable'] ?? 4);
+            $settings['hifz_enthusiasm_trigger'] = $existingSettings['hifz_enthusiasm_trigger'] ?? true;
+
+            $settings['review_enabled'] = $existingSettings['review_enabled'] ?? true;
+            $settings['review_excellent_xp'] = $existingSettings['review_excellent_xp'] ?? ($existingSettings['review_excellent'] ?? 5);
+            $settings['review_excellent_coins'] = $existingSettings['review_excellent_coins'] ?? ($existingSettings['review_excellent'] ?? 5);
+            $settings['review_good_xp'] = $existingSettings['review_good_xp'] ?? ($existingSettings['review_good'] ?? 3);
+            $settings['review_good_coins'] = $existingSettings['review_good_coins'] ?? ($existingSettings['review_good'] ?? 3);
+            $settings['review_enthusiasm_trigger'] = $existingSettings['review_enthusiasm_trigger'] ?? true;
+
+            $settings['attendance_enabled'] = $existingSettings['attendance_enabled'] ?? true;
+            $settings['attendance_present_xp'] = $existingSettings['attendance_present_xp'] ?? ($existingSettings['attendance_present'] ?? 4);
+            $settings['attendance_present_coins'] = $existingSettings['attendance_present_coins'] ?? ($existingSettings['attendance_present'] ?? 4);
+            $settings['attendance_late_xp'] = $existingSettings['attendance_late_xp'] ?? ($existingSettings['attendance_late'] ?? 2);
+            $settings['attendance_late_coins'] = $existingSettings['attendance_late_coins'] ?? ($existingSettings['attendance_late'] ?? 2);
+            $settings['attendance_enthusiasm_trigger'] = $existingSettings['attendance_enthusiasm_trigger'] ?? true;
+
+            if (isset($existingSettings['streak_freeze_levels'])) {
+                $settings['streak_freeze_levels'] = $existingSettings['streak_freeze_levels'];
+            }
+
+            $settings['theme'] = [
+                'name' => $this->custom_theme_name,
+                'color' => $this->custom_theme_color,
+                'currency_name' => $this->custom_theme_currency,
+                'coin_emoji' => $this->custom_theme_currency_emoji,
+                'xp_name' => $this->custom_theme_xp,
+                'xp_emoji' => $this->custom_theme_xp_emoji,
+                'team_name' => $this->custom_theme_team,
+                'team_plural' => $this->custom_theme_team_plural,
+                'team_emoji' => $this->custom_theme_team_emoji,
+                'team_possessive_your' => $this->custom_theme_team_possessive_your,
+                'team_possessive_my' => $this->custom_theme_team_possessive_my,
+            ];
+        } else {
+            $settings['hifz_enabled'] = $this->hifz_enabled;
+            $settings['hifz_excellent'] = (int) $this->hifz_excellent;
+            $settings['hifz_good'] = (int) $this->hifz_good;
+            $settings['hifz_acceptable'] = (int) $this->hifz_acceptable;
+            $settings['review_enabled'] = $this->review_enabled;
+            $settings['review_excellent'] = (int) $this->review_excellent;
+            $settings['review_good'] = (int) $this->review_good;
+            $settings['attendance_enabled'] = $this->attendance_enabled;
+            $settings['attendance_present'] = (int) $this->attendance_present;
+            $settings['attendance_late'] = (int) $this->attendance_late;
+        }
 
         $competition = Leaderboard::updateOrCreate(
             ['id' => $this->editingId, 'supervisor_id' => $supervisorId],
@@ -229,6 +452,8 @@ class Competitions extends Component
                 'start_date' => $this->start_date,
                 'end_date' => $this->end_date ?: null,
                 'is_active' => $this->is_active,
+                'competition_type' => $this->competition_type,
+                'theme_key' => $this->competition_type === 'gamification' ? $this->theme_key : null,
                 'settings' => $settings,
             ]
         );

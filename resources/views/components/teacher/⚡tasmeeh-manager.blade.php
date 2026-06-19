@@ -4,6 +4,8 @@ use Livewire\Component;
 use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
+use App\Models\StudentOdePlan;
+use App\Models\StudentOdePlanDay;
 use Illuminate\Support\Facades\Auth;
 use Flux\Flux;
 use Livewire\Attributes\On;
@@ -165,6 +167,25 @@ new class extends Component {
             ->groupBy('student_plan_id');
 
         app()->instance('tasmeeh_days_cache', $allDays);
+
+        // Preload all active student ode plans and their days to prevent N+1 queries in child components
+        $studentOdePlans = StudentOdePlan::with('ode')
+            ->whereIn('student_id', $students->pluck('id'))
+            ->where('status', 'active')
+            ->get()
+            ->keyBy('student_id');
+
+        $allOdeDays = collect();
+        if ($studentOdePlans->isNotEmpty()) {
+            $allOdeDays = StudentOdePlanDay::with('plan.ode')
+                ->whereIn('student_ode_plan_id', $studentOdePlans->pluck('id'))
+                ->orderBy('date', 'asc')
+                ->get()
+                ->groupBy('student_ode_plan_id');
+        }
+
+        app()->instance('tasmeeh_ode_plans_cache', $studentOdePlans);
+        app()->instance('tasmeeh_ode_days_cache', $allOdeDays);
 
         return [
             'studentsWithPlansPresent' => $studentsWithPlansPresent,

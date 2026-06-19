@@ -3,8 +3,10 @@
 namespace App\Livewire\Teacher;
 
 use App\Models\Attendance as AttendanceModel;
+use App\Models\GamificationTransaction;
 use App\Models\Setting;
 use App\Models\Student;
+use App\Services\GamificationService;
 use Flux\Flux;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
@@ -143,7 +145,7 @@ class Attendance extends Component
             }
             $this->records[$student->id] = 'present';
 
-            AttendanceModel::updateOrCreate(
+            $attendance = AttendanceModel::updateOrCreate(
                 [
                     'student_id' => $student->id,
                     'date' => $this->date,
@@ -154,6 +156,8 @@ class Attendance extends Component
                     'status' => 'present',
                 ]
             );
+
+            GamificationService::syncStudentAttendanceXP($attendance);
         }
 
         $this->isComplete = true;
@@ -167,12 +171,24 @@ class Attendance extends Component
             return;
         }
 
-        AttendanceModel::where('circle_id', $this->selectedCircle)
+        $attendanceIds = AttendanceModel::where('circle_id', $this->selectedCircle)
             ->whereDate('date', $this->date)
+            ->pluck('id')
+            ->toArray();
+
+        AttendanceModel::whereIn('id', $attendanceIds)->delete();
+
+        GamificationTransaction::where('reference_type', AttendanceModel::class)
+            ->whereIn('reference_id', $attendanceIds)
             ->delete();
 
         foreach ($this->students as $student) {
             $this->records[$student->id] = '';
+
+            $activeLeaderboards = GamificationService::getActiveLeaderboards($student, $this->date);
+            foreach ($activeLeaderboards as $lb) {
+                GamificationService::recalculateStudentState($student->id, $lb->id);
+            }
         }
 
         $this->dispatch('attendance-cleared');
@@ -194,7 +210,7 @@ class Attendance extends Component
                 'status' => $status,
             ]);
         } else {
-            AttendanceModel::create([
+            $existing = AttendanceModel::create([
                 'student_id' => $studentId,
                 'date' => $this->date,
                 'teacher_id' => $teacher->id,
@@ -202,6 +218,8 @@ class Attendance extends Component
                 'status' => $status,
             ]);
         }
+
+        GamificationService::syncStudentAttendanceXP($existing);
     }
 
     public function getWhatsAppMessage(Student $student, string $status = 'absent'): string

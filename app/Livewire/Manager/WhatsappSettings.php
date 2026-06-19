@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Manager;
 
+use Flux\Flux;
 use Illuminate\Support\Facades\Http;
 use Livewire\Component;
-use Flux\Flux;
 
 class WhatsappSettings extends Component
 {
@@ -20,7 +20,7 @@ class WhatsappSettings extends Component
     {
         $user = auth()->user();
         $role = class_basename(get_class($user));
-        $this->clientId = strtolower($role) . '_' . $user->id;
+        $this->clientId = strtolower($role).'_'.$user->id;
         $this->checkStatus();
     }
 
@@ -78,7 +78,7 @@ class WhatsappSettings extends Component
         $output = shell_exec('lsof -nP -i :3000 2>/dev/null');
         $isRunning = $output && strpos($output, 'node') !== false;
 
-        if (!$isRunning) {
+        if (! $isRunning) {
             // Using pclose(popen()) guarantees that PHP will not wait for the process to finish
             pclose(popen("cd {$basePath} && nohup node index.js > node.log 2>&1 &", 'r'));
             sleep(2); // Wait a moment for it to initialize

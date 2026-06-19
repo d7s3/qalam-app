@@ -34,7 +34,7 @@ class ChallengeItem extends Model
         $startDate = $this->challenge->start_date;
 
         if ($this->type === 'attendance') {
-            $attendances = \App\Models\Attendance::where('student_id', $studentId)
+            $attendances = Attendance::where('student_id', $studentId)
                 ->where('date', '>=', $startDate)
                 ->orderBy('date', 'asc')
                 ->get();
@@ -50,10 +50,10 @@ class ChallengeItem extends Model
 
                 $isFailureRecord = $isAbsent || ($isLate && $latenessNotAllowed);
 
-                if ($isFailureRecord && !in_array($record->id, $ignoredAbsences)) {
+                if ($isFailureRecord && ! in_array($record->id, $ignoredAbsences)) {
                     // Unignored failure breaks the streak permanently unless forgiven
                     $currentConsecutive = 0;
-                } elseif ($record->status === 'present' || ($isLate && !$latenessNotAllowed)) {
+                } elseif ($record->status === 'present' || ($isLate && ! $latenessNotAllowed)) {
                     $currentConsecutive++;
                     if ($currentConsecutive > $maxConsecutive) {
                         $maxConsecutive = $currentConsecutive;
@@ -85,7 +85,7 @@ class ChallengeItem extends Model
         }
 
         if ($this->type === 'exam_passed') {
-            $query = \App\Models\StudentExam::where('student_id', $studentId)
+            $query = StudentExam::where('student_id', $studentId)
                 ->where('date_time', '>=', $startDate)
                 ->where('status', 'passed')
                 ->where('score_percentage', '>=', $this->target_value);
@@ -113,9 +113,9 @@ class ChallengeItem extends Model
         $ignored = $this->metadata['ignored_absences'] ?? [];
         $noLateness = $this->metadata['no_lateness'] ?? false;
 
-        return \App\Models\Attendance::where('student_id', $studentId)
+        return Attendance::where('student_id', $studentId)
             ->where('date', '>=', $startDate)
-            ->where(function($query) use ($noLateness) {
+            ->where(function ($query) use ($noLateness) {
                 $query->where('status', 'absent');
                 if ($noLateness) {
                     $query->orWhere('status', 'late');
