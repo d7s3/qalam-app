@@ -62,6 +62,9 @@
         <flux:button wire:click="$set('activeTab', 'activities')" variant="ghost" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 rounded-none border-b-2 {{ $activeTab === 'activities' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
             الفعاليات والأنشطة
         </flux:button>
+        <flux:button wire:click="$set('activeTab', 'adjustments')" variant="ghost" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 rounded-none border-b-2 {{ $activeTab === 'adjustments' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+            التسويات
+        </flux:button>
     </div>
 
     {{-- Tab Content --}}
@@ -975,6 +978,204 @@
                                 لا توجد جولات مجدولة حالياً. الرجاء إضافة جولات داخل إعدادات الفعالية في الجدول أعلاه لتظهر هنا.
                             </div>
                         @endforelse
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- TAB: ADJUSTMENTS --}}
+        @if($activeTab === 'adjustments')
+            <div class="space-y-8">
+                <div class="space-y-6 max-w-3xl">
+                    <div>
+                        <flux:heading size="lg">التسويات اليدوية (إضافة وخصم)</flux:heading>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Target Type Selector -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">فئة المستهدف</label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" wire:click="$set('adjTargetType', 'individual')" class="flex-1 py-2 px-4 rounded-xl border text-center transition-all text-sm font-semibold {{ $adjTargetType === 'individual' ? 'bg-purple-50 border-purple-300 text-purple-700 dark:bg-purple-950/30 dark:border-purple-800 dark:text-purple-400' : 'bg-white border-zinc-200 text-zinc-700 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300' }}">
+                                    الأفراد (الطلاب)
+                                </button>
+                                <button type="button" wire:click="$set('adjTargetType', 'team')" class="flex-1 py-2 px-4 rounded-xl border text-center transition-all text-sm font-semibold {{ $adjTargetType === 'team' ? 'bg-purple-50 border-purple-300 text-purple-700 dark:bg-purple-950/30 dark:border-purple-800 dark:text-purple-400' : 'bg-white border-zinc-200 text-zinc-700 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300' }}">
+                                    المجموعات (الأسر)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Action Type Selector -->
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-zinc-800 dark:text-zinc-200 font-bold">نوع العملية</label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" wire:click="$set('adjActionType', 'add')" class="flex-1 py-2 px-4 rounded-xl border text-center transition-all text-sm font-semibold {{ $adjActionType === 'add' ? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400' : 'bg-white border-zinc-200 text-zinc-700 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300' }}">
+                                    إضافة
+                                </button>
+                                <button type="button" wire:click="$set('adjActionType', 'deduct')" class="flex-1 py-2 px-4 rounded-xl border text-center transition-all text-sm font-semibold {{ $adjActionType === 'deduct' ? 'bg-rose-50 border-rose-300 text-rose-700 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-400' : 'bg-white border-zinc-200 text-zinc-700 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300' }}">
+                                    خصم
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Target Select -->
+                    @if($adjTargetType === 'individual')
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">الطالب المستهدف</label>
+                            <select wire:model="adjStudentId" class="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5 text-zinc-800 dark:text-zinc-200 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm">
+                                <option value="">اختر طالباً...</option>
+                                @foreach($studentsGrouped as $circleName => $circleStudents)
+                                    <optgroup label="حلقة: {{ $circleName }}">
+                                        @foreach($circleStudents as $std)
+                                            <option value="{{ $std->id }}">{{ $std->name }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endforeach
+                            </select>
+                            @error('adjStudentId')
+                                <span class="text-xs text-rose-500 mt-1 block">{{ $message }}</span>
+                            @enderror
+                        </div>
+                    @else
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">المجموعة المستهدفة</label>
+                            <select wire:model="adjTeamId" class="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5 text-zinc-800 dark:text-zinc-200 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm">
+                                <option value="">اختر مجموعة/أسرة...</option>
+                                @foreach($dbTeams as $team)
+                                    <option value="{{ $team->id }}">{{ $team->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('adjTeamId')
+                                <span class="text-xs text-rose-500 mt-1 block">{{ $message }}</span>
+                            @enderror
+                        </div>
+                    @endif
+
+                    <!-- Values inputs -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- XP -->
+                        <div class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/10 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">نقاط الخبرة (XP)</span>
+                                <flux:switch wire:model.live="adjHasXp" />
+                            </div>
+                            @if($adjHasXp)
+                                <flux:input type="number" min="1" wire:model="adjXpVal" placeholder="قيمة النقاط" required />
+                            @endif
+                        </div>
+
+                        <!-- Coins -->
+                        <div class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/10 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">العملات / العمولة</span>
+                                <flux:switch wire:model.live="adjHasCoins" />
+                            </div>
+                            @if($adjHasCoins)
+                                <flux:input type="number" min="1" wire:model="adjCoinsVal" placeholder="قيمة العملات" required />
+                            @endif
+                        </div>
+                    </div>
+                    @error('adjHasXp')
+                        <span class="text-xs text-rose-500 mt-1 block">{{ $message }}</span>
+                    @enderror
+
+                    <!-- Description -->
+                    <div class="space-y-2">
+                        <flux:input label="السبب" wire:model="adjDescription" placeholder="أدخل سبب إجراء هذا التعديل اليدوي..." required />
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="flex justify-end">
+                        <flux:button wire:click="applyAdjustment" variant="primary" class="bg-purple-600 hover:bg-purple-700 text-white border-none">
+                            تطبيق التسوية
+                        </flux:button>
+                    </div>
+                </div>
+
+                <hr class="border-zinc-200 dark:border-zinc-800" />
+
+                <!-- Adjustments History -->
+                <div class="space-y-4">
+                    <flux:heading size="md">سجل التسويات اليدوية السابقة</flux:heading>
+                    <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+                        <table class="w-full text-sm text-right text-zinc-500 dark:text-zinc-400">
+                            <thead class="text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
+                                <tr>
+                                    <th class="px-6 py-3">المستهدف</th>
+                                    <th class="px-6 py-3">نوع العملية</th>
+                                    <th class="px-6 py-3">التعديلات</th>
+                                    <th class="px-6 py-3">السبب</th>
+                                    <th class="px-6 py-3">التاريخ</th>
+                                    <th class="px-6 py-3 text-center">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
+                                @forelse($dbAdjustments as $adj)
+                                    <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/10">
+                                        <td class="px-6 py-4 font-bold text-zinc-900 dark:text-zinc-100">
+                                            @if($adj->student)
+                                                <div class="flex flex-col">
+                                                    <span>{{ $adj->student->name }}</span>
+                                                    <span class="text-[10px] text-zinc-400 font-medium">حلقة: {{ $adj->student->circle?->name ?? 'بدون حلقة' }}</span>
+                                                </div>
+                                            @elseif($adj->team)
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="size-2 rounded-full" style="background-color: {{ $adj->team->color }}"></span>
+                                                    <span>{{ $adj->team->name }} (أسرة)</span>
+                                                </div>
+                                            @else
+                                                <span class="text-zinc-400">-</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            @if(($adj->amount > 0) || ($adj->xp_amount > 0))
+                                                <span class="inline-flex items-center bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded-md font-bold">
+                                                    إضافة
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 text-xs px-2 py-0.5 rounded-md font-bold">
+                                                    خصم
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="px-6 py-4 text-xs font-semibold">
+                                            <div class="flex flex-col gap-1">
+                                                @if($adj->xp_amount != 0)
+                                                    <span class="{{ $adj->xp_amount > 0 ? 'text-emerald-600' : 'text-rose-600' }}">
+                                                        {{ $adj->xp_amount > 0 ? '+' : '' }}{{ $adj->xp_amount }} XP
+                                                    </span>
+                                                @endif
+                                                @if($adj->amount != 0)
+                                                    <span class="{{ $adj->amount > 0 ? 'text-emerald-600' : 'text-rose-600' }}">
+                                                        {{ $adj->amount > 0 ? '+' : '' }}{{ $adj->amount }} عملة
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-xs">
+                                            {{ str_replace(['تسوية يدوية (من المشرف): ', 'تسوية يدوية للأسرة (من المشرف): '], '', $adj->description) }}
+                                        </td>
+                                        <td class="px-6 py-4 text-xs text-zinc-400">
+                                            {{ $adj->created_at->format('Y-m-d H:i') }}
+                                        </td>
+                                        <td class="px-6 py-4 text-center">
+                                            <flux:button wire:click="deleteAdjustment({{ $adj->id }})" wire:confirm="هل تريد حذف وتراجع هذه التسوية؟" size="xs" variant="ghost" class="text-rose-500 hover:text-rose-600">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                                                </svg>
+                                            </flux:button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                                            لا توجد تسويات مسجلة حالياً.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

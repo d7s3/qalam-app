@@ -1223,3 +1223,80 @@ it('records activity winners, distributes XP and coins, and allows deletion reve
     // Verify transactions deleted
     expect(GamificationTransaction::where('reference_type', GamificationActivityWinner::class)->count())->toBe(0);
 });
+
+it('allows supervisors to apply and delete manual adjustments', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    // Create a team first
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'أسرة البركة',
+        'coins' => 100,
+    ]);
+
+    $component = Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id]);
+
+    // Test 1: Apply individual addition adjustment
+    $component->set('adjTargetType', 'individual')
+        ->set('adjStudentId', $this->student->id)
+        ->set('adjActionType', 'add')
+        ->set('adjHasXp', true)
+        ->set('adjXpVal', 50)
+        ->set('adjHasCoins', true)
+        ->set('adjCoinsVal', 30)
+        ->set('adjDescription', 'مشاركة متميزة في الحفل')
+        ->call('applyAdjustment')
+        ->assertHasNoErrors();
+
+    // Verify individual adjustments applied
+    $xp = GamificationService::getStudentXP($this->student->id, $this->leaderboard->id);
+    expect($xp)->toBe(50);
+
+    $state = GamificationStudentState::where('leaderboard_id', $this->leaderboard->id)
+        ->where('student_id', $this->student->id)
+        ->first();
+    expect($state->coins)->toBe(30);
+
+    // Verify transaction exists
+    $tx1 = GamificationTransaction::where('student_id', $this->student->id)
+        ->where('description', 'like', '%مشاركة متميزة في الحفل')
+        ->first();
+    expect($tx1)->not->toBeNull();
+    expect($tx1->amount)->toBe(30);
+    expect($tx1->xp_amount)->toBe(50);
+
+    // Test 2: Apply team deduction adjustment
+    $component->set('adjTargetType', 'team')
+        ->set('adjTeamId', $team->id)
+        ->set('adjActionType', 'deduct')
+        ->set('adjHasXp', false)
+        ->set('adjHasCoins', true)
+        ->set('adjCoinsVal', 20)
+        ->set('adjDescription', 'تخريب الممتلكات العامة')
+        ->call('applyAdjustment')
+        ->assertHasNoErrors();
+
+    // Verify team coins decreased (100 - 20 = 80)
+    $team->refresh();
+    expect($team->coins)->toBe(80);
+
+    $tx2 = GamificationTransaction::where('team_id', $team->id)
+        ->where('description', 'like', '%تخريب الممتلكات العامة')
+        ->first();
+    expect($tx2)->not->toBeNull();
+    expect($tx2->amount)->toBe(-20);
+
+    // Test 3: Delete adjustments
+    // Delete individual adjustment
+    $component->call('deleteAdjustment', $tx1->id);
+    $xp = GamificationService::getStudentXP($this->student->id, $this->leaderboard->id);
+    expect($xp)->toBe(0);
+
+    $state->refresh();
+    expect($state->coins)->toBe(0);
+
+    // Delete team adjustment
+    $component->call('deleteAdjustment', $tx2->id);
+    $team->refresh();
+    expect($team->coins)->toBe(100); // restored back to 100
+});

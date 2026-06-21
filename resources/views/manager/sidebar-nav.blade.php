@@ -88,4 +88,8 @@
         wire:navigate>
         إعدادات الواتساب
     </flux:sidebar.item>
+    <flux:sidebar.item icon="document-text" :href="route('manager.api-docs')" :current="request()->routeIs('manager.api-docs')"
+        wire:navigate>
+        توثيق الـ API
+    </flux:sidebar.item>
 </flux:sidebar.group>

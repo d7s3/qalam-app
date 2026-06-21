@@ -91,6 +91,7 @@ Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manage
     Route::view('/exam-levels', 'manager.exam-levels')->name('exam-levels');
     Route::view('/student-exams', 'manager.student-exams')->name('student-exams');
     Route::view('/tasks', 'manager.tasks')->name('tasks');
+    Route::view('/api-docs', 'manager.api-docs')->name('api-docs');
 });
 
 // القاسم المشترك لمسارات الضيوف (Guest Routes) لكل دور

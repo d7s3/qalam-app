@@ -16,6 +16,11 @@ it('allows manager to access manager dashboard', function () {
     actingAs($manager, 'manager')->get('/manager/dashboard')->assertStatus(200);
 });
 
+it('allows manager to access manager API documentation', function () {
+    $manager = Manager::factory()->create();
+    actingAs($manager, 'manager')->get('/manager/api-docs')->assertStatus(200)->assertSee('توثيق واجهات البرمجة');
+});
+
 it('prevents student from accessing manager dashboard and redirects them', function () {
     $student = Student::factory()->create();
     $response = actingAs($student, 'student')->get('/manager/dashboard');

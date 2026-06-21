@@ -265,6 +265,25 @@ class ManageGamification extends Component
 
     public array $roundRanksWinners = [];
 
+    // Manual Adjustments State
+    public string $adjTargetType = 'individual';
+
+    public ?int $adjStudentId = null;
+
+    public ?int $adjTeamId = null;
+
+    public string $adjActionType = 'add';
+
+    public bool $adjHasXp = false;
+
+    public int $adjXpVal = 0;
+
+    public bool $adjHasCoins = false;
+
+    public int $adjCoinsVal = 0;
+
+    public string $adjDescription = '';
+
     public function mount($competitionId): void
     {
         $this->competitionId = $competitionId;
@@ -1806,6 +1825,117 @@ class ManageGamification extends Component
         return Student::whereIn('circle_id', $circleIds)->get();
     }
 
+    public function applyAdjustment(): void
+    {
+        $rules = [
+            'adjTargetType' => 'required|in:individual,team',
+            'adjActionType' => 'required|in:add,deduct',
+            'adjDescription' => 'required|string|max:255',
+        ];
+
+        if ($this->adjTargetType === 'individual') {
+            $rules['adjStudentId'] = 'required|exists:students,id';
+        } else {
+            $rules['adjTeamId'] = 'required|exists:gamification_teams,id';
+        }
+
+        if (! $this->adjHasXp && ! $this->adjHasCoins) {
+            $this->addError('adjHasXp', 'يجب اختيار تعديل نقاط XP أو تعديل العملات أو كليهما لإجراء التسوية اليدوية.');
+
+            return;
+        }
+
+        if ($this->adjHasXp) {
+            $rules['adjXpVal'] = 'required|integer|min:1';
+        }
+        if ($this->adjHasCoins) {
+            $rules['adjCoinsVal'] = 'required|integer|min:1';
+        }
+
+        $this->validate($rules);
+
+        $xp = $this->adjHasXp ? $this->adjXpVal : 0;
+        $coins = $this->adjHasCoins ? $this->adjCoinsVal : 0;
+
+        if ($this->adjActionType === 'deduct') {
+            $xp = -$xp;
+            $coins = -$coins;
+        }
+
+        DB::transaction(function () use ($xp, $coins) {
+            if ($this->adjTargetType === 'individual') {
+                GamificationTransaction::create([
+                    'leaderboard_id' => $this->competitionId,
+                    'student_id' => $this->adjStudentId,
+                    'team_id' => null,
+                    'type' => 'earn',
+                    'amount' => $coins,
+                    'xp_amount' => $xp,
+                    'description' => 'تسوية يدوية (من المشرف): '.$this->adjDescription,
+                ]);
+
+                GamificationService::recalculateStudentState($this->adjStudentId, $this->competitionId);
+                GamificationService::syncStudentBadges($this->adjStudentId, $this->competitionId);
+            } else {
+                GamificationTransaction::create([
+                    'leaderboard_id' => $this->competitionId,
+                    'student_id' => null,
+                    'team_id' => $this->adjTeamId,
+                    'type' => 'earn',
+                    'amount' => $coins,
+                    'xp_amount' => $xp,
+                    'description' => 'تسوية يدوية للأسرة (من المشرف): '.$this->adjDescription,
+                ]);
+
+                $team = GamificationTeam::findOrFail($this->adjTeamId);
+                $team->coins += $coins;
+                if ($team->coins < 0) {
+                    $team->coins = 0;
+                }
+                $team->save();
+            }
+        });
+
+        Flux::toast('تم تطبيق التسوية بنجاح', variant: 'success');
+
+        $this->reset([
+            'adjStudentId',
+            'adjTeamId',
+            'adjXpVal',
+            'adjCoinsVal',
+            'adjHasXp',
+            'adjHasCoins',
+            'adjDescription',
+        ]);
+    }
+
+    public function deleteAdjustment(int $id): void
+    {
+        $transaction = GamificationTransaction::findOrFail($id);
+
+        DB::transaction(function () use ($transaction) {
+            if ($transaction->student_id) {
+                $studentId = $transaction->student_id;
+                $transaction->delete();
+
+                GamificationService::recalculateStudentState($studentId, $this->competitionId);
+                GamificationService::syncStudentBadges($studentId, $this->competitionId);
+            } else {
+                $team = GamificationTeam::find($transaction->team_id);
+                if ($team) {
+                    $team->coins -= $transaction->amount;
+                    if ($team->coins < 0) {
+                        $team->coins = 0;
+                    }
+                    $team->save();
+                }
+                $transaction->delete();
+            }
+        });
+
+        Flux::toast('تم حذف وتراجع التسوية بنجاح', variant: 'success');
+    }
+
     public function loadDistributionData(): void
     {
         $teams = GamificationTeam::where('leaderboard_id', $this->competitionId)->pluck('id')->toArray();
@@ -1888,6 +2018,17 @@ class ManageGamification extends Component
             ->orderBy('round_date', 'asc')
             ->get();
 
+        $studentsGrouped = Student::with('circle')
+            ->whereIn('circle_id', $circleIds)
+            ->get()
+            ->groupBy(fn ($s) => $s->circle?->name ?? 'بدون حلقة');
+
+        $dbAdjustments = GamificationTransaction::with(['student', 'team'])
+            ->where('leaderboard_id', $this->competitionId)
+            ->where('description', 'like', 'تسوية يدوية%')
+            ->latest()
+            ->get();
+
         return view('livewire.supervisor.manage-gamification', [
             'milestones' => $milestones,
             'dbBadges' => $dbBadges,
@@ -1900,6 +2041,8 @@ class ManageGamification extends Component
             'dbTeachers' => $dbTeachers,
             'dbActivities' => $dbActivities,
             'dbRounds' => $dbRounds,
+            'studentsGrouped' => $studentsGrouped,
+            'dbAdjustments' => $dbAdjustments,
         ])->layout('layouts.role-shell');
     }
 }

@@ -89,6 +89,7 @@ return array(
     'Laravel\\Tinker\\' => array($vendorDir . '/laravel/tinker/src'),
     'Laravel\\SerializableClosure\\' => array($vendorDir . '/laravel/serializable-closure/src'),
     'Laravel\\Sentinel\\' => array($vendorDir . '/laravel/sentinel/src'),
+    'Laravel\\Sanctum\\' => array($vendorDir . '/laravel/sanctum/src'),
     'Laravel\\Sail\\' => array($vendorDir . '/laravel/sail/src'),
     'Laravel\\Roster\\' => array($vendorDir . '/laravel/roster/src'),
     'Laravel\\Pulse\\' => array($vendorDir . '/laravel/pulse/src'),
