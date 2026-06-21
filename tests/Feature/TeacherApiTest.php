@@ -195,3 +195,101 @@ it('saves student attendance and awards gamification XP', function () {
         ->first();
     expect($state->coins)->toBe(15); // from leaderboard settings
 });
+
+it('performs incremental sync when last_synced_at is passed', function () {
+    $token = $this->teacher->createToken('test')->plainTextToken;
+
+    // Create an attendance record
+    $attendance = Attendance::create([
+        'student_id' => $this->student->id,
+        'teacher_id' => $this->teacher->id,
+        'circle_id' => $this->circle->id,
+        'date' => now()->format('Y-m-d'),
+        'status' => 'present',
+    ]);
+
+    // Let's call with last_synced_at of 1 hour ago
+    $lastSynced = now()->subHour()->toISOString();
+
+    $response = $this->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson('/api/teacher/attendance?last_synced_at='.$lastSynced);
+
+    $response->assertStatus(200)
+        ->assertJsonStructure([
+            'circles',
+            'students',
+            'attendances' => [
+                '*' => ['id', 'student_id', 'status', 'date', 'updated_at'],
+            ],
+            'server_time',
+        ]);
+
+    expect($response->json('attendances'))->toHaveCount(1);
+    expect($response->json('attendances.0.id'))->toBe($attendance->id);
+
+    // Call with last_synced_at of now
+    $lastSyncedNow = now()->addMinute()->toISOString();
+    $response2 = $this->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson('/api/teacher/attendance?last_synced_at='.$lastSyncedNow);
+
+    $response2->assertStatus(200);
+    expect($response2->json('attendances'))->toHaveCount(0);
+});
+
+it('saves student attendance in batch mode with Last-Write-Wins conflict resolution', function () {
+    $token = $this->teacher->createToken('test')->plainTextToken;
+
+    // 1. Save new attendance via batch mode (sequential array)
+    $response = $this->withHeader('Authorization', 'Bearer '.$token)
+        ->postJson('/api/teacher/attendance', [
+            'records' => [
+                [
+                    'student_id' => $this->student->id,
+                    'date' => now()->format('Y-m-d'),
+                    'status' => 'absent',
+                    'updated_at' => now()->subMinutes(10)->toISOString(),
+                ],
+            ],
+        ]);
+
+    $response->assertStatus(200)
+        ->assertJsonStructure(['message', 'synced_attendances']);
+
+    $attendance = Attendance::where('student_id', $this->student->id)->whereDate('date', now())->first();
+    expect($attendance)->not->toBeNull();
+    expect($attendance->status)->toBe('absent');
+
+    // 2. Attempt to update with an OLDER updated_at timestamp (Conflict: should ignore)
+    $responseConflict = $this->withHeader('Authorization', 'Bearer '.$token)
+        ->postJson('/api/teacher/attendance', [
+            'records' => [
+                [
+                    'student_id' => $this->student->id,
+                    'date' => now()->format('Y-m-d'),
+                    'status' => 'present',
+                    'updated_at' => now()->subMinutes(20)->toISOString(), // older than subMinutes(10)
+                ],
+            ],
+        ]);
+
+    $responseConflict->assertStatus(200);
+    $attendance->refresh();
+    expect($attendance->status)->toBe('absent'); // Kept 'absent' due to LWW
+
+    // 3. Update with a NEWER updated_at timestamp (LWW: should update)
+    $responseUpdate = $this->withHeader('Authorization', 'Bearer '.$token)
+        ->postJson('/api/teacher/attendance', [
+            'records' => [
+                [
+                    'student_id' => $this->student->id,
+                    'date' => now()->format('Y-m-d'),
+                    'status' => 'present',
+                    'updated_at' => now()->toISOString(), // newer
+                ],
+            ],
+        ]);
+
+    $responseUpdate->assertStatus(200);
+    $attendance->refresh();
+    expect($attendance->status)->toBe('present'); // Updated to 'present'
+});
