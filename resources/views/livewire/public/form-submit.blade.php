@@ -1,50 +1,97 @@
-<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<div>
+    @push('meta')
+        <!-- Open Graph Tags for WhatsApp & Social Media Sharing -->
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="{{ url()->current() }}">
+        <meta property="og:title" content="{{ $form->title }}">
+        <meta property="og:description" content="{{ $form->description ?? 'الرجاء تعبئة هذا النموذج المخصص.' }}">
+        @if($form->header_image_path)
+            <meta property="og:image" content="{{ asset('storage/' . $form->header_image_path) }}">
+        @else
+            <meta property="og:image" content="{{ asset('images/altag_logo.png') }}">
+        @endif
+        <meta property="og:site_name" content="مجمع التاج القرآني">
 
-    <!-- Open Graph Tags for WhatsApp & Social Media Sharing -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ url()->current() }}">
-    <meta property="og:title" content="{{ $form->title }}">
-    <meta property="og:description" content="{{ $form->description ?? 'الرجاء تعبئة هذا النموذج المخصص.' }}">
-    @if($form->header_image_path)
-        <meta property="og:image" content="{{ asset('storage/' . $form->header_image_path) }}">
-    @else
-        <meta property="og:image" content="{{ asset('images/altag_logo.png') }}">
-    @endif
-    <meta property="og:site_name" content="مجمع التاج القرآني">
+        <title>{{ $form->title }} - مجمع التاج القرآني</title>
+    @endpush
 
-    <title>{{ $form->title }} - مجمع التاج القرآني</title>
-
-    <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @fluxAppearance
-
-    <style>
-        :root {
-            --theme-color: {{ $form->color }};
-            --theme-color-hover: color-mix(in srgb, {{ $form->color }} 85%, black);
-        }
-        .accent-btn {
-            background-color: var(--theme-color) !important;
-            color: white !important;
-        }
-        .accent-btn:hover {
-            background-color: var(--theme-color-hover) !important;
-        }
-        .accent-ring:focus {
-            --tw-ring-color: var(--theme-color) !important;
-        }
-    </style>
-</head>
-<body class="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased py-8 px-4 flex flex-col items-center">
+    @push('styles')
+        <style>
+            :root {
+                --theme-color: {{ $form->color }};
+                --theme-color-hover: color-mix(in srgb, {{ $form->color }} 85%, black);
+                --color-accent: var(--theme-color);
+                --color-accent-content: white;
+                --color-accent-foreground: white;
+            }
+            body {
+                background-color: color-mix(in srgb, var(--theme-color) 6%, #fafafa) !important;
+            }
+            @media (prefers-color-scheme: dark) {
+                body {
+                    background-color: color-mix(in srgb, var(--theme-color) 6%, #0a0a0a) !important;
+                }
+            }
+            .accent-btn {
+                background-color: var(--theme-color) !important;
+                color: white !important;
+            }
+            .accent-btn:hover {
+                background-color: var(--theme-color-hover) !important;
+            }
+            .accent-ring:focus {
+                --tw-ring-color: var(--theme-color) !important;
+            }
+            .field-label {
+                border-right: 3px solid var(--theme-color);
+                padding-right: 0.75rem;
+            }
+            
+            /* Inputs and control borders */
+            .accent-ring, select, input[type="date"], textarea {
+                border-color: color-mix(in srgb, var(--theme-color) 35%, #d4d4d8) !important;
+            }
+            @media (prefers-color-scheme: dark) {
+                .accent-ring, select, input[type="date"], textarea {
+                    border-color: color-mix(in srgb, var(--theme-color) 35%, #27272a) !important;
+                }
+            }
+            .accent-ring:focus, .accent-ring:focus-within, select:focus, input[type="date"]:focus, textarea:focus {
+                border-color: var(--theme-color) !important;
+                --tw-ring-color: var(--theme-color) !important;
+            }
+            
+            /* Theme borders and check box inputs */
+            .theme-border {
+                border-color: color-mix(in srgb, var(--theme-color) 35%, #d4d4d8) !important;
+            }
+            @media (prefers-color-scheme: dark) {
+                .theme-border {
+                    border-color: color-mix(in srgb, var(--theme-color) 35%, #27272a) !important;
+                }
+            }
+            
+            /* Dashed image border */
+            .theme-dashed-border {
+                border-color: color-mix(in srgb, var(--theme-color) 60%, #d4d4d8) !important;
+                background-color: color-mix(in srgb, var(--theme-color) 2%, #fafafa) !important;
+            }
+            @media (prefers-color-scheme: dark) {
+                .theme-dashed-border {
+                    border-color: color-mix(in srgb, var(--theme-color) 60%, #27272a) !important;
+                    background-color: color-mix(in srgb, var(--theme-color) 2%, #0a0a0a) !important;
+                }
+            }
+            .theme-dashed-border:hover {
+                background-color: color-mix(in srgb, var(--theme-color) 6%, #f4f4f5) !important;
+            }
+            @media (prefers-color-scheme: dark) {
+                .theme-dashed-border:hover {
+                    background-color: color-mix(in srgb, var(--theme-color) 6%, #09090b) !important;
+                }
+            }
+        </style>
+    @endpush
     
     <div class="w-full max-w-2xl space-y-6">
         <!-- Logo -->
@@ -100,7 +147,7 @@
                             @endphp
 
                             <div class="space-y-2">
-                                <label class="block text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                                <label class="block text-sm font-semibold text-zinc-800 dark:text-zinc-200 field-label">
                                     {{ $label }}
                                     @if($required)
                                         <span class="text-rose-500">*</span>
@@ -132,7 +179,7 @@
 
                                 <!-- Multiselect Field -->
                                 @if($field['type'] === 'multiselect')
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-lg border border-zinc-200 dark:border-zinc-850">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-lg border border-zinc-200 dark:border-zinc-850 theme-border">
                                         @foreach($field['options'] ?? [] as $optVal)
                                             <label class="flex items-center gap-2 cursor-pointer text-sm">
                                                 <input type="checkbox" wire:model="answers.{{ $fieldId }}" value="{{ $optVal }}" class="rounded border-zinc-300 dark:border-zinc-700 text-accent focus:ring-accent" />
@@ -146,7 +193,7 @@
                                 <!-- Image Field -->
                                 @if($field['type'] === 'image')
                                     <div class="space-y-3">
-                                        <div class="flex items-center justify-center border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg p-6 bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors relative cursor-pointer">
+                                        <div class="flex items-center justify-center border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg p-6 bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors relative cursor-pointer theme-dashed-border">
                                             <input type="file" wire:model="temp_uploads.{{ $fieldId }}" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
                                             <div class="text-center space-y-2">
                                                 <flux:icon name="photo" class="size-8 mx-auto text-zinc-400" />
@@ -188,6 +235,4 @@
         @endif
     </div>
 
-    @fluxScripts
-</body>
-</html>
+</div>

@@ -1,3 +1,20 @@
+@php
+    $role = null;
+    $guards = [
+        'manager' => 'manager',
+        'supervisor' => 'supervisor',
+        'teacher' => 'teacher',
+        'student' => 'student',
+        'guardian' => 'guardian',
+    ];
+    foreach($guards as $roleKey => $guardName) {
+        if (auth()->guard($guardName)->check()) {
+            $role = $roleKey;
+            break;
+        }
+    }
+    $authUser = $role ? auth()->guard($role)->user() : null;
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl">
     <head>
@@ -11,22 +28,7 @@
             </flux:sidebar.header>
 
             <flux:sidebar.nav>
-                @php
-                    $role = null;
-                    $guards = [
-                        'manager' => 'manager',
-                        'supervisor' => 'supervisor',
-                        'teacher' => 'teacher',
-                        'student' => 'student',
-                        'guardian' => 'guardian',
-                    ];
-                    foreach($guards as $roleKey => $guardName) {
-                        if (auth()->guard($guardName)->check()) {
-                            $role = $roleKey;
-                            break;
-                        }
-                    }
-                @endphp
+
 
                 @if($role && view()->exists("{$role}.sidebar-nav"))
                     @include("{$role}.sidebar-nav")
@@ -43,7 +45,7 @@
 
 
             
-            <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
+            <x-desktop-user-menu class="hidden lg:block" :name="$authUser?->name ?? ''" />
         </flux:sidebar>
 
         <!-- Mobile User Menu -->
@@ -52,9 +54,8 @@
 
             <flux:spacer />
 
-            <flux:dropdown position="top" align="end">
                 <flux:profile
-                    :initials="auth()->user()->initials()"
+                    :initials="$authUser?->initials() ?? ''"
                     icon-trailing="chevron-down"
                 />
 
@@ -63,13 +64,13 @@
                         <div class="p-0 text-sm font-normal">
                             <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
                                 <flux:avatar
-                                    :name="auth()->user()->name"
-                                    :initials="auth()->user()->initials()"
+                                    :name="$authUser?->name ?? ''"
+                                    :initials="$authUser?->initials() ?? ''"
                                 />
 
                                 <div class="grid flex-1 text-start text-sm leading-tight">
-                                    <flux:heading class="truncate">{{ auth()->user()->name }}</flux:heading>
-                                    <flux:text class="truncate">{{ auth()->user()->email }}</flux:text>
+                                    <flux:heading class="truncate">{{ $authUser?->name ?? '' }}</flux:heading>
+                                    <flux:text class="truncate">{{ $authUser?->email ?? '' }}</flux:text>
                                 </div>
                             </div>
                         </div>
