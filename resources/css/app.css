@@ -78,7 +78,7 @@
 }
 
 [data-flux-label] {
-    @apply  mb-0! leading-tight!;
+    @apply mb-0! leading-tight!;
 }
 
 input:focus[data-flux-control],
@@ -95,6 +95,7 @@ select:focus[data-flux-control] {
 [data-flux-sidebar-item][data-current] {
     @apply !text-accent;
 }
+
 .dark [data-flux-sidebar-item][data-current] {
     @apply !text-white;
 }
@@ -121,6 +122,11 @@ select:focus[data-flux-control] {
 
 /* Plan-creator fill progress bar */
 @keyframes shimmer {
-    0%   { left: -33%; }
-    100% { left: 100%; }
+    0% {
+        left: -33%;
+    }
+
+    100% {
+        left: 100%;
+    }
 }
