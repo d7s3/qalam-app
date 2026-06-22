@@ -70,4 +70,8 @@
         :current="request()->routeIs('supervisor.whatsapp-settings')" wire:navigate>
         إعدادات الواتساب
     </flux:sidebar.item>
+    <flux:sidebar.item class="[&_svg]:bg-[#14b8a6] hover:[&_svg]:bg-[#0d9488]" icon="document-text" :href="route('supervisor.forms')"
+        :current="request()->routeIs('supervisor.forms*')" wire:navigate>
+        إدارة النماذج
+    </flux:sidebar.item>
 </flux:sidebar.group>

@@ -30,20 +30,54 @@
         </div>
     </div>
 
+    @if (count($selectedStudentIds) > 0)
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
+            <div class="flex items-center gap-2">
+                <span class="flex h-2 w-2 rounded-full bg-indigo-600 dark:bg-indigo-400"></span>
+                <span class="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                    تم تحديد {{ count($selectedStudentIds) }} طالب
+                </span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <flux:button size="sm" variant="filled" x-on:click="$flux.modal('bulk-circle-modal').show()">
+                    تغيير الحلقة
+                </flux:button>
+                <flux:button size="sm" variant="filled" x-on:click="$flux.modal('bulk-joined-at-modal').show()">
+                    تغيير تاريخ الالتحاق
+                </flux:button>
+                <flux:button size="sm" variant="filled" x-on:click="$flux.modal('bulk-status-modal').show()">
+                    تغيير حالة الطالب
+                </flux:button>
+                <flux:button size="sm" variant="filled" wire:click="applyBulkResetMagicLinks" wire:confirm="هل أنت متأكد من إعادة تعيين الروابط السحرية للطلاب المحددين؟">
+                    تحديث الروابط السحرية
+                </flux:button>
+                <flux:button size="sm" color="red" variant="filled" x-on:click="$flux.modal('bulk-delete-modal').show()">
+                    حذف الحسابات
+                </flux:button>
+            </div>
+        </div>
+    @endif
+
     <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs overflow-hidden">
         <flux:table class="w-full">
             <flux:table.columns>
+                <flux:table.column class="w-10">
+                    <flux:checkbox wire:model.live="selectAll" />
+                </flux:table.column>
                 <flux:table.column>{{ __('الطالب') }}</flux:table.column>
                 <flux:table.column class="hidden md:table-cell">{{ __('الحلقة') }}</flux:table.column>
                 <flux:table.column class="hidden sm:table-cell">{{ __('حالة الطالب') }}</flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
             </flux:table.columns>
-
+ 
             <flux:table.rows>
                 @forelse ($students as $student)
                     <flux:table.row :key="$student->id"
                         class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                         x-on:click="$flux.modal('student-modal').show(); $wire.edit({{ $student->id }})">
+                        <flux:table.cell x-on:click.stop>
+                            <flux:checkbox wire:model.live="selectedStudentIds" value="{{ $student->id }}" />
+                        </flux:table.cell>
                         <flux:table.cell>
                             <div class="flex flex-col">
                                 <span class="font-bold text-zinc-900 dark:text-white">{{ $student->name }}</span>
@@ -87,7 +121,7 @@
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="4" class="text-center py-16">
+                        <flux:table.cell colspan="5" class="text-center py-16">
                             <flux:text class="text-zinc-400">لا يوجد طلاب ضمن حلقاتك</flux:text>
                         </flux:table.cell>
                     </flux:table.row>
@@ -327,6 +361,101 @@
                     </div>
                 </div>
             @endif
+    </flux:modal>
+
+    {{-- Bulk Change Circle Modal --}}
+    <flux:modal name="bulk-circle-modal" class="md:w-[450px]">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">تغيير الحلقة للمحددين</flux:heading>
+                <flux:subheading>سيتم نقل الطلاب المحددين إلى الحلقة الجديدة</flux:subheading>
+            </div>
+            
+            <flux:select label="الحلقة الدراسية الجديدة" wire:model="bulkCircleId" placeholder="اختر الحلقة...">
+                <flux:select.option value="">بدون حلقة</flux:select.option>
+                @foreach ($circles as $circle)
+                    <flux:select.option :value="$circle->id">{{ $circle->name }} ({{ $circle->stage->name }})</flux:select.option>
+                @endforeach
+            </flux:select>
+            
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" x-on:click="$flux.modal('bulk-circle-modal').close()">إلغاء</flux:button>
+                <flux:button variant="primary" wire:click="applyBulkCircle">تطبيق</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Bulk Change Joined At Modal --}}
+    <flux:modal name="bulk-joined-at-modal" class="md:w-[450px]">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">تغيير تاريخ الالتحاق للمحددين</flux:heading>
+                <flux:subheading>تحديث تاريخ الالتحاق لجميع الطلاب المحددين</flux:subheading>
+            </div>
+            
+            <livewire:shared.hijri-datepicker wire:model="bulkJoinedAt" label="{{ __('تاريخ الالتحاق الجديد') }}" />
+            
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" x-on:click="$flux.modal('bulk-joined-at-modal').close()">إلغاء</flux:button>
+                <flux:button variant="primary" wire:click="applyBulkJoinedAt">تطبيق</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Bulk Change Status Modal --}}
+    <flux:modal name="bulk-status-modal" class="md:w-[450px]">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">تغيير حالة الطلاب المحددين</flux:heading>
+                <flux:subheading>تحديث حالة جميع الطلاب المحددين</flux:subheading>
+            </div>
+            
+            <flux:select wire:model="bulkStatus" label="الحالة الجديدة">
+                <flux:select.option value="active">مشارك</flux:select.option>
+                <flux:select.option value="registering">تحت التسجيل</flux:select.option>
+                <flux:select.option value="suspended">موقوف</flux:select.option>
+                <flux:select.option value="left">غادر الحلقات</flux:select.option>
+            </flux:select>
+            
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" x-on:click="$flux.modal('bulk-status-modal').close()">إلغاء</flux:button>
+                <flux:button variant="primary" wire:click="applyBulkStatus">تطبيق</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Bulk Delete Confirmation Modal --}}
+    <flux:modal name="bulk-delete-modal" class="md:w-[450px]">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg" class="text-red-600 dark:text-red-400">حذف الحسابات المحددة</flux:heading>
+                <flux:subheading class="text-zinc-600 dark:text-zinc-400">
+                    أنت على وشك حذف حسابات الطلاب المحددين بشكل نهائي. هذا الإجراء سيؤدي إلى حذف جميع البيانات والخطط وسجلات الحضور التابعة لهم ولا يمكن التراجع عنه.
+                </flux:subheading>
+            </div>
+            
+            <div class="p-3 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300 rounded-xl text-xs space-y-1">
+                <p class="font-bold">تنبيه:</p>
+                <p>سيتم حذف بيانات الحضور، والخطط القرآنية، وخطط المنظومات، وخطط الحديث، وجميع الحركات ونقاط التحفيز التابعة للطلاب المحددين.</p>
+            </div>
+            
+            <flux:input 
+                wire:model.live="deleteConfirmationInput" 
+                label="لتأكيد الحذف، يرجى كتابة عبارة 'تأكيد الحذف' أدناه:" 
+                placeholder="تأكيد الحذف"
+            />
+            
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" x-on:click="$flux.modal('bulk-delete-modal').close()">إلغاء</flux:button>
+                <flux:button 
+                    color="red" 
+                    variant="filled" 
+                    wire:click="confirmBulkDelete" 
+                    :disabled="$deleteConfirmationInput !== 'تأكيد الحذف'"
+                >
+                    تأكيد الحذف النهائي
+                </flux:button>
+            </div>
         </div>
     </flux:modal>
 </div>

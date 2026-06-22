@@ -41,6 +41,18 @@ class Students extends Component
 
     public array $stats = [];
 
+    public array $selectedStudentIds = [];
+
+    public bool $selectAll = false;
+
+    public string $deleteConfirmationInput = '';
+
+    public $bulkCircleId = null;
+
+    public string $bulkJoinedAt = '';
+
+    public string $bulkStatus = 'active';
+
     public function mount(): void
     {
         $this->loadData();
@@ -84,17 +96,164 @@ class Students extends Component
 
     public function updatedSearch(): void
     {
+        $this->resetSelection();
         $this->loadData();
     }
 
     public function updatedStatusFilter(): void
     {
+        $this->resetSelection();
         $this->loadData();
     }
 
     public function updatedCircleFilter(): void
     {
+        $this->resetSelection();
         $this->loadData();
+    }
+
+    public function resetSelection(): void
+    {
+        $this->selectedStudentIds = [];
+        $this->selectAll = false;
+        $this->deleteConfirmationInput = '';
+    }
+
+    public function updatedSelectAll(bool $value): void
+    {
+        if ($value) {
+            $circleIds = $this->getSupervisorCircleIds();
+            $query = Student::whereIn('circle_id', $circleIds);
+
+            if ($this->search) {
+                $query->where(function ($q) {
+                    $q->where('name', 'like', '%'.$this->search.'%')
+                        ->orWhere('email', 'like', '%'.$this->search.'%');
+                });
+            }
+
+            if ($this->statusFilter === 'pending') {
+                $query->where('is_approved', false);
+            } elseif ($this->statusFilter === 'approved') {
+                $query->where('is_approved', true);
+            }
+
+            if ($this->circleFilter) {
+                $query->where('circle_id', $this->circleFilter);
+            }
+
+            $this->selectedStudentIds = $query->pluck('id')->map(fn ($id) => (string) $id)->toArray();
+        } else {
+            $this->selectedStudentIds = [];
+        }
+    }
+
+    private function getSupervisorStudentsQuery()
+    {
+        $circleIds = $this->getSupervisorCircleIds();
+
+        return Student::whereIn('circle_id', $circleIds)->whereIn('id', $this->selectedStudentIds);
+    }
+
+    public function applyBulkCircle(): void
+    {
+        $this->validate([
+            'bulkCircleId' => 'nullable|exists:circles,id',
+        ]);
+
+        $circleIds = $this->getSupervisorCircleIds();
+
+        if ($this->bulkCircleId && ! in_array((int) $this->bulkCircleId, $circleIds)) {
+            Flux::toast(__('الحلقة المختارة خارج نطاق صلاحياتك'), variant: 'danger');
+
+            return;
+        }
+
+        $count = $this->getSupervisorStudentsQuery()->update([
+            'circle_id' => $this->bulkCircleId ?: null,
+        ]);
+
+        $this->resetSelection();
+        $this->loadData();
+        $this->bulkCircleId = null;
+
+        Flux::modal('bulk-circle-modal')->close();
+        Flux::toast(__('تم تغيير حلقة '.$count.' طلاب بنجاح'), variant: 'success');
+    }
+
+    public function applyBulkJoinedAt(): void
+    {
+        $this->validate([
+            'bulkJoinedAt' => 'required|date',
+        ]);
+
+        $count = $this->getSupervisorStudentsQuery()->update([
+            'joined_at' => $this->bulkJoinedAt,
+        ]);
+
+        $this->resetSelection();
+        $this->loadData();
+        $this->bulkJoinedAt = '';
+
+        Flux::modal('bulk-joined-at-modal')->close();
+        Flux::toast(__('تم تغيير تاريخ التحاق '.$count.' طلاب بنجاح'), variant: 'success');
+    }
+
+    public function applyBulkStatus(): void
+    {
+        $this->validate([
+            'bulkStatus' => 'required|in:active,registering,suspended,left',
+        ]);
+
+        $count = $this->getSupervisorStudentsQuery()->update([
+            'status' => $this->bulkStatus,
+        ]);
+
+        $this->resetSelection();
+        $this->loadData();
+        $this->bulkStatus = 'active';
+
+        Flux::modal('bulk-status-modal')->close();
+        Flux::toast(__('تم تغيير حالة '.$count.' طلاب بنجاح'), variant: 'success');
+    }
+
+    public function applyBulkResetMagicLinks(): void
+    {
+        $students = $this->getSupervisorStudentsQuery()->get();
+        $count = $students->count();
+
+        foreach ($students as $student) {
+            $student->update([
+                'access_token' => Str::random(32),
+            ]);
+        }
+
+        $this->resetSelection();
+        $this->loadData();
+
+        Flux::toast(__('تم تحديث الروابط السحرية لـ '.$count.' طلاب بنجاح'), variant: 'success');
+    }
+
+    public function confirmBulkDelete(): void
+    {
+        if ($this->deleteConfirmationInput !== 'تأكيد الحذف') {
+            Flux::toast(__('يرجى إدخال نص التأكيد بشكل صحيح'), variant: 'danger');
+
+            return;
+        }
+
+        $students = $this->getSupervisorStudentsQuery()->get();
+        $count = $students->count();
+
+        foreach ($students as $student) {
+            $student->delete();
+        }
+
+        $this->resetSelection();
+        $this->loadData();
+
+        Flux::modal('bulk-delete-modal')->close();
+        Flux::toast(__('تم حذف '.$count.' طلاب بنجاح'), variant: 'success');
     }
 
     public function approve($id): void

@@ -3,6 +3,7 @@
 use App\Livewire\Auth\Manager\Login;
 use App\Livewire\Auth\Manager\Register;
 use App\Livewire\Manager\PendingApprovals;
+use App\Livewire\Public\FormSubmit;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
@@ -140,6 +141,12 @@ Route::middleware(['auth:supervisor', 'approved'])->prefix('supervisor')->name('
     Route::view('/yearly-attendance', 'supervisor.yearly-attendance')->name('yearly-attendance');
     Route::view('/tasks', 'supervisor.tasks')->name('tasks');
     Route::view('/whatsapp-settings', 'supervisor.whatsapp-settings')->name('whatsapp-settings');
+
+    // Forms Builder Routes
+    Route::view('/forms', 'supervisor.forms')->name('forms');
+    Route::get('/forms/create', fn () => view('supervisor.form-create'))->name('forms.create');
+    Route::get('/forms/{id}/edit', fn ($id) => view('supervisor.form-edit', ['formId' => $id]))->name('forms.edit');
+    Route::get('/forms/{id}/responses', fn ($id) => view('supervisor.form-responses', ['formId' => $id]))->name('forms.responses');
 });
 Route::middleware(['auth:teacher', 'approved'])->prefix('teacher')->name('teacher.')->group(function () {
     $appShellRoute = function ($tab) {
@@ -312,4 +319,7 @@ Route::get('/quran-json', function () {
 });
 
 Route::get('/test', function () {})->name('test');
+
+Route::get('/f/{slug}', FormSubmit::class)->name('forms.submit');
+
 require __DIR__.'/settings.php';

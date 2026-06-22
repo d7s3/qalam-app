@@ -54,6 +54,12 @@ class Student extends Authenticatable
         return $this->hasMany(StudentHadithPlan::class);
     }
 
+    /** @return HasMany<FormResponse, $this> */
+    public function formResponses(): HasMany
+    {
+        return $this->hasMany(FormResponse::class);
+    }
+
     /** @return HasMany<StudentStatusHistory, $this> */
     public function statusHistories(): HasMany
     {
