@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl" class="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,8 +16,12 @@
     @fluxAppearance
 
     @stack('styles')
+
+    <script>
+        document.documentElement.classList.remove('dark');
+    </script>
 </head>
-<body class="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased py-8 px-4 flex flex-col items-center">
+<body class="min-h-screen bg-zinc-50 text-zinc-900 antialiased py-8 px-4 flex flex-col items-center">
     
     {{ $slot }}
 

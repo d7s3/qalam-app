@@ -13,6 +13,10 @@
         <meta property="og:site_name" content="مجمع التاج القرآني">
 
         <title>{{ $form->title }} - مجمع التاج القرآني</title>
+        
+        <script>
+            document.documentElement.classList.remove('dark');
+        </script>
     @endpush
 
     @push('styles')
@@ -25,15 +29,10 @@
                 --color-accent-foreground: white;
             }
             body {
-                background-color: color-mix(in srgb, var(--theme-color) 6%, #fafafa) !important;
-            }
-            @media (prefers-color-scheme: dark) {
-                body {
-                    background-color: color-mix(in srgb, var(--theme-color) 6%, #0a0a0a) !important;
-                }
+                background-color: color-mix(in srgb, var(--theme-color) 6%, #fff) !important;
             }
             .accent-btn {
-                background-color: var(--theme-color) !important;
+                background-color: color-mix(in srgb, var(--theme-color) 81%, #000) !important;
                 color: white !important;
             }
             .accent-btn:hover {
@@ -51,11 +50,6 @@
             .accent-ring, select, input[type="date"], textarea {
                 border-color: color-mix(in srgb, var(--theme-color) 35%, #d4d4d8) !important;
             }
-            @media (prefers-color-scheme: dark) {
-                .accent-ring, select, input[type="date"], textarea {
-                    border-color: color-mix(in srgb, var(--theme-color) 35%, #27272a) !important;
-                }
-            }
             .accent-ring:focus, .accent-ring:focus-within, select:focus, input[type="date"]:focus, textarea:focus {
                 border-color: var(--theme-color) !important;
                 --tw-ring-color: var(--theme-color) !important;
@@ -65,30 +59,14 @@
             .theme-border {
                 border-color: color-mix(in srgb, var(--theme-color) 35%, #d4d4d8) !important;
             }
-            @media (prefers-color-scheme: dark) {
-                .theme-border {
-                    border-color: color-mix(in srgb, var(--theme-color) 35%, #27272a) !important;
-                }
-            }
             
             /* Dashed image border */
             .theme-dashed-border {
                 border-color: color-mix(in srgb, var(--theme-color) 60%, #d4d4d8) !important;
                 background-color: color-mix(in srgb, var(--theme-color) 2%, #fafafa) !important;
             }
-            @media (prefers-color-scheme: dark) {
-                .theme-dashed-border {
-                    border-color: color-mix(in srgb, var(--theme-color) 60%, #27272a) !important;
-                    background-color: color-mix(in srgb, var(--theme-color) 2%, #0a0a0a) !important;
-                }
-            }
             .theme-dashed-border:hover {
                 background-color: color-mix(in srgb, var(--theme-color) 6%, #f4f4f5) !important;
-            }
-            @media (prefers-color-scheme: dark) {
-                .theme-dashed-border:hover {
-                    background-color: color-mix(in srgb, var(--theme-color) 6%, #09090b) !important;
-                }
             }
         </style>
     @endpush
