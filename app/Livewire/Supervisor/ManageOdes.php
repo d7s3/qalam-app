@@ -158,17 +158,6 @@ class ManageOdes extends Component
             'newAjuz' => 'required|string|max:500',
         ]);
 
-        // Check if verse number already exists
-        $exists = OdeVerse::where('ode_id', $this->selectedOdeId)
-            ->where('verse_number', $this->newVerseNumber)
-            ->exists();
-
-        if ($exists) {
-            $this->addError('newVerseNumber', 'رقم البيت هذا موجود بالفعل في المنظومة.');
-
-            return;
-        }
-
         OdeVerse::create([
             'ode_id' => $this->selectedOdeId,
             'verse_number' => $this->newVerseNumber,
@@ -199,18 +188,6 @@ class ManageOdes extends Component
         ]);
 
         $verse = OdeVerse::findOrFail($this->editingVerseId);
-
-        // Check if another verse has this number
-        $exists = OdeVerse::where('ode_id', $this->selectedOdeId)
-            ->where('verse_number', $this->editingVerseNumber)
-            ->where('id', '!=', $this->editingVerseId)
-            ->exists();
-
-        if ($exists) {
-            $this->addError('editingVerseNumber', 'رقم البيت هذا مستخدم في بيت آخر.');
-
-            return;
-        }
 
         $verse->update([
             'verse_number' => $this->editingVerseNumber,

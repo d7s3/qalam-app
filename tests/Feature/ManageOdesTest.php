@@ -199,3 +199,73 @@ it('re-sequences the remaining verses when a verse is deleted', function () {
     expect($verse3->fresh()->verse_number)->toBe(2);
     expect(OdeVerse::where('ode_id', $ode->id)->count())->toBe(2);
 });
+
+it('shifts other verses up when a new verse is added with a conflicting number', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $ode = Ode::create(['name' => 'منظومة البيقونية']);
+    $verse1 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 1,
+        'sadr' => 'البيت الأول صدر',
+        'ajuz' => 'البيت الأول عجز',
+    ]);
+    $verse2 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 2,
+        'sadr' => 'البيت الثاني صدر',
+        'ajuz' => 'البيت الثاني عجز',
+    ]);
+
+    // Add a new verse at verse_number = 2 (should shift verse2 to 3)
+    Livewire::test(ManageOdes::class)
+        ->call('selectOde', $ode->id)
+        ->set('newVerseNumber', 2)
+        ->set('newSadr', 'البيت الجديد صدر')
+        ->set('newAjuz', 'البيت الجديد عجز')
+        ->call('saveVerse')
+        ->assertHasNoErrors();
+
+    expect($verse1->fresh()->verse_number)->toBe(1);
+    expect($verse2->fresh()->verse_number)->toBe(3); // Shifted up
+
+    $newVerse = OdeVerse::where('ode_id', $ode->id)->where('verse_number', 2)->first();
+    expect($newVerse)->not->toBeNull();
+    expect($newVerse->sadr)->toBe('البيت الجديد صدر');
+});
+
+it('shifts other verses up when a verse is updated with a conflicting number', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $ode = Ode::create(['name' => 'منظومة البيقونية']);
+    $verse1 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 1,
+        'sadr' => 'البيت الأول صدر',
+        'ajuz' => 'البيت الأول عجز',
+    ]);
+    $verse2 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 2,
+        'sadr' => 'البيت الثاني صدر',
+        'ajuz' => 'البيت الثاني عجز',
+    ]);
+    $verse3 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 3,
+        'sadr' => 'البيت الثالث صدر',
+        'ajuz' => 'البيت الثالث عجز',
+    ]);
+
+    // Update verse3 to be number 2 (should shift verse2 to 3, and old verse3 becomes 2)
+    Livewire::test(ManageOdes::class)
+        ->call('selectOde', $ode->id)
+        ->call('startEditVerse', $verse3->id)
+        ->set('editingVerseNumber', 2)
+        ->call('saveEditingVerse')
+        ->assertHasNoErrors();
+
+    expect($verse1->fresh()->verse_number)->toBe(1);
+    expect($verse3->fresh()->verse_number)->toBe(2); // Updated to 2
+    expect($verse2->fresh()->verse_number)->toBe(3); // Shifted up to 3
+});
