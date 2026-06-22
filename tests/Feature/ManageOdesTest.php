@@ -164,3 +164,38 @@ it('can edit and delete a verse', function () {
 
     expect(OdeVerse::where('id', $verse->id)->exists())->toBeFalse();
 });
+
+it('re-sequences the remaining verses when a verse is deleted', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $ode = Ode::create(['name' => 'منظومة البيقونية']);
+    $verse1 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 1,
+        'sadr' => 'البيت الأول صدر',
+        'ajuz' => 'البيت الأول عجز',
+    ]);
+    $verse2 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 2,
+        'sadr' => 'البيت الثاني صدر',
+        'ajuz' => 'البيت الثاني عجز',
+    ]);
+    $verse3 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 3,
+        'sadr' => 'البيت الثالث صدر',
+        'ajuz' => 'البيت الثالث عجز',
+    ]);
+
+    // Delete the second verse (verse_number = 2)
+    Livewire::test(ManageOdes::class)
+        ->call('selectOde', $ode->id)
+        ->call('deleteVerse', $verse2->id)
+        ->assertHasNoErrors();
+
+    // Verify verse1 is still number 1, and verse3 is now number 2
+    expect($verse1->fresh()->verse_number)->toBe(1);
+    expect($verse3->fresh()->verse_number)->toBe(2);
+    expect(OdeVerse::where('ode_id', $ode->id)->count())->toBe(2);
+});
