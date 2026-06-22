@@ -42,6 +42,8 @@ class ManageOdes extends Component
 
     public bool $showBulkImport = false;
 
+    public string $versesText = '';
+
     public function selectOde(?int $id): void
     {
         $this->selectedOdeId = $id;
@@ -53,7 +55,7 @@ class ManageOdes extends Component
 
     public function createOde(): void
     {
-        $this->reset(['editingOdeId', 'name', 'description']);
+        $this->reset(['editingOdeId', 'name', 'description', 'versesText']);
         Flux::modal('ode-modal')->show();
     }
 
@@ -71,6 +73,7 @@ class ManageOdes extends Component
         $this->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'versesText' => 'nullable|string',
         ]);
 
         if ($this->editingOdeId) {
@@ -85,13 +88,41 @@ class ManageOdes extends Component
                 'name' => $this->name,
                 'description' => $this->description,
             ]);
+
+            if (! empty($this->versesText)) {
+                $lines = explode("\n", $this->versesText);
+                $nextNum = 0;
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (empty($line)) {
+                        continue;
+                    }
+
+                    // Split by tabs, double spaces, or hash symbol as separators
+                    $parts = preg_split('/\t|\s{2,}|\s*#\s*/', $line);
+
+                    if (count($parts) >= 2) {
+                        $nextNum++;
+                        $sadr = trim($parts[0]);
+                        $ajuz = trim($parts[1]);
+
+                        OdeVerse::create([
+                            'ode_id' => $ode->id,
+                            'verse_number' => $nextNum,
+                            'sadr' => $sadr,
+                            'ajuz' => $ajuz,
+                        ]);
+                    }
+                }
+            }
+
             Flux::toast('تم إنشاء المنظومة بنجاح', variant: 'success');
             $this->selectedOdeId = $ode->id; // Auto select for managing verses
             $this->autoFillNextVerseNumber();
         }
 
         Flux::modal('ode-modal')->close();
-        $this->reset(['editingOdeId', 'name', 'description']);
+        $this->reset(['editingOdeId', 'name', 'description', 'versesText']);
     }
 
     public function deleteOde(int $id): void

@@ -210,6 +210,14 @@
                     <flux:textarea wire:model="description" placeholder="وصف موجز للمنظومة (مؤلفها، بحرها، إلخ)..." rows="4" />
                     <flux:error name="description" />
                 </flux:field>
+
+                @if (!$editingOdeId)
+                    <flux:field>
+                        <flux:label>أبيات المنظومة كاملة (اختياري)</flux:label>
+                        <flux:textarea wire:model="versesText" placeholder="أدخل الأبيات هنا...&#10;مثال:&#10;الصدر الأول  العجز الأول&#10;الصدر الثاني  العجز الثاني&#10;(تأكد من ترك مسافتين أو Tab بين الصدر والعجز، وكل بيت في سطر جديد)" rows="8" />
+                        <flux:error name="versesText" />
+                    </flux:field>
+                @endif
             </div>
 
             <div class="flex gap-2 justify-end">

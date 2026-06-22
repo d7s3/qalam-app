@@ -40,6 +40,30 @@ it('can create a new ode', function () {
     expect(Ode::where('name', 'منظومة الجزرية')->exists())->toBeTrue();
 });
 
+it('can create a new ode and automatically parse bulk verses from textarea', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(ManageOdes::class)
+        ->call('createOde')
+        ->set('name', 'تحفة الأطفال بالبيات')
+        ->set('description', 'منظومة الجمزوري مع الأبيات مباشرة')
+        ->set('versesText', "يَقُولُ رَاجِي رَحْمَةِ الْغَفُورِ  دَوْمًا سُلَيْمَانُ هُوَ الْجَمْزُورِي\nالْحَمْدُ لِلَّهِ مُصَلِّيًا عَلَى  مُحَمَّدٍ وَآلِهِ وَمَنْ تَلَى")
+        ->call('saveOde')
+        ->assertHasNoErrors();
+
+    $ode = Ode::where('name', 'تحفة الأطفال بالبيات')->first();
+    expect($ode)->not->toBeNull();
+
+    $verses = OdeVerse::where('ode_id', $ode->id)->orderBy('verse_number')->get();
+    expect($verses)->toHaveCount(2);
+    expect($verses[0]->verse_number)->toBe(1);
+    expect($verses[0]->sadr)->toBe('يَقُولُ رَاجِي رَحْمَةِ الْغَفُورِ');
+    expect($verses[0]->ajuz)->toBe('دَوْمًا سُلَيْمَانُ هُوَ الْجَمْزُورِي');
+    expect($verses[1]->verse_number)->toBe(2);
+    expect($verses[1]->sadr)->toBe('الْحَمْدُ لِلَّهِ مُصَلِّيًا عَلَى');
+    expect($verses[1]->ajuz)->toBe('مُحَمَّدٍ وَآلِهِ وَمَنْ تَلَى');
+});
+
 it('can edit an existing ode', function () {
     $this->actingAs($this->supervisor, 'supervisor');
 
