@@ -31,6 +31,9 @@
             body {
                 background-color: color-mix(in srgb, var(--theme-color) 6%, #fff) !important;
             }
+            input {
+                color: #000 !important;
+            }
             .accent-btn {
                 background-color: color-mix(in srgb, var(--theme-color) 81%, #000) !important;
                 color: white !important;
