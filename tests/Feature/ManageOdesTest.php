@@ -269,3 +269,32 @@ it('shifts other verses up when a verse is updated with a conflicting number', f
     expect($verse3->fresh()->verse_number)->toBe(2); // Updated to 2
     expect($verse2->fresh()->verse_number)->toBe(3); // Shifted up to 3
 });
+
+it('automatically closes gaps and re-sequences verses on save', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $ode = Ode::create(['name' => 'منظومة البيقونية']);
+
+    $verse1 = OdeVerse::create([
+        'ode_id' => $ode->id,
+        'verse_number' => 1,
+        'sadr' => 'البيت الأول صدر',
+        'ajuz' => 'البيت الأول عجز',
+    ]);
+
+    // Add a new verse and explicitly set its number to 5 (creating a gap)
+    Livewire::test(ManageOdes::class)
+        ->call('selectOde', $ode->id)
+        ->set('newVerseNumber', 5)
+        ->set('newSadr', 'البيت الجديد صدر')
+        ->set('newAjuz', 'البيت الجديد عجز')
+        ->call('saveVerse')
+        ->assertHasNoErrors();
+
+    // Verify it automatically re-sequenced 5 to become 2 to close the gap
+    $verse1->refresh();
+    expect($verse1->verse_number)->toBe(1);
+
+    $verse2 = OdeVerse::where('ode_id', $ode->id)->where('id', '!=', $verse1->id)->first();
+    expect($verse2->verse_number)->toBe(2); // Automatically re-sequenced to 2 to close the gap
+});

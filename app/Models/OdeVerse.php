@@ -38,20 +38,30 @@ class OdeVerse extends Model
             }
         });
 
-        static::deleted(function (OdeVerse $verse) {
-            $verses = static::where('ode_id', $verse->ode_id)
-                ->orderBy('verse_number')
-                ->get();
-
-            foreach ($verses as $index => $v) {
-                $newNumber = $index + 1;
-                if ($v->verse_number !== $newNumber) {
-                    DB::table('ode_verses')
-                        ->where('id', $v->id)
-                        ->update(['verse_number' => $newNumber]);
-                }
-            }
+        static::saved(function (OdeVerse $verse) {
+            static::resequence($verse->ode_id);
         });
+
+        static::deleted(function (OdeVerse $verse) {
+            static::resequence($verse->ode_id);
+        });
+    }
+
+    public static function resequence(int $odeId): void
+    {
+        $verses = static::where('ode_id', $odeId)
+            ->orderBy('verse_number')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($verses as $index => $v) {
+            $newNumber = $index + 1;
+            if ($v->verse_number !== $newNumber) {
+                DB::table('ode_verses')
+                    ->where('id', $v->id)
+                    ->update(['verse_number' => $newNumber]);
+            }
+        }
     }
 
     public function ode()
