@@ -99,6 +99,26 @@ select:focus[data-flux-control] {
     @apply !text-white;
 }
 
+/* Custom Sidebar Item Icons Style (Rounded colored background with white icon) */
+[data-flux-sidebar-item] svg {
+    color: white !important;
+    padding: 5px;
+    border-radius: 8px;
+    width: 26px !important;
+    height: 26px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+[data-flux-sidebar-item]:hover svg {
+    transform: scale(1.05);
+}
+
+
+
 /* Plan-creator fill progress bar */
 @keyframes shimmer {
     0%   { left: -33%; }

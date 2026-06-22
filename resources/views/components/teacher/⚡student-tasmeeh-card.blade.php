@@ -6,6 +6,8 @@ use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\StudentOdePlan;
 use App\Models\StudentOdePlanDay;
+use App\Models\StudentHadithPlan;
+use App\Models\StudentHadithPlanDay;
 use Flux\Flux;
 use Livewire\Attributes\Reactive;
 
@@ -89,6 +91,31 @@ new class extends Component {
         Flux::toast('تم حفظ تقييم المنظومة', variant: 'success');
     }
 
+    public function saveHadithAchievement($dayId, $type, $value)
+    {
+        $updateData = [];
+        $gradeTime = null;
+        if ($this->gradedAtDate) {
+            if ($this->gradedAtDate === now()->format('Y-m-d')) {
+                $gradeTime = now();
+            } else {
+                $gradeTime = \Carbon\Carbon::parse($this->gradedAtDate)->setHour(12)->setMinute(0);
+            }
+        }
+
+        if ($type === 'hifz') {
+            $updateData['hifz_achievement'] = $value;
+            $updateData['hifz_graded_at'] = $value !== null ? $gradeTime : null;
+        } elseif ($type === 'review') {
+            $updateData['review_achievement'] = $value;
+            $updateData['review_graded_at'] = $value !== null ? $gradeTime : null;
+        }
+
+        StudentHadithPlanDay::where('id', $dayId)->update($updateData);
+
+        Flux::toast('تم حفظ تقييم الحديث بنجاح', variant: 'success');
+    }
+
     public function with()
     {
         // Fetch student's Poetic Ode plans
@@ -104,6 +131,21 @@ new class extends Component {
                 ->where('student_id', $this->student->id)
                 ->get();
             $activeOdePlan = $studentOdePlans->firstWhere('status', 'active');
+        }
+
+        // Fetch student's Hadith plans
+        $studentHadithPlans = collect();
+        $activeHadithPlan = null;
+        if (app()->bound('tasmeeh_hadith_plans_cache')) {
+            $activeHadithPlan = app('tasmeeh_hadith_plans_cache')->get($this->student->id);
+            if ($activeHadithPlan) {
+                $studentHadithPlans->push($activeHadithPlan);
+            }
+        } else {
+            $studentHadithPlans = StudentHadithPlan::with('hadith')
+                ->where('student_id', $this->student->id)
+                ->get();
+            $activeHadithPlan = $studentHadithPlans->firstWhere('status', 'active');
         }
 
         // Selected Quranic plan
@@ -132,11 +174,33 @@ new class extends Component {
             }
         }
 
+        // Fetch Hadith days for the active Hadith plan
+        $hadithDays = collect();
+        if ($activeHadithPlan) {
+            if (app()->bound('tasmeeh_hadith_days_cache')) {
+                $hadithDays = app('tasmeeh_hadith_days_cache')->get($activeHadithPlan->id) ?? collect();
+            } else {
+                $hadithDays = StudentHadithPlanDay::with('plan.hadith')
+                    ->where('student_hadith_plan_id', $activeHadithPlan->id)
+                    ->orderBy('date', 'asc')
+                    ->get();
+            }
+        }
+
         // Find the specific Ode plan day matching the selected gradedAtDate
         $odeDayForSelectedDate = null;
         if ($activeOdePlan && $odeDays->isNotEmpty()) {
             $targetDateStr = $this->gradedAtDate ?: now()->format('Y-m-d');
             $odeDayForSelectedDate = $odeDays->first(function ($day) use ($targetDateStr) {
+                return $day->date->toDateString() === $targetDateStr;
+            });
+        }
+
+        // Find the specific Hadith plan day matching the selected gradedAtDate
+        $hadithDayForSelectedDate = null;
+        if ($activeHadithPlan && $hadithDays->isNotEmpty()) {
+            $targetDateStr = $this->gradedAtDate ?: now()->format('Y-m-d');
+            $hadithDayForSelectedDate = $hadithDays->first(function ($day) use ($targetDateStr) {
                 return $day->date->toDateString() === $targetDateStr;
             });
         }
@@ -213,6 +277,40 @@ new class extends Component {
             }
         }
 
+        $defaultHadithDayId = null;
+        $hadithDayIds = [];
+        $hadithDateToDayIdMap = [];
+        if ($activeHadithPlan && $hadithDays->isNotEmpty()) {
+            $hadithDayIds = $hadithDays->pluck('id')->toArray();
+            $hadithDateToDayIdMap = $hadithDays->mapWithKeys(function ($day) {
+                return [$day->date->toDateString() => $day->id];
+            })->toArray();
+
+            if ($hadithDayForSelectedDate) {
+                $defaultHadithDayId = $hadithDayForSelectedDate->id;
+            } else {
+                $oldestIncompleteHadith = $hadithDays->first(function ($day) {
+                    $hasHifz = $day->from_line_number && $day->to_line_number;
+                    $hasReview = $day->review_from_line_number && $day->review_to_line_number;
+                    
+                    if ($hasHifz && $hasReview) {
+                        return is_null($day->hifz_achievement) || is_null($day->review_achievement);
+                    } elseif ($hasHifz) {
+                        return is_null($day->hifz_achievement);
+                    } elseif ($hasReview) {
+                        return is_null($day->review_achievement);
+                    }
+                    return false;
+                });
+                
+                if ($oldestIncompleteHadith) {
+                    $defaultHadithDayId = $oldestIncompleteHadith->id;
+                } else {
+                    $defaultHadithDayId = $hadithDays->last()->id;
+                }
+            }
+        }
+
         $quranDateToDayIdMap = [];
         if ($activePlan && $days->isNotEmpty()) {
             $quranDateToDayIdMap = $days->mapWithKeys(function ($day) {
@@ -228,12 +326,22 @@ new class extends Component {
                 ->get();
         }
 
+        // Fetch all lines of the active Hadith plan's hadith
+        $hadithLines = collect();
+        if ($activeHadithPlan) {
+            $hadithLines = \App\Models\HadithLine::where('hadith_id', $activeHadithPlan->hadith_id)
+                ->orderBy('line_number', 'asc')
+                ->get();
+        }
+
         return [
             'student' => $this->student,
             'sPlans' => $this->sPlans,
             'activePlan' => $activePlan,
             'activeOdePlan' => $activeOdePlan,
             'odeDayForSelectedDate' => $odeDayForSelectedDate,
+            'activeHadithPlan' => $activeHadithPlan,
+            'hadithDayForSelectedDate' => $hadithDayForSelectedDate,
             'days' => $days,
             'allSurahs' => $cachedSurahs,
             'defaultDayId' => $defaultDayId,
@@ -244,6 +352,11 @@ new class extends Component {
             'odeDateToDayIdMap' => $odeDateToDayIdMap,
             'quranDateToDayIdMap' => $quranDateToDayIdMap,
             'odeVerses' => $odeVerses,
+            'hadithDays' => $hadithDays,
+            'defaultHadithDayId' => $defaultHadithDayId,
+            'hadithDayIds' => $hadithDayIds,
+            'hadithDateToDayIdMap' => $hadithDateToDayIdMap,
+            'hadithLines' => $hadithLines,
         ];
     }
 
@@ -260,17 +373,18 @@ new class extends Component {
     activeOdeDayId: @js($defaultOdeDayId),
     studentOdePlanDayIds: @js($odeDayIds),
     odeDateToDayIdMap: @js($odeDateToDayIdMap),
+    activeHadithDayId: @js($defaultHadithDayId),
+    studentHadithPlanDayIds: @js($hadithDayIds),
+    hadithDateToDayIdMap: @js($hadithDateToDayIdMap),
     quranDateToDayIdMap: @js($quranDateToDayIdMap),
 
     init() {
-        console.log('⚡ Student Tasmeeh Card Init:', {
-            studentId: {{ $student->id }},
-            activeDayId: this.activeDayId,
-            studentPlanDayIds: this.studentPlanDayIds
-        });
         this.$watch('$wire.gradedAtDate', (newVal) => {
             if (this.odeDateToDayIdMap && this.odeDateToDayIdMap[newVal]) {
                 this.activeOdeDayId = this.odeDateToDayIdMap[newVal];
+            }
+            if (this.hadithDateToDayIdMap && this.hadithDateToDayIdMap[newVal]) {
+                this.activeHadithDayId = this.hadithDateToDayIdMap[newVal];
             }
             if (this.quranDateToDayIdMap && this.quranDateToDayIdMap[newVal]) {
                 this.activeDayId = this.quranDateToDayIdMap[newVal];
@@ -315,6 +429,26 @@ new class extends Component {
         const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
         if (index !== -1 && index < this.studentOdePlanDayIds.length - 1) {
             this.activeOdeDayId = this.studentOdePlanDayIds[index + 1];
+        }
+    },
+    hasPrevHadithDay() {
+        const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
+        return index > 0;
+    },
+    hasNextHadithDay() {
+        const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
+        return index !== -1 && index < this.studentHadithPlanDayIds.length - 1;
+    },
+    prevHadithDay() {
+        const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
+        if (index > 0) {
+            this.activeHadithDayId = this.studentHadithPlanDayIds[index - 1];
+        }
+    },
+    nextHadithDay() {
+        const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
+        if (index !== -1 && index < this.studentHadithPlanDayIds.length - 1) {
+            this.activeHadithDayId = this.studentHadithPlanDayIds[index + 1];
         }
     }
 }"
@@ -516,7 +650,7 @@ new class extends Component {
                                         <button type="button" @click="open = !open"
                                             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-colors">
                                             <flux:icon icon="book-open" class="size-3.5" />
-                                            <span>{{ __('افتح الآيات في القرآن') }} ({{ count($rLinks) }})</span>
+                                            <span>{{ __('افتح الآيات في القرآن') }} ({{ count($hLinks) }})</span>
                                             <flux:icon icon="chevron-down" class="size-3.5 transition-transform" x-bind:class="open ? 'rotate-180' : ''" />
                                         </button>
                                         <div x-show="open" x-collapse class="flex flex-wrap gap-2 mt-2">
@@ -744,127 +878,120 @@ new class extends Component {
                         @endif
                     </div>
 
-                    @if (!$odeDay->from_verse_number && !$odeDay->review_from_verse_number)
-                        <div class="flex-1 flex flex-col items-center justify-center p-6 bg-zinc-50/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-center">
-                            <flux:icon icon="document-text" class="size-8 text-zinc-300 dark:text-zinc-600 mb-2" />
-                            <p class="text-zinc-500 dark:text-zinc-400 text-sm">
-                                {{ __('لا توجد أبيات مسجلة للحفظ أو المراجعة في هذا اليوم.') }}
-                            </p>
+                    {{-- Full-Screen Modal for Hifz --}}
+                    @if ($odeDay->from_verse_number && $odeDay->to_verse_number)
+                        <div x-show="showHifzModal" 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 translate-y-4"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 translate-y-4"
+                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col w-full h-full"
+                             x-cloak>
+                            
+                            {{-- Modal Header --}}
+                            <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                                <div>
+                                    <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
+                                        {{ __('حفظ المنظومة') }}
+                                    </h3>
+                                    <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-semibold">
+                                        {{ $activeOdePlan->ode->name }} ({{ $odeDay->formatOdeRange('hifz') }})
+                                    </p>
+                                </div>
+                                <button type="button" @click="showHifzModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                                    <flux:icon icon="x-mark" class="size-5" />
+                                </button>
+                            </div>
+
+                            {{-- Modal Content (Scrollable) --}}
+                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
+                                <div class="max-w-4xl mx-auto space-y-4">
+                                    @foreach($hifzVerses as $verse)
+                                        <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 shadow-sm hover:shadow-md transition-shadow">
+                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-extrabold text-sm shadow-sm">
+                                                {{ $verse->verse_number }}
+                                            </span>
+                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
+                                                <div class="font-semibold text-zinc-800 dark:text-zinc-100 text-right pr-4 border-r-4 border-indigo-500 dark:border-indigo-400 font-serif">
+                                                    {{ $verse->sadr }}
+                                                </div>
+                                                <div class="font-semibold text-zinc-700 dark:text-zinc-300 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
+                                                    {{ $verse->ajuz }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            {{-- Modal Footer --}}
+                            <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
+                                <flux:button type="button" @click="showHifzModal = false" variant="ghost">
+                                    {{ __('إغلاق') }}
+                                </flux:button>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Full-Screen Modal for Review --}}
+                    @if ($odeDay->review_from_verse_number && $odeDay->review_to_verse_number)
+                        <div x-show="showReviewModal" 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 translate-y-4"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 translate-y-4"
+                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full"
+                             x-cloak>
+                            
+                            {{-- Modal Header --}}
+                            <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                                <div>
+                                    <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
+                                        {{ __('مراجعة المنظومة') }}
+                                    </h3>
+                                    <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
+                                        {{ $activeOdePlan->ode->name }} ({{ $odeDay->formatOdeRange('review') }})
+                                    </p>
+                                </div>
+                                <button type="button" @click="showReviewModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                                    <flux:icon icon="x-mark" class="size-5" />
+                                </button>
+                            </div>
+
+                            {{-- Modal Content (Scrollable) --}}
+                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
+                                <div class="max-w-4xl mx-auto space-y-4">
+                                    @foreach($reviewVerses as $verse)
+                                        <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-emerald-100/60 dark:border-emerald-950/40 shadow-sm hover:shadow-md transition-shadow">
+                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-sm shadow-sm">
+                                                {{ $verse->verse_number }}
+                                            </span>
+                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
+                                                <div class="font-semibold text-zinc-800 dark:text-zinc-100 text-right pr-4 border-r-4 border-emerald-500 dark:border-emerald-400 font-serif">
+                                                    {{ $verse->sadr }}
+                                                </div>
+                                                <div class="font-semibold text-zinc-700 dark:text-zinc-300 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
+                                                    {{ $verse->ajuz }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            {{-- Modal Footer --}}
+                            <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
+                                <flux:button type="button" @click="showReviewModal = false" variant="ghost">
+                                    {{ __('إغلاق') }}
+                                </flux:button>
+                            </div>
                         </div>
                     @endif
                 </flux:card>
-
-                {{-- Full-Screen Modal for Hifz --}}
-                <div x-show="showHifzModal" 
-                     x-transition:enter="transition ease-out duration-300"
-                     x-transition:enter-start="opacity-0 translate-y-4"
-                     x-transition:enter-end="opacity-100 translate-y-0"
-                     x-transition:leave="transition ease-in duration-200"
-                     x-transition:leave-start="opacity-100 translate-y-0"
-                     x-transition:leave-end="opacity-0 translate-y-4"
-                     class="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col w-full h-full"
-                     x-cloak>
-                    
-                    {{-- Modal Header --}}
-                    <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-                        <div>
-                            <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
-                                {{ __('حفظ المنظومة') }}
-                            </h3>
-                            <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-semibold">
-                                {{ $activeOdePlan->ode->name }} ({{ $odeDay->formatOdeRange('hifz') }})
-                            </p>
-                        </div>
-                        <button type="button" @click="showHifzModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                            <flux:icon icon="x-mark" class="size-5" />
-                        </button>
-                    </div>
-
-                    {{-- Modal Content (Scrollable) --}}
-                    <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
-                        <div class="max-w-4xl mx-auto space-y-4">
-                            @foreach($hifzVerses as $verse)
-                                <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                    <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-extrabold text-sm shadow-sm">
-                                        {{ $verse->verse_number }}
-                                    </span>
-                                    <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
-                                        <div class="font-semibold text-zinc-800 dark:text-zinc-100 text-right pr-4 border-r-4 border-indigo-500 dark:border-indigo-400 font-serif">
-                                            {{ $verse->sadr }}
-                                        </div>
-                                        <div class="font-semibold text-zinc-700 dark:text-zinc-300 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
-                                            {{ $verse->ajuz }}
-                                        </div>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    {{-- Modal Footer --}}
-                    <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                        <flux:button type="button" @click="showHifzModal = false" variant="ghost">
-                            {{ __('إغلاق') }}
-                        </flux:button>
-                    </div>
-                </div>
-
-                {{-- Full-Screen Modal for Review --}}
-                <div x-show="showReviewModal" 
-                     x-transition:enter="transition ease-out duration-300"
-                     x-transition:enter-start="opacity-0 translate-y-4"
-                     x-transition:enter-end="opacity-100 translate-y-0"
-                     x-transition:leave="transition ease-in duration-200"
-                     x-transition:leave-start="opacity-100 translate-y-0"
-                     x-transition:leave-end="opacity-0 translate-y-4"
-                     class="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col w-full h-full"
-                     x-cloak>
-                    
-                    {{-- Modal Header --}}
-                    <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-                        <div>
-                            <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
-                                {{ __('مراجعة المنظومة') }}
-                            </h3>
-                            <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
-                                {{ $activeOdePlan->ode->name }} ({{ $odeDay->formatOdeRange('review') }})
-                            </p>
-                        </div>
-                        <button type="button" @click="showReviewModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                            <flux:icon icon="x-mark" class="size-5" />
-                        </button>
-                    </div>
-
-                    {{-- Modal Content (Scrollable) --}}
-                    <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
-                        <div class="max-w-4xl mx-auto space-y-4">
-                            @foreach($reviewVerses as $verse)
-                                <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-emerald-100/60 dark:border-emerald-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                    <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-sm shadow-sm">
-                                        {{ $verse->verse_number }}
-                                    </span>
-                                    <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
-                                        <div class="font-semibold text-zinc-800 dark:text-zinc-100 text-right pr-4 border-r-4 border-emerald-500 dark:border-emerald-400 font-serif">
-                                            {{ $verse->sadr }}
-                                        </div>
-                                        <div class="font-semibold text-zinc-700 dark:text-zinc-300 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
-                                            {{ $verse->ajuz }}
-                                        </div>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    {{-- Modal Footer --}}
-                    <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                        <flux:button type="button" @click="showReviewModal = false" variant="ghost">
-                            {{ __('إغلاق') }}
-                        </flux:button>
-                    </div>
-                </div>
-                </flux:card>
-
             </div>
         @endforeach
     @elseif($activeOdePlan && $odeDays->isEmpty())
@@ -886,16 +1013,341 @@ new class extends Component {
         </flux:card>
     @endif
 
-    @if($sPlans->isEmpty() && !$activeOdePlan)
+    {{-- Hadith plans daily rendering --}}
+    @if($activeHadithPlan && $hadithDays->isNotEmpty())
+        @foreach($hadithDays as $hadithDay)
+            @php
+                $hifzLines = collect();
+                if ($hadithDay->from_line_number && $hadithDay->to_line_number) {
+                    $hifzLines = $hadithLines->filter(function ($l) use ($hadithDay) {
+                        return $l->line_number >= $hadithDay->from_line_number && $l->line_number <= $hadithDay->to_line_number;
+                    });
+                }
+
+                $reviewLines = collect();
+                if ($hadithDay->review_from_line_number && $hadithDay->review_to_line_number) {
+                    $reviewLines = $hadithLines->filter(function ($l) use ($hadithDay) {
+                        return $l->line_number >= $hadithDay->review_from_line_number && $l->line_number <= $hadithDay->review_to_line_number;
+                    });
+                }
+            @endphp
+            <div wire:key="hadith-day-card-container-{{ $hadithDay->id }}" x-show="activeHadithDayId == {{ $hadithDay->id }}" class="mt-4" x-data="{ showHadithHifzModal: false, showHadithReviewModal: false }">
+                
+                {{-- Unified Card --}}
+                <flux:card x-data="{ syncingTask: null }" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveHadithAchievement">
+                    
+                    {{-- Day navigation --}}
+                    <div class="flex items-center justify-between mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-4 shrink-0">
+                        <flux:button type="button" @click="prevHadithDay()" x-bind:disabled="!hasPrevHadithDay()" icon="chevron-right" variant="subtle" size="sm">
+                            {{ __('اليوم السابق') }}
+                        </flux:button>
+
+                        <div class="text-center">
+                            <div class="font-bold text-lg leading-none">{{ $hadithDay->day_name }}</div>
+                            <div class="text-zinc-500 text-sm dir-ltr mt-1 leading-none">{{ $hadithDay->date->format('Y/m/d') }}</div>
+                            <div class="text-xs text-rose-600 dark:text-rose-400 mt-1.5 font-semibold">
+                                {{ __('تسميع الحديث') }}: {{ $activeHadithPlan->hadith->name }}
+                            </div>
+                        </div>
+
+                        <flux:button type="button" @click="nextHadithDay()" x-bind:disabled="!hasNextHadithDay()" icon-trailing="chevron-left" variant="subtle" size="sm">
+                            {{ __('اليوم التالي') }}
+                        </flux:button>
+                    </div>
+
+                    <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {{-- Hadith Hifz --}}
+                        @if ($hadithDay->from_line_number && $hadithDay->to_line_number)
+                            <div class="bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20 p-4 space-y-4 flex flex-col justify-between">
+                                <div>
+                                    <flux:heading size="sm" class="text-indigo-600 dark:text-indigo-400 mb-1">{{ __('حفظ الحديث') }}</flux:heading>
+                                    <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
+                                        {{ $hadithDay->formatHadithRange('hifz') }}
+                                    </p>
+                                </div>
+
+                                <flux:separator class="opacity-50 shrink-0" />
+
+                                <div class="my-4">
+                                    <flux:button type="button" @click="showHadithHifzModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
+                                        {{ __('إظهار نص الحديث') }}
+                                    </flux:button>
+                                </div>
+
+                                <flux:separator class="opacity-50 shrink-0" />
+
+                                <div class="shrink-0">
+                                    <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم الحفظ') }}</flux:label>
+                                    <div class="grid grid-cols-2 gap-1.5">
+                                        @foreach([
+                                            [
+                                                'val' => 3,
+                                                'lbl' => 'ممتاز',
+                                                'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
+                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                            ],
+                                            [
+                                                'val' => 2,
+                                                'lbl' => 'جيد',
+                                                'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
+                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                            ],
+                                            [
+                                                'val' => 1,
+                                                'lbl' => 'مقبول',
+                                                'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                            ],
+                                            [
+                                                'val' => null,
+                                                'lbl' => 'لم يسمع',
+                                                'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
+                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                            ]
+                                        ] as $item)
+                                            @php
+                                                $val = $item['val'];
+                                                $lbl = $item['lbl'];
+                                                $activeClass = $item['activeClass'];
+                                                $inactiveClass = $item['inactiveClass'];
+                                            @endphp
+                                            <button type="button" 
+                                                @click="syncingTask = 'hadith-hifz-{{ $val ?? 'null' }}'; await $wire.saveHadithAchievement({{ $hadithDay->id }}, 'hifz', {{ $val ?? 'null' }}); syncingTask = null"
+                                                :disabled="syncingTask !== null"
+                                                class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
+                                                :class="syncingTask === 'hadith-hifz-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $hadithDay->hifz_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                {{ $lbl }}
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- Hadith Review --}}
+                        @if ($hadithDay->review_from_line_number && $hadithDay->review_to_line_number)
+                            <div class="bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 p-4 space-y-4 flex flex-col justify-between">
+                                <div>
+                                    <flux:heading size="sm" class="text-emerald-600 dark:text-emerald-400 mb-1">{{ __('مراجعة الحديث') }}</flux:heading>
+                                    <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
+                                        {{ $hadithDay->formatHadithRange('review') }}
+                                    </p>
+                                </div>
+
+                                <flux:separator class="opacity-50 shrink-0" />
+
+                                <div class="my-4">
+                                    <flux:button type="button" @click="showHadithReviewModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
+                                        {{ __('إظهار نص الحديث') }}
+                                    </flux:button>
+                                </div>
+
+                                <flux:separator class="opacity-50 shrink-0" />
+
+                                <div class="shrink-0">
+                                    <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم المراجعة') }}</flux:label>
+                                    <div class="grid grid-cols-2 gap-1.5">
+                                        @foreach([
+                                            [
+                                                'val' => 3,
+                                                'lbl' => 'ممتاز',
+                                                'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
+                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                            ],
+                                            [
+                                                'val' => 2,
+                                                'lbl' => 'جيد',
+                                                'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
+                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                            ],
+                                            [
+                                                'val' => 1,
+                                                'lbl' => 'مقبول',
+                                                'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                            ],
+                                            [
+                                                'val' => null,
+                                                'lbl' => 'لم يسمع',
+                                                'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
+                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                            ]
+                                        ] as $item)
+                                            @php
+                                                $val = $item['val'];
+                                                $lbl = $item['lbl'];
+                                                $activeClass = $item['activeClass'];
+                                                $inactiveClass = $item['inactiveClass'];
+                                            @endphp
+                                            <button type="button" 
+                                                @click="syncingTask = 'hadith-review-{{ $val ?? 'null' }}'; await $wire.saveHadithAchievement({{ $hadithDay->id }}, 'review', {{ $val ?? 'null' }}); syncingTask = null"
+                                                :disabled="syncingTask !== null"
+                                                class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
+                                                :class="syncingTask === 'hadith-review-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $hadithDay->review_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                {{ $lbl }}
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- Hadith Full-Screen Hifz Modal --}}
+                    @if ($hadithDay->from_line_number && $hadithDay->to_line_number)
+                        <div x-show="showHadithHifzModal" 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 translate-y-4"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 translate-y-4"
+                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full"
+                             x-cloak>
+                            
+                            {{-- Modal Header --}}
+                            <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                                <div>
+                                    <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
+                                        {{ __('حفظ الحديث') }}
+                                    </h3>
+                                    <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-semibold">
+                                        {{ $activeHadithPlan->hadith->name }} ({{ $hadithDay->formatHadithRange('hifz') }})
+                                    </p>
+                                </div>
+                                <button type="button" @click="showHadithHifzModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                                    <flux:icon icon="x-mark" class="size-5" />
+                                </button>
+                            </div>
+
+                            {{-- Modal Content (Scrollable) --}}
+                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
+                                <div class="max-w-4xl mx-auto space-y-4 text-right">
+                                    @if ($activeHadithPlan->hadith->sanad)
+                                        <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-600 dark:text-zinc-400 pr-4 border-r-4 border-zinc-400">
+                                            <strong>{{ __('السند') }}: </strong>{{ $activeHadithPlan->hadith->sanad }}
+                                        </div>
+                                    @endif
+                                    @foreach($hifzLines as $line)
+                                        <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 shadow-sm hover:shadow-md transition-shadow">
+                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-extrabold text-sm shadow-sm">
+                                                {{ $line->line_number }}
+                                            </span>
+                                            <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 leading-relaxed text-right pr-4 border-r-4 border-indigo-500 dark:border-indigo-400 font-serif">
+                                                {{ $line->text }}
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                    @if ($activeHadithPlan->hadith->ruling)
+                                        <div class="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-sm font-bold text-indigo-700 dark:text-indigo-300 pr-4 border-r-4 border-indigo-500">
+                                            <strong>{{ __('حكم الحديث') }}: </strong>{{ $activeHadithPlan->hadith->ruling }}
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+
+                            {{-- Modal Footer --}}
+                            <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
+                                <flux:button type="button" @click="showHadithHifzModal = false" variant="ghost">
+                                    {{ __('إغلاق') }}
+                                </flux:button>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Hadith Full-Screen Review Modal --}}
+                    @if ($hadithDay->review_from_line_number && $hadithDay->review_to_line_number)
+                        <div x-show="showHadithReviewModal" 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 translate-y-4"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 translate-y-4"
+                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full"
+                             x-cloak>
+                            
+                            {{-- Modal Header --}}
+                            <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                                <div>
+                                    <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
+                                        {{ __('مراجعة الحديث') }}
+                                    </h3>
+                                    <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
+                                        {{ $activeHadithPlan->hadith->name }} ({{ $hadithDay->formatHadithRange('review') }})
+                                    </p>
+                                </div>
+                                <button type="button" @click="showHadithReviewModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                                    <flux:icon icon="x-mark" class="size-5" />
+                                </button>
+                            </div>
+
+                            {{-- Modal Content (Scrollable) --}}
+                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
+                                <div class="max-w-4xl mx-auto space-y-4 text-right">
+                                    @if ($activeHadithPlan->hadith->sanad)
+                                        <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-600 dark:text-zinc-400 pr-4 border-r-4 border-zinc-400">
+                                            <strong>{{ __('السند') }}: </strong>{{ $activeHadithPlan->hadith->sanad }}
+                                        </div>
+                                    @endif
+                                    @foreach($reviewLines as $line)
+                                        <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-emerald-100/60 dark:border-emerald-950/40 shadow-sm hover:shadow-md transition-shadow">
+                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-sm shadow-sm">
+                                                {{ $line->line_number }}
+                                            </span>
+                                            <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 leading-relaxed text-right pr-4 border-r-4 border-emerald-500 dark:border-emerald-400 font-serif">
+                                                {{ $line->text }}
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                    @if ($activeHadithPlan->hadith->ruling)
+                                        <div class="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-sm font-bold text-indigo-700 dark:text-indigo-300 pr-4 border-r-4 border-indigo-500">
+                                            <strong>{{ __('حكم الحديث') }}: </strong>{{ $activeHadithPlan->hadith->ruling }}
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+
+                            {{-- Modal Footer --}}
+                            <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
+                                <flux:button type="button" @click="showHadithReviewModal = false" variant="ghost">
+                                    {{ __('إغلاق') }}
+                                </flux:button>
+                            </div>
+                        </div>
+                    @endif
+                </flux:card>
+            </div>
+        @endforeach
+    @elseif($activeHadithPlan && $hadithDays->isEmpty())
+        <flux:card class="mt-4 border-zinc-200 dark:border-zinc-700">
+            <div class="flex items-center gap-2 mb-6 pb-4 border-b border-zinc-100 dark:border-zinc-800">
+                <flux:icon icon="document-text" class="size-5 text-rose-500" />
+                <div>
+                    <flux:heading size="md" class="font-bold text-zinc-900 dark:text-white">
+                        {{ __('تسميع الحديث') }}: {{ $activeHadithPlan->hadith->name }}
+                    </flux:heading>
+                </div>
+            </div>
+            <div class="flex flex-col items-center justify-center p-6 bg-zinc-50/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-center">
+                <flux:icon icon="document-text" class="size-8 text-zinc-300 dark:text-zinc-600 mb-2" />
+                <p class="text-zinc-500 dark:text-zinc-400 text-sm">
+                    {{ __('لا توجد أسطر مجدولة لهذا الحديث.') }}
+                </p>
+            </div>
+        </flux:card>
+    @endif
+
+    @if($sPlans->isEmpty() && !$activeOdePlan && !$activeHadithPlan)
         <div class="flex flex-col items-center justify-center p-12 bg-zinc-50/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl text-center h-full min-h-[400px]">
             <flux:icon icon="document-text" class="size-16 text-zinc-300 dark:text-zinc-600 mb-4" />
             <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400 mb-2">{{ __('لا توجد خطط لهذا الطالب') }}</flux:heading>
-            <p class="text-zinc-400 dark:text-zinc-500 text-sm max-w-sm mb-6">{{ __('قم بإنشاء خطة قرآنية أو خطة منظومة للطالب للبدء بتقييم التسميع والمراجعة.') }}</p>
-            <div class="flex gap-2">
+            <p class="text-zinc-400 dark:text-zinc-500 text-sm max-w-sm mb-6">{{ __('قم بإنشاء خطة قرآنية أو خطة منظومة أو خطة حديث للطالب للبدء بتقييم التسميع والمراجعة.') }}</p>
+            <div class="flex flex-wrap gap-2 justify-center">
                 <flux:button href="{{ route('teacher.plan-creator', ['studentId' => $student->id]) }}" variant="primary" icon="plus">{{ __('خطة قرآنية جديدة') }}</flux:button>
                 <flux:button href="{{ route('teacher.ode-plan-creator', ['student_id' => $student->id]) }}" variant="filled" icon="plus">{{ __('خطة منظومة جديدة') }}</flux:button>
+                <flux:button href="{{ route('teacher.hadith-plan-creator', ['student_id' => $student->id]) }}" variant="outline" icon="plus">{{ __('خطة حديث جديدة') }}</flux:button>
             </div>
         </div>
     @endif
 </div>
-
