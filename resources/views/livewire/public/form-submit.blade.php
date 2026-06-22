@@ -1,4 +1,4 @@
-<div>
+<div class="w-full max-w-2xl space-y-6">
     @push('meta')
         <!-- Open Graph Tags for WhatsApp & Social Media Sharing -->
         <meta property="og:type" content="website">
@@ -74,7 +74,7 @@
         </style>
     @endpush
     
-    <div class="w-full max-w-3xl space-y-6">
+    <div class="w-full max-w-2xl space-y-6">
         <!-- Logo -->
         <div class="flex items-center justify-center gap-3">
             <img src="{{ asset('images/altag_logo.png') }}" alt="Logo" class="h-12 object-contain">
