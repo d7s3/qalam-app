@@ -249,7 +249,7 @@
 
                                 <!-- Select Field -->
                                 @if($field['type'] === 'select')
-                                    <select wire:model="answers.{{ $fieldId }}" class="block w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-offset-2 accent-ring">
+                                    <select @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif class="block w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-offset-2 accent-ring">
                                         <option value="">-- اختر خياراً --</option>
                                         @foreach($field['options'] ?? [] as $option)
                                             <option value="{{ $option }}">{{ $option }}</option>
@@ -273,13 +273,13 @@
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-zinc-50 p-4 rounded-lg border border-zinc-200 theme-border">
                                         @foreach($field['options'] ?? [] as $optVal)
                                             <label class="flex items-center gap-2 cursor-pointer text-sm">
-                                                <input type="checkbox" wire:model="answers.{{ $fieldId }}" value="{{ $optVal }}" class="rounded border-zinc-300 text-accent focus:ring-accent" />
+                                                <input type="checkbox" @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif value="{{ $optVal }}" class="rounded border-zinc-300 text-accent focus:ring-accent" />
                                                 <span class="text-zinc-700">{{ $optVal }}</span>
                                             </label>
                                         @endforeach
                                         @if($field['allow_other'] ?? false)
                                             <label class="flex items-center gap-2 cursor-pointer text-sm font-semibold">
-                                                <input type="checkbox" wire:model="answers.{{ $fieldId }}" value="أخرى" class="rounded border-zinc-300 text-accent focus:ring-accent" />
+                                                <input type="checkbox" wire:model.live="answers.{{ $fieldId }}" value="أخرى" class="rounded border-zinc-300 text-accent focus:ring-accent" />
                                                 <span class="text-zinc-800">أخرى</span>
                                             </label>
                                         @endif
