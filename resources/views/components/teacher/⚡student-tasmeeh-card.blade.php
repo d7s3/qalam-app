@@ -670,7 +670,7 @@ new class extends Component {
                                         <button type="button" @click="open = !open"
                                             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-colors">
                                             <flux:icon icon="book-open" class="size-3.5" />
-                                            <span>{{ __('افتح الآيات في القرآن') }} ({{ count($hLinks) }})</span>
+                                            <span>{{ __('افتح الآيات في القرآن') }} ({{ count($rLinks) }})</span>
                                             <flux:icon icon="chevron-down" class="size-3.5 transition-transform" x-bind:class="open ? 'rotate-180' : ''" />
                                         </button>
                                         <div x-show="open" x-collapse class="flex flex-wrap gap-2 mt-2">
