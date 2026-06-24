@@ -262,15 +262,16 @@
                                                  <span class="text-zinc-800">أخرى</span>
                                              </label>
                                          @endif
+                                         @if(($field['allow_other'] ?? false) && ($answers[$fieldId] ?? '') === 'أخرى')
+                                             <div class="mt-2 animate-in fade-in slide-in-from-top-1 duration-250">
+                                                 <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
+                                                 <flux:error name="other_answers.{{ $fieldId }}" />
+                                             </div>
+                                         @endif
                                      </div>
                                      <flux:error name="answers.{{ $fieldId }}" />
 
-                                     @if(($field['allow_other'] ?? false) && ($answers[$fieldId] ?? '') === 'أخرى')
-                                         <div class="mt-2 animate-in fade-in slide-in-from-top-1 duration-250">
-                                             <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
-                                             <flux:error name="other_answers.{{ $fieldId }}" />
-                                         </div>
-                                     @endif
+
                                  @endif
 
                                 <!-- Multiselect Field -->
@@ -288,15 +289,16 @@
                                                 <span class="text-zinc-800">أخرى</span>
                                             </label>
                                         @endif
+                                        @if(($field['allow_other'] ?? false) && in_array('أخرى', $answers[$fieldId] ?? []))
+                                            <div class="mt-2 animate-in fade-in slide-in-from-top-1 duration-250">
+                                                <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
+                                                <flux:error name="other_answers.{{ $fieldId }}" />
+                                            </div>
+                                        @endif
                                     </div>
                                     <flux:error name="answers.{{ $fieldId }}" />
 
-                                    @if(($field['allow_other'] ?? false) && in_array('أخرى', $answers[$fieldId] ?? []))
-                                        <div class="mt-2 animate-in fade-in slide-in-from-top-1 duration-250">
-                                            <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
-                                            <flux:error name="other_answers.{{ $fieldId }}" />
-                                        </div>
-                                    @endif
+
                                 @endif
 
                                 <!-- Image Field -->
