@@ -249,36 +249,41 @@
 
                                 <!-- Select Field -->
                                 @if($field['type'] === 'select')
-                                    <select @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif class="block w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-offset-2 accent-ring">
-                                        <option value="">-- اختر خياراً --</option>
-                                        @foreach($field['options'] ?? [] as $option)
-                                            <option value="{{ $option }}">{{ $option }}</option>
-                                        @endforeach
-                                        @if($field['allow_other'] ?? false)
-                                            <option value="أخرى">أخرى</option>
-                                        @endif
-                                    </select>
-                                    <flux:error name="answers.{{ $fieldId }}" />
+                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-zinc-50 p-4 rounded-lg border border-zinc-200 theme-border">
+                                         @foreach($field['options'] ?? [] as $option)
+                                             <label class="flex items-center gap-2 cursor-pointer text-sm p-2 rounded-lg hover:bg-zinc-100/60 transition-colors">
+                                                 <input type="radio" @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif name="answers.{{ $fieldId }}" value="{{ $option }}" class="text-accent focus:ring-accent border-zinc-300" />
+                                                 <span class="text-zinc-700 font-medium">{{ $option }}</span>
+                                             </label>
+                                         @endforeach
+                                         @if($field['allow_other'] ?? false)
+                                             <label class="flex items-center gap-2 cursor-pointer text-sm font-semibold p-2 rounded-lg hover:bg-zinc-100/60 transition-colors">
+                                                 <input type="radio" wire:model.live="answers.{{ $fieldId }}" name="answers.{{ $fieldId }}" value="أخرى" class="text-accent focus:ring-accent border-zinc-300" />
+                                                 <span class="text-zinc-800">أخرى</span>
+                                             </label>
+                                         @endif
+                                     </div>
+                                     <flux:error name="answers.{{ $fieldId }}" />
 
-                                    @if(($field['allow_other'] ?? false) && ($answers[$fieldId] ?? '') === 'أخرى')
-                                        <div class="mt-2 animate-in fade-in slide-in-from-top-1 duration-250">
-                                            <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
-                                            <flux:error name="other_answers.{{ $fieldId }}" />
-                                        </div>
-                                    @endif
-                                @endif
+                                     @if(($field['allow_other'] ?? false) && ($answers[$fieldId] ?? '') === 'أخرى')
+                                         <div class="mt-2 animate-in fade-in slide-in-from-top-1 duration-250">
+                                             <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
+                                             <flux:error name="other_answers.{{ $fieldId }}" />
+                                         </div>
+                                     @endif
+                                 @endif
 
                                 <!-- Multiselect Field -->
                                 @if($field['type'] === 'multiselect')
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-zinc-50 p-4 rounded-lg border border-zinc-200 theme-border">
                                         @foreach($field['options'] ?? [] as $optVal)
-                                            <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                            <label class="flex items-center gap-2 cursor-pointer text-sm p-2 rounded-lg hover:bg-zinc-100/60 transition-colors">
                                                 <input type="checkbox" @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif value="{{ $optVal }}" class="rounded border-zinc-300 text-accent focus:ring-accent" />
-                                                <span class="text-zinc-700">{{ $optVal }}</span>
+                                                <span class="text-zinc-700 font-medium">{{ $optVal }}</span>
                                             </label>
                                         @endforeach
                                         @if($field['allow_other'] ?? false)
-                                            <label class="flex items-center gap-2 cursor-pointer text-sm font-semibold">
+                                            <label class="flex items-center gap-2 cursor-pointer text-sm font-semibold p-2 rounded-lg hover:bg-zinc-100/60 transition-colors">
                                                 <input type="checkbox" wire:model.live="answers.{{ $fieldId }}" value="أخرى" class="rounded border-zinc-300 text-accent focus:ring-accent" />
                                                 <span class="text-zinc-800">أخرى</span>
                                             </label>
