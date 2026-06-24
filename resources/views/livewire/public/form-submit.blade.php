@@ -34,6 +34,9 @@
             input {
                 color: #000 !important;
             }
+            input[type="radio"]{
+                color: color-mix(in srgb, var(--theme-color) 50%, #fff) !important;
+            }
             .accent-btn {
                 background-color: color-mix(in srgb, var(--theme-color) 81%, #000) !important;
                 color: white !important;
