@@ -31,11 +31,98 @@
             body {
                 background-color: color-mix(in srgb, var(--theme-color) 6%, #fff) !important;
             }
-            input {
+            input:not([type="radio"]):not([type="checkbox"]) {
                 color: #000 !important;
             }
-            input[type="radio"]{
-                color: color-mix(in srgb, var(--theme-color) 50%, #fff) !important;
+            
+            /* Custom Radio Buttons */
+            input[type="radio"].custom-radio {
+                appearance: none;
+                -webkit-appearance: none;
+                background-color: color-mix(in srgb, var(--theme-color) 12%, #fff) !important;
+                border: 2px solid color-mix(in srgb, var(--theme-color) 40%, #d4d4d8) !important;
+                width: 1.25rem;
+                height: 1.25rem;
+                border-radius: 50%;
+                display: inline-grid;
+                place-content: center;
+                cursor: pointer;
+                transition: all 0.2s ease-in-out;
+                flex-shrink: 0;
+            }
+
+            input[type="radio"].custom-radio::before {
+                content: "";
+                width: 0.625rem;
+                height: 0.625rem;
+                border-radius: 50%;
+                transform: scale(0);
+                transition: 0.15s transform ease-in-out;
+                background-color: color-mix(in srgb, var(--theme-color) 85%, #000) !important;
+            }
+
+            input[type="radio"].custom-radio:checked {
+                border-color: color-mix(in srgb, var(--theme-color) 85%, #000) !important;
+                background-color: color-mix(in srgb, var(--theme-color) 15%, #fff) !important;
+            }
+
+            input[type="radio"].custom-radio:checked::before {
+                transform: scale(1);
+            }
+
+            /* Custom Checkboxes */
+            input[type="checkbox"].custom-checkbox {
+                appearance: none;
+                -webkit-appearance: none;
+                background-color: color-mix(in srgb, var(--theme-color) 12%, #fff) !important;
+                border: 2px solid color-mix(in srgb, var(--theme-color) 40%, #d4d4d8) !important;
+                width: 1.25rem;
+                height: 1.25rem;
+                border-radius: 0.375rem;
+                display: inline-grid;
+                place-content: center;
+                cursor: pointer;
+                transition: all 0.2s ease-in-out;
+                flex-shrink: 0;
+            }
+
+            input[type="checkbox"].custom-checkbox::before {
+                content: "";
+                width: 0.625rem;
+                height: 0.625rem;
+                clip-path: polygon(14% 44%, 0 58%, 30% 88%, 90% 18%, 76% 4%, 30% 60%);
+                transform: scale(0);
+                transition: 0.15s transform ease-in-out;
+                background-color: color-mix(in srgb, var(--theme-color) 85%, #000) !important;
+            }
+
+            input[type="checkbox"].custom-checkbox:checked {
+                border-color: color-mix(in srgb, var(--theme-color) 85%, #000) !important;
+                background-color: color-mix(in srgb, var(--theme-color) 15%, #fff) !important;
+            }
+
+            input[type="checkbox"].custom-checkbox:checked::before {
+                transform: scale(1);
+            }
+
+            /* Option cards */
+            .theme-choice-card {
+                border: 1.5px solid color-mix(in srgb, var(--theme-color) 12%, #e4e4e7);
+                background-color: #fff;
+                border-radius: 0.75rem;
+                padding: 0.75rem 1rem;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            .theme-choice-card:hover {
+                background-color: color-mix(in srgb, var(--theme-color) 4%, #fff);
+                border-color: color-mix(in srgb, var(--theme-color) 25%, #d4d4d8);
+            }
+
+            .theme-choice-card:has(input:checked) {
+                border-color: color-mix(in srgb, var(--theme-color) 85%, #000) !important;
+                background-color: color-mix(in srgb, var(--theme-color) 8%, #fff) !important;
+                box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-color) 85%, #000) !important;
             }
             .accent-btn {
                 background-color: color-mix(in srgb, var(--theme-color) 81%, #000) !important;
@@ -252,56 +339,52 @@
 
                                 <!-- Select Field -->
                                 @if($field['type'] === 'select')
-                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-zinc-50 p-4 rounded-lg border border-zinc-200 theme-border">
+                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-zinc-50 p-4 rounded-xl border border-zinc-200 theme-border">
                                          @foreach($field['options'] ?? [] as $option)
-                                             <label class="flex items-center gap-2 cursor-pointer text-sm p-2 rounded-lg hover:bg-zinc-100/60 transition-colors">
-                                                 <input type="radio" @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif name="answers.{{ $fieldId }}" value="{{ $option }}" class="text-accent focus:ring-accent border-zinc-300" />
-                                                 <span class="text-zinc-700 font-medium">{{ $option }}</span>
+                                             <label class="flex items-center gap-3 cursor-pointer text-sm transition-colors theme-choice-card">
+                                                 <input type="radio" @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif name="answers.{{ $fieldId }}" value="{{ $option }}" class="custom-radio" />
+                                                 <span class="text-zinc-700 font-semibold">{{ $option }}</span>
                                              </label>
                                          @endforeach
                                          @if($field['allow_other'] ?? false)
-                                             <label class="flex items-center gap-2 cursor-pointer text-sm font-semibold p-2 rounded-lg hover:bg-zinc-100/60 transition-colors">
-                                                 <input type="radio" wire:model.live="answers.{{ $fieldId }}" name="answers.{{ $fieldId }}" value="أخرى" class="text-accent focus:ring-accent border-zinc-300" />
-                                                 <span class="text-zinc-800">أخرى</span>
+                                             <label class="flex items-center gap-3 cursor-pointer text-sm transition-colors theme-choice-card">
+                                                 <input type="radio" wire:model.live="answers.{{ $fieldId }}" name="answers.{{ $fieldId }}" value="أخرى" class="custom-radio" />
+                                                 <span class="text-zinc-800 font-bold">أخرى</span>
                                              </label>
                                          @endif
-                                         @if(($field['allow_other'] ?? false) && ($answers[$fieldId] ?? '') === 'أخرى')
-                                             <div class="mt-2 animate-in fade-in slide-in-from-top-1 duration-250">
-                                                 <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
-                                                 <flux:error name="other_answers.{{ $fieldId }}" />
-                                             </div>
-                                         @endif
                                      </div>
+                                     @if(($field['allow_other'] ?? false) && ($answers[$fieldId] ?? '') === 'أخرى')
+                                         <div class="mt-3 animate-in fade-in slide-in-from-top-1 duration-250">
+                                             <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
+                                             <flux:error name="other_answers.{{ $fieldId }}" />
+                                         </div>
+                                     @endif
                                      <flux:error name="answers.{{ $fieldId }}" />
-
-
                                  @endif
 
                                 <!-- Multiselect Field -->
                                 @if($field['type'] === 'multiselect')
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-zinc-50 p-4 rounded-lg border border-zinc-200 theme-border">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-zinc-50 p-4 rounded-xl border border-zinc-200 theme-border">
                                         @foreach($field['options'] ?? [] as $optVal)
-                                            <label class="flex items-center gap-2 cursor-pointer text-sm p-2 rounded-lg hover:bg-zinc-100/60 transition-colors">
-                                                <input type="checkbox" @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif value="{{ $optVal }}" class="rounded border-zinc-300 text-accent focus:ring-accent" />
-                                                <span class="text-zinc-700 font-medium">{{ $optVal }}</span>
+                                            <label class="flex items-center gap-3 cursor-pointer text-sm transition-colors theme-choice-card">
+                                                <input type="checkbox" @if($field['allow_other'] ?? false) wire:model.live="answers.{{ $fieldId }}" @else wire:model="answers.{{ $fieldId }}" @endif value="{{ $optVal }}" class="custom-checkbox" />
+                                                <span class="text-zinc-700 font-semibold">{{ $optVal }}</span>
                                             </label>
                                         @endforeach
                                         @if($field['allow_other'] ?? false)
-                                            <label class="flex items-center gap-2 cursor-pointer text-sm font-semibold p-2 rounded-lg hover:bg-zinc-100/60 transition-colors">
-                                                <input type="checkbox" wire:model.live="answers.{{ $fieldId }}" value="أخرى" class="rounded border-zinc-300 text-accent focus:ring-accent" />
-                                                <span class="text-zinc-800">أخرى</span>
+                                            <label class="flex items-center gap-3 cursor-pointer text-sm transition-colors theme-choice-card">
+                                                <input type="checkbox" wire:model.live="answers.{{ $fieldId }}" value="أخرى" class="custom-checkbox" />
+                                                <span class="text-zinc-800 font-bold">أخرى</span>
                                             </label>
                                         @endif
-                                        @if(($field['allow_other'] ?? false) && in_array('أخرى', $answers[$fieldId] ?? []))
-                                            <div class="mt-2 animate-in fade-in slide-in-from-top-1 duration-250">
-                                                <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
-                                                <flux:error name="other_answers.{{ $fieldId }}" />
-                                            </div>
-                                        @endif
                                     </div>
+                                    @if(($field['allow_other'] ?? false) && in_array('أخرى', $answers[$fieldId] ?? []))
+                                        <div class="mt-3 animate-in fade-in slide-in-from-top-1 duration-250">
+                                            <flux:input wire:model="other_answers.{{ $fieldId }}" placeholder="يرجى كتابة الخيار الآخر هنا..." class="accent-ring" />
+                                            <flux:error name="other_answers.{{ $fieldId }}" />
+                                        </div>
+                                    @endif
                                     <flux:error name="answers.{{ $fieldId }}" />
-
-
                                 @endif
 
                                 <!-- Image Field -->
