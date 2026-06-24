@@ -33,6 +33,10 @@ class FormBuilder extends Component
 
     public ?string $header_image_path = null;
 
+    public ?string $policy_text = null;
+
+    public ?string $success_text = null;
+
     // Fields
     public array $fields = [];
 
@@ -50,6 +54,8 @@ class FormBuilder extends Component
             $this->color = $form->color;
             $this->slug = $form->slug;
             $this->header_image_path = $form->header_image_path;
+            $this->policy_text = $form->policy_text;
+            $this->success_text = $form->success_text;
             $this->fields = $form->fields ?? [];
         } else {
             $this->slug = Str::random(8);
@@ -142,6 +148,8 @@ class FormBuilder extends Component
             'color' => 'required|string|max:7',
             'slug' => 'required|string|alpha_dash|unique:forms,slug,'.$this->formId,
             'header_image_file' => 'nullable|image|max:5120', // 5MB max
+            'policy_text' => 'nullable|string',
+            'success_text' => 'nullable|string',
             'fields' => 'required|array|min:1',
             'fields.*.label' => 'required|string|max:255',
             'fields.*.type' => 'required|in:text,image,select,multiselect,date',
@@ -187,6 +195,8 @@ class FormBuilder extends Component
                 'color' => $this->color,
                 'slug' => $this->slug,
                 'header_image_path' => $this->header_image_path,
+                'policy_text' => $this->policy_text,
+                'success_text' => $this->success_text,
                 'fields' => $this->fields,
             ]
         );

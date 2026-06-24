@@ -71,10 +71,48 @@
             .theme-dashed-border:hover {
                 background-color: color-mix(in srgb, var(--theme-color) 6%, #f4f4f5) !important;
             }
+            [x-cloak] {
+                display: none !important;
+            }
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            @keyframes scalePop {
+                0% {
+                    transform: scale(0.8);
+                    opacity: 0;
+                }
+                50% {
+                    transform: scale(1.1);
+                }
+                100% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+            .animate-slide-up {
+                animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            }
+            .animate-scale-pop {
+                animation: scalePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            }
+            .delay-150 {
+                animation-delay: 150ms;
+            }
+            .delay-300 {
+                animation-delay: 300ms;
+            }
         </style>
     @endpush
     
-    <div class="w-full max-w-2xl space-y-6">
+    <div class="w-full max-w-2xl space-y-6" x-data="{ agreed: {{ !empty($form->policy_text) ? 'false' : 'true' }} }">
         <!-- Logo -->
         <div class="flex items-center justify-center gap-3">
             <img src="{{ asset('images/altag_logo.png') }}" alt="Logo" class="h-12 object-contain">
@@ -83,23 +121,57 @@
 
         @if($submitted)
             <!-- Thank You Screen -->
-            <div class="bg-white rounded-2xl border border-zinc-200 p-8 shadow-md text-center space-y-6">
-                <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto text-white" style="background-color: var(--theme-color)">
+            <div class="bg-white rounded-2xl border border-zinc-200 p-8 shadow-md text-center space-y-6 animate-slide-up">
+                <div class="w-15 h-15 rounded-full flex items-center justify-center mx-auto text-white animate-scale-pop" style="background-color: #7cc463; opacity: 0;">
                     <flux:icon name="check" class="size-10" />
                 </div>
-                <div>
+                <div class="animate-slide-up delay-150" style="opacity: 0;">
                     <h2 class="text-2xl font-bold text-zinc-900">تم إرسال ردك بنجاح!</h2>
-                    <p class="text-sm text-zinc-500 mt-2">شكرًا لتعاونك وتعبئة هذا النموذج. لقد تم استلام إجاباتك بنجاح.</p>
+                    @if($form->success_text)
+                        <p class="text-sm text-zinc-600 whitespace-pre-line mt-4 leading-relaxed bg-zinc-50 p-4 rounded-xl border border-zinc-150 text-right animate-slide-up delay-300" style="opacity: 0;">
+                            {{ $form->success_text }}
+                        </p>
+                    @else
+                        <p class="text-sm text-zinc-500 mt-2">شكرًا لتعاونك وتعبئة هذا النموذج. لقد تم استلام إجاباتك بنجاح.</p>
+                    @endif
                 </div>
-                @if($form->description)
-                    <div class="p-4 bg-zinc-50 rounded-lg text-sm text-zinc-600 border border-zinc-150">
+                @if(!$form->success_text && $form->description)
+                    <div class="p-4 bg-zinc-50 rounded-lg text-sm text-zinc-600 border border-zinc-150 animate-slide-up delay-300" style="opacity: 0;">
                         {{ $form->description }}
                     </div>
                 @endif
             </div>
         @else
+            @if($form->policy_text)
+                <!-- Policy Agreement Card -->
+                <div x-show="!agreed" class="bg-white rounded-2xl border border-zinc-200 shadow-md overflow-hidden text-right">
+                    @if($form->header_image_path)
+                        <div class="h-44 w-full bg-cover bg-center" style="background-image: url('{{ asset('storage/' . $form->header_image_path) }}')"></div>
+                    @else
+                        <div class="h-4 w-full" style="background-color: var(--theme-color)"></div>
+                    @endif
+
+                    <div class="p-6 md:p-8 space-y-6">
+                        <div class="space-y-2 border-b border-zinc-100 pb-5">
+                            <h1 class="text-2xl md:text-3xl font-extrabold text-zinc-900">{{ $form->title }}</h1>
+                            <p class="text-xs text-zinc-400 mt-1 font-bold">شروط وسياسة الاستخدام</p>
+                        </div>
+
+                        <div class="p-5 bg-zinc-50 rounded-xl text-zinc-700 text-sm whitespace-pre-line leading-relaxed border border-zinc-150 max-h-[350px] overflow-y-auto font-medium">
+                            {{ $form->policy_text }}
+                        </div>
+
+                        <div class="pt-6 border-t border-zinc-100">
+                            <flux:button type="button" @click="agreed = true" class="w-full accent-btn text-center justify-center font-bold text-base py-3">
+                                موافق، الانتقال إلى الاستمارة
+                            </flux:button>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
             <!-- Main Form Card -->
-            <div class="bg-white rounded-2xl border border-zinc-200 shadow-md overflow-hidden">
+            <div x-show="agreed" class="bg-white rounded-2xl border border-zinc-200 shadow-md overflow-hidden" x-cloak>
                 <!-- Header Banner -->
                 @if($form->header_image_path)
                     <div class="h-44 w-full bg-cover bg-center" style="background-image: url('{{ asset('storage/' . $form->header_image_path) }}')"></div>
@@ -119,7 +191,7 @@
                     </div>
 
                     <!-- Submission Form -->
-                    <form wire:submit="submit" class="space-y-6">
+                    <form wire:submit="submit" class="space-y-10">
                         @foreach($form->fields as $field)
                             @php
                                 $fieldId = $field['id'];
@@ -143,7 +215,35 @@
 
                                 <!-- Date Field -->
                                 @if($field['type'] === 'date')
-                                    <flux:input type="date" wire:model="answers.{{ $fieldId }}" class="accent-ring w-full" />
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <!-- Day -->
+                                        <div>
+                                            <select wire:model="date_parts.{{ $fieldId }}.day" class="block w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-offset-2 accent-ring">
+                                                <option value="">اليوم</option>
+                                                @foreach(range(1, 31) as $d)
+                                                    <option value="{{ $d }}">{{ $d }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <!-- Month -->
+                                        <div>
+                                            <select wire:model="date_parts.{{ $fieldId }}.month" class="block w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-offset-2 accent-ring">
+                                                <option value="">الشهر</option>
+                                                @foreach(range(1, 12) as $m)
+                                                    <option value="{{ $m }}">{{ $m }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <!-- Year -->
+                                        <div>
+                                            <select wire:model="date_parts.{{ $fieldId }}.year" class="block w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-offset-2 accent-ring">
+                                                <option value="">السنة</option>
+                                                @foreach(range(now()->year, now()->year - 80) as $y)
+                                                    <option value="{{ $y }}">{{ $y }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
                                     <flux:error name="answers.{{ $fieldId }}" />
                                 @endif
 

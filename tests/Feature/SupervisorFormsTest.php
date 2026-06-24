@@ -318,3 +318,96 @@ it('allows supervisor to bulk create students from all unlinked responses', func
     expect($response1->fresh()->is_processed)->toBeTrue();
     expect($response2->fresh()->is_processed)->toBeTrue();
 });
+
+it('allows supervisor to save a form with policy_text and success_text', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(FormBuilder::class)
+        ->set('title', 'نموذج الشروط والنجاح')
+        ->set('description', 'تعبئة استمارة')
+        ->set('color', '#ef4444')
+        ->set('slug', 'policy-success-form')
+        ->set('policy_text', "الشروط:\n١. الشرط الأول\n٢. الشرط الثاني")
+        ->set('success_text', "شكراً لكم!\nتم تسجيل البيانات بنجاح.")
+        ->set('fields', [
+            [
+                'id' => 'field_name',
+                'type' => 'text',
+                'label' => 'الاسم الكامل',
+                'required' => true,
+                'is_student_name' => true,
+                'is_student_username' => false,
+                'options' => [],
+            ],
+        ])
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('supervisor.forms'));
+
+    $form = Form::where('slug', 'policy-success-form')->first();
+    expect($form)->not->toBeNull();
+    expect($form->policy_text)->toBe("الشروط:\n١. الشرط الأول\n٢. الشرط الثاني");
+    expect($form->success_text)->toBe("شكراً لكم!\nتم تسجيل البيانات بنجاح.");
+});
+
+it('shows policy and success text on form submission', function () {
+    $form = Form::create([
+        'supervisor_id' => $this->supervisor->id,
+        'title' => 'نموذج الشروط والنجاح العام',
+        'slug' => 'public-policy-form',
+        'color' => '#ef4444',
+        'policy_text' => 'سياسة التقديم المعتمدة',
+        'success_text' => 'تم استلام الطلب الخاص بك بنجاح، شكراً لك.',
+        'fields' => [
+            [
+                'id' => 'f_name',
+                'type' => 'text',
+                'label' => 'الاسم',
+                'required' => true,
+            ],
+        ],
+    ]);
+
+    // View form page - should see policy text
+    $this->get(route('forms.submit', 'public-policy-form'))
+        ->assertSuccessful()
+        ->assertSee('سياسة التقديم المعتمدة')
+        ->assertSee('موافق، الانتقال إلى الاستمارة');
+
+    // Submit form response and verify it sets submitted = true
+    Livewire::test(FormSubmit::class, ['slug' => 'public-policy-form'])
+        ->set('answers.f_name', 'أحمد علي')
+        ->call('submit')
+        ->assertHasNoErrors()
+        ->assertSet('submitted', true)
+        ->assertSee('تم استلام الطلب الخاص بك بنجاح، شكراً لك.');
+});
+
+it('assembles split date inputs into standard date string on submission', function () {
+    $form = Form::create([
+        'supervisor_id' => $this->supervisor->id,
+        'title' => 'نموذج تاريخ ميلاد',
+        'slug' => 'birthdate-form',
+        'color' => '#3b82f6',
+        'fields' => [
+            [
+                'id' => 'f_birthday',
+                'type' => 'date',
+                'label' => 'تاريخ الميلاد',
+                'required' => true,
+            ],
+        ],
+    ]);
+
+    Livewire::test(FormSubmit::class, ['slug' => 'birthdate-form'])
+        ->set('date_parts.f_birthday.year', '1995')
+        ->set('date_parts.f_birthday.month', '5')
+        ->set('date_parts.f_birthday.day', '12')
+        ->call('submit')
+        ->assertHasNoErrors()
+        ->assertSet('submitted', true);
+
+    $response = FormResponse::where('form_id', $form->id)->first();
+    expect($response)->not->toBeNull();
+    expect($response->answers['f_birthday'])->toBe('1995-05-12');
+});

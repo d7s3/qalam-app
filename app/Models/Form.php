@@ -19,6 +19,8 @@ class Form extends Model
         'color',
         'slug',
         'fields',
+        'policy_text',
+        'success_text',
     ];
 
     /**

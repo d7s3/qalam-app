@@ -35,6 +35,20 @@
                     <flux:error name="description" />
                 </flux:field>
 
+                <!-- Policy Text -->
+                <flux:field>
+                    <flux:label>سياسة الاستخدام والشروط (اختياري)</flux:label>
+                    <flux:textarea wire:model="policy_text" rows="4" placeholder="اكتب شروط الاستخدام أو السياسة التي يجب على المتقدم الموافقة عليها للدخول..." />
+                    <flux:error name="policy_text" />
+                </flux:field>
+
+                <!-- Success Text -->
+                <flux:field>
+                    <flux:label>رسالة إتمام الاستمارة المخصصة (اختياري)</flux:label>
+                    <flux:textarea wire:model="success_text" rows="3" placeholder="اكتب رسالة تظهر للمتقدم بعد إرسال استمارته بنجاح..." />
+                    <flux:error name="success_text" />
+                </flux:field>
+
                 <!-- Slug -->
                 <flux:field>
                     <flux:label>رابط الاستمارة المخصص *</flux:label>

@@ -23,6 +23,8 @@ class FormSubmit extends Component
 
     public array $temp_uploads = [];
 
+    public array $date_parts = [];
+
     public bool $submitted = false;
 
     public function mount(string $slug): void
@@ -34,6 +36,13 @@ class FormSubmit extends Component
         foreach ($this->form->fields as $field) {
             if ($field['type'] === 'multiselect') {
                 $this->answers[$field['id']] = [];
+            } elseif ($field['type'] === 'date') {
+                $this->answers[$field['id']] = '';
+                $this->date_parts[$field['id']] = [
+                    'day' => '',
+                    'month' => '',
+                    'year' => '',
+                ];
             } else {
                 $this->answers[$field['id']] = '';
             }
@@ -42,6 +51,22 @@ class FormSubmit extends Component
 
     public function submit(): void
     {
+        // Assemble date parts into standard YYYY-MM-DD format
+        foreach ($this->form->fields as $field) {
+            if ($field['type'] === 'date') {
+                $fieldId = $field['id'];
+                $day = $this->date_parts[$fieldId]['day'] ?? '';
+                $month = $this->date_parts[$fieldId]['month'] ?? '';
+                $year = $this->date_parts[$fieldId]['year'] ?? '';
+
+                if ($day && $month && $year) {
+                    $this->answers[$fieldId] = sprintf('%04d-%02d-%02d', $year, $month, $day);
+                } else {
+                    $this->answers[$fieldId] = '';
+                }
+            }
+        }
+
         $rules = [];
         $messages = [];
 
