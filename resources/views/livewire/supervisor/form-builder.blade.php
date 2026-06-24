@@ -196,6 +196,15 @@
                                     <flux:button wire:click="addOption({{ $index }})" size="sm" variant="ghost" icon="plus" class="text-xs">
                                         إضافة خيار جديد
                                     </flux:button>
+
+                                    <div class="mt-3 pt-2 border-t border-dashed border-zinc-200 dark:border-zinc-800">
+                                        <label class="flex items-center gap-2 cursor-pointer text-xs">
+                                            <input type="checkbox"
+                                                wire:model="fields.{{ $index }}.allow_other"
+                                                class="rounded border-zinc-300 text-accent focus:ring-accent" />
+                                            <span class="text-zinc-700 dark:text-zinc-300 font-semibold">تمكين خيار "أخرى" (إدخال يدوي من المستخدم)</span>
+                                        </label>
+                                    </div>
                                 </div>
                             @endif
                         </div>

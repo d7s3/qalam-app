@@ -153,6 +153,7 @@ class FormBuilder extends Component
             'fields' => 'required|array|min:1',
             'fields.*.label' => 'required|string|max:255',
             'fields.*.type' => 'required|in:text,image,select,multiselect,date',
+            'fields.*.allow_other' => 'nullable|boolean',
         ], [
             'fields.*.label.required' => 'يجب إدخال تسمية للحقل.',
             'slug.unique' => 'رابط الاستمارة مستخدم بالفعل، يرجى كتابة رابط آخر.',

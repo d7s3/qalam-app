@@ -411,3 +411,76 @@ it('assembles split date inputs into standard date string on submission', functi
     expect($response)->not->toBeNull();
     expect($response->answers['f_birthday'])->toBe('1995-05-12');
 });
+
+it('allows supervisor to create a form with allow_other enabled', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(FormBuilder::class)
+        ->set('title', 'نموذج بخيار أخرى')
+        ->set('slug', 'other-option-builder-form')
+        ->set('fields', [
+            [
+                'id' => 'f_select',
+                'type' => 'select',
+                'label' => 'الخيارات',
+                'required' => true,
+                'allow_other' => true,
+                'options' => ['الأول', 'الثاني'],
+            ],
+        ])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $form = Form::where('slug', 'other-option-builder-form')->first();
+    expect($form)->not->toBeNull();
+    expect($form->fields[0]['allow_other'])->toBeTrue();
+});
+
+it('handles other option submission for select and multiselect fields', function () {
+    $form = Form::create([
+        'supervisor_id' => $this->supervisor->id,
+        'title' => 'نموذج تجربة خيار أخرى',
+        'slug' => 'other-submit-form',
+        'color' => '#3b82f6',
+        'fields' => [
+            [
+                'id' => 'f_sel',
+                'type' => 'select',
+                'label' => 'اللون المفضل',
+                'required' => true,
+                'allow_other' => true,
+                'options' => ['أحمر', 'أزرق'],
+            ],
+            [
+                'id' => 'f_multi',
+                'type' => 'multiselect',
+                'label' => 'الاهتمامات',
+                'required' => true,
+                'allow_other' => true,
+                'options' => ['البرمجة', 'الرياضة'],
+            ],
+        ],
+    ]);
+
+    // Test validation: selecting "أخرى" without typing text should fail
+    Livewire::test(FormSubmit::class, ['slug' => 'other-submit-form'])
+        ->set('answers.f_sel', 'أخرى')
+        ->set('answers.f_multi', ['البرمجة', 'أخرى'])
+        ->call('submit')
+        ->assertHasErrors(['other_answers.f_sel', 'other_answers.f_multi']);
+
+    // Test successful submission: providing custom text should succeed
+    Livewire::test(FormSubmit::class, ['slug' => 'other-submit-form'])
+        ->set('answers.f_sel', 'أخرى')
+        ->set('other_answers.f_sel', 'أخضر مخصص')
+        ->set('answers.f_multi', ['البرمجة', 'أخرى'])
+        ->set('other_answers.f_multi', 'القراءة الحرة')
+        ->call('submit')
+        ->assertHasNoErrors()
+        ->assertSet('submitted', true);
+
+    $response = FormResponse::where('form_id', $form->id)->first();
+    expect($response)->not->toBeNull();
+    expect($response->answers['f_sel'])->toBe('أخرى: أخضر مخصص');
+    expect($response->answers['f_multi'])->toBe(['البرمجة', 'أخرى: القراءة الحرة']);
+});

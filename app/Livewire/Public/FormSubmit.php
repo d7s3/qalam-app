@@ -25,6 +25,8 @@ class FormSubmit extends Component
 
     public array $date_parts = [];
 
+    public array $other_answers = [];
+
     public bool $submitted = false;
 
     public function mount(string $slug): void
@@ -45,6 +47,10 @@ class FormSubmit extends Component
                 ];
             } else {
                 $this->answers[$field['id']] = '';
+            }
+
+            if ($field['allow_other'] ?? false) {
+                $this->other_answers[$field['id']] = '';
             }
         }
     }
@@ -73,6 +79,21 @@ class FormSubmit extends Component
         foreach ($this->form->fields as $field) {
             $fieldId = $field['id'];
             $label = $field['label'];
+            $allowOther = $field['allow_other'] ?? false;
+
+            if ($allowOther) {
+                $hasOtherSelected = false;
+                if ($field['type'] === 'select') {
+                    $hasOtherSelected = ($this->answers[$fieldId] ?? '') === 'أخرى';
+                } elseif ($field['type'] === 'multiselect') {
+                    $hasOtherSelected = in_array('أخرى', $this->answers[$fieldId] ?? []);
+                }
+
+                if ($hasOtherSelected) {
+                    $rules["other_answers.{$fieldId}"] = 'required|string|max:255';
+                    $messages["other_answers.{$fieldId}.required"] = "يرجى تحديد وكتابة الخيار المخصص لحقل ({$label}).";
+                }
+            }
 
             if ($field['type'] === 'image') {
                 if ($field['required']) {
@@ -128,7 +149,21 @@ class FormSubmit extends Component
                     $finalAnswers[$fieldId] = null;
                 }
             } else {
-                $finalAnswers[$fieldId] = $this->answers[$fieldId] ?? null;
+                $answer = $this->answers[$fieldId] ?? null;
+                $allowOther = $field['allow_other'] ?? false;
+
+                if ($allowOther && $answer !== null) {
+                    if ($field['type'] === 'select' && $answer === 'أخرى') {
+                        $answer = 'أخرى: '.($this->other_answers[$fieldId] ?? '');
+                    } elseif ($field['type'] === 'multiselect' && in_array('أخرى', $answer)) {
+                        $key = array_search('أخرى', $answer);
+                        if ($key !== false) {
+                            $answer[$key] = 'أخرى: '.($this->other_answers[$fieldId] ?? '');
+                        }
+                    }
+                }
+
+                $finalAnswers[$fieldId] = $answer;
             }
         }
 
