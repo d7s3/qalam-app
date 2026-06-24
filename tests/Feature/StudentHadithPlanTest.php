@@ -1,11 +1,12 @@
 <?php
 
-use App\Livewire\Shared\HadithPlanCreator;
 use App\Models\Ayah;
 use App\Models\Circle;
 use App\Models\Hadith;
 use App\Models\HadithChapter;
 use App\Models\HadithLine;
+use App\Models\HadithPath;
+use App\Models\HadithText;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentHadithPlan;
@@ -40,7 +41,16 @@ beforeEach(function () {
         'status' => 'active',
     ]);
 
-    $this->chapter = HadithChapter::create(['name' => 'كتاب الإيمان']);
+    $this->hadithText = HadithText::create([
+        'name' => 'متن الأحاديث القصار',
+        'description' => 'متن الأحاديث القصار',
+    ]);
+
+    $this->chapter = HadithChapter::create([
+        'hadith_text_id' => $this->hadithText->id,
+        'name' => 'كتاب الإيمان',
+    ]);
+
     $this->hadith = Hadith::create([
         'hadith_chapter_id' => $this->chapter->id,
         'name' => 'الأعمال بالنيات',
@@ -56,63 +66,14 @@ beforeEach(function () {
             'text' => "نص السطر {$i}",
         ]);
     }
-});
 
-it('allows supervisor to create a student hadith plan', function () {
-    $this->actingAs($this->supervisor, 'supervisor');
-
-    Livewire::test(HadithPlanCreator::class)
-        ->set('studentId', $this->student->id)
-        ->set('hadithId', $this->hadith->id)
-        ->set('startDate', '2026-06-18')
-        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday'])
-        ->set('hifzStart', 1)
-        ->set('hifzEnd', 10)
-        ->set('hifzRate', 2) // 5 days
-        ->set('hasReview', true)
-        ->set('reviewStart', 11)
-        ->set('reviewEnd', 15)
-        ->set('reviewRate', 1) // 5 days
-        ->call('generatePreview')
-        ->assertHasNoErrors()
-        ->call('savePlan')
-        ->assertHasNoErrors();
-
-    $plan = StudentHadithPlan::where('student_id', $this->student->id)->where('hadith_id', $this->hadith->id)->first();
-    expect($plan)->not->toBeNull();
-    expect($plan->status)->toBe('active');
-    expect($plan->created_by_role)->toBe('supervisor');
-
-    $days = StudentHadithPlanDay::where('student_hadith_plan_id', $plan->id)->orderBy('date')->get();
-    expect($days)->toHaveCount(5);
-    expect($days[0]->from_line_number)->toBe(1);
-    expect($days[0]->to_line_number)->toBe(2);
-    expect($days[0]->review_from_line_number)->toBe(11);
-    expect($days[0]->review_to_line_number)->toBe(11);
-});
-
-it('allows teacher to create a student hadith plan', function () {
-    $this->actingAs($this->teacher, 'teacher');
-
-    Livewire::test(HadithPlanCreator::class)
-        ->set('studentId', $this->student->id)
-        ->set('hadithId', $this->hadith->id)
-        ->set('startDate', '2026-06-18')
-        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday'])
-        ->set('hifzStart', 1)
-        ->set('hifzEnd', 12)
-        ->set('hifzRate', 3) // 4 days
-        ->call('generatePreview')
-        ->assertHasNoErrors()
-        ->call('savePlan')
-        ->assertHasNoErrors();
-
-    $plan = StudentHadithPlan::where('student_id', $this->student->id)->where('hadith_id', $this->hadith->id)->first();
-    expect($plan)->not->toBeNull();
-    expect($plan->created_by_role)->toBe('teacher');
-
-    $days = StudentHadithPlanDay::where('student_hadith_plan_id', $plan->id)->orderBy('date')->get();
-    expect($days)->toHaveCount(4);
+    $this->hadithPath = HadithPath::create([
+        'name' => 'مسار الأحاديث القصار',
+        'hadith_text_id' => $this->hadithText->id,
+        'memorize_type' => 'hadiths',
+        'memorize_amount' => 1,
+        'start_date' => '2026-06-18',
+    ]);
 });
 
 it('allows teacher to grade student recitation of hadith plan days', function () {
@@ -120,7 +81,7 @@ it('allows teacher to grade student recitation of hadith plan days', function ()
 
     $plan = StudentHadithPlan::create([
         'student_id' => $this->student->id,
-        'hadith_id' => $this->hadith->id,
+        'hadith_path_id' => $this->hadithPath->id,
         'start_date' => '2026-06-18',
         'status' => 'active',
         'created_by_role' => 'teacher',
@@ -130,8 +91,14 @@ it('allows teacher to grade student recitation of hadith plan days', function ()
         'student_hadith_plan_id' => $plan->id,
         'date' => '2026-06-18',
         'day_name' => 'الخميس',
+        'memorize_type' => 'lines',
+        'memorize_amount' => 5,
+        'from_hadith_id' => $this->hadith->id,
+        'to_hadith_id' => $this->hadith->id,
         'from_line_number' => 1,
         'to_line_number' => 5,
+        'review_from_hadith_id' => $this->hadith->id,
+        'review_to_hadith_id' => $this->hadith->id,
         'review_from_line_number' => 6,
         'review_to_line_number' => 10,
     ]);
@@ -161,40 +128,6 @@ it('allows teacher to grade student recitation of hadith plan days', function ()
 
     expect($day->fresh()->review_achievement)->toBe(2);
     expect($day->fresh()->review_graded_at)->not->toBeNull();
-});
-
-it('renders hadith plans list page for supervisor', function () {
-    $this->actingAs($this->supervisor, 'supervisor');
-
-    $response = $this->get(route('supervisor.hadiths.plans'));
-    $response->assertSuccessful();
-    $response->assertSee('خطط الأحاديث المنشأة');
-});
-
-it('renders hadith plans list page for teacher', function () {
-    $this->actingAs($this->teacher, 'teacher');
-
-    $response = $this->get(route('teacher.hadith-plans'));
-    $response->assertSuccessful();
-    $response->assertSee('خطط الأحاديث المنشأة');
-});
-
-it('allows supervisor and teacher to delete hadith plans', function () {
-    $this->actingAs($this->teacher, 'teacher');
-
-    $plan = StudentHadithPlan::create([
-        'student_id' => $this->student->id,
-        'hadith_id' => $this->hadith->id,
-        'start_date' => '2026-06-18',
-        'status' => 'active',
-        'created_by_role' => 'teacher',
-    ]);
-
-    Livewire::test('shared.hadith-plans-list', ['role' => 'teacher'])
-        ->call('deletePlan', $plan->id)
-        ->assertHasNoErrors();
-
-    expect(StudentHadithPlan::where('id', $plan->id)->exists())->toBeFalse();
 });
 
 it('renders both Quranic plan and Hadith plan simultaneously in student-tasmeeh-card', function () {
@@ -257,7 +190,7 @@ it('renders both Quranic plan and Hadith plan simultaneously in student-tasmeeh-
     // Create a Hadith plan
     $hadithPlan = StudentHadithPlan::create([
         'student_id' => $this->student->id,
-        'hadith_id' => $this->hadith->id,
+        'hadith_path_id' => $this->hadithPath->id,
         'start_date' => '2026-06-18',
         'status' => 'active',
         'created_by_role' => 'teacher',
@@ -268,6 +201,10 @@ it('renders both Quranic plan and Hadith plan simultaneously in student-tasmeeh-
         'student_hadith_plan_id' => $hadithPlan->id,
         'date' => '2026-06-18',
         'day_name' => 'الخميس',
+        'memorize_type' => 'lines',
+        'memorize_amount' => 5,
+        'from_hadith_id' => $this->hadith->id,
+        'to_hadith_id' => $this->hadith->id,
         'from_line_number' => 1,
         'to_line_number' => 5,
     ]);

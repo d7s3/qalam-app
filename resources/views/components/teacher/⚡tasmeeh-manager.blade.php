@@ -187,24 +187,8 @@ new class extends Component {
         app()->instance('tasmeeh_ode_plans_cache', $studentOdePlans);
         app()->instance('tasmeeh_ode_days_cache', $allOdeDays);
 
-        // Preload all active student Hadith plans and their days to prevent N+1 queries in child components
-        $studentHadithPlans = \App\Models\StudentHadithPlan::with('hadith')
-            ->whereIn('student_id', $students->pluck('id'))
-            ->where('status', 'active')
-            ->get()
-            ->keyBy('student_id');
-
-        $allHadithDays = collect();
-        if ($studentHadithPlans->isNotEmpty()) {
-            $allHadithDays = \App\Models\StudentHadithPlanDay::with('plan.hadith')
-                ->whereIn('student_hadith_plan_id', $studentHadithPlans->pluck('id'))
-                ->orderBy('date', 'asc')
-                ->get()
-                ->groupBy('student_hadith_plan_id');
-        }
-
-        app()->instance('tasmeeh_hadith_plans_cache', $studentHadithPlans);
-        app()->instance('tasmeeh_hadith_days_cache', $allHadithDays);
+        app()->instance('tasmeeh_hadith_plans_cache', collect());
+        app()->instance('tasmeeh_hadith_days_cache', collect());
 
         return [
             'studentsWithPlansPresent' => $studentsWithPlansPresent,

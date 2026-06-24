@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('student_hadith_plans', function (Blueprint $table) {
             $table->id();
             $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
-            $table->foreignId('hadith_id')->constrained('hadiths')->onDelete('cascade');
+            $table->foreignId('hadith_path_id')->constrained('hadith_paths')->onDelete('cascade');
             $table->date('start_date');
             $table->string('status')->default('active'); // active, completed, suspended
             $table->string('created_by_role'); // supervisor, teacher

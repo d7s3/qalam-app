@@ -2,5 +2,5 @@
     <x-slot:sidebar>
         @include('supervisor.sidebar-nav')
     </x-slot:sidebar>
-    <livewire:shared.hadith-plan-creator :student-id="request()->query('student_id')" />
+    <livewire:shared.hadith-plan-creator />
 </x-layouts.role-shell>

@@ -2,5 +2,5 @@
     <x-slot:sidebar>
         @include('supervisor.sidebar-nav')
     </x-slot:sidebar>
-    <livewire:shared.hadith-plans-list role="supervisor" />
+    <livewire:supervisor.manage-hadith-paths />
 </x-layouts.role-shell>

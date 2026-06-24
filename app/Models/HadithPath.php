@@ -7,16 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Hadith extends Model
+class HadithPath extends Model
 {
     use HasFactory;
 
+    protected $table = 'hadith_paths';
+
     protected $fillable = [
         'hadith_text_id',
-        'hadith_chapter_id',
         'name',
-        'sanad',
-        'ruling',
+        'memorize_type',
+        'memorize_amount',
+        'start_date',
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
     ];
 
     /** @return BelongsTo<HadithText, $this> */
@@ -25,15 +31,9 @@ class Hadith extends Model
         return $this->belongsTo(HadithText::class, 'hadith_text_id');
     }
 
-    /** @return BelongsTo<HadithChapter, $this> */
-    public function chapter(): BelongsTo
+    /** @return HasMany<HadithPathDay, $this> */
+    public function days(): HasMany
     {
-        return $this->belongsTo(HadithChapter::class, 'hadith_chapter_id');
-    }
-
-    /** @return HasMany<HadithLine, $this> */
-    public function lines(): HasMany
-    {
-        return $this->hasMany(HadithLine::class)->orderBy('line_number');
+        return $this->hasMany(HadithPathDay::class, 'hadith_path_id')->orderBy('day_number', 'asc');
     }
 }

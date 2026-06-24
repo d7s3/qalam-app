@@ -5,12 +5,22 @@ namespace App\Livewire\Supervisor;
 use App\Models\Hadith;
 use App\Models\HadithChapter;
 use App\Models\HadithLine;
+use App\Models\HadithText;
 use Flux\Flux;
 use Livewire\Component;
 
 class ManageHadiths extends Component
 {
     public string $search = '';
+
+    // HadithText fields
+    public ?int $selectedTextId = null;
+
+    public string $newTextName = '';
+
+    public string $newTextDescription = '';
+
+    public ?int $editingTextId = null;
 
     // Hadith Form Fields
     public ?int $editingHadithId = null;
@@ -60,6 +70,63 @@ class ManageHadiths extends Component
         }
     }
 
+    // --- HadithText CRUD Functions ---
+    public function createText(): void
+    {
+        $this->reset(['editingTextId', 'newTextName', 'newTextDescription']);
+        Flux::modal('text-modal')->show();
+    }
+
+    public function editSelectedText(): void
+    {
+        if (! $this->selectedTextId) {
+            return;
+        }
+        $text = HadithText::findOrFail($this->selectedTextId);
+        $this->editingTextId = $text->id;
+        $this->newTextName = $text->name;
+        $this->newTextDescription = $text->description ?? '';
+        Flux::modal('text-modal')->show();
+    }
+
+    public function saveText(): void
+    {
+        $this->validate([
+            'newTextName' => 'required|string|max:255',
+            'newTextDescription' => 'nullable|string',
+        ]);
+
+        if ($this->editingTextId) {
+            $text = HadithText::findOrFail($this->editingTextId);
+            $text->update([
+                'name' => $this->newTextName,
+                'description' => $this->newTextDescription,
+            ]);
+            Flux::toast('تم تعديل المتن بنجاح', variant: 'success');
+        } else {
+            $text = HadithText::create([
+                'name' => $this->newTextName,
+                'description' => $this->newTextDescription,
+            ]);
+            $this->selectedTextId = $text->id;
+            Flux::toast('تم إنشاء المتن بنجاح', variant: 'success');
+        }
+
+        Flux::modal('text-modal')->close();
+    }
+
+    public function deleteSelectedText(): void
+    {
+        if (! $this->selectedTextId) {
+            return;
+        }
+        $text = HadithText::findOrFail($this->selectedTextId);
+        $text->delete();
+        $this->selectedTextId = null;
+        $this->selectedHadithId = null;
+        Flux::toast('تم حذف المتن بجميع الفصول والأحاديث التابعة له', variant: 'success');
+    }
+
     public function createHadith(): void
     {
         $this->reset(['editingHadithId', 'hadithChapterId', 'newChapterName', 'name', 'sanad', 'ruling', 'linesText']);
@@ -95,6 +162,7 @@ class ManageHadiths extends Component
         // Create new chapter inline if specified
         if (! empty(trim($this->newChapterName))) {
             $chapter = HadithChapter::firstOrCreate([
+                'hadith_text_id' => $this->selectedTextId,
                 'name' => trim($this->newChapterName),
             ]);
             $chapterId = $chapter->id;
@@ -103,16 +171,18 @@ class ManageHadiths extends Component
         if ($this->editingHadithId) {
             $hadith = Hadith::findOrFail($this->editingHadithId);
             $hadith->update([
+                'hadith_text_id' => $this->selectedTextId,
                 'name' => $this->name,
-                'hadith_chapter_id' => $chapterId,
+                'hadith_chapter_id' => $chapterId ?: null,
                 'sanad' => $this->sanad ?: null,
                 'ruling' => $this->ruling ?: null,
             ]);
             Flux::toast('تم تعديل الحديث بنجاح', variant: 'success');
         } else {
             $hadith = Hadith::create([
+                'hadith_text_id' => $this->selectedTextId,
                 'name' => $this->name,
-                'hadith_chapter_id' => $chapterId,
+                'hadith_chapter_id' => $chapterId ?: null,
                 'sanad' => $this->sanad ?: null,
                 'ruling' => $this->ruling ?: null,
             ]);
@@ -287,7 +357,21 @@ class ManageHadiths extends Component
 
     public function render()
     {
+        $texts = HadithText::orderBy('name')->get();
+        if (! $this->selectedTextId && $texts->isNotEmpty()) {
+            $this->selectedTextId = $texts->first()->id;
+        }
+
         $query = Hadith::query()->with('chapter');
+        if ($this->selectedTextId) {
+            $query->where(function ($q) {
+                $q->where('hadith_text_id', $this->selectedTextId)
+                    ->orWhereHas('chapter', function ($sq) {
+                        $sq->where('hadith_text_id', $this->selectedTextId);
+                    });
+            });
+        }
+
         if ($this->search) {
             $query->where(function ($q) {
                 $q->where('name', 'like', '%'.$this->search.'%')
@@ -304,12 +388,13 @@ class ManageHadiths extends Component
 
         $hadithsList = $query->latest()->get();
         $selectedHadith = $this->selectedHadithId ? Hadith::with(['lines', 'chapter'])->find($this->selectedHadithId) : null;
-        $chapters = HadithChapter::orderBy('name')->get();
+        $chapters = $this->selectedTextId ? HadithChapter::where('hadith_text_id', $this->selectedTextId)->orderBy('name')->get() : collect();
 
         return view('livewire.supervisor.manage-hadiths', [
             'hadithsList' => $hadithsList,
             'selectedHadith' => $selectedHadith,
             'chapters' => $chapters,
+            'texts' => $texts,
         ])->layout('layouts.role-shell');
     }
 }

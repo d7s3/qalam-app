@@ -13,7 +13,7 @@ class StudentHadithPlan extends Model
 
     protected $fillable = [
         'student_id',
-        'hadith_id',
+        'hadith_path_id',
         'start_date',
         'status',
         'created_by_role',
@@ -29,10 +29,10 @@ class StudentHadithPlan extends Model
         return $this->belongsTo(Student::class);
     }
 
-    /** @return BelongsTo<Hadith, $this> */
-    public function hadith(): BelongsTo
+    /** @return BelongsTo<HadithPath, $this> */
+    public function path(): BelongsTo
     {
-        return $this->belongsTo(Hadith::class);
+        return $this->belongsTo(HadithPath::class, 'hadith_path_id');
     }
 
     /** @return HasMany<StudentHadithPlanDay, $this> */

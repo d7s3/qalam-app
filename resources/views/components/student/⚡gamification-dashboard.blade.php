@@ -650,6 +650,9 @@ new class extends Component {
             }
         }
 
+        // Fetch Earliest Pending Hadith Missions (one per active Hadith plan)
+        $pendingHadithMissions = [];
+
         $teamStudents = collect();
         $teamStudentStates = collect();
         $teamScore = 0;
@@ -715,6 +718,7 @@ new class extends Component {
             'leaderboardStandings' => $leaderboardStandings,
             'studentXP' => $activeGamification ? \App\Services\GamificationService::getStudentXP($student->id, $activeGamification->id) : 0,
             'pendingMissions' => $pendingMissions,
+            'pendingHadithMissions' => $pendingHadithMissions,
             'teamStudents' => $teamStudents,
             'teamStudentStates' => $teamStudentStates,
             'teamScore' => $teamScore,
@@ -1902,6 +1906,57 @@ new class extends Component {
                                             <flux:button variant="primary" wire:click="openDoublePointsModal('{{ $m->date->format('Y-m-d') }}', 'team')" size="sm" class="bg-team-primary hover:bg-team-primary-hover border-none font-bold !text-white shadow-sm" style="color: white !important;" icon="bolt">
                                                 {{ __('مضاعفة النقاط') }}
                                             </flux:button>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
+                <flux:heading size="lg" class="text-slate-900 flex items-center gap-2 font-black mt-6">
+                    <svg class="size-6 text-slate-600 dark:text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                    </svg>
+                    {{ __('مهام حفظ الحديث المجدولة') }}
+                </flux:heading>
+                @if(empty($pendingHadithMissions))
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 text-center shadow-sm">
+                        <p class="text-sm text-slate-500">{{ __('لا توجد مهام حفظ حديث معلقة حالياً') }}</p>
+                    </div>
+                @else
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        @foreach($pendingHadithMissions as $hm)
+                            @php
+                                $hasHifz = ($hm->from_line_number && $hm->to_line_number) || ($hm->from_hadith_id && $hm->to_hadith_id);
+                                $hasReview = ($hm->review_from_line_number && $hm->review_to_line_number) || ($hm->review_from_hadith_id && $hm->review_to_hadith_id);
+                            @endphp
+                            <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <flux:badge color="rose" size="sm">
+                                            {{ $hm->plan->path->name }}
+                                        </flux:badge>
+                                        <span class="text-xs text-slate-400">{{ $hm->day_name }} ({{ $hm->date->format('Y-m-d') }})</span>
+                                    </div>
+                                    <h4 class="font-black text-slate-900 text-lg leading-tight mt-2">
+                                        {{ __('المهمة المطلوبة') }}
+                                    </h4>
+                                </div>
+
+                                <div class="flex flex-col sm:flex-row items-stretch gap-4 bg-slate-50/60 rounded-xl p-3 border border-slate-100">
+                                    <div class="space-y-3 flex-1">
+                                        @if($hasHifz)
+                                            <div>
+                                                <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">{{ __('مقرر الحفظ:') }}</span>
+                                                <p class="text-slate-800 text-sm font-semibold mt-0.5">{{ $hm->formatHadithRange('hifz') ?? 'لا يوجد نص محدد' }}</p>
+                                            </div>
+                                        @endif
+                                        @if($hasReview)
+                                            <div>
+                                                <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">{{ __('مقرر المراجعة:') }}</span>
+                                                <p class="text-slate-800 text-sm font-semibold mt-0.5">{{ $hm->formatHadithRange('review') ?? 'لا يوجد نص محدد' }}</p>
+                                            </div>
                                         @endif
                                     </div>
                                 </div>

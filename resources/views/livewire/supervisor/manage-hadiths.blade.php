@@ -13,6 +13,25 @@
         <flux:button variant="primary" icon="plus" wire:click="createHadith">حديث جديد</flux:button>
     </div>
 
+    {{-- Hadith Text Select Bar --}}
+    <flux:card class="p-4 bg-zinc-50/50 dark:bg-zinc-800/30 border border-zinc-100 dark:border-zinc-800">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3">
+                <flux:label class="whitespace-nowrap font-bold">متن الأحاديث المختار:</flux:label>
+                <flux:select wire:model.live="selectedTextId" placeholder="اختر المتن..." class="w-64">
+                    @foreach ($texts as $text)
+                        <flux:select.option value="{{ $text->id }}">{{ $text->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                @if ($selectedTextId)
+                    <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editSelectedText" title="تعديل المتن المختار" />
+                    <flux:button size="sm" variant="ghost" icon="trash" color="red" wire:click="deleteSelectedText" wire:confirm="هل أنت متأكد من حذف هذا المتن بالكامل؟ سيتم مسح جميع الفصول والأحاديث التابعة له." title="حذف المتن المختار" />
+                @endif
+            </div>
+            <flux:button size="sm" variant="filled" icon="plus" wire:click="createText">متن حديث جديد</flux:button>
+        </div>
+    </flux:card>
+
     {{-- Main Layout --}}
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {{-- Hadiths List Sidebar --}}
@@ -246,6 +265,37 @@
                         <flux:error name="linesText" />
                     </flux:field>
                 @endif
+            </div>
+
+            <div class="flex gap-2 justify-end">
+                <flux:modal.close>
+                    <flux:button variant="ghost">إلغاء</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">حفظ</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    {{-- Create/Edit HadithText Modal --}}
+    <flux:modal name="text-modal" class="md:w-[500px]">
+        <form wire:submit.prevent="saveText" class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ $editingTextId ? 'تعديل بيانات المتن' : 'متن أحاديث جديد' }}</flux:heading>
+                <flux:subheading>أدخل بيانات المتن (مثال: الأربعين النووية) لتصنيف فصول وأحاديث هذا المتن داخله.</flux:subheading>
+            </div>
+
+            <div class="space-y-4">
+                <flux:field>
+                    <flux:label>اسم المتن</flux:label>
+                    <flux:input wire:model="newTextName" placeholder="مثال: الأربعين النووية..." required />
+                    <flux:error name="newTextName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>الوصف</flux:label>
+                    <flux:textarea wire:model="newTextDescription" placeholder="مثال: أربعون حديثاً نبوياً جمعها الإمام النووي..." rows="4" />
+                    <flux:error name="newTextDescription" />
+                </flux:field>
             </div>
 
             <div class="flex gap-2 justify-end">

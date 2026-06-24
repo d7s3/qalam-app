@@ -18,14 +18,14 @@
     <flux:sidebar.item class="[&_svg]:bg-[#f97316] hover:[&_svg]:bg-[#ea580c]" icon="book-open" :href="route('supervisor.odes')" :current="request()->routeIs('supervisor.odes') && !request()->routeIs('supervisor.odes.plans') && !request()->routeIs('supervisor.odes.create-plan')" wire:navigate>
         إدارة المنظومات
     </flux:sidebar.item>
-    <flux:sidebar.item class="[&_svg]:bg-[#f43f5e] hover:[&_svg]:bg-[#e11d48]" icon="document-text" :href="route('supervisor.hadiths')" :current="request()->routeIs('supervisor.hadiths') && !request()->routeIs('supervisor.hadiths.plans') && !request()->routeIs('supervisor.hadiths.create-plan')" wire:navigate>
+    <flux:sidebar.item class="[&_svg]:bg-[#f43f5e] hover:[&_svg]:bg-[#e11d48]" icon="document-text" :href="route('supervisor.hadiths')" :current="request()->routeIs('supervisor.hadiths') && !request()->routeIs('supervisor.hadiths.create-plan') && !request()->routeIs('supervisor.hadiths.paths')" wire:navigate>
         إدارة الأحاديث
+    </flux:sidebar.item>
+    <flux:sidebar.item class="[&_svg]:bg-[#14b8a6] hover:[&_svg]:bg-[#0d9488]" icon="map" :href="route('supervisor.hadiths.paths')" :current="request()->routeIs('supervisor.hadiths.paths*')" wire:navigate>
+        مسارات حفظ المتون
     </flux:sidebar.item>
     <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="clipboard-document-list" :href="route('supervisor.odes.plans')" :current="request()->routeIs('supervisor.odes.plans*') || request()->routeIs('supervisor.odes.create-plan*')" wire:navigate>
         خطط المنظومات المنشأة
-    </flux:sidebar.item>
-    <flux:sidebar.item class="[&_svg]:bg-[#e11d48] hover:[&_svg]:bg-[#be123c]" icon="clipboard-document-list" :href="route('supervisor.hadiths.plans')" :current="request()->routeIs('supervisor.hadiths.plans*') || request()->routeIs('supervisor.hadiths.create-plan*')" wire:navigate>
-        خطط الأحاديث المنشأة
     </flux:sidebar.item>
 </flux:sidebar.group>
 

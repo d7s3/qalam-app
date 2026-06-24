@@ -11,12 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('student_hadith_plan_days', function (Blueprint $table) {
+        Schema::dropIfExists('hadith_path_days');
+
+        Schema::create('hadith_path_days', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_hadith_plan_id')->constrained('student_hadith_plans')->onDelete('cascade');
-            $table->foreignId('hadith_path_day_id')->nullable()->constrained('hadith_path_days')->onDelete('set null');
-            $table->date('date');
-            $table->string('day_name');
+            $table->foreignId('hadith_path_id')->constrained('hadith_paths')->onDelete('cascade');
+            $table->integer('day_number');
+            $table->date('date')->nullable();
+            $table->string('day_name')->nullable();
             $table->string('memorize_type')->default('hadiths');
             $table->integer('memorize_amount')->default(1);
             $table->foreignId('from_hadith_id')->nullable()->constrained('hadiths')->onDelete('cascade');
@@ -27,16 +29,9 @@ return new class extends Migration
             $table->foreignId('review_to_hadith_id')->nullable()->constrained('hadiths')->onDelete('cascade');
             $table->integer('review_from_line_number')->nullable();
             $table->integer('review_to_line_number')->nullable();
-            $table->integer('hifz_achievement')->nullable(); // 1 = acceptable, 2 = good, 3 = excellent
-            $table->integer('review_achievement')->nullable();
-            $table->dateTime('hifz_graded_at')->nullable();
-            $table->dateTime('review_graded_at')->nullable();
             $table->timestamps();
-
-            // Index for sorting and matching plan days by date
-            $table->index(['student_hadith_plan_id', 'date']);
-            $table->index('date');
         });
+        //
     }
 
     /**
@@ -44,6 +39,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('student_hadith_plan_days');
+        Schema::dropIfExists('hadith_path_days');
     }
 };

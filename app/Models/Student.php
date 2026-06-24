@@ -48,12 +48,6 @@ class Student extends Authenticatable
         return $this->hasMany(StudentOdePlan::class);
     }
 
-    /** @return HasMany<StudentHadithPlan, $this> */
-    public function hadithPlans(): HasMany
-    {
-        return $this->hasMany(StudentHadithPlan::class);
-    }
-
     /** @return HasMany<FormResponse, $this> */
     public function formResponses(): HasMany
     {

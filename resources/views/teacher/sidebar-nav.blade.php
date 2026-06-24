@@ -46,16 +46,6 @@
         </flux:sidebar.item>
     </flux:sidebar.group>
 
-    <flux:sidebar.group heading="{{ __('خطط الأحاديث') }}" class="mt-4">
-        <flux:sidebar.item icon="pencil-square" wire:navigate
-            :current="request()->routeIs('teacher.hadith-plan-creator')" href="{{ route('teacher.hadith-plan-creator') }}">
-            {{ __('إنشاء خطة حديث') }}
-        </flux:sidebar.item>
-        <flux:sidebar.item icon="clipboard-document-list" wire:navigate
-            :current="request()->routeIs('teacher.hadith-plans')" href="{{ route('teacher.hadith-plans') }}">
-            {{ __('عرض الخطط المنشأة') }}
-        </flux:sidebar.item>
-    </flux:sidebar.group>
 
     <flux:sidebar.group heading="{{ __('التحفيز والمنافسة') }}" class="mt-4">
         <flux:sidebar.item icon="trophy"

@@ -31,6 +31,9 @@ new class extends Component {
             }
         }
 
+        // Fetch Earliest Pending Hadith Missions (one per active Hadith plan)
+        $pendingHadithMissions = [];
+
         // Fetch Stats
         $recentDays = StudentPlanDay::whereHas('plan', fn($q) => $q->where('student_id', $student->id))->where('date', '>=', $last30Start)->get();
 
@@ -250,6 +253,7 @@ new class extends Component {
             'student' => $student,
             'todayStr' => $todayStr,
             'pendingMissions' => $pendingMissions,
+            'pendingHadithMissions' => $pendingHadithMissions,
             'excellent' => $excellent,
             'good' => $good,
             'acceptable' => $acceptable,
@@ -1096,6 +1100,99 @@ new class extends Component {
                             </div>
                         </div>
                     </flux:card>
+                @endif
+
+                {{-- Hadith plans daily rendering --}}
+                @if (count($pendingHadithMissions) > 0)
+                    <div class="space-y-6 mt-6">
+                        <flux:heading size="xl" class="flex items-center gap-3">
+                            <div class="p-2 bg-rose-500 rounded-lg shadow-lg shadow-rose-500/20">
+                                <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
+                            </div>
+                            {{ __('مهام حفظ الحديث المجدولة') }}
+                        </flux:heading>
+
+                        <flux:card
+                            class="bg-gradient-to-br from-rose-500 to-red-600 border-none text-white overflow-hidden relative shadow-lg shadow-rose-600/20 p-0">
+                            <div class="absolute -top-10 -right-10 p-4 opacity-10 pointer-events-none">
+                                <flux:icon icon="document-text" class="w-48 h-48" />
+                            </div>
+
+                            <div class="relative z-10 p-6">
+                                <div class="flex items-center gap-3 mb-6 border-b border-white/20 pb-4">
+                                    <div class="bg-white/20 p-2 rounded-lg">
+                                        <flux:icon icon="flag" class="size-6 text-white" />
+                                    </div>
+                                    <h2 class="text-xl font-bold">{{ __('المهام القادمة') }}</h2>
+                                </div>
+
+                                <div class="space-y-6">
+                                    @foreach ($pendingHadithMissions as $pendingHadithMission)
+                                        @php
+                                            $isToday = $pendingHadithMission->date->toDateString() === $todayStr;
+                                        @endphp
+                                        <div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm border border-white/20">
+                                            <div
+                                                class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-3">
+                                                <div>
+                                                    <div class="font-bold text-lg text-white">
+                                                        {{ $pendingHadithMission->plan->path->name ?? __('خطة بدون عنوان') }}
+                                                    </div>
+                                                    <div class="text-sm text-rose-100 flex items-center gap-2 mt-1">
+                                                        <flux:icon icon="calendar" class="size-4" />
+                                                        <span>{{ $isToday ? __('مهمة اليوم') : __('مهمة فائتة أو قادمة') }} -
+                                                            {{ $pendingHadithMission->day_name }}
+                                                            {{ $this->getHijriLabel($pendingHadithMission->date) }}</span>
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="shrink-0 bg-white/20 px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wide">
+                                                    {{ ($pendingHadithMission->from_line_number && $pendingHadithMission->to_line_number) ? __('حفظ بالأسطر') : __('حفظ بالأحاديث') }}
+                                                </div>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                @php
+                                                    $hasHifz = ($pendingHadithMission->from_line_number && $pendingHadithMission->to_line_number) || ($pendingHadithMission->from_hadith_id && $pendingHadithMission->to_hadith_id);
+                                                    $hasReview = ($pendingHadithMission->review_from_line_number && $pendingHadithMission->review_to_line_number) || ($pendingHadithMission->review_from_hadith_id && $pendingHadithMission->review_to_hadith_id);
+                                                @endphp
+
+                                                @if ($hasHifz)
+                                                    <div>
+                                                        <div class="flex justify-between items-center mb-1">
+                                                            <div class="text-rose-100 text-sm">{{ __('مقرر الحفظ') }}</div>
+                                                            @if (is_null($pendingHadithMission->hifz_achievement))
+                                                                <span
+                                                                    class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
+                                                            @endif
+                                                        </div>
+                                                        <div class="text-lg font-bold">
+                                                            {{ $pendingHadithMission->formatHadithRange('hifz') }}
+                                                        </div>
+                                                    </div>
+                                                @endif
+
+                                                @if ($hasReview)
+                                                    <div>
+                                                        <div class="flex justify-between items-center mb-1">
+                                                            <div class="text-rose-100 text-sm">{{ __('مقرر المراجعة') }}</div>
+                                                            @if (is_null($pendingHadithMission->review_achievement))
+                                                                <span
+                                                                    class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
+                                                            @endif
+                                                        </div>
+                                                        <div class="text-lg font-bold">
+                                                            {{ $pendingHadithMission->formatHadithRange('review') }}
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </flux:card>
+                    </div>
                 @endif
 
                 <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>

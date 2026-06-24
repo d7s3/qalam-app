@@ -3,12 +3,9 @@
 namespace App\Livewire\Shared;
 
 use App\Models\AcademicCalendarEvent;
-use App\Models\Circle;
 use App\Models\Hadith;
-use App\Models\HadithLine;
-use App\Models\Student;
-use App\Models\StudentHadithPlan;
-use App\Models\StudentHadithPlanDay;
+use App\Models\HadithPath;
+use App\Models\HadithPathDay;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
@@ -18,36 +15,34 @@ class HadithPlanCreator extends Component
     public $userRole; // 'supervisor' or 'teacher'
 
     // Form inputs
-    public ?int $studentId = null;
+    public ?int $hadithPathId = null;
 
-    public ?int $hadithId = null;
+    public ?int $hadithTextId = null;
 
     public string $startDate = '';
 
     public array $activeDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday'];
 
-    // Hifz configuration
-    public int $hifzStart = 1;
+    // Default configuration from path
+    public string $memorizeType = 'hadiths'; // 'hadiths' or 'lines'
 
-    public int $hifzEnd = 1;
-
-    public int $hifzRate = 2;
-
-    // Review configuration (optional)
-    public bool $hasReview = false;
-
-    public int $reviewStart = 1;
-
-    public int $reviewEnd = 1;
-
-    public int $reviewRate = 5;
+    public int $memorizeAmount = 1;
 
     // Preview and state
     public array $planDays = [];
 
     public bool $isGenerated = false;
 
-    public function mount(?int $studentId = null): void
+    // Bulk fill configuration
+    public string $bulkType = 'hadiths';
+
+    public int $bulkAmount = 1;
+
+    public bool $selectAll = false;
+
+    public ?int $selectionStart = null;
+
+    public function mount(): void
     {
         if (auth()->guard('supervisor')->check()) {
             $this->userRole = 'supervisor';
@@ -57,8 +52,10 @@ class HadithPlanCreator extends Component
 
         $this->startDate = now()->format('Y-m-d');
 
-        if ($studentId) {
-            $this->studentId = $studentId;
+        $pathId = request()->query('path_id');
+        if ($pathId) {
+            $this->hadithPathId = (int) $pathId;
+            $this->updatedHadithPathId($this->hadithPathId);
         }
 
         $this->autoFillActiveDays();
@@ -87,61 +84,114 @@ class HadithPlanCreator extends Component
         }
     }
 
-    public function updatedHadithId($value): void
+    public function updatedHadithPathId($value): void
     {
         if ($value) {
-            $maxLine = HadithLine::where('hadith_id', $value)->max('line_number') ?: 1;
-            $this->hifzStart = 1;
-            $this->hifzEnd = $maxLine;
-            $this->reviewStart = 1;
-            $this->reviewEnd = $maxLine;
+            $path = HadithPath::findOrFail($value);
+            $this->hadithTextId = $path->hadith_text_id;
+            $this->memorizeType = $path->memorize_type;
+            $this->memorizeAmount = $path->memorize_amount;
+            $this->startDate = $path->start_date->format('Y-m-d');
+
+            $this->bulkType = $this->memorizeType;
+            $this->bulkAmount = $this->memorizeAmount;
+
+            // Load existing template days if any
+            $existingDays = HadithPathDay::where('hadith_path_id', $value)->orderBy('day_number')->get();
+            if ($existingDays->isNotEmpty()) {
+                $this->planDays = $existingDays->map(fn ($d) => [
+                    'date' => $d->date ? $d->date->toDateString() : null,
+                    'day_name' => $d->day_name,
+                    'memorize_type' => $d->memorize_type,
+                    'memorize_amount' => $d->memorize_amount,
+                    'from_hadith_id' => $d->from_hadith_id,
+                    'to_hadith_id' => $d->to_hadith_id,
+                    'from_line_number' => $d->from_line_number,
+                    'to_line_number' => $d->to_line_number,
+                    'selected' => false,
+                ])->toArray();
+                $this->isGenerated = true;
+            } else {
+                $this->isGenerated = false;
+                $this->planDays = [];
+            }
+        } else {
+            $this->reset(['hadithTextId', 'memorizeType', 'memorizeAmount', 'bulkType', 'bulkAmount', 'isGenerated', 'planDays']);
         }
     }
 
     public function generatePreview(): void
     {
         $this->validate([
-            'studentId' => 'required|exists:students,id',
-            'hadithId' => 'required|exists:hadiths,id',
+            'hadithPathId' => 'required|exists:hadith_paths,id',
             'startDate' => 'required|date',
             'activeDays' => 'required|array|min:1',
-            'hifzStart' => 'required|integer|min:1',
-            'hifzEnd' => 'required|integer|gte:hifzStart',
-            'hifzRate' => 'required|integer|min:1',
-            'reviewStart' => 'required_if:hasReview,true|nullable|integer|min:1',
-            'reviewEnd' => 'required_if:hasReview,true|nullable|integer|gte:reviewStart',
-            'reviewRate' => 'required_if:hasReview,true|nullable|integer|min:1',
+            'memorizeType' => 'required|in:hadiths,lines',
+            'memorizeAmount' => 'required|integer|min:1',
         ]);
 
-        $maxLine = HadithLine::where('hadith_id', $this->hadithId)->max('line_number') ?: 1;
+        $path = HadithPath::findOrFail($this->hadithPathId);
 
-        if ($this->hifzEnd > $maxLine) {
-            $this->addError('hifzEnd', "نهاية الحفظ لا يمكن أن تتجاوز عدد أسطر الحديث وهو {$maxLine} أسطر.");
+        // Gather all hadiths and their lines for the associated text
+        $allHadiths = Hadith::with('lines')->where(function ($query) use ($path) {
+            $query->where('hadith_text_id', $path->hadith_text_id)
+                ->orWhereHas('chapter', function ($q) use ($path) {
+                    $q->where('hadith_text_id', $path->hadith_text_id);
+                });
+        })->orderBy('hadith_chapter_id', 'asc')->orderBy('id', 'asc')->get();
+
+        if ($allHadiths->isEmpty()) {
+            $this->addError('hadithPathId', 'هذا المتن لا يحتوي على أي أحاديث مضافة بعد لتوليد خطة الحفظ.');
 
             return;
         }
 
-        if ($this->hasReview && $this->reviewEnd > $maxLine) {
-            $this->addError('reviewEnd', "نهاية المراجعة لا يمكن أن تتجاوز عدد أسطر الحديث وهو {$maxLine} أسطر.");
+        $chunks = [];
+        if ($this->memorizeType === 'hadiths') {
+            $count = $allHadiths->count();
+            for ($i = 0; $i < $count; $i += $this->memorizeAmount) {
+                $slice = $allHadiths->slice($i, $this->memorizeAmount);
+                $chunks[] = [
+                    'type' => 'hadiths',
+                    'amount' => $this->memorizeAmount,
+                    'from_hadith_id' => $slice->first()->id,
+                    'to_hadith_id' => $slice->last()->id,
+                    'from_line_number' => null,
+                    'to_line_number' => null,
+                ];
+            }
+        } else {
+            foreach ($allHadiths as $hadith) {
+                $linesCount = $hadith->lines->count();
+                if ($linesCount === 0) {
+                    $chunks[] = [
+                        'type' => 'lines',
+                        'amount' => $this->memorizeAmount,
+                        'from_hadith_id' => $hadith->id,
+                        'to_hadith_id' => $hadith->id,
+                        'from_line_number' => 1,
+                        'to_line_number' => 1,
+                    ];
 
-            return;
-        }
-
-        // Calculate total days needed
-        $hifzTotalLines = $this->hifzEnd - $this->hifzStart + 1;
-        $hifzDays = (int) ceil($hifzTotalLines / $this->hifzRate);
-
-        $daysNeeded = $hifzDays;
-
-        if ($this->hasReview) {
-            $reviewTotalLines = $this->reviewEnd - $this->reviewStart + 1;
-            $reviewDays = (int) ceil($reviewTotalLines / $this->reviewRate);
-            $daysNeeded = max($hifzDays, $reviewDays);
+                    continue;
+                }
+                for ($i = 1; $i <= $linesCount; $i += $this->memorizeAmount) {
+                    $chunks[] = [
+                        'type' => 'lines',
+                        'amount' => $this->memorizeAmount,
+                        'from_hadith_id' => $hadith->id,
+                        'to_hadith_id' => $hadith->id,
+                        'from_line_number' => $i,
+                        'to_line_number' => min($linesCount, $i + $this->memorizeAmount - 1),
+                    ];
+                }
+            }
         }
 
         $this->planDays = [];
         $currentDate = Carbon::parse($this->startDate);
-        $count = 0;
+        $scheduledDays = 0;
+        $daysCount = count($chunks);
 
         $attendancePeriods = AcademicCalendarEvent::where('is_attendance_period', true)
             ->orderBy('start_date', 'asc')
@@ -159,7 +209,7 @@ class HadithPlanCreator extends Component
 
         $hasPeriods = $attendancePeriods->isNotEmpty();
 
-        while ($count < $daysNeeded) {
+        while ($scheduledDays < $daysCount) {
             $dayOfWeek = $currentDate->format('l');
             $dateStr = $currentDate->toDateString();
 
@@ -184,43 +234,337 @@ class HadithPlanCreator extends Component
             }
 
             if ($isValid) {
-                // Calculate Hifz Range
-                $hifzFrom = $this->hifzStart + ($count * $this->hifzRate);
-                $hifzTo = min($this->hifzEnd, $hifzFrom + $this->hifzRate - 1);
-
-                if ($hifzFrom > $this->hifzEnd) {
-                    $hifzFrom = null;
-                    $hifzTo = null;
-                }
-
-                // Calculate Review Range
-                $reviewFrom = null;
-                $reviewTo = null;
-
-                if ($this->hasReview) {
-                    $reviewFrom = $this->reviewStart + ($count * $this->reviewRate);
-                    $reviewTo = min($this->reviewEnd, $reviewFrom + $this->reviewRate - 1);
-
-                    if ($reviewFrom > $this->reviewEnd) {
-                        $reviewFrom = null;
-                        $reviewTo = null;
-                    }
-                }
-
+                $chunk = $chunks[$scheduledDays];
                 $this->planDays[] = [
                     'date' => $currentDate->toDateString(),
                     'day_name' => $this->translateDay($dayOfWeek),
-                    'from_line_number' => $hifzFrom,
-                    'to_line_number' => $hifzTo,
-                    'review_from_line_number' => $reviewFrom,
-                    'review_to_line_number' => $reviewTo,
+                    'memorize_type' => $chunk['type'],
+                    'memorize_amount' => $chunk['amount'],
+                    'from_hadith_id' => $chunk['from_hadith_id'],
+                    'to_hadith_id' => $chunk['to_hadith_id'],
+                    'from_line_number' => $chunk['from_line_number'],
+                    'to_line_number' => $chunk['to_line_number'],
+                    'selected' => false,
                 ];
-                $count++;
+                $scheduledDays++;
             }
             $currentDate->addDay();
         }
 
         $this->isGenerated = true;
+    }
+
+    public function toggleAll(): void
+    {
+        $this->selectAll = ! $this->selectAll;
+        foreach ($this->planDays as &$day) {
+            $day['selected'] = $this->selectAll;
+        }
+    }
+
+    public function toggleDaySelection(int $index): void
+    {
+        if ($this->selectionStart === null) {
+            $this->selectionStart = $index;
+            $this->planDays[$index]['selected'] = ! $this->planDays[$index]['selected'];
+        } else {
+            $start = min($this->selectionStart, $index);
+            $end = max($this->selectionStart, $index);
+            $target = $this->planDays[$this->selectionStart]['selected'];
+
+            for ($i = $start; $i <= $end; $i++) {
+                $this->planDays[$i]['selected'] = $target;
+            }
+            $this->selectionStart = null;
+        }
+    }
+
+    public function fillSelected(string $type, int $amount, array $selectedIndices): void
+    {
+        if (empty($selectedIndices)) {
+            return;
+        }
+
+        foreach ($selectedIndices as $idx) {
+            if (isset($this->planDays[$idx])) {
+                $this->planDays[$idx]['memorize_type'] = $type;
+                $this->planDays[$idx]['memorize_amount'] = $amount;
+            }
+        }
+
+        // Cascade calculations starting from the first selected index
+        $this->recalculateDaysFrom($selectedIndices[0]);
+
+        // Reset day selection states
+        foreach ($this->planDays as &$day) {
+            $day['selected'] = false;
+        }
+        $this->selectAll = false;
+    }
+
+    public function updated(string $name, $value): void
+    {
+        if (preg_match('/^planDays\.(\d+)\.(memorize_type|memorize_amount|from_hadith_id|to_hadith_id|from_line_number|to_line_number)$/', $name, $matches)) {
+            $index = (int) $matches[1];
+            $property = $matches[2];
+
+            // Fetch all hadiths of the current text to use in index calculations
+            $allHadiths = Hadith::with('lines')->where(function ($query) {
+                $query->where('hadith_text_id', $this->hadithTextId)
+                    ->orWhereHas('chapter', function ($q) {
+                        $q->where('hadith_text_id', $this->hadithTextId);
+                    });
+            })->orderBy('hadith_chapter_id', 'asc')->orderBy('id', 'asc')->get();
+
+            if ($allHadiths->isEmpty()) {
+                return;
+            }
+
+            $day = &$this->planDays[$index];
+
+            if ($property === 'memorize_type') {
+                if ($value === 'lines') {
+                    $day['from_line_number'] = 1;
+                    $day['review_from_hadith_id'] = null;
+                    $day['review_to_hadith_id'] = null;
+                    $day['review_from_line_number'] = null;
+                    $day['review_to_line_number'] = null;
+
+                    $selectedHadith = $allHadiths->firstWhere('id', $day['from_hadith_id'] ?? null);
+                    $maxLines = $selectedHadith ? ($selectedHadith->lines->count() ?: 1) : 1;
+                    $amount = (int) ($day['memorize_amount'] ?? 1);
+                    $day['to_line_number'] = min($maxLines, $amount);
+                    $day['memorize_amount'] = $day['to_line_number'];
+                    $day['to_hadith_id'] = $day['from_hadith_id'] ?? null;
+                } else {
+                    // Changed to hadiths
+                    $day['from_line_number'] = null;
+                    $day['to_line_number'] = null;
+                    $day['review_from_hadith_id'] = null;
+                    $day['review_to_hadith_id'] = null;
+                    $day['review_from_line_number'] = null;
+                    $day['review_to_line_number'] = null;
+
+                    $fromHadithId = $day['from_hadith_id'] ?? null;
+                    if ($fromHadithId) {
+                        $fromIdx = $allHadiths->search(fn ($h) => $h->id == $fromHadithId);
+                        if ($fromIdx !== false) {
+                            $amount = (int) ($day['memorize_amount'] ?? 1);
+                            $toIdx = min($allHadiths->count() - 1, $fromIdx + $amount - 1);
+                            $day['to_hadith_id'] = $allHadiths[$toIdx]->id;
+                            $day['memorize_amount'] = $toIdx - $fromIdx + 1;
+                        }
+                    }
+                }
+            } elseif ($property === 'memorize_amount') {
+                $amount = (int) $value;
+                if ($amount < 1) {
+                    $amount = 1;
+                    $day['memorize_amount'] = 1;
+                }
+
+                if (($day['memorize_type'] ?? 'hadiths') === 'hadiths') {
+                    $fromHadithId = $day['from_hadith_id'] ?? null;
+                    if ($fromHadithId) {
+                        $fromIdx = $allHadiths->search(fn ($h) => $h->id == $fromHadithId);
+                        if ($fromIdx !== false) {
+                            $toIdx = min($allHadiths->count() - 1, $fromIdx + $amount - 1);
+                            $day['to_hadith_id'] = $allHadiths[$toIdx]->id;
+                            $day['memorize_amount'] = $toIdx - $fromIdx + 1;
+                        }
+                    }
+                } else {
+                    $fromHadithId = $day['from_hadith_id'] ?? null;
+                    $fromLineNumber = (int) ($day['from_line_number'] ?? 1);
+                    if ($fromHadithId) {
+                        $selectedHadith = $allHadiths->firstWhere('id', $fromHadithId);
+                        $maxLines = $selectedHadith ? ($selectedHadith->lines->count() ?: 1) : 1;
+                        $day['to_line_number'] = min($maxLines, $fromLineNumber + $amount - 1);
+                        $day['memorize_amount'] = $day['to_line_number'] - $fromLineNumber + 1;
+                        $day['to_hadith_id'] = $fromHadithId;
+                    }
+                }
+            } elseif ($property === 'from_hadith_id') {
+                $fromHadithId = $value;
+                if ($fromHadithId) {
+                    if (($day['memorize_type'] ?? 'hadiths') === 'hadiths') {
+                        $fromIdx = $allHadiths->search(fn ($h) => $h->id == $fromHadithId);
+                        if ($fromIdx !== false) {
+                            $amount = (int) ($day['memorize_amount'] ?? 1);
+                            $toIdx = min($allHadiths->count() - 1, $fromIdx + $amount - 1);
+                            $day['to_hadith_id'] = $allHadiths[$toIdx]->id;
+                            $day['memorize_amount'] = $toIdx - $fromIdx + 1;
+                        }
+                    } else {
+                        $day['from_line_number'] = 1;
+                        $selectedHadith = $allHadiths->firstWhere('id', $fromHadithId);
+                        $maxLines = $selectedHadith ? ($selectedHadith->lines->count() ?: 1) : 1;
+                        $amount = (int) ($day['memorize_amount'] ?? 1);
+                        $day['to_line_number'] = min($maxLines, $amount);
+                        $day['memorize_amount'] = $day['to_line_number'];
+                        $day['to_hadith_id'] = $fromHadithId;
+                    }
+                }
+            } elseif ($property === 'from_line_number') {
+                if (($day['memorize_type'] ?? 'hadiths') === 'lines') {
+                    $fromLineNumber = (int) $value;
+                    $fromHadithId = $day['from_hadith_id'] ?? null;
+                    if ($fromHadithId) {
+                        $selectedHadith = $allHadiths->firstWhere('id', $fromHadithId);
+                        $maxLines = $selectedHadith ? ($selectedHadith->lines->count() ?: 1) : 1;
+                        $amount = (int) ($day['memorize_amount'] ?? 1);
+                        $day['to_line_number'] = min($maxLines, $fromLineNumber + $amount - 1);
+                        $day['memorize_amount'] = $day['to_line_number'] - $fromLineNumber + 1;
+                    }
+                }
+            } elseif ($property === 'to_hadith_id') {
+                if (($day['memorize_type'] ?? 'hadiths') === 'hadiths') {
+                    $toHadithId = $value;
+                    $fromHadithId = $day['from_hadith_id'] ?? null;
+                    if ($fromHadithId && $toHadithId) {
+                        $fromIdx = $allHadiths->search(fn ($h) => $h->id == $fromHadithId);
+                        $toIdx = $allHadiths->search(fn ($h) => $h->id == $toHadithId);
+                        if ($fromIdx !== false && $toIdx !== false) {
+                            if ($toIdx >= $fromIdx) {
+                                $day['memorize_amount'] = $toIdx - $fromIdx + 1;
+                            } else {
+                                $day['to_hadith_id'] = $fromHadithId;
+                                $day['memorize_amount'] = 1;
+                            }
+                        }
+                    }
+                }
+            } elseif ($property === 'to_line_number') {
+                if (($day['memorize_type'] ?? 'hadiths') === 'lines') {
+                    $toLineNumber = (int) $value;
+                    $fromLineNumber = (int) ($day['from_line_number'] ?? 1);
+                    if ($toLineNumber >= $fromLineNumber) {
+                        $day['memorize_amount'] = $toLineNumber - $fromLineNumber + 1;
+                    } else {
+                        $day['to_line_number'] = $fromLineNumber;
+                        $day['memorize_amount'] = 1;
+                    }
+                }
+            }
+
+            $this->recalculateDaysFrom($index);
+        }
+    }
+
+    public function recalculateDaysFrom(int $startIndex): void
+    {
+        if (empty($this->planDays)) {
+            return;
+        }
+
+        $allHadiths = Hadith::with('lines')->where(function ($query) {
+            $query->where('hadith_text_id', $this->hadithTextId)
+                ->orWhereHas('chapter', function ($q) {
+                    $q->where('hadith_text_id', $this->hadithTextId);
+                });
+        })->orderBy('hadith_chapter_id', 'asc')->orderBy('id', 'asc')->get();
+
+        if ($allHadiths->isEmpty()) {
+            return;
+        }
+
+        $totalDays = count($this->planDays);
+
+        for ($i = $startIndex; $i < $totalDays; $i++) {
+            if ($i === $startIndex) {
+                $fromHadithId = $this->planDays[$i]['from_hadith_id'] ?? null;
+                $fromLineNumber = $this->planDays[$i]['from_line_number'] ?? 1;
+            } else {
+                $prevDay = $this->planDays[$i - 1];
+                if (empty($prevDay['from_hadith_id'])) {
+                    $this->planDays[$i]['from_hadith_id'] = null;
+                    $this->planDays[$i]['to_hadith_id'] = null;
+                    $this->planDays[$i]['from_line_number'] = null;
+                    $this->planDays[$i]['to_line_number'] = null;
+
+                    continue;
+                }
+
+                if ($prevDay['memorize_type'] === 'hadiths') {
+                    $lastHadithId = $prevDay['to_hadith_id'];
+                    $foundIdx = $allHadiths->search(fn ($h) => $h->id == $lastHadithId);
+                    if ($foundIdx !== false && $foundIdx + 1 < $allHadiths->count()) {
+                        $fromHadithId = $allHadiths[$foundIdx + 1]->id;
+                        $fromLineNumber = 1;
+                    } else {
+                        $fromHadithId = null;
+                        $fromLineNumber = null;
+                    }
+                } else {
+                    $lastHadithId = $prevDay['to_hadith_id'];
+                    $lastLine = $prevDay['to_line_number'] ?: 1;
+                    $foundIdx = $allHadiths->search(fn ($h) => $h->id == $lastHadithId);
+                    if ($foundIdx !== false) {
+                        $hadith = $allHadiths[$foundIdx];
+                        $maxLines = $hadith->lines->count() ?: 1;
+                        if ($lastLine >= $maxLines) {
+                            if ($foundIdx + 1 < $allHadiths->count()) {
+                                $fromHadithId = $allHadiths[$foundIdx + 1]->id;
+                                $fromLineNumber = 1;
+                            } else {
+                                $fromHadithId = null;
+                                $fromLineNumber = null;
+                            }
+                        } else {
+                            $fromHadithId = $hadith->id;
+                            $fromLineNumber = $lastLine + 1;
+                        }
+                    } else {
+                        $fromHadithId = null;
+                        $fromLineNumber = null;
+                    }
+                }
+
+                $this->planDays[$i]['from_hadith_id'] = $fromHadithId;
+                $this->planDays[$i]['from_line_number'] = $fromLineNumber;
+            }
+
+            if (empty($fromHadithId)) {
+                $this->planDays[$i]['from_hadith_id'] = null;
+                $this->planDays[$i]['to_hadith_id'] = null;
+                $this->planDays[$i]['from_line_number'] = null;
+                $this->planDays[$i]['to_line_number'] = null;
+
+                continue;
+            }
+
+            $dayType = $this->planDays[$i]['memorize_type'] ?? 'hadiths';
+            $dayAmount = (int) ($this->planDays[$i]['memorize_amount'] ?? 1);
+            if ($dayAmount < 1) {
+                $dayAmount = 1;
+            }
+
+            $currentHadithIndex = $allHadiths->search(fn ($h) => $h->id == $fromHadithId);
+            if ($currentHadithIndex === false) {
+                $this->planDays[$i]['from_hadith_id'] = null;
+                $this->planDays[$i]['to_hadith_id'] = null;
+                $this->planDays[$i]['from_line_number'] = null;
+                $this->planDays[$i]['to_line_number'] = null;
+
+                continue;
+            }
+
+            if ($dayType === 'hadiths') {
+                $toIdx = min($allHadiths->count() - 1, $currentHadithIndex + $dayAmount - 1);
+                $this->planDays[$i]['to_hadith_id'] = $allHadiths[$toIdx]->id;
+                $this->planDays[$i]['from_line_number'] = null;
+                $this->planDays[$i]['to_line_number'] = null;
+            } else {
+                $hadith = $allHadiths[$currentHadithIndex];
+                $maxLines = $hadith->lines->count() ?: 1;
+                $fromLineNumber = (int) $fromLineNumber;
+                $toLine = min($maxLines, $fromLineNumber + $dayAmount - 1);
+
+                $this->planDays[$i]['to_hadith_id'] = $hadith->id;
+                $this->planDays[$i]['from_line_number'] = $fromLineNumber;
+                $this->planDays[$i]['to_line_number'] = $toLine;
+            }
+        }
     }
 
     public function resetPlan(): void
@@ -232,8 +576,7 @@ class HadithPlanCreator extends Component
     public function savePlan(): void
     {
         $this->validate([
-            'studentId' => 'required|exists:students,id',
-            'hadithId' => 'required|exists:hadiths,id',
+            'hadithPathId' => 'required|exists:hadith_paths,id',
             'startDate' => 'required|date',
         ]);
 
@@ -243,40 +586,37 @@ class HadithPlanCreator extends Component
             return;
         }
 
-        // Deactivate existing active plans for this student and this hadith
-        StudentHadithPlan::where('student_id', $this->studentId)
-            ->where('hadith_id', $this->hadithId)
-            ->where('status', 'active')
-            ->update(['status' => 'completed']);
-
-        // Create new plan
-        $plan = StudentHadithPlan::create([
-            'student_id' => $this->studentId,
-            'hadith_id' => $this->hadithId,
+        // 1. Update HadithPath start_date and parameters
+        $path = HadithPath::findOrFail($this->hadithPathId);
+        $path->update([
             'start_date' => $this->startDate,
-            'status' => 'active',
-            'created_by_role' => $this->userRole,
+            'memorize_type' => $this->memorizeType,
+            'memorize_amount' => $this->memorizeAmount,
         ]);
 
-        // Create plan days
-        foreach ($this->planDays as $day) {
-            StudentHadithPlanDay::create([
-                'student_hadith_plan_id' => $plan->id,
-                'date' => $day['date'],
-                'day_name' => $day['day_name'],
+        // 2. Save HadithPathDay template records
+        HadithPathDay::where('hadith_path_id', $this->hadithPathId)->delete();
+        foreach ($this->planDays as $index => $day) {
+            HadithPathDay::create([
+                'hadith_path_id' => $this->hadithPathId,
+                'day_number' => $index + 1,
+                'date' => $day['date'] ?? null,
+                'day_name' => $day['day_name'] ?? null,
+                'memorize_type' => $day['memorize_type'],
+                'memorize_amount' => $day['memorize_amount'],
+                'from_hadith_id' => $day['from_hadith_id'],
+                'to_hadith_id' => $day['to_hadith_id'],
                 'from_line_number' => $day['from_line_number'],
                 'to_line_number' => $day['to_line_number'],
-                'review_from_line_number' => $day['review_from_line_number'],
-                'review_to_line_number' => $day['review_to_line_number'],
             ]);
         }
 
-        Flux::toast('تم حفظ خطة الحديث للطالب بنجاح', variant: 'success');
+        Flux::toast('تم حفظ خطة المسار بنجاح', variant: 'success');
 
         if ($this->userRole === 'supervisor') {
-            $this->redirectRoute('supervisor.hadiths');
+            $this->redirectRoute('supervisor.hadiths.paths');
         } else {
-            $this->redirectRoute('teacher.students');
+            $this->redirectRoute('teacher.dashboard');
         }
     }
 
@@ -295,33 +635,24 @@ class HadithPlanCreator extends Component
         return $days[$day] ?? $day;
     }
 
-    private function getSupervisorCircleIds(): array
-    {
-        $supervisor = auth()->guard('supervisor')->user();
-        if (! $supervisor) {
-            return [];
-        }
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
-    }
-
     public function render()
     {
-        $hadiths = Hadith::orderBy('name')->get();
+        $paths = HadithPath::with('text')->orderBy('name')->get();
 
-        $students = [];
-        if ($this->userRole === 'teacher') {
-            $teacher = auth()->guard('teacher')->user();
-            $circleIds = $teacher->circles->pluck('id');
-            $students = Student::whereIn('circle_id', $circleIds)->orderBy('name')->get();
-        } else {
-            $circleIds = $this->getSupervisorCircleIds();
-            $students = Student::whereIn('circle_id', $circleIds)->orderBy('name')->get();
+        // Fetch all hadiths of the selected text for row dropdown selection in blade
+        $hadiths = collect();
+        if ($this->hadithTextId) {
+            $hadiths = Hadith::with('lines')->where(function ($query) {
+                $query->where('hadith_text_id', $this->hadithTextId)
+                    ->orWhereHas('chapter', function ($q) {
+                        $q->where('hadith_text_id', $this->hadithTextId);
+                    });
+            })->orderBy('hadith_chapter_id', 'asc')->orderBy('id', 'asc')->get();
         }
 
         return view('livewire.shared.hadith-plan-creator', [
+            'paths' => $paths,
             'hadiths' => $hadiths,
-            'students' => $students,
         ]);
     }
 }

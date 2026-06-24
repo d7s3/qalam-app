@@ -1,197 +1,285 @@
-<div class="space-y-6">
-    <div class="flex items-center gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800">
-        <div class="p-2 rounded-lg bg-zinc-50 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-            <flux:icon icon="pencil-square" />
-        </div>
-        <div>
-            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">منشئ خطط الأحاديث</flux:heading>
-            <flux:subheading>توزيع أسطر الحديث آلياً لحفظ ومراجعة الطلاب وتنسيقها زمنياً</flux:subheading>
-        </div>
-    </div>
+<div class="space-y-6" dir="rtl" x-data="{
+    selected: [],
+    selectAll: @entangle('selectAll'),
+    selectionStart: null,
+    bulkType: @entangle('bulkType'),
+    bulkAmount: @entangle('bulkAmount'),
+    init() {
+        this.selected = [];
+        this.$watch('selectAll', value => {
+            if (!value) {
+                this.selected = [];
+            }
+        });
+    },
+    toggleAll() {
+        this.selectAll = !this.selectAll;
+        if (this.selectAll) {
+            const count = this.$wire.planDays ? this.$wire.planDays.length : 0;
+            this.selected = Array.from({length: count}, (_, i) => i);
+        } else {
+            this.selected = [];
+        }
+    },
+    toggleDay(index) {
+        if (this.selectionStart === null) {
+            this.selectionStart = index;
+            if (this.selected.includes(index)) {
+                this.selected = this.selected.filter(i => i !== index);
+            } else {
+                this.selected.push(index);
+            }
+        } else {
+            const start = Math.min(this.selectionStart, index);
+            const end = Math.max(this.selectionStart, index);
+            const desired = !this.selected.includes(this.selectionStart);
+            for (let i = start; i <= end; i++) {
+                if (desired) {
+                    if (!this.selected.includes(i)) this.selected.push(i);
+                } else {
+                    this.selected = this.selected.filter(x => x !== i);
+                }
+            }
+            this.selectionStart = null;
+        }
+    },
+    doFill() {
+        if (this.selected.length === 0) {
+            alert('الرجاء تحديد يوم واحد على الأقل لتطبيق التعبئة.');
+            return;
+        }
+        const indices = [...this.selected].sort((a, b) => a - b);
+        this.$wire.fillSelected(this.bulkType, this.bulkAmount, indices).then(() => {
+            this.selected = [];
+            this.selectAll = false;
+        });
+    }
+}">
+    @if(!$isGenerated)
+        {{-- STEP 1: INITIAL GENERATOR FORM --}}
+        <flux:card class="max-w-2xl mx-auto p-6 space-y-6">
+            <div>
+                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إعداد الخطة النموذجية للمسار</flux:heading>
+                <flux:subheading>اختر المسار لتوليد وتعديل خطة التوزيع اليومي النموذجية له</flux:subheading>
+            </div>
 
-    @if (!$isGenerated)
-        {{-- Plan Configuration Form --}}
-        <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-6 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {{-- Select Student --}}
+            <form wire:submit.prevent="generatePreview" class="space-y-4">
                 <flux:field>
-                    <flux:label class="font-bold">الطالب المستهدف</flux:label>
-                    <flux:select wire:model="studentId" placeholder="اختر طالباً..." search>
-                        @foreach ($students as $student)
-                            <flux:select.option :value="$student->id">{{ $student->name }} ({{ $student->circle->name ?? 'بلا حلقة' }})</flux:select.option>
+                    <flux:label>المسار المنهجي</flux:label>
+                    <flux:select wire:model.live="hadithPathId" placeholder="اختر المسار..." required>
+                        <flux:select.option value="">-- اختر المسار --</flux:select.option>
+                        @foreach ($paths as $path)
+                            <flux:select.option value="{{ $path->id }}">
+                                {{ $path->name }} (متن: {{ $path->text->name ?? 'بلا متن' }})
+                            </flux:select.option>
                         @endforeach
                     </flux:select>
-                    <flux:error name="studentId" />
+                    <flux:error name="hadithPathId" />
                 </flux:field>
 
-                {{-- Select Hadith --}}
-                <flux:field>
-                    <flux:label class="font-bold">الحديث الشريف</flux:label>
-                    <flux:select wire:model.live="hadithId" placeholder="اختر حديثاً...">
-                        @foreach ($hadiths as $hadith)
-                            <flux:select.option :value="$hadith->id">{{ $hadith->name }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                    <flux:error name="hadithId" />
-                </flux:field>
-
-                {{-- Start Date --}}
-                <flux:field>
-                    <flux:label class="font-bold">تاريخ البدء</flux:label>
-                    <flux:input type="date" wire:model.live="startDate" />
-                    <flux:error name="startDate" />
-                </flux:field>
-            </div>
-
-            {{-- Active Days of Week --}}
-            <div class="space-y-2">
-                <flux:label class="font-bold">أيام التسميع الأسبوعية</flux:label>
-                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
-                    @foreach([
-                        'Sunday' => 'الأحد',
-                        'Monday' => 'الاثنين',
-                        'Tuesday' => 'الثلاثاء',
-                        'Wednesday' => 'الأربعاء',
-                        'Thursday' => 'الخميس',
-                        'Friday' => 'الجمعة',
-                        'Saturday' => 'السبت'
-                    ] as $engDay => $arDay)
-                        <label class="flex items-center gap-2 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/10 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/20">
-                            <flux:checkbox wire:model="activeDays" :value="$engDay" />
-                            <span class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{{ $arDay }}</span>
-                        </label>
-                    @endforeach
-                </div>
-                <flux:error name="activeDays" />
-            </div>
-
-            <flux:separator />
-
-            {{-- Hifz Settings --}}
-            <div class="space-y-4">
-                <flux:heading size="md" class="font-bold text-zinc-800 dark:text-zinc-200">إعدادات الحفظ</flux:heading>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <flux:field>
-                        <flux:label>من السطر رقم</flux:label>
-                        <flux:input type="number" min="1" wire:model="hifzStart" />
-                        <flux:error name="hifzStart" />
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>إلى السطر رقم</flux:label>
-                        <flux:input type="number" min="1" wire:model="hifzEnd" />
-                        <flux:error name="hifzEnd" />
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>معدل الحفظ اليومي (أسطر/يوم)</flux:label>
-                        <flux:input type="number" min="1" wire:model="hifzRate" />
-                        <flux:error name="hifzRate" />
-                    </flux:field>
-                </div>
-            </div>
-
-            <flux:separator />
-
-            {{-- Review Settings --}}
-            <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <flux:heading size="md" class="font-bold text-zinc-800 dark:text-zinc-200">إعدادات المراجعة</flux:heading>
-                    <div class="flex items-center gap-2">
-                        <flux:switch wire:model.live="hasReview" />
-                        <flux:label>تفعيل خطة المراجعة</flux:label>
-                    </div>
-                </div>
-
-                @if ($hasReview)
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 transition-opacity duration-200">
+                @if($hadithPathId)
+                    <div class="grid grid-cols-2 gap-4">
                         <flux:field>
-                            <flux:label>من السطر رقم</flux:label>
-                            <flux:input type="number" min="1" wire:model="reviewStart" />
-                            <flux:error name="reviewStart" />
+                            <flux:label>نوع الحفظ (افتراضي من المسار)</flux:label>
+                            <flux:select wire:model.live="memorizeType" disabled>
+                                <flux:select.option value="hadiths">بالأحاديث الكاملة</flux:select.option>
+                                <flux:select.option value="lines">بالأسطر</flux:select.option>
+                            </flux:select>
                         </flux:field>
 
                         <flux:field>
-                            <flux:label>إلى السطر رقم</flux:label>
-                            <flux:input type="number" min="1" wire:model="reviewEnd" />
-                            <flux:error name="reviewEnd" />
-                        </flux:field>
-
-                        <flux:field>
-                            <flux:label>معدل المراجعة اليومي (أسطر/يوم)</flux:label>
-                            <flux:input type="number" min="1" wire:model="reviewRate" />
-                            <flux:error name="reviewRate" />
+                            <flux:label>المعدل اليومي (افتراضي من المسار)</flux:label>
+                            <flux:input type="number" wire:model.live="memorizeAmount" disabled />
                         </flux:field>
                     </div>
                 @endif
-            </div>
 
-            <div class="flex justify-end pt-4">
-                <flux:button variant="primary" icon="arrow-path" wire:click="generatePreview">توليد الخطة ومعاينتها</flux:button>
-            </div>
-        </div>
+                <flux:field>
+                    <flux:label>تاريخ البدء</flux:label>
+                    <livewire:shared.hijri-datepicker wire:model="startDate" label="تاريخ البدء" />
+                    <flux:error name="startDate" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>أيام التسميع الأسبوعية</flux:label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        @foreach (['Sunday' => 'الأحد', 'Monday' => 'الاثنين', 'Tuesday' => 'الثلاثاء', 'Wednesday' => 'الأربعاء', 'Thursday' => 'الخميس', 'Saturday' => 'السبت'] as $dayName => $dayAr)
+                            <label class="flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg cursor-pointer">
+                                <input type="checkbox" wire:model="activeDays" value="{{ $dayName }}" class="rounded text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-700" />
+                                <span class="text-sm font-medium">{{ $dayAr }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                    <flux:error name="activeDays" />
+                </flux:field>
+
+                <div class="flex justify-end gap-2 pt-4">
+                    <flux:button variant="ghost" href="{{ $userRole === 'supervisor' ? route('supervisor.hadiths.paths') : route('teacher.dashboard') }}">إلغاء</flux:button>
+                    <flux:button type="submit" variant="primary">توليد الخطة المقترحة</flux:button>
+                </div>
+            </form>
+        </flux:card>
     @else
-        {{-- Preview & Confirmation Panel --}}
-        <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-6 space-y-6">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-100 dark:border-zinc-800">
+        {{-- STEP 2: INTERACTIVE PREVIEW & EDIT SECTION --}}
+        <flux:card class="p-4 bg-zinc-50/50 dark:bg-zinc-800/30 border border-zinc-100 dark:border-zinc-800">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
-                    <flux:heading size="lg" class="font-bold text-zinc-900 dark:text-white">معاينة وتعديل خطة الحديث</flux:heading>
-                    <flux:subheading>راجع التوزيع اليومي، ويمكنك التعديل اليدوي على نطاق الأسطر لكل يوم قبل الحفظ النهائي.</flux:subheading>
+                    <div class="text-xs font-bold text-indigo-500 mb-1">الخطة النموذجية للمسار</div>
+                    <flux:heading size="lg" class="font-bold">
+                        مسار: {{ $paths->firstWhere('id', $hadithPathId)->name ?? '' }}
+                    </flux:heading>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">تاريخ البدء: {{ $startDate }} | عدد الأيام المجدولة: {{ count($planDays) }} أيام</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <flux:button variant="ghost" icon="chevron-right" wire:click="resetPlan">رجوع لتعديل المعطيات</flux:button>
-                    <flux:button variant="primary" icon="check" wire:click="savePlan">اعتماد وحفظ الخطة</flux:button>
+                    <flux:button wire:click="resetPlan" variant="ghost" icon="arrow-path" class="text-rose-500 hover:bg-rose-50">إعادة ضبط وملء جديد</flux:button>
                 </div>
             </div>
+        </flux:card>
 
-            <flux:error name="planDays" />
+        {{-- BULK ACTIONS PANEL --}}
+        <flux:card class="p-4 border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <flux:heading size="sm" class="font-bold flex items-center gap-2 shrink-0">
+                    <flux:icon icon="bolt" class="size-4 text-indigo-500" />
+                    أدوات الملء التلقائي للأيام المحددة
+                </flux:heading>
 
-            <div class="border border-zinc-100 dark:border-zinc-800 rounded-xl overflow-hidden shadow-xs">
-                <flux:table>
-                    <flux:table.columns>
-                        <flux:table.column class="w-16 text-center">اليوم</flux:table.column>
-                        <flux:table.column class="w-32 text-center">التاريخ</flux:table.column>
-                        <flux:table.column class="text-center">الحفظ (من سطر - إلى سطر)</flux:table.column>
-                        @if ($hasReview)
-                            <flux:table.column class="text-center">المراجعة (من سطر - إلى سطر)</flux:table.column>
-                        @endif
-                    </flux:table.columns>
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <flux:label class="text-xs font-semibold whitespace-nowrap">النوع:</flux:label>
+                        <select x-model="bulkType" class="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1.5 outline-none w-36">
+                            <option value="hadiths">بالأحاديث الكاملة</option>
+                            <option value="lines">بالأسطر</option>
+                        </select>
+                    </div>
 
-                    <flux:table.rows>
+                    <div class="flex items-center gap-2">
+                        <flux:label class="text-xs font-semibold whitespace-nowrap">المقدار:</flux:label>
+                        <input type="number" min="1" x-model="bulkAmount" class="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 outline-none font-mono w-20" />
+                    </div>
+
+                    <flux:button size="sm" variant="primary" @click="doFill">تطبيق التعبئة وإعادة التوزيع</flux:button>
+                </div>
+            </div>
+        </flux:card>
+
+        {{-- DAY TABLE --}}
+        <flux:card class="p-0 overflow-hidden border border-zinc-100 dark:border-zinc-800">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-right align-middle whitespace-nowrap">
+                    <thead class="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-700">
+                        <tr>
+                            <th class="p-4 w-32 font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700" @click="toggleAll()">
+                                <div class="flex items-center gap-2">
+                                    <flux:icon icon="check-circle" class="size-4 opacity-50" />
+                                    <span>اليوم والترتيب</span>
+                                </div>
+                            </th>
+                            <th class="p-3 w-40">نوع الحفظ</th>
+                            <th class="p-3 w-40">المقدار</th>
+                            <th class="p-3">نطاق الحفظ اليومي</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
                         @foreach ($planDays as $index => $day)
-                            <flux:table.row :key="$index">
-                                <flux:table.cell class="text-center font-bold text-zinc-700 dark:text-zinc-300">
-                                    {{ $day['day_name'] }}
-                                </flux:table.cell>
-                                <flux:table.cell class="text-center text-xs text-zinc-500 dark:text-zinc-400">
-                                    {{ $day['date'] }}
-                                </flux:table.cell>
-                                <flux:table.cell>
-                                    <div class="flex items-center justify-center gap-2 max-w-[250px] mx-auto">
-                                        <flux:input type="number" size="sm" wire:model="planDays.{{ $index }}.from_line_number" placeholder="من" class="text-center w-20" />
-                                        <span class="text-zinc-400">-</span>
-                                        <flux:input type="number" size="sm" wire:model="planDays.{{ $index }}.to_line_number" placeholder="إلى" class="text-center w-20" />
-                                    </div>
-                                </flux:table.cell>
-                                @if ($hasReview)
-                                    <flux:table.cell>
-                                        <div class="flex items-center justify-center gap-2 max-w-[250px] mx-auto">
-                                            <flux:input type="number" size="sm" wire:model="planDays.{{ $index }}.review_from_line_number" placeholder="من" class="text-center w-20" />
-                                            <span class="text-zinc-400">-</span>
-                                            <flux:input type="number" size="sm" wire:model="planDays.{{ $index }}.review_to_line_number" placeholder="إلى" class="text-center w-20" />
+                            <tr wire:key="row-{{ $index }}" :class="selected.includes({{ $index }}) ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''">
+                                {{-- Checkbox / Date --}}
+                                <td class="p-3 cursor-pointer select-none hover:bg-zinc-50 dark:hover:bg-zinc-800" @click="toggleDay({{ $index }})">
+                                    <div class="flex items-center gap-3">
+                                        <input type="checkbox" :value="{{ $index }}" x-model.number="selected" @click.stop class="rounded text-indigo-600 focus:ring-indigo-500 border-zinc-300" />
+                                        <div class="flex flex-col">
+                                            <span class="font-bold text-zinc-800 dark:text-zinc-200">اليوم {{ $index + 1 }}</span>
+                                            <span class="text-xs text-zinc-500 mt-0.5">{{ $day['day_name'] }} ({{ $day['date'] }})</span>
                                         </div>
-                                    </flux:table.cell>
-                                @endif
-                            </flux:table.row>
-                        @endforeach
-                    </flux:table.rows>
-                </flux:table>
-            </div>
+                                    </div>
+                                </td>
 
-            <div class="flex justify-end gap-2 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <flux:button variant="ghost" wire:click="resetPlan">إلغاء وإعادة الضبط</flux:button>
-                <flux:button variant="primary" icon="check" wire:click="savePlan">اعتماد وحفظ الخطة</flux:button>
+                                {{-- Memorize Type dropdown --}}
+                                <td class="p-3">
+                                    <select wire:model.live="planDays.{{ $index }}.memorize_type" class="w-full text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1.5 outline-none">
+                                        <option value="hadiths">بالأحاديث</option>
+                                        <option value="lines">بالأسطر</option>
+                                    </select>
+                                </td>
+
+                                {{-- Memorize Amount input --}}
+                                <td class="p-3">
+                                    <input type="number" min="1" wire:model.live="planDays.{{ $index }}.memorize_amount" class="w-full text-center text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 py-1 outline-none font-mono" />
+                                </td>
+
+                                {{-- Ranges dropdowns --}}
+                                <td class="p-3">
+                                    <div class="flex items-center gap-2">
+                                        @if($day['memorize_type'] === 'lines')
+                                            {{-- LINES range selection --}}
+                                            <div class="flex items-center gap-2 w-full max-w-lg">
+                                                <select wire:model.live="planDays.{{ $index }}.from_hadith_id" class="flex-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1.5 outline-none">
+                                                    <option value="">-- اختر الحديث --</option>
+                                                    @foreach ($hadiths as $h)
+                                                        <option value="{{ $h->id }}">{{ $h->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                                
+                                                <flux:label class="text-xs text-zinc-500">من السطر</flux:label>
+                                                <select wire:model.live="planDays.{{ $index }}.from_line_number" class="w-20 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1.5 outline-none">
+                                                    @php
+                                                        $selectedHadith = $hadiths->firstWhere('id', $day['from_hadith_id']);
+                                                        $maxLines = $selectedHadith ? ($selectedHadith->lines->count() ?: 1) : 1;
+                                                    @endphp
+                                                    @for ($i = 1; $i <= $maxLines; $i++)
+                                                        <option value="{{ $i }}">{{ $i }}</option>
+                                                    @endfor
+                                                </select>
+
+                                                <flux:label class="text-xs text-zinc-500">إلى</flux:label>
+                                                <select wire:model.live="planDays.{{ $index }}.to_line_number" class="w-20 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1.5 outline-none">
+                                                    @php
+                                                        $selectedHadith = $hadiths->firstWhere('id', $day['from_hadith_id']);
+                                                        $maxLines = $selectedHadith ? ($selectedHadith->lines->count() ?: 1) : 1;
+                                                        $startLine = $day['from_line_number'] ?: 1;
+                                                    @endphp
+                                                    @for ($i = $startLine; $i <= $maxLines; $i++)
+                                                        <option value="{{ $i }}">{{ $i }}</option>
+                                                    @endfor
+                                                </select>
+                                            </div>
+                                        @else
+                                            {{-- HADITHS range selection --}}
+                                            <div class="flex items-center gap-2 w-full max-w-lg">
+                                                <flux:label class="text-xs text-zinc-500">من</flux:label>
+                                                <select wire:model.live="planDays.{{ $index }}.from_hadith_id" class="flex-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1.5 outline-none">
+                                                    <option value="">-- الحديث الأول --</option>
+                                                    @foreach ($hadiths as $h)
+                                                        <option value="{{ $h->id }}">{{ $h->name }}</option>
+                                                    @endforeach
+                                                </select>
+
+                                                <flux:label class="text-xs text-zinc-500">إلى</flux:label>
+                                                <select wire:model.live="planDays.{{ $index }}.to_hadith_id" class="flex-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1.5 outline-none">
+                                                    <option value="">-- الحديث الأخير --</option>
+                                                    @php
+                                                        $startHadithIdx = $hadiths->search(fn($h) => $h->id === $day['from_hadith_id']) ?: 0;
+                                                        $availableToHadiths = $hadiths->slice($startHadithIdx);
+                                                    @endphp
+                                                    @foreach ($availableToHadiths as $h)
+                                                        <option value="{{ $h->id }}">{{ $h->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
+        </flux:card>
+
+        {{-- FORM ACTIONS --}}
+        <div class="flex justify-end gap-2">
+            <flux:button variant="ghost" wire:click="resetPlan">إلغاء</flux:button>
+            <flux:button variant="primary" wire:click="savePlan" icon="check">حفظ خطة المسار وتوزيع الحفظ</flux:button>
         </div>
     @endif
 </div>

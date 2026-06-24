@@ -128,7 +128,7 @@ Route::middleware(['auth:supervisor', 'approved'])->prefix('supervisor')->name('
     Route::view('/teachers', 'supervisor.teachers')->name('teachers');
     Route::view('/odes', 'supervisor.odes')->name('odes');
     Route::view('/hadiths', 'supervisor.hadiths')->name('hadiths');
-    Route::view('/hadiths/plans', 'supervisor.hadith-plans')->name('hadiths.plans');
+    Route::view('/hadiths/paths', 'supervisor.hadith-paths')->name('hadiths.paths');
     Route::view('/hadiths/create-plan', 'supervisor.hadith-plan-creator')->name('hadiths.create-plan');
     Route::view('/odes/plans', 'supervisor.ode-plans')->name('odes.plans');
     Route::view('/odes/create-plan', 'supervisor.ode-plan-creator')->name('odes.create-plan');
@@ -171,8 +171,6 @@ Route::middleware(['auth:teacher', 'approved'])->prefix('teacher')->name('teache
     Route::view('/student-plans', 'teacher.student-plans')->name('student-plans');
     Route::view('/ode-plan-creator', 'teacher.ode-plan-creator')->name('ode-plan-creator');
     Route::view('/ode-plans', 'teacher.ode-plans')->name('ode-plans');
-    Route::view('/hadith-plan-creator', 'teacher.hadith-plan-creator')->name('hadith-plan-creator');
-    Route::view('/hadith-plans', 'teacher.hadith-plans')->name('hadith-plans');
     Route::view('/exceeded-limits', 'teacher.exceeded-limits')->name('exceeded-limits');
     Route::view('/pairs', 'teacher.pairs')->name('pairs');
     Route::view('/student-exams', 'teacher.student-exams')->name('student-exams');
