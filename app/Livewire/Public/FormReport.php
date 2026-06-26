@@ -40,7 +40,7 @@ class FormReport extends Component
         foreach ($this->form->fields as $field) {
             $fieldId = $field['id'];
             if (! isset($this->filters[$fieldId])) {
-                $this->filters[$fieldId] = $field['type'] === 'multiselect' ? [] : '';
+                $this->filters[$fieldId] = in_array($field['type'], ['select', 'multiselect']) ? [] : '';
             }
         }
     }
@@ -52,7 +52,7 @@ class FormReport extends Component
         $this->filters = [];
         foreach ($this->form->fields as $field) {
             $fieldId = $field['id'];
-            $this->filters[$fieldId] = $field['type'] === 'multiselect' ? [] : '';
+            $this->filters[$fieldId] = in_array($field['type'], ['select', 'multiselect']) ? [] : '';
         }
     }
 
