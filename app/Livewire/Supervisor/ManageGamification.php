@@ -413,7 +413,7 @@ class ManageGamification extends Component
     {
         $supervisorId = auth()->guard('supervisor')->id();
         $this->competition = Leaderboard::with(['circles.students'])->where('supervisor_id', $supervisorId)->findOrFail($this->competitionId);
-        $this->theme = GamificationThemeService::getTheme($this->competition->theme_key ?? 'space');
+        $this->theme = GamificationThemeService::getTheme($this->competition);
     }
 
     public function initializeLevels(): void
@@ -531,21 +531,8 @@ class ManageGamification extends Component
     public function addLevel(): void
     {
         $newLevelNumber = count($this->levels) + 1;
-        $themeKey = $this->competition->theme_key ?? 'space';
-        $themeData = GamificationThemeService::getTheme($themeKey);
-        $themeDefaultLevels = $themeData['default_levels'] ?? [];
-
-        $icon = 'sparkles';
-        if (isset($themeDefaultLevels[$newLevelNumber])) {
-            $icon = $themeDefaultLevels[$newLevelNumber]['icon'];
-        } else {
-            $icon = match ($themeKey) {
-                'space' => 'rocket',
-                'ocean' => 'key',
-                'heroes' => 'crown',
-                default => 'sparkles'
-            };
-        }
+        $themeDefaultLevels = $this->theme['default_levels'] ?? [];
+        $icon = $themeDefaultLevels[$newLevelNumber]['icon'] ?? 'sparkles';
 
         $this->levels[] = [
             'id' => null,

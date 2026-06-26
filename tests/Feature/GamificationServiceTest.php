@@ -4,14 +4,20 @@ use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance;
 use App\Models\Circle;
 use App\Models\GamificationBadge;
+use App\Models\GamificationLevel;
 use App\Models\GamificationStoreItem;
 use App\Models\GamificationStorePurchase;
 use App\Models\GamificationStudentState;
 use App\Models\GamificationTeam;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
+use App\Models\Ode;
+use App\Models\OdePath;
+use App\Models\OdePathDay;
 use App\Models\Stage;
 use App\Models\Student;
+use App\Models\StudentOdeAchievement;
+use App\Models\StudentOdePlan;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\Teacher;
@@ -49,7 +55,6 @@ beforeEach(function () {
         'circle_id' => $this->circle->id,
         'title' => 'مسابقة الفضاء الكبرى',
         'competition_type' => 'gamification',
-        'theme_key' => 'space',
         'start_date' => now()->subDays(10),
         'end_date' => now()->addDays(10),
         'is_active' => true,
@@ -322,13 +327,16 @@ it('protects streaks using streak freezes', function () {
 });
 
 it('supports team donations', function () {
+    // Balance earned on a PREVIOUS day so it counts as the start-of-day base.
     GamificationTransaction::create([
         'leaderboard_id' => $this->leaderboard->id,
         'student_id' => $this->student->id,
         'type' => 'earn',
-        'amount' => 100,
+        'amount' => 400,
         'xp_amount' => 400,
         'description' => 'رصيد ابتدائي للاختبار',
+        'created_at' => now()->subDay(),
+        'updated_at' => now()->subDay(),
     ]);
     GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
 
@@ -338,6 +346,7 @@ it('supports team donations', function () {
         'coins' => 50,
     ]);
 
+    // Default daily limit is 10% of start-of-day coins (400) => 40 allowed.
     $result = GamificationService::donateCoinsToTeam($this->student->id, $team->id, 40);
     expect($result)->toBeTrue();
 
@@ -345,8 +354,142 @@ it('supports team donations', function () {
     $state->refresh();
     $team->refresh();
 
-    expect($state->coins)->toBe(60); // 100 - 40
+    expect($state->coins)->toBe(360); // 400 - 40
     expect($team->coins)->toBe(90); // 50 + 40
+
+    // A donation moves coins only; it must NOT inflate the team's score.
+    expect(GamificationService::getTeamScore($team, $this->leaderboard))->toBe(0);
+});
+
+it('caps daily donations at a percentage of the start-of-day coin balance', function () {
+    // Level 1 allows donation with a 50% daily cap
+    GamificationLevel::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'level_number' => 1,
+        'name' => 'مبتدئ',
+        'xp_required' => 0,
+        'icon' => 'sparkles',
+        'settings' => ['has_donation' => true, 'donation_max_limit' => 50],
+    ]);
+
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'أسرة بدر',
+        'coins' => 0,
+    ]);
+
+    // Start-of-day base: 100 coins earned yesterday
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 100,
+        'xp_amount' => 100,
+        'description' => 'رصيد سابق',
+        'created_at' => now()->subDay(),
+        'updated_at' => now()->subDay(),
+    ]);
+
+    // Today's earnings must NOT raise the base (start-of-day stays 100)
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 1000,
+        'xp_amount' => 1000,
+        'description' => 'كسب اليوم',
+    ]);
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+
+    $status = GamificationService::getDailyDonationStatus($this->student->id, $this->leaderboard->id);
+    expect($status['base'])->toBe(100);   // start-of-day only, ignores today's +1000
+    expect($status['limit'])->toBe(50);   // 50% of 100
+    expect($status['remaining'])->toBe(50);
+
+    // Donate 30 (within the 50 cap)
+    expect(GamificationService::donateCoinsToTeam($this->student->id, $team->id, 30))->toBeTrue();
+
+    // 20 remaining: donating 25 must fail despite a large current balance
+    $error = null;
+    expect(GamificationService::donateCoinsToTeam($this->student->id, $team->id, 25, $error))->toBeFalse();
+    expect($error)->toContain('المتبقي');
+
+    // Donating the remaining 20 succeeds; then the daily cap is exhausted
+    expect(GamificationService::donateCoinsToTeam($this->student->id, $team->id, 20))->toBeTrue();
+
+    $status = GamificationService::getDailyDonationStatus($this->student->id, $this->leaderboard->id);
+    expect($status['donated'])->toBe(50);
+    expect($status['remaining'])->toBe(0);
+
+    $error = null;
+    expect(GamificationService::donateCoinsToTeam($this->student->id, $team->id, 1, $error))->toBeFalse();
+    expect($error)->toContain('الأقصى');
+});
+
+it('blocks donations when the student level disallows them', function () {
+    GamificationLevel::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'level_number' => 1,
+        'name' => 'مبتدئ',
+        'xp_required' => 0,
+        'icon' => 'sparkles',
+        'settings' => ['has_donation' => false, 'donation_max_limit' => 50],
+    ]);
+
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'أسرة أحد',
+        'coins' => 0,
+    ]);
+
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 100,
+        'xp_amount' => 100,
+        'description' => 'رصيد سابق',
+        'created_at' => now()->subDay(),
+        'updated_at' => now()->subDay(),
+    ]);
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+
+    $error = null;
+    expect(GamificationService::donateCoinsToTeam($this->student->id, $team->id, 5, $error))->toBeFalse();
+    expect($error)->toContain('غير مفعلة');
+});
+
+it('deducts negative extra points from both coins and XP', function () {
+    // Seed the student with an initial balance: 50 coins / 50 XP
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 50,
+        'xp_amount' => 50,
+        'description' => 'رصيد ابتدائي',
+    ]);
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+
+    // Teacher applies a deduction of 20 via extra points
+    $extraId = DB::table('leaderboard_extra_points')->insertGetId([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'date' => now()->format('Y-m-d'),
+        'points' => -20,
+        'notes' => 'خصم سلوكي',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    GamificationService::syncStudentExtraPointsXP($extraId);
+
+    // Both the standing (XP) and coins must reflect the deduction
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(30); // 50 - 20
+
+    $state = GamificationStudentState::where('student_id', $this->student->id)
+        ->where('leaderboard_id', $this->leaderboard->id)->first();
+    expect($state->coins)->toBe(30); // 50 - 20
 });
 
 it('manages store purchases and voting', function () {
@@ -456,4 +599,62 @@ it('calculates points dynamically using multiplier factor', function () {
 
     $teamScore = GamificationService::getTeamScore($team, $this->leaderboard);
     expect($teamScore)->toBe(26);
+});
+
+it('applies the team multiplier to ode and hadith memorization points', function () {
+    // Enable ode & hadith automatic scoring on the competition
+    $settings = $this->leaderboard->settings;
+    $settings['ode_hifz_enabled'] = true;
+    $settings['ode_hifz_excellent_xp'] = 10;
+    $settings['ode_hifz_excellent_coins'] = 10;
+    $settings['hadith_hifz_enabled'] = true;
+    $settings['hadith_hifz_excellent_xp'] = 8;
+    $settings['hadith_hifz_excellent_coins'] = 8;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    // Team + student
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'كتيبة النصر',
+        'coins' => 100,
+    ]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    // 2x team multiplier active tomorrow
+    $multiplierItem = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'مضاعف ثنائي',
+        'price' => 50,
+        'item_type' => 'multiplier',
+        'value' => 2,
+        'is_team_product' => true,
+    ]);
+    $tomorrow = now()->addDay()->format('Y-m-d');
+    GamificationService::requestStorePurchase($this->student->id, $multiplierItem->id, null, $tomorrow);
+
+    // Ode achievement graded tomorrow (excellent = 10)
+    $ode = Ode::create(['name' => 'تحفة الأطفال']);
+    $odePath = OdePath::create(['ode_id' => $ode->id, 'name' => 'مسار', 'start_date' => now()->subDays(5)]);
+    $odeDay = OdePathDay::create(['ode_path_id' => $odePath->id, 'day_number' => 1, 'date' => $tomorrow]);
+    $odePlan = StudentOdePlan::create([
+        'student_id' => $this->student->id,
+        'ode_path_id' => $odePath->id,
+        'start_date' => now()->subDays(5),
+        'status' => 'active',
+        'created_by_role' => 'teacher',
+    ]);
+    $odeAch = StudentOdeAchievement::create([
+        'student_ode_plan_id' => $odePlan->id,
+        'ode_path_day_id' => $odeDay->id,
+        'hifz_achievement' => 3,
+        'hifz_graded_at' => Carbon::parse($tomorrow.' 10:00:00'),
+    ]);
+
+    GamificationService::syncStudentOdeAchievementXP($odeAch->fresh(['plan.student', 'pathDay']));
+
+    // Individual XP is NOT doubled (team multiplier only)
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(10);
+
+    // Team score IS doubled: 10 * 2 = 20
+    expect(GamificationService::getTeamScore($team, $this->leaderboard))->toBe(20);
 });

@@ -1,152 +1,127 @@
-<div class="space-y-6">
+<div class="space-y-5">
     {{-- Header --}}
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
+    <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-2.5">
             <div class="p-2 rounded-lg bg-amber-50 text-amber-500 dark:bg-amber-900/30 dark:text-amber-400">
-                <flux:icon icon="trophy" class="size-6" />
+                <flux:icon icon="trophy" class="size-5" />
             </div>
-            <div>
-                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">مسابقات المرحلة</flux:heading>
-                <flux:subheading>أنشئ مسابقات تشمل حلقات متعددة وتحفّز الطلاب على التنافس</flux:subheading>
-            </div>
+            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">المسابقات</flux:heading>
         </div>
         <flux:button wire:click="create" variant="primary" icon="plus"
-            class="bg-amber-500 hover:bg-amber-600 border-none text-amber-950 shadow-md shadow-amber-500/20">
-            إنشاء مسابقة جديدة
+            class="bg-amber-500 hover:bg-amber-600 border-none text-amber-950">
+            مسابقة جديدة
         </flux:button>
     </div>
 
     {{-- Grid --}}
     @if (count($competitions) > 0)
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-start">
             @foreach ($competitions as $competition)
-                <flux:card
-                    class="relative overflow-hidden group hover:shadow-lg transition-shadow duration-300 border border-zinc-200 dark:border-zinc-700/50">
+                @php
+                    $isGamification = ($competition->competition_type ?? 'normal') === 'gamification';
+                    $circlesCount = $competition->circles->count();
+                @endphp
+                <div class="flex flex-col rounded-2xl border border-zinc-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-900 shadow-sm hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-600 transition-all duration-200 overflow-hidden">
 
-                    {{-- Supervisor Badge --}}
-                    <div class="absolute top-3 left-3">
-                        <flux:badge size="sm" color="indigo" icon="shield-check">مسابقة المشرف</flux:badge>
-                    </div>
-
-                    {{-- Actions Menu --}}
-                    <div class="absolute top-2 right-2">
-                        <flux:dropdown>
+                    {{-- Card head --}}
+                    <div class="flex items-start justify-between gap-2 p-4 pb-3">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 mb-1.5">
+                                <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold {{ $competition->is_active ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' }}">
+                                    <span class="size-1.5 rounded-full {{ $competition->is_active ? 'bg-emerald-500' : 'bg-zinc-400' }}"></span>
+                                    {{ $competition->is_active ? 'نشطة' : 'مغلقة' }}
+                                </span>
+                                @if ($isGamification)
+                                    <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+                                        <flux:icon icon="sparkles" class="size-3" />
+                                        {{ $competition->settings['theme']['name'] ?? 'تلعيب' }}
+                                    </span>
+                                @endif
+                            </div>
+                            <flux:heading size="lg" class="truncate text-zinc-900 dark:text-zinc-100">
+                                {{ $competition->title }}
+                            </flux:heading>
+                            <div class="flex items-center gap-1.5 text-xs text-zinc-500 mt-1">
+                                <flux:icon icon="calendar" class="size-3.5 shrink-0" />
+                                <span dir="ltr">{{ $competition->start_date->format('Y-m-d') }}@if($competition->end_date) – {{ $competition->end_date->format('Y-m-d') }}@endif</span>
+                            </div>
+                        </div>
+                        <flux:dropdown position="bottom" align="end">
                             <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal"
-                                class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" />
+                                class="shrink-0 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" />
                             <flux:menu>
-                                <flux:menu.item wire:click="edit({{ $competition->id }})" icon="pencil-square">
-                                    تعديل
-                                </flux:menu.item>
+                                <flux:menu.item wire:click="edit({{ $competition->id }})" icon="pencil-square">تعديل</flux:menu.item>
                                 <flux:menu.separator />
                                 <flux:menu.item wire:click="delete({{ $competition->id }})"
                                     wire:confirm="هل أنت متأكد من حذف هذه المسابقة؟" icon="trash"
-                                    class="text-rose-500 hover:text-rose-600">
-                                    حذف
-                                </flux:menu.item>
+                                    class="text-rose-500 hover:text-rose-600">حذف</flux:menu.item>
                             </flux:menu>
                         </flux:dropdown>
                     </div>
 
-                    <div class="mt-6 mb-4">
-                        <div class="flex flex-wrap items-center gap-1.5 mb-2">
-                            <flux:badge color="{{ $competition->is_active ? 'amber' : 'zinc' }}" size="sm">
-                                {{ $competition->is_active ? 'نشطة' : 'مغلقة' }}
-                            </flux:badge>
-                            @if (($competition->competition_type ?? 'normal') === 'gamification')
-                                @php
-                                    $themeName = $competition->settings['theme']['name'] ?? 'طابع مخصص';
-                                    $themeEmoji = $competition->settings['theme']['team_emoji'] ?? '🎮';
-                                    $isImage = str_contains($themeEmoji, '/') || str_ends_with($themeEmoji, '.webp');
-                                @endphp
-                                <flux:badge color="purple" icon="sparkles" size="sm">
-                                    {{ __('تلعيب:') }} {{ $themeName }}
-                                    @if($isImage)
-                                        <img src="{{ Storage::url($themeEmoji) }}" class="size-4 inline-block object-contain rounded ms-1 align-middle" />
-                                    @else
-                                        {{ $themeEmoji }}
-                                    @endif
-                                </flux:badge>
-                            @endif
-                        </div>
-                        <flux:heading size="lg" class="mb-1 text-zinc-800 dark:text-zinc-100 leading-snug">
-                            {{ $competition->title }}
-                        </flux:heading>
-                        <div class="text-sm text-zinc-500 flex items-center gap-2">
-                            <flux:icon icon="calendar" class="size-4" />
-                            <span>{{ $competition->start_date->format('Y-m-d') }}</span>
-                            @if($competition->end_date)
-                                <span>-</span>
-                                <span>{{ $competition->end_date->format('Y-m-d') }}</span>
-                            @endif
-                        </div>
-                    </div>
-
                     {{-- Circles --}}
-                    <div class="mb-4">
-                        <div class="text-xs text-zinc-500 mb-1.5 font-medium">الحلقات المشاركة</div>
-                        <div class="flex flex-wrap gap-1">
-                            @forelse($competition->circles as $circle)
-                                <flux:badge size="sm" variant="neutral">{{ $circle->name }}</flux:badge>
+                    <div class="px-4 pb-3">
+                        <div class="flex items-center gap-1.5 text-[11px] font-medium text-zinc-400 mb-2">
+                            <flux:icon icon="users" class="size-3.5" />
+                            <span>الحلقات المشاركة</span>
+                            <span class="text-zinc-300 dark:text-zinc-600">({{ $circlesCount }})</span>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5">
+                            @forelse($competition->circles->take(6) as $circle)
+                                <span class="rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2 py-0.5 text-xs">{{ $circle->name }}</span>
                             @empty
                                 <span class="text-xs text-zinc-400">لم تُحدَّد حلقات</span>
                             @endforelse
+                            @if ($circlesCount > 6)
+                                <span class="rounded-md bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 px-2 py-0.5 text-xs">+{{ $circlesCount - 6 }}</span>
+                            @endif
                         </div>
                     </div>
 
-                    {{-- Stats --}}
-                    <div class="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3 text-sm mb-4">
-                        <div class="flex justify-between items-center text-zinc-600 dark:text-zinc-400">
-                            <span class="flex items-center gap-2">
+                    {{-- Footer --}}
+                    <div class="mt-auto border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/20 p-4 space-y-3">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
                                 <flux:icon icon="star" class="size-4 text-emerald-500" />
-                                بنود التقييم المخصصة
+                                بنود التقييم
                             </span>
                             <span class="font-bold text-zinc-900 dark:text-zinc-100">{{ $competition->criteria_count }}</span>
                         </div>
-                    </div>
 
-                    {{-- Actions --}}
-                    <div class="grid grid-cols-2 gap-2 mt-4">
-                        <flux:button wire:click="toggleActive({{ $competition->id }})" variant="ghost" size="sm"
-                            class="w-full border border-zinc-200 dark:border-zinc-700">
-                            @if ($competition->is_active)
-                                <flux:icon icon="pause-circle" class="size-4 ml-1" /> إيقاف
-                            @else
-                                <flux:icon icon="play-circle" class="size-4 ml-1 text-emerald-500" /> تنشيط
-                            @endif
-                        </flux:button>
-                        
-                        <flux:button wire:click="toggleActiveForGrading({{ $competition->id }})" variant="ghost" size="sm"
-                            class="w-full border {{ $competition->is_active_for_grading ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 border-amber-300 dark:border-amber-700' : 'border-zinc-200 dark:border-zinc-700' }}">
-                            @if ($competition->is_active_for_grading)
-                                <flux:icon icon="star" variant="solid" class="size-4 ml-1 text-amber-500" /> أساسية للتسجيل
-                            @else
-                                <flux:icon icon="star" variant="outline" class="size-4 ml-1 text-zinc-400" /> تعيين للتسجيل
-                            @endif
-                        </flux:button>
-                    </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <flux:button wire:click="toggleActive({{ $competition->id }})" variant="ghost" size="sm"
+                                :icon="$competition->is_active ? 'pause-circle' : 'play-circle'"
+                                class="w-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                                {{ $competition->is_active ? 'إيقاف' : 'تنشيط' }}
+                            </flux:button>
 
-                    @if (($competition->competition_type ?? 'normal') === 'gamification')
-                        <div class="mt-2">
-                            <flux:button href="{{ route('supervisor.competitions.gamification', $competition->id) }}" variant="primary" size="sm" class="w-full bg-purple-600 hover:bg-purple-700 border-none text-white shadow-sm shadow-purple-500/20" icon="cog-6-tooth" wire:navigate>
-                                إدارة نظام التلعيب ⚙️
+                            <flux:button wire:click="toggleActiveForGrading({{ $competition->id }})" variant="ghost" size="sm"
+                                icon="star"
+                                title="{{ $competition->is_active_for_grading ? 'المسابقة الأساسية للتسجيل' : 'تعيين كأساسية للتسجيل' }}"
+                                class="w-full border {{ $competition->is_active_for_grading ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 border-amber-300 dark:border-amber-700' : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900' }}">
+                                {{ $competition->is_active_for_grading ? 'أساسية' : 'تعيين' }}
                             </flux:button>
                         </div>
-                    @endif
-                </flux:card>
+
+                        @if ($isGamification)
+                            <flux:button href="{{ route('supervisor.competitions.gamification', $competition->id) }}" variant="primary" size="sm" class="w-full bg-purple-600 hover:bg-purple-700 border-none text-white" icon="cog-6-tooth" wire:navigate>
+                                إدارة التلعيب
+                            </flux:button>
+                        @endif
+                    </div>
+                </div>
             @endforeach
         </div>
     @else
         <div
-            class="text-center py-20 bg-zinc-50 dark:bg-zinc-800/20 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700">
+            class="text-center py-12 bg-zinc-50 dark:bg-zinc-800/20 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700">
             <div
-                class="bg-amber-100 dark:bg-amber-900/30 text-amber-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <flux:icon icon="trophy" class="size-8" />
+                class="bg-amber-100 dark:bg-amber-900/30 text-amber-500 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3">
+                <flux:icon icon="trophy" class="size-7" />
             </div>
-            <flux:heading size="lg" class="mb-2">لا توجد مسابقات حالية</flux:heading>
-            <p class="text-zinc-500 mb-6 max-w-md mx-auto">أنشئ مسابقة تشمل حلقات متعددة لتحفيز الطلاب على التنافس عبر
-                المرحلة.</p>
+            <flux:heading size="lg" class="mb-4">لا توجد مسابقات</flux:heading>
             <flux:button wire:click="create" variant="primary" icon="plus"
-                class="bg-amber-500 hover:bg-amber-600 border-none text-white shadow-md shadow-amber-500/20">
+                class="bg-amber-500 hover:bg-amber-600 border-none text-white">
                 إنشاء أول مسابقة
             </flux:button>
         </div>
@@ -155,11 +130,8 @@
     {{-- Create / Edit Modal --}}
     <flux:modal wire:model="showModal" class="md:w-[800px] w-full">
         @if ($isEditing)
-            <div class="space-y-6">
-                <div>
-                    <flux:heading size="lg">تعديل المسابقة</flux:heading>
-                    <flux:subheading>حدد اسم المسابقة والحلقات المشاركة وإعدادات النقاط.</flux:subheading>
-                </div>
+            <div class="space-y-5">
+                <flux:heading size="lg">تعديل المسابقة</flux:heading>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {{-- Basic Info --}}
@@ -181,8 +153,7 @@
                             <!-- custom theme settings will be managed in the right column -->
                         </div>
 
-                        <flux:switch wire:model="is_active" label="المسابقة نشطة"
-                            description="المسابقات النشطة تظهر بأولوية في صفحة الطلاب" />
+                        <flux:switch wire:model="is_active" label="المسابقة نشطة" />
 
                         {{-- Circles selection --}}
                         <div>
@@ -212,9 +183,9 @@
                     {{-- Custom Criteria --}}
                     @if ($competition_type !== 'gamification')
                         <div
-                            class="space-y-4 p-4 bg-zinc-50 dark:bg-zinc-800/40 rounded-xl border border-zinc-100 dark:border-zinc-700/50 h-[300px] overflow-y-auto">
+                            class="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-800/40 rounded-xl border border-zinc-100 dark:border-zinc-700/50 max-h-[300px] overflow-y-auto">
                             <div class="flex items-center justify-between mb-2">
-                                <flux:heading size="sm">بنود التقييم اليدوية</flux:heading>
+                                <flux:heading size="sm">بنود التقييم</flux:heading>
                                 <flux:button wire:click="addCriterion" size="xs" variant="ghost" icon="plus"
                                     class="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/30">
                                     إضافة بند
@@ -241,7 +212,7 @@
                         <div class="space-y-4 p-4 bg-purple-50/10 dark:bg-purple-950/5 rounded-xl border border-purple-100/60 dark:border-purple-900/30">
                             <div class="font-bold text-sm text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
                                 <flux:icon icon="paint-brush" class="size-4" />
-                                إعدادات طابع التلعيب المخصص
+                                طابع التلعيب
                             </div>
                             
                             <div class="grid grid-cols-2 gap-4">
@@ -301,11 +272,11 @@
                 {{-- Automated Settings --}}
                 @if ($competition_type !== 'gamification')
                 <div>
-                    <flux:heading size="md" class="mb-4 flex items-center gap-2">
+                    <flux:heading size="md" class="mb-3 flex items-center gap-2">
                         <flux:icon icon="cog-6-tooth" class="size-5 text-indigo-500" />
-                        إعدادات النقاط التلقائية
+                        النقاط التلقائية
                     </flux:heading>
- 
+
                     {{-- Quran + Attendance --}}
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-3">
@@ -385,67 +356,62 @@
             </div>
         @else
             {{-- Wizard Step Creation Flow --}}
-            <div class="space-y-6">
+            <div class="space-y-5">
                 {{-- Wizard Header --}}
-                <div class="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-zinc-800">
+                <div class="flex items-center justify-between gap-3">
                     <div class="flex items-center gap-2">
-                        <span class="w-7 h-7 rounded-full bg-amber-500 text-amber-950 flex items-center justify-center text-sm font-bold shadow-sm shadow-amber-500/20">
+                        <span class="w-7 h-7 rounded-full bg-amber-500 text-amber-950 flex items-center justify-center text-sm font-bold">
                             {{ $currentStep }}
                         </span>
-                        <div>
-                            <flux:heading size="lg" class="font-bold">
-                                @if ($currentStep === 1) تحديد نوع المسابقة وطابعها @endif
-                                @if ($currentStep === 2) تحديد اسم المسابقة @endif
-                                @if ($currentStep === 3) تحديد الفترة الزمنية @endif
-                                @if ($currentStep === 4) تحديد الحلقات المشاركة @endif
-                            </flux:heading>
-                        </div>
+                        <flux:heading size="lg" class="font-bold">
+                            @if ($currentStep === 1) نوع المسابقة @endif
+                            @if ($currentStep === 2) اسم المسابقة @endif
+                            @if ($currentStep === 3) الفترة الزمنية @endif
+                            @if ($currentStep === 4) الحلقات المشاركة @endif
+                        </flux:heading>
                     </div>
-                    <span class="text-xs text-zinc-400">الخطوة {{ $currentStep }} من 4</span>
+                    <span class="text-xs text-zinc-400 shrink-0">{{ $currentStep }} / 4</span>
                 </div>
 
                 {{-- Wizard Progress Bar --}}
-                <div class="mb-2">
-                    <div class="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-                        <div class="bg-gradient-to-r from-amber-400 to-amber-500 h-full rounded-full transition-all duration-300" style="width: {{ ($currentStep / 4) * 100 }}%"></div>
-                    </div>
+                <div class="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                    <div class="bg-gradient-to-r from-amber-400 to-amber-500 h-full rounded-full transition-all duration-300" style="width: {{ ($currentStep / 4) * 100 }}%"></div>
                 </div>
 
                 {{-- Steps Container --}}
-                <div class="min-h-[220px]">
+                <div class="min-h-[160px]">
                     @if ($currentStep === 1)
-                        <div class="space-y-4 py-2">
-                            <flux:heading size="md">اختر نوع المسابقة التي ترغب بإنشائها:</flux:heading>
+                        <div class="space-y-4">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <!-- Normal Card -->
                                 <div wire:click="$set('competition_type', 'normal')"
-                                    class="group p-5 rounded-xl border-2 cursor-pointer transition-all duration-300 {{ $competition_type === 'normal' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10 shadow-sm' : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700' }}">
-                                    <div class="flex items-center gap-3 mb-2">
+                                    class="group p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 {{ $competition_type === 'normal' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10 shadow-sm' : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700' }}">
+                                    <div class="flex items-center gap-3 mb-1.5">
                                         <div class="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 group-hover:bg-amber-100 dark:group-hover:bg-amber-950 group-hover:text-amber-500 transition-colors">
-                                            <flux:icon icon="trophy" class="size-6" />
+                                            <flux:icon icon="trophy" class="size-5" />
                                         </div>
                                         <div class="font-bold text-zinc-800 dark:text-zinc-100">مسابقة تقليدية</div>
                                     </div>
-                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">مسابقة قائمة على رصد النقاط والترتيب التقليدي للطلاب.</p>
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">نقاط وترتيب تقليدي.</p>
                                 </div>
                                 <!-- Gamification Card -->
                                 <div wire:click="$set('competition_type', 'gamification')"
-                                    class="group p-5 rounded-xl border-2 cursor-pointer transition-all duration-300 {{ $competition_type === 'gamification' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10 shadow-sm' : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700' }}">
-                                    <div class="flex items-center gap-3 mb-2">
+                                    class="group p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 {{ $competition_type === 'gamification' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10 shadow-sm' : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700' }}">
+                                    <div class="flex items-center gap-3 mb-1.5">
                                         <div class="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 group-hover:bg-amber-100 dark:group-hover:bg-amber-950 group-hover:text-amber-500 transition-colors">
-                                            <flux:icon icon="sparkles" class="size-6" />
+                                            <flux:icon icon="sparkles" class="size-5" />
                                         </div>
-                                        <div class="font-bold text-zinc-800 dark:text-zinc-100">مسابقة تلعيب (Gamification)</div>
+                                        <div class="font-bold text-zinc-800 dark:text-zinc-100">مسابقة تلعيب</div>
                                     </div>
-                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">مسابقة غامرة تحتوي على مستويات، شعلة الحماسة، فرق، متجر وأوسمة.</p>
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">مستويات وفرق ومتجر وأوسمة.</p>
                                 </div>
                             </div>
 
                             @if ($competition_type === 'gamification')
-                                <div class="mt-6 space-y-4 p-4 bg-purple-50/10 dark:bg-purple-950/5 rounded-xl border border-purple-100/60 dark:border-purple-900/30">
+                                <div class="space-y-4 p-4 bg-purple-50/10 dark:bg-purple-950/5 rounded-xl border border-purple-100/60 dark:border-purple-900/30">
                                     <div class="font-bold text-sm text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
                                         <flux:icon icon="paint-brush" class="size-4" />
-                                        إعدادات طابع التلعيب المخصص
+                                        طابع التلعيب
                                     </div>
                                     
                                     <div class="grid grid-cols-2 gap-4">
@@ -502,15 +468,14 @@
                     @endif
 
                     @if ($currentStep === 2)
-                        <div class="space-y-4 py-4">
+                        <div class="space-y-4">
                             <flux:input wire:model="title" label="اسم المسابقة" placeholder="مثال: فرسان الحفظ لشهر ذي الحجة" required />
                             @error('title') <div class="text-xs text-rose-500 font-semibold">{{ $message }}</div> @enderror
                         </div>
                     @endif
 
                     @if ($currentStep === 3)
-                        <div class="space-y-4 py-2">
-                            <flux:heading size="md" class="mb-2">حدد تاريخ بدء وانتهاء المسابقة:</flux:heading>
+                        <div class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <livewire:shared.hijri-datepicker wire:model="start_date" label="تاريخ البداية" />
                                 <livewire:shared.hijri-datepicker wire:model="end_date" label="تاريخ النهاية" />
@@ -521,8 +486,8 @@
                     @endif
 
                     @if ($currentStep === 4)
-                        <div class="space-y-4 py-2">
-                            <flux:heading size="md">اختر الحلقات المشاركة في المسابقة:</flux:heading>
+                        <div class="space-y-3">
+                            <flux:heading size="md">الحلقات المشاركة</flux:heading>
                             @error('selectedCircles')
                                 <div class="text-xs text-rose-500 font-semibold mb-2">{{ $message }}</div>
                             @enderror

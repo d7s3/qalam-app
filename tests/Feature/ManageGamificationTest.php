@@ -54,7 +54,6 @@ beforeEach(function () {
         'circle_id' => $this->circle->id,
         'title' => 'مسابقة التلعيب الكبرى',
         'competition_type' => 'gamification',
-        'theme_key' => 'space',
         'start_date' => now()->subDays(5),
         'end_date' => now()->addDays(5),
         'is_active' => true,
@@ -595,7 +594,6 @@ it('allows supervisor to upload custom images for custom theme settings and comp
         ->set('end_date', now()->addDays(5)->format('Y-m-d'))
         ->set('selectedCircles', [$this->circle->id])
         ->set('competition_type', 'gamification')
-        ->set('theme_key', 'custom')
         ->set('custom_theme_name', 'فرسان الأقصى')
         ->set('custom_theme_color', '#10b981')
         ->set('custom_theme_currency', 'دينار')

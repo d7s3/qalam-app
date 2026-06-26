@@ -1,13 +1,7 @@
 <div class="space-y-6">
     {{-- Back navigation and theme banner --}}
-    <div class="relative overflow-hidden rounded-2xl border p-6 shadow-sm transition-all duration-300
-        @if($competition->theme_key === 'space')
-            bg-gradient-to-r from-indigo-950 via-slate-900 to-purple-950 border-purple-500/20 text-white
-        @elseif($competition->theme_key === 'ocean')
-            bg-gradient-to-r from-blue-950 via-sky-900 to-teal-950 border-sky-500/20 text-white
-        @else
-            bg-gradient-to-r from-rose-950 via-stone-900 to-amber-950 border-amber-500/20 text-white
-        @endif">
+    <div class="relative overflow-hidden rounded-2xl border border-white/10 p-6 shadow-sm transition-all duration-300 text-white"
+        style="background: linear-gradient(to right, {{ $theme['color'] }}, #1e293b);">
         <div class="absolute -right-10 -top-10 size-40 rounded-full opacity-10 blur-3xl bg-white"></div>
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
             <div class="space-y-2">
@@ -17,12 +11,10 @@
                 </a>
                 <div class="flex items-center gap-3">
                     <div class="p-2 rounded-xl bg-white/10 backdrop-blur-md">
-                        @if($competition->theme_key === 'space')
-                            <flux:icon icon="sparkles" class="size-6 text-purple-400" />
-                        @elseif($competition->theme_key === 'ocean')
-                            <flux:icon icon="globe-alt" class="size-6 text-sky-400" />
+                        @if(str_contains($theme['team_emoji'], '/') || str_ends_with($theme['team_emoji'], '.webp'))
+                            <img src="{{ Storage::url($theme['team_emoji']) }}" class="size-6 object-contain" />
                         @else
-                            <flux:icon icon="shield-check" class="size-6 text-amber-400" />
+                            <span class="text-2xl leading-none">{{ $theme['team_emoji'] }}</span>
                         @endif
                     </div>
                     <div>
@@ -176,7 +168,7 @@
                                     </div>
                                     @if($level['settings']['has_donation'] ?? true)
                                         <div class="pt-1">
-                                            <flux:input type="number" wire:model="levels.{{ $index }}.settings.donation_max_limit" label="الحد اليومي (نسبة مئوية % من نقاط الطالب)" size="sm" />
+                                            <flux:input type="number" wire:model="levels.{{ $index }}.settings.donation_max_limit" label="الحد اليومي (% من رصيد عملات الطالب في بداية اليوم)" size="sm" />
                                         </div>
                                     @endif
                                 </div>

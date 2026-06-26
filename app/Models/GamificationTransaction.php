@@ -15,7 +15,9 @@ class GamificationTransaction extends Model
     protected static function booted(): void
     {
         static::creating(function ($transaction) {
-            if ($transaction->type === 'earn' && empty($transaction->xp_amount)) {
+            // Only default xp_amount when it was not provided at all.
+            // An explicit 0 means "coins only, no score" and must be respected.
+            if ($transaction->type === 'earn' && is_null($transaction->xp_amount)) {
                 $transaction->xp_amount = $transaction->amount;
             }
         });

@@ -544,20 +544,21 @@ class GamificationService
 
         if ($points !== 0) {
             $desc = 'نقاط إضافية من المعلم: '.($extraPoint->notes ?: 'بدون ملاحظات')." ($points)";
-            $type = $points > 0 ? 'earn' : 'spend';
 
+            // Always an "earn" transaction: a negative value is a teacher deduction that
+            // must reduce both the student's coins and their XP/standing (not coins only).
             if ($transaction) {
                 $transaction->update([
                     'amount' => $points,
                     'xp_amount' => $points,
-                    'type' => $type,
+                    'type' => 'earn',
                     'description' => $desc,
                 ]);
             } else {
                 GamificationTransaction::create([
                     'leaderboard_id' => $leaderboard->id,
                     'student_id' => $student->id,
-                    'type' => $type,
+                    'type' => 'earn',
                     'amount' => $points,
                     'xp_amount' => $points,
                     'description' => $desc,
@@ -1146,65 +1147,51 @@ class GamificationService
     }
 
     /**
-     * Check and award streak milestones.
+     * Resolve the student's daily team-donation allowance.
+     *
+     * The daily limit is a percentage (configured per level) of the student's coin
+     * balance at the START of the current day. Coins earned or spent during the same
+     * day do not change this base, so the allowance is stable throughout the day.
+     *
+     * @return array{has_donation: bool, percentage: int, base: int, limit: int, donated: int, remaining: int}
      */
-    private static function checkAndAwardMilestones(Student $student, GamificationStudentState $state, Leaderboard $leaderboard): void
+    public static function getDailyDonationStatus(int $studentId, int $leaderboardId): array
     {
-        $currentStreak = $state->current_streak;
+        // Read the donation rules from the student's ACTUAL current level
+        // (getStudentLevel returns the resolved level object under 'current').
+        $currentLevel = self::getStudentLevel($studentId, $leaderboardId)['current'] ?? null;
+        $levelSettings = $currentLevel->settings ?? [];
+        $hasDonation = (bool) ($levelSettings['has_donation'] ?? true);
+        $percentage = (int) ($levelSettings['donation_max_limit'] ?? 10);
 
-        $milestones = DB::table('gamification_streak_milestones')
-            ->where('leaderboard_id', $leaderboard->id)
-            ->where('days_required', '<=', $currentStreak)
-            ->get();
+        $todayStart = Carbon::today()->startOfDay();
+        $todayEnd = Carbon::today()->endOfDay();
 
-        foreach ($milestones as $milestone) {
-            $currentRunStartDate = $state->last_activity_date->copy()->subDays($currentStreak - 1)->startOfDay();
+        // Coin balance as it stood at the start of today (all transactions before today).
+        $base = (int) GamificationTransaction::where('student_id', $studentId)
+            ->where('leaderboard_id', $leaderboardId)
+            ->whereNull('team_id')
+            ->where('created_at', '<', $todayStart)
+            ->sum('amount');
+        $base = max(0, $base);
 
-            $alreadyClaimed = DB::table('gamification_claimed_milestones')
-                ->where('student_id', $student->id)
-                ->where('milestone_id', $milestone->id)
-                ->where('created_at', '>=', $currentRunStartDate)
-                ->exists();
+        $limit = (int) floor(($percentage / 100) * $base);
 
-            if (! $alreadyClaimed) {
-                DB::table('gamification_claimed_milestones')->insert([
-                    'student_id' => $student->id,
-                    'milestone_id' => $milestone->id,
-                    'streak_run_count' => $currentStreak,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+        $donated = (int) abs(GamificationTransaction::where('student_id', $studentId)
+            ->where('leaderboard_id', $leaderboardId)
+            ->where('type', 'spend')
+            ->where('description', 'like', 'تبرع لخزينة الفريق:%')
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->sum('amount'));
 
-                $desc = "مكافأة أيام الحماسة لـ {$milestone->days_required} أيام متتالية: {$milestone->description}";
-
-                if ($milestone->reward_xp > 0 || $milestone->reward_coins > 0) {
-                    GamificationTransaction::create([
-                        'leaderboard_id' => $leaderboard->id,
-                        'student_id' => $student->id,
-                        'type' => 'earn',
-                        'amount' => $milestone->reward_coins,
-                        'description' => $desc,
-                    ]);
-                }
-
-                if ($milestone->reward_badge_id) {
-                    $hasBadge = DB::table('gamification_badge_student')
-                        ->where('badge_id', $milestone->reward_badge_id)
-                        ->where('student_id', $student->id)
-                        ->exists();
-
-                    if (! $hasBadge) {
-                        DB::table('gamification_badge_student')->insert([
-                            'badge_id' => $milestone->reward_badge_id,
-                            'student_id' => $student->id,
-                            'status' => 'pending_approval',
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ]);
-                    }
-                }
-            }
-        }
+        return [
+            'has_donation' => $hasDonation,
+            'percentage' => $percentage,
+            'base' => $base,
+            'limit' => $limit,
+            'donated' => $donated,
+            'remaining' => max(0, $limit - $donated),
+        ];
     }
 
     /**
@@ -1222,51 +1209,22 @@ class GamificationService
         $team = GamificationTeam::findOrFail($teamId);
         $leaderboardId = $team->leaderboard_id;
 
-        // Check level-based configuration
-        $levelInfo = self::getStudentLevel($studentId, $leaderboardId);
-        $levelNumber = $levelInfo['level'] ?? 1;
-        $level = GamificationLevel::where('leaderboard_id', $leaderboardId)
-            ->where('level_number', $levelNumber)
-            ->first();
+        $status = self::getDailyDonationStatus($studentId, $leaderboardId);
 
-        $hasDonation = true;
-        $donationPercentage = 10; // Default fallback to 10%
-
-        if ($level && isset($level->settings)) {
-            $hasDonation = $level->settings['has_donation'] ?? true;
-            $donationPercentage = $level->settings['donation_max_limit'] ?? 10;
-        }
-
-        if (! $hasDonation) {
+        if (! $status['has_donation']) {
             $error = 'ميزة التبرع للفريق غير مفعلة لمستواك الحالي.';
 
             return false;
         }
 
-        // Calculate maximum allowed donation limit based on percentage of student's total XP
-        $studentXP = self::getStudentXP($studentId, $leaderboardId);
-        $maxDonationLimit = (int) round(($donationPercentage / 100) * $studentXP);
-
-        // Daily donation check
-        $todayStart = Carbon::today()->startOfDay();
-        $todayEnd = Carbon::today()->endOfDay();
-
-        $donatedToday = abs(GamificationTransaction::where('student_id', $studentId)
-            ->where('leaderboard_id', $leaderboardId)
-            ->where('type', 'spend')
-            ->where('description', 'like', 'تبرع لخزينة الفريق:%')
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->sum('amount'));
-
-        if ($donatedToday >= $maxDonationLimit) {
-            $error = "لقد وصلت للحد الأقصى للتبرع اليومي المسموح به لمستواك وهو ({$maxDonationLimit} عملة - يعادل {$donationPercentage}% من نقاطك الكلية: {$studentXP} XP).";
+        if ($status['donated'] >= $status['limit']) {
+            $error = "لقد وصلت للحد الأقصى للتبرع اليومي المسموح به لمستواك وهو ({$status['limit']} عملة - يعادل {$status['percentage']}% من رصيد عملاتك في بداية اليوم: {$status['base']} عملة).";
 
             return false;
         }
 
-        if ($donatedToday + $amount > $maxDonationLimit) {
-            $remaining = $maxDonationLimit - $donatedToday;
-            $error = "المبلغ المتبقي المسموح لك بالتبرع به اليوم هو {$remaining} عملة فقط (نسبة {$donationPercentage}% من نقاطك تعادل {$maxDonationLimit} عملة).";
+        if ($status['limit'] < $status['donated'] + $amount) {
+            $error = "المبلغ المتبقي المسموح لك بالتبرع به اليوم هو {$status['remaining']} عملة فقط (نسبة {$status['percentage']}% من رصيد عملاتك في بداية اليوم تعادل {$status['limit']} عملة).";
 
             return false;
         }
@@ -1299,6 +1257,7 @@ class GamificationService
                 'student_id' => $studentId,
                 'type' => 'earn',
                 'amount' => $amount,
+                'xp_amount' => 0, // coins-only transfer; the donor already scored these points when earned
                 'description' => 'تبرع من الطالب: '.Student::find($studentId)->name,
             ]);
 
@@ -1822,7 +1781,7 @@ class GamificationService
             ->get();
 
         if ($levels->isEmpty()) {
-            $theme = GamificationThemeService::getTheme($leaderboard->theme_key ?? 'space');
+            $theme = GamificationThemeService::getTheme($leaderboard);
             $levels = collect($theme['default_levels'] ?? [])->map(fn ($lvl, $num) => (object) [
                 'level_number' => $num,
                 'name' => $lvl['name'],
@@ -1978,6 +1937,18 @@ class GamificationService
             ->toArray();
         $scores = empty($scoreIds) ? collect() : LeaderboardScore::whereIn('id', $scoreIds)->get()->keyBy('id');
 
+        $odeIds = $transactions->where('reference_type', StudentOdeAchievement::class)
+            ->pluck('reference_id')
+            ->unique()
+            ->toArray();
+        $odeAchievements = empty($odeIds) ? collect() : StudentOdeAchievement::with('pathDay')->whereIn('id', $odeIds)->get()->keyBy('id');
+
+        $hadithIds = $transactions->where('reference_type', StudentHadithAchievement::class)
+            ->pluck('reference_id')
+            ->unique()
+            ->toArray();
+        $hadithAchievements = empty($hadithIds) ? collect() : StudentHadithAchievement::with('pathDay')->whereIn('id', $hadithIds)->get()->keyBy('id');
+
         $totalTeamScore = 0;
 
         foreach ($transactions as $tx) {
@@ -2001,6 +1972,18 @@ class GamificationService
                 if ($sc) {
                     $date = $sc->date;
                     $hasMultiplier = true;
+                }
+            } elseif ($tx->reference_type === StudentOdeAchievement::class) {
+                $ach = $odeAchievements->get($tx->reference_id);
+                if ($ach) {
+                    $date = $ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date;
+                    $hasMultiplier = (bool) $date;
+                }
+            } elseif ($tx->reference_type === StudentHadithAchievement::class) {
+                $ach = $hadithAchievements->get($tx->reference_id);
+                if ($ach) {
+                    $date = $ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date;
+                    $hasMultiplier = (bool) $date;
                 }
             }
 
@@ -2047,7 +2030,7 @@ class GamificationService
 
         if ($levels->isEmpty()) {
             $leaderboard = Leaderboard::find($leaderboardId);
-            $theme = GamificationThemeService::getTheme($leaderboard->theme_key ?? 'space');
+            $theme = GamificationThemeService::getTheme($leaderboard);
             $levels = collect($theme['default_levels'] ?? [])->map(fn ($lvl, $num) => (object) [
                 'level_number' => $num,
                 'name' => $lvl['name'],

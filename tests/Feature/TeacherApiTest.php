@@ -41,7 +41,6 @@ beforeEach(function () {
         'circle_id' => $this->circle->id,
         'title' => 'مسابقة التلعيب',
         'competition_type' => 'gamification',
-        'theme_key' => 'space',
         'start_date' => now()->subDays(5),
         'end_date' => now()->addDays(5),
         'is_active' => true,

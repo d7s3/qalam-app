@@ -32,6 +32,14 @@
                     <flux:input type="date" wire:model.live="startDate" />
                     <flux:error name="startDate" />
                 </flux:field>
+
+                {{-- End Date (optional cap) --}}
+                <flux:field>
+                    <flux:label class="font-bold">تاريخ الانتهاء (اختياري)</flux:label>
+                    <flux:input type="date" wire:model.live="endDate" />
+                    <flux:description>إذا حُدّد، يتوقف توليد الأيام عند هذا التاريخ حتى لو لم تكتمل المنظومة.</flux:description>
+                    <flux:error name="endDate" />
+                </flux:field>
             </div>
 
             {{-- Active Days of Week --}}

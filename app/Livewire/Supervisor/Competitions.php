@@ -38,8 +38,6 @@ class Competitions extends Component
 
     public string $competition_type = 'normal';
 
-    public ?string $theme_key = 'custom';
-
     public string $custom_theme_name = 'فرسان الحفظ';
 
     public string $custom_theme_color = '#4f46e5';
@@ -137,7 +135,6 @@ class Competitions extends Component
             'criteria.*.name' => 'required|string|max:255',
             'criteria.*.points' => 'required|numeric|min:0',
             'competition_type' => 'required|in:normal,gamification',
-            'theme_key' => 'required_if:competition_type,gamification|nullable|string',
         ];
 
         if ($this->competition_type === 'gamification') {
@@ -202,7 +199,6 @@ class Competitions extends Component
         $this->xp_image_file = null;
         $this->team_image_file = null;
         $this->competition_type = 'normal';
-        $this->theme_key = 'custom';
         $this->custom_theme_name = 'فرسان الحفظ';
         $this->custom_theme_color = '#4f46e5';
         $this->custom_theme_currency = 'جوهرة';
@@ -251,7 +247,6 @@ class Competitions extends Component
         if ($this->currentStep === 1) {
             $this->validateOnly('competition_type');
             if ($this->competition_type === 'gamification') {
-                $this->validateOnly('theme_key');
                 $this->validateOnly('custom_theme_name');
                 $this->validateOnly('custom_theme_color');
                 $this->validateOnly('custom_theme_currency');
@@ -293,7 +288,6 @@ class Competitions extends Component
         $this->xp_image_file = null;
         $this->team_image_file = null;
         $this->competition_type = $competition->competition_type ?? 'normal';
-        $this->theme_key = $competition->theme_key ?? 'custom';
         $this->title = $competition->title;
         $this->start_date = $competition->start_date->format('Y-m-d');
         $this->end_date = $competition->end_date ? $competition->end_date->format('Y-m-d') : '';
@@ -523,7 +517,6 @@ class Competitions extends Component
                 'end_date' => $this->end_date ?: null,
                 'is_active' => $this->is_active,
                 'competition_type' => $this->competition_type,
-                'theme_key' => $this->competition_type === 'gamification' ? $this->theme_key : null,
                 'settings' => $settings,
             ]
         );

@@ -101,6 +101,13 @@
                 </flux:field>
 
                 <flux:field>
+                    <flux:label>تاريخ الانتهاء (اختياري)</flux:label>
+                    <livewire:shared.hijri-datepicker wire:model="endDate" label="تاريخ الانتهاء" />
+                    <flux:description>إذا حُدّد، يتوقف توليد الأيام عند هذا التاريخ حتى لو لم يكتمل المتن.</flux:description>
+                    <flux:error name="endDate" />
+                </flux:field>
+
+                <flux:field>
                     <flux:label>أيام التسميع الأسبوعية</flux:label>
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         @foreach (['Sunday' => 'الأحد', 'Monday' => 'الاثنين', 'Tuesday' => 'الثلاثاء', 'Wednesday' => 'الأربعاء', 'Thursday' => 'الخميس', 'Saturday' => 'السبت'] as $dayName => $dayAr)

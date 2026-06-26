@@ -2318,11 +2318,11 @@ new class extends Component {
 
                 <!-- Donation inside team tab -->
                 @php
-                    $hasDonation = true;
-                    if (isset($gamificationLevelInfo['current'])) {
-                        $lvlSettings = $gamificationLevelInfo['current']->settings ?? [];
-                        $hasDonation = (bool) ($lvlSettings['has_donation'] ?? true);
-                    }
+                    $donationStatus = ($activeGamification && $studentTeam)
+                        ? \App\Services\GamificationService::getDailyDonationStatus($student->id, $activeGamification->id)
+                        : ['has_donation' => false, 'percentage' => 0, 'base' => 0, 'limit' => 0, 'donated' => 0, 'remaining' => 0];
+                    $hasDonation = $donationStatus['has_donation'];
+                    $donationAllowed = min($gamificationState->coins ?? 0, $donationStatus['remaining']);
                 @endphp
                 @if($hasDonation)
                     <div x-data="{ amount: 10, open: false, loading: false }" @donation-successful.window="open = false" @donation-finished.window="loading = false" class="mt-6 border-t border-slate-100 pt-6">
@@ -2341,7 +2341,7 @@ new class extends Component {
 
                         <div x-show="open" x-collapse class="mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/60 max-w-md space-y-3">
                             <div class="flex gap-2">
-                                <input x-model="amount" type="number" min="1" max="{{ $gamificationState->coins ?? 0 }}" class="flex-1 text-sm rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-team-primary focus:border-team-primary" />
+                                <input x-model="amount" type="number" min="1" max="{{ $donationAllowed }}" class="flex-1 text-sm rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-team-primary focus:border-team-primary" />
                                 <button type="button" @click="$wire.donateToTeam(amount)" wire:loading.attr="disabled" wire:target="donateToTeam" class="text-sm px-4 py-2 rounded-xl font-bold transition-all duration-150 bg-team-primary hover:bg-team-primary-hover text-white disabled:opacity-50">
                                     <span wire:loading.remove wire:target="donateToTeam">{{ __('تبرع') }}</span>
                                     <span wire:loading wire:target="donateToTeam" style="display: none;">{{ __('جاري التبرع...') }}</span>
@@ -2351,11 +2351,15 @@ new class extends Component {
                                 <button @click="amount = 10" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">10</button>
                                 <button @click="amount = 25" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">25</button>
                                 <button @click="amount = 50" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">50</button>
-                                <button @click="amount = {{ $gamificationState->coins ?? 0 }}" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">{{ __('تبرع بكل رصيدي') }}</button>
+                                <button @click="amount = {{ $donationAllowed }}" class="text-[11px] text-slate-600 hover:text-slate-800 hover:border-slate-350 px-3 py-1 rounded-lg border border-slate-200 bg-white">{{ __('التبرع بالحد المسموح') }}</button>
                             </div>
                             <p class="text-[11px] text-slate-400 flex items-center gap-1">
                                 <span>رصيدك المتاح للتبرع: {{ $gamificationState->coins ?? 0 }}</span>
                                 {!! $this->renderEmoji($style['coin_emoji'], 'size-3.5 inline-block align-middle') !!}
+                            </p>
+                            <p class="text-[11px] text-slate-400">
+                                المتبقي لك اليوم للتبرع: {{ $donationStatus['remaining'] }} من {{ $donationStatus['limit'] }} عملة
+                                <span class="text-slate-300">({{ $donationStatus['percentage'] }}% من رصيد بداية اليوم: {{ $donationStatus['base'] }})</span>
                             </p>
                         </div>
                     </div>

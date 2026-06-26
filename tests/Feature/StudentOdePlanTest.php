@@ -87,6 +87,30 @@ it('allows supervisor to generate and save a shared ode path schedule', function
     expect($days[0]->review_to_verse_number)->toBe(11);
 });
 
+it('caps the ode schedule at the end date even when the ode is not fully covered', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    // 15 verses at rate 1 would need 15 days, but the end date only allows 4 active days.
+    Livewire::test(OdePlanCreator::class)
+        ->set('odePathId', $this->odePath->id)
+        ->set('startDate', '2026-06-18')
+        ->set('endDate', '2026-06-24')
+        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday'])
+        ->set('hifzStart', 1)
+        ->set('hifzEnd', 15)
+        ->set('hifzRate', 1)
+        ->set('hasReview', false)
+        ->call('generatePreview')
+        ->assertHasNoErrors()
+        ->call('savePlan')
+        ->assertHasNoErrors();
+
+    $days = OdePathDay::where('ode_path_id', $this->odePath->id)->orderBy('day_number')->get();
+    expect($days)->toHaveCount(4);
+    expect($days->last()->date->format('Y-m-d'))->toBeLessThanOrEqual('2026-06-24');
+    expect($this->odePath->fresh()->end_date->format('Y-m-d'))->toBe('2026-06-24');
+});
+
 it('does not duplicate path days when enrolling students', function () {
     $this->actingAs($this->supervisor, 'supervisor');
 

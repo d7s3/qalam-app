@@ -78,6 +78,28 @@ it('allows supervisor to create a path schedule template', function () {
     expect(HadithPathDay::where('hadith_path_id', $this->hadithPath->id)->count())->toBe(8);
 });
 
+it('caps the hadith schedule at the end date even when the text is not fully covered', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    // 15 lines at 2/day would need 8 days, but the end date only allows 4 active days.
+    Livewire::test(HadithPlanCreator::class)
+        ->set('hadithPathId', $this->hadithPath->id)
+        ->set('startDate', '2026-06-18')
+        ->set('endDate', '2026-06-24')
+        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday'])
+        ->set('memorizeType', 'lines')
+        ->set('memorizeAmount', 2)
+        ->call('generatePreview')
+        ->assertHasNoErrors()
+        ->call('savePlan')
+        ->assertHasNoErrors();
+
+    $days = HadithPathDay::where('hadith_path_id', $this->hadithPath->id)->orderBy('day_number')->get();
+    expect($days)->toHaveCount(4);
+    expect($days->last()->date->format('Y-m-d'))->toBeLessThanOrEqual('2026-06-24');
+    expect($this->hadithPath->fresh()->end_date->format('Y-m-d'))->toBe('2026-06-24');
+});
+
 it('allows teacher to edit a path schedule template', function () {
     $this->actingAs($this->teacher, 'teacher');
 
