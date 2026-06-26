@@ -85,7 +85,7 @@
                                     <flux:button size="sm" variant="ghost" icon="share" class="text-xs text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20" 
                                         x-data="{ copied: false }"
                                         x-on:click="
-                                            navigator.clipboard.writeText('{{ route('forms.report', $form->slug) }}');
+                                            navigator.clipboard.writeText('{{ route('forms.report', [$form->slug, $form->public_report_token]) }}');
                                             copied = true;
                                             setTimeout(() => copied = false, 2000);
                                             $dispatch('toast', { message: 'تم نسخ رابط التقرير العام بنجاح', variant: 'success' })

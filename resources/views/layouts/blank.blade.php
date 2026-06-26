@@ -21,6 +21,17 @@
     <script>
         document.documentElement.classList.remove('dark');
     </script>
+    <style>
+        :root, html, body {
+            color-scheme: only light !important;
+        }
+        @media (prefers-color-scheme: dark) {
+            html, body {
+                background-color: #fafafa !important;
+                color: #171717 !important;
+            }
+        }
+    </style>
 </head>
 <body class="min-h-screen bg-zinc-50 text-zinc-900 antialiased py-8 px-4 flex flex-col items-center">
     

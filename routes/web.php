@@ -320,6 +320,6 @@ Route::get('/quran-json', function () {
 Route::get('/test', function () {})->name('test');
 
 Route::get('/f/{slug}', FormSubmit::class)->name('forms.submit');
-Route::get('/f/{slug}/report', FormReport::class)->name('forms.report');
+Route::get('/f/{slug}/{token}', FormReport::class)->name('forms.report');
 
 require __DIR__.'/settings.php';

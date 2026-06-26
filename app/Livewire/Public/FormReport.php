@@ -11,6 +11,8 @@ class FormReport extends Component
 {
     public string $slug;
 
+    public string $token;
+
     public Form $form;
 
     #[Url(keep: false)]
@@ -22,13 +24,16 @@ class FormReport extends Component
     #[Url(keep: false)]
     public array $filters = [];
 
-    public function mount(string $slug): void
+    public function mount(string $slug, string $token): void
     {
         $this->slug = $slug;
-        $this->form = Form::where('slug', $slug)->firstOrFail();
+        $this->token = $token;
+        $this->form = Form::where('slug', $slug)
+            ->where('public_report_token', $token)
+            ->firstOrFail();
 
         if (! $this->form->is_public_report) {
-            abort(403, 'هذا التقرير غير متاح للعامة.');
+            abort(404);
         }
 
         // Initialize filters array if not set

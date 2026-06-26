@@ -22,7 +22,17 @@ class Form extends Model
         'policy_text',
         'success_text',
         'is_public_report',
+        'public_report_token',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Form $form) {
+            if (empty($form->public_report_token)) {
+                $form->public_report_token = \Illuminate\Support\Str::random(12);
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.
