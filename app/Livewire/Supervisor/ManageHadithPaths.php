@@ -104,9 +104,45 @@ class ManageHadithPaths extends Component
     public function showEnrollModal(int $pathId): void
     {
         $this->enrollingPathId = $pathId;
-        $this->selectedStudentIds = [];
+        $this->selectedStudentIds = StudentHadithPlan::where('hadith_path_id', $pathId)
+            ->where('status', 'active')
+            ->pluck('student_id')
+            ->map(fn ($id) => (string) $id)
+            ->toArray();
         $this->studentSearch = '';
         Flux::modal('enroll-modal')->show();
+    }
+
+    public function toggleSelectAll(array $allIds): void
+    {
+        $allIds = array_map('intval', $allIds);
+        $selectedIds = array_map('intval', $this->selectedStudentIds);
+        $alreadySelectedCount = count(array_intersect($selectedIds, $allIds));
+
+        if ($alreadySelectedCount === count($allIds)) {
+            // Deselect all
+            $newSelected = array_diff($selectedIds, $allIds);
+        } else {
+            // Select all
+            $newSelected = array_unique(array_merge($selectedIds, $allIds));
+        }
+        $this->selectedStudentIds = array_values(array_map('strval', $newSelected));
+    }
+
+    public function toggleSelectCircle(array $studentIds): void
+    {
+        $studentIds = array_map('intval', $studentIds);
+        $selectedIds = array_map('intval', $this->selectedStudentIds);
+        $alreadySelectedCount = count(array_intersect($selectedIds, $studentIds));
+
+        if ($alreadySelectedCount === count($studentIds)) {
+            // Deselect these students
+            $newSelected = array_diff($selectedIds, $studentIds);
+        } else {
+            // Select these students
+            $newSelected = array_unique(array_merge($selectedIds, $studentIds));
+        }
+        $this->selectedStudentIds = array_values(array_map('strval', $newSelected));
     }
 
     public function enrollStudents(): void
@@ -124,14 +160,36 @@ class ManageHadithPaths extends Component
             return;
         }
 
-        if (empty($this->selectedStudentIds)) {
-            Flux::toast('الرجاء اختيار طالب واحد على الأقل.', variant: 'danger');
+        $selectedIds = array_map('intval', $this->selectedStudentIds);
+
+        // Get currently active student IDs for this path
+        $currentlyEnrolledStudentIds = StudentHadithPlan::where('hadith_path_id', $path->id)
+            ->where('status', 'active')
+            ->pluck('student_id')
+            ->toArray();
+
+        // 1. De-enroll students who were unchecked
+        $toDeEnroll = array_diff($currentlyEnrolledStudentIds, $selectedIds);
+        if (! empty($toDeEnroll)) {
+            StudentHadithPlan::where('hadith_path_id', $path->id)
+                ->whereIn('student_id', $toDeEnroll)
+                ->where('status', 'active')
+                ->update(['status' => 'suspended']);
+        }
+
+        // If no students are checked at all
+        if (empty($selectedIds)) {
+            Flux::toast('تم إلغاء تسكين جميع الطلاب من المسار', variant: 'success');
+            Flux::modal('enroll-modal')->close();
+            $this->reset(['enrollingPathId', 'selectedStudentIds', 'studentSearch']);
 
             return;
         }
 
-        foreach ($this->selectedStudentIds as $studentId) {
-            // Deactivate any existing active hadith plan for the student
+        // 2. Enroll new students who were checked
+        $toEnroll = array_diff($selectedIds, $currentlyEnrolledStudentIds);
+        foreach ($toEnroll as $studentId) {
+            // Deactivate any existing active hadith plan for the student (on other paths)
             StudentHadithPlan::where('student_id', $studentId)
                 ->where('status', 'active')
                 ->update(['status' => 'suspended']);

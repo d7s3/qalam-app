@@ -156,28 +156,76 @@
             <div class="space-y-4">
                 <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="studentSearch" placeholder="بحث باسم الطالب..." />
 
-                <div class="border border-zinc-200 dark:border-zinc-800 rounded-lg max-h-[300px] overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-2">
-                    @php
-                        $circleIds = \App\Models\Circle::whereIn('stage_id', auth()->guard('supervisor')->user()?->stages()->pluck('stages.id') ?? [])->pluck('id')->toArray();
-                        $students = \App\Models\Student::whereIn('circle_id', $circleIds)
-                            ->when($studentSearch, function($q) {
-                                $q->where('name', 'like', '%'.$this->studentSearch.'%');
-                            })
-                            ->with('circle')
-                            ->orderBy('name')
-                            ->get();
-                    @endphp
+                @php
+                    $circleIds = \App\Models\Circle::whereIn('stage_id', auth()->guard('supervisor')->user()?->stages()->pluck('stages.id') ?? [])->pluck('id')->toArray();
+                    $students = \App\Models\Student::whereIn('circle_id', $circleIds)
+                        ->when($studentSearch, function($q) {
+                            $q->where('name', 'like', '%'.$this->studentSearch.'%');
+                        })
+                        ->with('circle')
+                        ->orderBy('name')
+                        ->get();
+                    
+                    $grouped = $students->groupBy(function($student) {
+                        return $student->circle->name ?? 'بلا حلقة';
+                    });
+                    
+                    $allStudentIds = $students->pluck('id')->toArray();
+                    $selectedIdsInt = array_map('intval', $selectedStudentIds);
+                    $isAllSelected = count($allStudentIds) > 0 && count(array_intersect($selectedIdsInt, $allStudentIds)) === count($allStudentIds);
+                @endphp
 
-                    @forelse($students as $student)
-                        <label class="flex items-center gap-3 p-2.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg cursor-pointer transition-colors">
-                            <input type="checkbox" wire:model="selectedStudentIds" value="{{ $student->id }}" class="rounded text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-700" />
-                            <div class="flex-1 flex justify-between items-center">
-                                <span class="font-medium text-sm text-zinc-900 dark:text-white">{{ $student->name }}</span>
-                                <span class="text-xs text-zinc-500 bg-zinc-200/60 dark:bg-zinc-800 px-2 py-1 rounded">{{ $student->circle->name ?? 'بلا حلقة' }}</span>
-                            </div>
+                @if($students->isNotEmpty())
+                    <div class="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-between shadow-xs">
+                        <label class="flex items-center gap-2.5 cursor-pointer text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                            <input type="checkbox" 
+                                   wire:click="toggleSelectAll([{{ implode(',', $allStudentIds) }}])"
+                                   @if($isAllSelected) checked @endif
+                                   class="rounded text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-700 size-4.5" />
+                            <span>تحديد جميع الطلاب ({{ $students->count() }})</span>
                         </label>
+                        
+                        <span class="text-xs text-zinc-500 dark:text-zinc-400 font-semibold bg-zinc-200 dark:bg-zinc-700/50 px-2.5 py-1 rounded-lg">
+                            المحدد: {{ count(array_intersect($selectedIdsInt, $allStudentIds)) }} من {{ $students->count() }}
+                        </span>
+                    </div>
+                @endif
+
+                <div class="border border-zinc-200 dark:border-zinc-800 rounded-xl max-h-[350px] overflow-y-auto bg-zinc-50/50 dark:bg-zinc-900/50 p-3 space-y-4">
+                    @forelse($grouped as $circleName => $circleStudents)
+                        @php
+                            $circleStudentIds = $circleStudents->pluck('id')->toArray();
+                            $isCircleAllSelected = count(array_intersect($selectedIdsInt, $circleStudentIds)) === count($circleStudentIds);
+                        @endphp
+                        
+                        <div class="border border-zinc-200 dark:border-zinc-800/80 rounded-xl bg-white dark:bg-zinc-950 p-3.5 shadow-xs">
+                            <div class="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2.5 mb-2.5">
+                                <span class="font-bold text-sm text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                                    <flux:icon icon="academic-cap" class="size-4 text-zinc-400 dark:text-zinc-500" />
+                                    {{ $circleName }}
+                                    <span class="text-xs font-normal text-zinc-400 dark:text-zinc-500">({{ $circleStudents->count() }} طالباً)</span>
+                                </span>
+                                
+                                <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
+                                    <input type="checkbox"
+                                           wire:click="toggleSelectCircle([{{ implode(',', $circleStudentIds) }}])"
+                                           @if($isCircleAllSelected) checked @endif
+                                           class="rounded text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-700 size-3.5" />
+                                    <span>تحديد الحلقة</span>
+                                </label>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                @foreach($circleStudents as $student)
+                                    <label class="flex items-center gap-2.5 p-2 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg cursor-pointer transition-colors border border-zinc-100 dark:border-zinc-900">
+                                        <input type="checkbox" wire:model.live="selectedStudentIds" value="{{ $student->id }}" class="rounded text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-700 size-4" />
+                                        <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">{{ $student->name }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
                     @empty
-                        <div class="p-6 text-center text-sm text-zinc-400">
+                        <div class="p-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
                             لا توجد نتائج بحث مطابقة.
                         </div>
                     @endforelse

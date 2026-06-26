@@ -37,6 +37,8 @@ class FormBuilder extends Component
 
     public ?string $success_text = null;
 
+    public bool $is_public_report = false;
+
     // Fields
     public array $fields = [];
 
@@ -56,6 +58,7 @@ class FormBuilder extends Component
             $this->header_image_path = $form->header_image_path;
             $this->policy_text = $form->policy_text;
             $this->success_text = $form->success_text;
+            $this->is_public_report = $form->is_public_report ?? false;
             $this->fields = $form->fields ?? [];
         } else {
             $this->slug = Str::random(8);
@@ -150,6 +153,7 @@ class FormBuilder extends Component
             'header_image_file' => 'nullable|image|max:5120', // 5MB max
             'policy_text' => 'nullable|string',
             'success_text' => 'nullable|string',
+            'is_public_report' => 'boolean',
             'fields' => 'required|array|min:1',
             'fields.*.label' => 'required|string|max:255',
             'fields.*.type' => 'required|in:text,image,select,multiselect,date',
@@ -198,6 +202,7 @@ class FormBuilder extends Component
                 'header_image_path' => $this->header_image_path,
                 'policy_text' => $this->policy_text,
                 'success_text' => $this->success_text,
+                'is_public_report' => $this->is_public_report,
                 'fields' => $this->fields,
             ]
         );

@@ -3,6 +3,7 @@
 use App\Livewire\Auth\Manager\Login;
 use App\Livewire\Auth\Manager\Register;
 use App\Livewire\Manager\PendingApprovals;
+use App\Livewire\Public\FormReport;
 use App\Livewire\Public\FormSubmit;
 use App\Models\Circle;
 use App\Models\Guardian;
@@ -319,5 +320,6 @@ Route::get('/quran-json', function () {
 Route::get('/test', function () {})->name('test');
 
 Route::get('/f/{slug}', FormSubmit::class)->name('forms.submit');
+Route::get('/f/{slug}/report', FormReport::class)->name('forms.report');
 
 require __DIR__.'/settings.php';

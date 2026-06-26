@@ -79,6 +79,20 @@
                                     "
                                     ::title="copied ? 'تم النسخ!' : 'نسخ رابط النموذج'"
                                 />
+
+                                @if($form->is_public_report)
+                                    <!-- Copy Public Report Link -->
+                                    <flux:button size="sm" variant="ghost" icon="share" class="text-xs text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20" 
+                                        x-data="{ copied: false }"
+                                        x-on:click="
+                                            navigator.clipboard.writeText('{{ route('forms.report', $form->slug) }}');
+                                            copied = true;
+                                            setTimeout(() => copied = false, 2000);
+                                            $dispatch('toast', { message: 'تم نسخ رابط التقرير العام بنجاح', variant: 'success' })
+                                        "
+                                        ::title="copied ? 'تم النسخ!' : 'نسخ رابط التقرير العام'"
+                                    />
+                                @endif
                             </div>
 
                             <flux:button wire:click="delete({{ $form->id }})" wire:confirm="هل أنت متأكد من رغبتك في حذف هذا النموذج وجميع إجاباته؟ لا يمكن التراجع عن هذا الإجراء." size="sm" variant="ghost" icon="trash" class="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs" />

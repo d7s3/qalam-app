@@ -11,6 +11,20 @@
         </div>
         <div class="flex gap-2">
             <flux:button as="a" :href="route('supervisor.forms')" variant="ghost" icon="chevron-right">العودة للنماذج</flux:button>
+            @if($form->is_public_report)
+                <flux:button size="sm" variant="ghost" icon="share" class="text-xs text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-zinc-200 dark:border-zinc-800" 
+                    x-data="{ copied: false }"
+                    x-on:click="
+                        navigator.clipboard.writeText('{{ route('forms.report', $form->slug) }}');
+                        copied = true;
+                        setTimeout(() => copied = false, 2000);
+                        $dispatch('toast', { message: 'تم نسخ رابط التقرير العام بنجاح', variant: 'success' })
+                    "
+                    ::title="copied ? 'تم النسخ!' : 'نسخ رابط التقرير العام'"
+                >
+                    رابط التقرير العام
+                </flux:button>
+            @endif
             <flux:button wire:click="openBulkModal" variant="primary" icon="users" class="bg-accent hover:bg-accent/90 text-white border-0">
                 إضافة كافة الردود كطلاب
             </flux:button>

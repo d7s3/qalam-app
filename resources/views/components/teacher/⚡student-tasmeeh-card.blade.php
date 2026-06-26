@@ -326,21 +326,26 @@ new class extends Component {
                 ->get();
         }
 
+        // Fetch all hadiths and lines of the active Hadith plan's text
+        $allHadiths = collect();
+        if ($activeHadithPlan) {
+            $allHadiths = \App\Models\Hadith::with('lines')->where(function ($query) use ($activeHadithPlan) {
+                $query->where('hadith_text_id', $activeHadithPlan->path->hadith_text_id)
+                    ->orWhereHas('chapter', function ($q) use ($activeHadithPlan) {
+                        $q->where('hadith_text_id', $activeHadithPlan->path->hadith_text_id);
+                    });
+            })->orderBy('hadith_chapter_id', 'asc')->orderBy('id', 'asc')->get();
+        }
+
         // Fetch all lines of the active Hadith plan's selected range
         $hadithLines = collect();
-        if ($activeHadithPlan && $hadithDayForSelectedDate) {
+        if ($activeHadithPlan && $hadithDayForSelectedDate && $allHadiths->isNotEmpty()) {
             if ($hadithDayForSelectedDate->memorize_type === 'lines') {
-                $hadithLines = \App\Models\HadithLine::where('hadith_id', $hadithDayForSelectedDate->from_hadith_id)
-                    ->orderBy('line_number', 'asc')
-                    ->get();
+                $hadith = $allHadiths->first(fn($h) => $h->id == $hadithDayForSelectedDate->from_hadith_id);
+                if ($hadith) {
+                    $hadithLines = $hadith->lines;
+                }
             } else {
-                $allHadiths = \App\Models\Hadith::with('lines')->where(function ($query) use ($activeHadithPlan) {
-                    $query->where('hadith_text_id', $activeHadithPlan->path->hadith_text_id)
-                        ->orWhereHas('chapter', function ($q) use ($activeHadithPlan) {
-                            $q->where('hadith_text_id', $activeHadithPlan->path->hadith_text_id);
-                        });
-                })->orderBy('hadith_chapter_id', 'asc')->orderBy('id', 'asc')->get();
-
                 $startIdx = $allHadiths->search(fn($h) => $h->id == $hadithDayForSelectedDate->from_hadith_id);
                 $endIdx = $allHadiths->search(fn($h) => $h->id == $hadithDayForSelectedDate->to_hadith_id);
                 if ($startIdx !== false && $endIdx !== false) {
@@ -377,6 +382,7 @@ new class extends Component {
             'hadithDayIds' => $hadithDayIds,
             'hadithDateToDayIdMap' => $hadithDateToDayIdMap,
             'hadithLines' => $hadithLines,
+            'allHadiths' => $allHadiths,
         ];
     }
 
@@ -1037,25 +1043,47 @@ new class extends Component {
     @if($activeHadithPlan && $hadithDays->isNotEmpty())
         @foreach($hadithDays as $hadithDay)
             @php
-                $hifzLines = collect();
-                if ($hadithDay->memorize_type === 'hadiths') {
-                    $hifzLines = $hadithLines;
-                } elseif ($hadithDay->from_line_number && $hadithDay->to_line_number) {
-                    $hifzLines = $hadithLines->filter(function ($l) use ($hadithDay) {
-                        return $l->line_number >= $hadithDay->from_line_number && $l->line_number <= $hadithDay->to_line_number;
-                    });
+                $hifzHadiths = collect();
+                if ($hadithDay->memorize_type === 'hadiths' && $hadithDay->from_hadith_id && $hadithDay->to_hadith_id) {
+                    $startIdx = $allHadiths->search(fn($h) => $h->id == $hadithDay->from_hadith_id);
+                    $endIdx = $allHadiths->search(fn($h) => $h->id == $hadithDay->to_hadith_id);
+                    if ($startIdx !== false && $endIdx !== false) {
+                        $hifzHadiths = $allHadiths->slice($startIdx, $endIdx - $startIdx + 1);
+                    }
+                } elseif ($hadithDay->memorize_type === 'lines' && $hadithDay->from_hadith_id) {
+                    $hadith = $allHadiths->first(fn($h) => $h->id == $hadithDay->from_hadith_id);
+                    if ($hadith) {
+                        $hifzHadiths->push($hadith);
+                    }
                 }
 
-                $reviewLines = collect();
-                if ($hadithDay->memorize_type === 'hadiths') {
-                    $reviewLines = $hadithLines;
-                } elseif ($hadithDay->review_from_line_number && $hadithDay->review_to_line_number) {
-                    $reviewLines = $hadithLines->filter(function ($l) use ($hadithDay) {
-                        return $l->line_number >= $hadithDay->review_from_line_number && $l->line_number <= $hadithDay->review_to_line_number;
-                    });
+                $reviewHadiths = collect();
+                if ($hadithDay->memorize_type === 'hadiths' && $hadithDay->review_from_hadith_id && $hadithDay->review_to_hadith_id) {
+                    $startIdx = $allHadiths->search(fn($h) => $h->id == $hadithDay->review_from_hadith_id);
+                    $endIdx = $allHadiths->search(fn($h) => $h->id == $hadithDay->review_to_hadith_id);
+                    if ($startIdx !== false && $endIdx !== false) {
+                        $reviewHadiths = $allHadiths->slice($startIdx, $endIdx - $startIdx + 1);
+                    }
+                } elseif ($hadithDay->memorize_type === 'lines' && $hadithDay->review_from_hadith_id) {
+                    $hadith = $allHadiths->first(fn($h) => $h->id == $hadithDay->review_from_hadith_id);
+                    if ($hadith) {
+                        $reviewHadiths->push($hadith);
+                    }
                 }
+
+                $firstHifzHadith = $hifzHadiths->first();
+                $firstHifzIdx = $firstHifzHadith ? $allHadiths->search(fn($h) => $h->id == $firstHifzHadith->id) : false;
+                $previousHifzHadiths = $firstHifzIdx !== false && $firstHifzIdx > 0
+                    ? $allHadiths->slice(0, $firstHifzIdx)->values()
+                    : collect();
+
+                $firstReviewHadith = $reviewHadiths->first();
+                $firstReviewIdx = $firstReviewHadith ? $allHadiths->search(fn($h) => $h->id == $firstReviewHadith->id) : false;
+                $previousReviewHadiths = $firstReviewIdx !== false && $firstReviewIdx > 0
+                    ? $allHadiths->slice(0, $firstReviewIdx)->values()
+                    : collect();
             @endphp
-            <div wire:key="hadith-day-card-container-{{ $hadithDay->id }}" x-show="activeHadithDayId == {{ $hadithDay->id }}" class="mt-4" x-data="{ showHadithHifzModal: false, showHadithReviewModal: false }">
+            <div wire:key="hadith-day-card-container-{{ $hadithDay->id }}" x-show="activeHadithDayId == {{ $hadithDay->id }}" class="mt-4" x-data="{ showHadithHifzModal: false, showHadithReviewModal: false, hifzPrevCount: 0, reviewPrevCount: 0 }">
                 
                 {{-- Unified Card --}}
                 <flux:card x-data="{ syncingTask: null }" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveHadithAchievement">
@@ -1218,7 +1246,7 @@ new class extends Component {
                     </div>
 
                     {{-- Hadith Full-Screen Hifz Modal --}}
-                    @if ($hadithDay->from_line_number && $hadithDay->to_line_number)
+                    @if ($hadithDay->from_hadith_id)
                         <div x-show="showHadithHifzModal" 
                              x-transition:enter="transition ease-out duration-300"
                              x-transition:enter-start="opacity-0 translate-y-4"
@@ -1228,60 +1256,126 @@ new class extends Component {
                              x-transition:leave-end="opacity-0 translate-y-4"
                              class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full"
                              x-cloak>
-                            
-                            {{-- Modal Header --}}
-                            <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-                                <div>
-                                    <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
-                                        {{ __('حفظ الحديث') }}
-                                    </h3>
-                                    <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-semibold">
-                                    <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-semibold">
-                                        {{ $hadithDay->fromHadith?->name }} ({{ $hadithDay->formatHadithRange('hifz') }})
-                                    </p>
-                                </div>
-                                <button type="button" @click="showHadithHifzModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                                    <flux:icon icon="x-mark" class="size-5" />
-                                </button>
+                             
+                             {{-- Modal Header --}}
+                             <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                                 <div>
+                                     <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
+                                         {{ __('حفظ الحديث') }}
+                                     </h3>
+                                     <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-semibold">
+                                         {{ $hadithDay->fromHadith?->name }} ({{ $hadithDay->formatHadithRange('hifz') }})
+                                     </p>
+                                 </div>
+                                 <button type="button" @click="showHadithHifzModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                                     <flux:icon icon="x-mark" class="size-5" />
+                                 </button>
                              </div>
 
                              {{-- Modal Content (Scrollable) --}}
-                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
-                                 <div class="max-w-4xl mx-auto space-y-4 text-right">
-                                     @if ($hadithDay->fromHadith?->sanad)
-                                         <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-600 dark:text-zinc-400 pr-4 border-r-4 border-zinc-400">
-                                             <strong>{{ __('السند') }}: </strong>{{ $hadithDay->fromHadith?->sanad }}
-                                         </div>
-                                     @endif
-                                     @foreach($hifzLines as $line)
-                                         <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                             <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-extrabold text-sm shadow-sm">
-                                                 {{ $line->line_number }}
-                                             </span>
-                                             <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 leading-relaxed text-right pr-4 border-r-4 border-indigo-500 dark:border-indigo-400 font-serif">
-                                                 {{ $line->text }}
+                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30">
+                                 <div class="max-w-4xl mx-auto space-y-8 text-right">
+                                      {{-- Previous Hadiths Button --}}
+                                      @if($previousHifzHadiths->isNotEmpty())
+                                          <div x-show="hifzPrevCount < {{ $previousHifzHadiths->count() }}" class="flex justify-center mb-8 shrink-0">
+                                              <flux:button type="button" @click="hifzPrevCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
+                                                  {{ __('إظهار الحديث السابق') }}
+                                              </flux:button>
+                                          </div>
+                                      @endif
+
+                                      {{-- Previous Hadiths (Dimmed) --}}
+                                      @foreach($previousHifzHadiths as $index => $hadith)
+                                          @php
+                                              $currentHadithLines = $hadith->lines;
+                                          @endphp
+                                          <div x-show="hifzPrevCount >= {{ $previousHifzHadiths->count() - $index }}" 
+                                               x-cloak 
+                                               class="space-y-4 opacity-50 hover:opacity-100 transition-opacity duration-200">
+                                               {{-- Hadith Header (Name) --}}
+                                               <div class="text-lg font-bold text-zinc-500 dark:text-zinc-400 pb-2 border-b border-zinc-200 dark:border-zinc-800 font-serif">
+                                                   {{ $hadith->name }} <span class="text-xs font-sans text-zinc-400">({{ __('سابق') }})</span>
+                                               </div>
+                                               
+                                               @if ($hadith->sanad)
+                                                   <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-semibold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300 font-serif">
+                                                       <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                                   </div>
+                                               @endif
+
+                                               @foreach($currentHadithLines as $line)
+                                                   <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800/60 shadow-sm hover:shadow-md transition-shadow">
+                                                       <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
+                                                           {{ $line->line_number }}
+                                                       </span>
+                                                       <div class="flex-1 text-base md:text-xl font-semibold text-zinc-500 dark:text-zinc-400 leading-relaxed text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
+                                                           {{ $line->text }}
+                                                       </div>
+                                                   </div>
+                                               @endforeach
+
+                                               @if ($hadith->ruling)
+                                                   <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-bold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300">
+                                                       <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
+                                                   </div>
+                                               @endif
+                                          </div>
+                                      @endforeach
+
+                                     @foreach($hifzHadiths as $hadith)
+                                         <div class="space-y-4">
+                                             {{-- Hadith Header (Name) if multiple --}}
+                                             <div class="text-lg font-bold text-indigo-600 dark:text-indigo-400 pb-2 border-b border-indigo-100 dark:border-indigo-900/50 font-serif">
+                                                 {{ $hadith->name }}
                                              </div>
+                                             
+                                             @if ($hadith->sanad)
+                                                 <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-600 dark:text-zinc-400 pr-4 border-r-4 border-zinc-400 font-serif">
+                                                     <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                                 </div>
+                                             @endif
+
+                                             @php
+                                                 $currentHadithLines = $hadith->lines;
+                                                 if ($hadithDay->memorize_type === 'lines') {
+                                                     $currentHadithLines = $currentHadithLines->filter(function ($l) use ($hadithDay) {
+                                                         return $l->line_number >= $hadithDay->from_line_number && $l->line_number <= $hadithDay->to_line_number;
+                                                     });
+                                                 }
+                                             @endphp
+
+                                             @foreach($currentHadithLines as $line)
+                                                 <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 shadow-sm hover:shadow-md transition-shadow">
+                                                     <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-extrabold text-sm shadow-sm">
+                                                         {{ $line->line_number }}
+                                                     </span>
+                                                     <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 leading-relaxed text-right pr-4 border-r-4 border-indigo-500 dark:border-indigo-400 font-serif">
+                                                         {{ $line->text }}
+                                                     </div>
+                                                 </div>
+                                             @endforeach
+
+                                             @if ($hadith->ruling)
+                                                 <div class="p-4 bg-indigo-50 dark:bg-indigo-955/30 rounded-xl text-sm font-bold text-indigo-700 dark:text-indigo-300 pr-4 border-r-4 border-indigo-500">
+                                                     <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
+                                                 </div>
+                                             @endif
                                          </div>
                                      @endforeach
-                                     @if ($hadithDay->fromHadith?->ruling)
-                                         <div class="p-4 bg-indigo-50 dark:bg-indigo-955/30 rounded-xl text-sm font-bold text-indigo-700 dark:text-indigo-300 pr-4 border-r-4 border-indigo-500">
-                                             <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadithDay->fromHadith?->ruling }}
-                                         </div>
-                                     @endif
-                                </div>
-                            </div>
+                                 </div>
+                             </div>
 
-                            {{-- Modal Footer --}}
-                            <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                                <flux:button type="button" @click="showHadithHifzModal = false" variant="ghost">
-                                    {{ __('إغلاق') }}
-                                </flux:button>
-                            </div>
+                             {{-- Modal Footer --}}
+                             <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
+                                 <flux:button type="button" @click="showHadithHifzModal = false" variant="ghost">
+                                     {{ __('إغلاق') }}
+                                 </flux:button>
+                             </div>
                         </div>
                     @endif
 
                     {{-- Hadith Full-Screen Review Modal --}}
-                    @if ($hadithDay->review_from_line_number && $hadithDay->review_to_line_number)
+                    @if ($hadithDay->review_from_hadith_id)
                         <div x-show="showHadithReviewModal" 
                              x-transition:enter="transition ease-out duration-300"
                              x-transition:enter-start="opacity-0 translate-y-4"
@@ -1291,54 +1385,121 @@ new class extends Component {
                              x-transition:leave-end="opacity-0 translate-y-4"
                              class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full"
                              x-cloak>
-                            
-                            {{-- Modal Header --}}
-                            <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-                                <div>
-                                    <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
-                                        {{ __('مراجعة الحديث') }}
-                                    </h3>
-                                    <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
-                                        {{ $hadithDay->reviewFromHadith?->name ?? $hadithDay->fromHadith?->name }} ({{ $hadithDay->formatHadithRange('review') }})
-                                    </p>
-                                </div>
-                                <button type="button" @click="showHadithReviewModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                                    <flux:icon icon="x-mark" class="size-5" />
-                                </button>
-                            </div>
+                             
+                             {{-- Modal Header --}}
+                             <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                                 <div>
+                                     <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
+                                         {{ __('مراجعة الحديث') }}
+                                     </h3>
+                                     <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
+                                         {{ $hadithDay->reviewFromHadith?->name ?? $hadithDay->fromHadith?->name }} ({{ $hadithDay->formatHadithRange('review') }})
+                                     </p>
+                                 </div>
+                                 <button type="button" @click="showHadithReviewModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                                     <flux:icon icon="x-mark" class="size-5" />
+                                 </button>
+                             </div>
 
-                            {{-- Modal Content (Scrollable) --}}
-                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
-                                <div class="max-w-4xl mx-auto space-y-4 text-right">
-                                    @if (($hadithDay->reviewFromHadith ?? $hadithDay->fromHadith)?->sanad)
-                                        <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-600 dark:text-zinc-400 pr-4 border-r-4 border-zinc-400">
-                                            <strong>{{ __('السند') }}: </strong>{{ ($hadithDay->reviewFromHadith ?? $hadithDay->fromHadith)?->sanad }}
-                                        </div>
-                                    @endif
-                                    @foreach($reviewLines as $line)
-                                        <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-emerald-100/60 dark:border-emerald-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-sm shadow-sm">
-                                                {{ $line->line_number }}
-                                            </span>
-                                            <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 leading-relaxed text-right pr-4 border-r-4 border-emerald-500 dark:border-emerald-400 font-serif">
-                                                {{ $line->text }}
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                    @if (($hadithDay->reviewFromHadith ?? $hadithDay->fromHadith)?->ruling)
-                                        <div class="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-sm font-bold text-indigo-700 dark:text-indigo-300 pr-4 border-r-4 border-indigo-500">
-                                            <strong>{{ __('حكم الحديث') }}: </strong>{{ ($hadithDay->reviewFromHadith ?? $hadithDay->fromHadith)?->ruling }}
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
+                             {{-- Modal Content (Scrollable) --}}
+                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-955/30">
+                                 <div class="max-w-4xl mx-auto space-y-8 text-right">
+                                     {{-- Previous Hadiths Button --}}
+                                     @if($previousReviewHadiths->isNotEmpty())
+                                         <div x-show="reviewPrevCount < {{ $previousReviewHadiths->count() }}" class="flex justify-center mb-8 shrink-0">
+                                             <flux:button type="button" @click="reviewPrevCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
+                                                 {{ __('إظهار الحديث السابق') }}
+                                             </flux:button>
+                                         </div>
+                                     @endif
 
-                            {{-- Modal Footer --}}
-                            <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                                <flux:button type="button" @click="showHadithReviewModal = false" variant="ghost">
-                                    {{ __('إغلاق') }}
-                                </flux:button>
-                            </div>
+                                     {{-- Previous Hadiths (Dimmed) --}}
+                                     @foreach($previousReviewHadiths as $index => $hadith)
+                                         @php
+                                             $currentHadithLines = $hadith->lines;
+                                         @endphp
+                                         <div x-show="reviewPrevCount >= {{ $previousReviewHadiths->count() - $index }}"
+                                              x-cloak
+                                              class="space-y-4 opacity-50 hover:opacity-100 transition-opacity duration-200">
+                                              {{-- Hadith Header (Name) --}}
+                                              <div class="text-lg font-bold text-zinc-500 dark:text-zinc-400 pb-2 border-b border-zinc-200 dark:border-zinc-800 font-serif">
+                                                  {{ $hadith->name }} <span class="text-xs font-sans text-zinc-400">({{ __('سابق') }})</span>
+                                              </div>
+                                              
+                                              @if ($hadith->sanad)
+                                                  <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-semibold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300 font-serif">
+                                                      <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                                  </div>
+                                              @endif
+
+                                              @foreach($currentHadithLines as $line)
+                                                  <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800/60 shadow-sm hover:shadow-md transition-shadow">
+                                                      <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
+                                                          {{ $line->line_number }}
+                                                      </span>
+                                                      <div class="flex-1 text-base md:text-xl font-semibold text-zinc-500 dark:text-zinc-400 leading-relaxed text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
+                                                          {{ $line->text }}
+                                                      </div>
+                                                  </div>
+                                              @endforeach
+
+                                              @if ($hadith->ruling)
+                                                  <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-bold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300">
+                                                      <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
+                                                  </div>
+                                              @endif
+                                         </div>
+                                     @endforeach
+
+                                     @foreach($reviewHadiths as $hadith)
+                                         <div class="space-y-4">
+                                             {{-- Hadith Header (Name) if multiple --}}
+                                             <div class="text-lg font-bold text-emerald-600 dark:text-emerald-400 pb-2 border-b border-emerald-100 dark:border-emerald-900/50 font-serif">
+                                                 {{ $hadith->name }}
+                                             </div>
+                                             
+                                             @if ($hadith->sanad)
+                                                 <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-600 dark:text-zinc-400 pr-4 border-r-4 border-zinc-400 font-serif">
+                                                     <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                                 </div>
+                                             @endif
+
+                                             @php
+                                                 $currentHadithLines = $hadith->lines;
+                                                 if ($hadithDay->memorize_type === 'lines') {
+                                                     $currentHadithLines = $currentHadithLines->filter(function ($l) use ($hadithDay) {
+                                                         return $l->line_number >= $hadithDay->review_from_line_number && $l->line_number <= $hadithDay->review_to_line_number;
+                                                     });
+                                                 }
+                                             @endphp
+
+                                             @foreach($currentHadithLines as $line)
+                                                 <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-emerald-100/60 dark:border-emerald-950/40 shadow-sm hover:shadow-md transition-shadow">
+                                                     <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-sm shadow-sm">
+                                                         {{ $line->line_number }}
+                                                     </span>
+                                                     <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 leading-relaxed text-right pr-4 border-r-4 border-emerald-500 dark:border-emerald-400 font-serif">
+                                                         {{ $line->text }}
+                                                     </div>
+                                                 </div>
+                                             @endforeach
+
+                                             @if ($hadith->ruling)
+                                                 <div class="p-4 bg-indigo-50 dark:bg-indigo-955/30 rounded-xl text-sm font-bold text-indigo-700 dark:text-indigo-300 pr-4 border-r-4 border-indigo-500">
+                                                     <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
+                                                 </div>
+                                             @endif
+                                         </div>
+                                     @endforeach
+                                 </div>
+                             </div>
+
+                             {{-- Modal Footer --}}
+                             <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
+                                 <flux:button type="button" @click="showHadithReviewModal = false" variant="ghost">
+                                     {{ __('إغلاق') }}
+                                 </flux:button>
+                             </div>
                         </div>
                     @endif
                 </flux:card>

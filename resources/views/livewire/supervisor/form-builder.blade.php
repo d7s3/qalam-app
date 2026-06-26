@@ -88,6 +88,15 @@
                         <flux:error name="header_image_file" />
                     </div>
                 </flux:field>
+
+                <!-- Public Report Link Sharing -->
+                <div class="pt-3 border-t border-zinc-150 dark:border-zinc-850">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" wire:model="is_public_report" class="rounded border-zinc-300 text-accent focus:ring-accent" />
+                        <span class="text-zinc-700 dark:text-zinc-300 font-semibold">مشاركة التقرير والنتائج علناً</span>
+                    </label>
+                    <p class="text-xs text-zinc-500 mt-1">عند تفعيله، سيتمكن أي شخص يمتلك الرابط من رؤية جدول الردود وتصفيتها وتجميعها دون تسجيل دخول.</p>
+                </div>
             </div>
         </div>
 

@@ -21,6 +21,7 @@ class Form extends Model
         'fields',
         'policy_text',
         'success_text',
+        'is_public_report',
     ];
 
     /**
@@ -32,6 +33,7 @@ class Form extends Model
     {
         return [
             'fields' => 'array',
+            'is_public_report' => 'boolean',
         ];
     }
 

@@ -6,6 +6,8 @@ use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\StudentOdePlan;
 use App\Models\StudentOdePlanDay;
+use App\Models\StudentHadithPlan;
+use App\Models\StudentHadithPlanDay;
 use Illuminate\Support\Facades\Auth;
 use Flux\Flux;
 use Livewire\Attributes\On;
@@ -184,11 +186,27 @@ new class extends Component {
                 ->groupBy('student_ode_plan_id');
         }
 
+        // Preload all active student hadith plans and their days to prevent N+1 queries in child components
+        $studentHadithPlans = StudentHadithPlan::with('path')
+            ->whereIn('student_id', $students->pluck('id'))
+            ->where('status', 'active')
+            ->get()
+            ->keyBy('student_id');
+
+        $allHadithDays = collect();
+        if ($studentHadithPlans->isNotEmpty()) {
+            $allHadithDays = StudentHadithPlanDay::with(['plan.path', 'fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
+                ->whereIn('student_hadith_plan_id', $studentHadithPlans->pluck('id'))
+                ->orderBy('date', 'asc')
+                ->get()
+                ->groupBy('student_hadith_plan_id');
+        }
+
         app()->instance('tasmeeh_ode_plans_cache', $studentOdePlans);
         app()->instance('tasmeeh_ode_days_cache', $allOdeDays);
 
-        app()->instance('tasmeeh_hadith_plans_cache', collect());
-        app()->instance('tasmeeh_hadith_days_cache', collect());
+        app()->instance('tasmeeh_hadith_plans_cache', $studentHadithPlans);
+        app()->instance('tasmeeh_hadith_days_cache', $allHadithDays);
 
         return [
             'studentsWithPlansPresent' => $studentsWithPlansPresent,
