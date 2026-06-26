@@ -654,16 +654,40 @@ new class extends Component {
         $activeHadithPlans = \App\Models\StudentHadithPlan::where('student_id', $student->id)->where('status', 'active')->get();
         $pendingHadithMissions = [];
         foreach ($activeHadithPlans as $plan) {
-            $mission = \App\Models\StudentHadithPlanDay::with(['plan.path', 'fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
-                ->where('student_hadith_plan_id', $plan->id)
-                ->where(function ($q) {
-                    $q->whereNull('hifz_achievement')->orWhereNull('review_achievement');
+            $mission = \App\Models\HadithPathDay::with(['fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
+                ->where('hadith_path_id', $plan->hadith_path_id)
+                ->where(function ($query) use ($plan) {
+                    $query->whereDoesntHave('achievements', function ($q) use ($plan) {
+                        $q->where('student_hadith_plan_id', $plan->id);
+                    })
+                    ->orWhereHas('achievements', function ($q) use ($plan) {
+                        $q->where('student_hadith_plan_id', $plan->id)
+                          ->where(function ($sub) {
+                              $sub->where(function ($h) {
+                                  $h->whereNotNull('hadith_path_days.from_hadith_id')
+                                    ->whereNull('student_hadith_achievements.hifz_achievement');
+                              })
+                              ->orWhere(function ($r) {
+                                  $r->whereNotNull('hadith_path_days.review_from_hadith_id')
+                                    ->whereNull('student_hadith_achievements.review_achievement');
+                              });
+                          });
+                    });
                 })
-                ->orderBy('date', 'asc')
+                ->orderBy('day_number', 'asc')
                 ->first();
 
             if ($mission) {
                 $mission->setRelation('plan', $plan);
+
+                $achievement = \App\Models\StudentHadithAchievement::where('student_hadith_plan_id', $plan->id)
+                    ->where('hadith_path_day_id', $mission->id)
+                    ->first();
+
+                $mission->hifz_achievement = $achievement?->hifz_achievement;
+                $mission->review_achievement = $achievement?->review_achievement;
+                $mission->hifz_graded_at = $achievement?->hifz_graded_at;
+                $mission->review_graded_at = $achievement?->review_graded_at;
                 
                 // Fetch all hadiths for this plan's path to allow showing text and previous texts
                 $allHadiths = \App\Models\Hadith::with('lines')->where(function ($query) use ($plan) {

@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\Ode;
+use App\Models\OdePath;
 use App\Models\Student;
 use App\Models\StudentOdePlan;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -15,7 +15,7 @@ class StudentOdePlanFactory extends Factory
     {
         return [
             'student_id' => Student::factory(),
-            'ode_id' => Ode::factory(),
+            'ode_path_id' => OdePath::factory(),
             'start_date' => now()->format('Y-m-d'),
             'status' => 'active',
             'created_by_role' => 'teacher',

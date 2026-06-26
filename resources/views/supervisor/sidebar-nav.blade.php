@@ -15,8 +15,11 @@
 </flux:sidebar.group>
 
 <flux:sidebar.group heading="المحتوى العلمي" class="grid">
-    <flux:sidebar.item class="[&_svg]:bg-[#f97316] hover:[&_svg]:bg-[#ea580c]" icon="book-open" :href="route('supervisor.odes')" :current="request()->routeIs('supervisor.odes') && !request()->routeIs('supervisor.odes.plans') && !request()->routeIs('supervisor.odes.create-plan')" wire:navigate>
+    <flux:sidebar.item class="[&_svg]:bg-[#f97316] hover:[&_svg]:bg-[#ea580c]" icon="book-open" :href="route('supervisor.odes')" :current="request()->routeIs('supervisor.odes') && !request()->routeIs('supervisor.odes.plans') && !request()->routeIs('supervisor.odes.create-plan') && !request()->routeIs('supervisor.odes.paths')" wire:navigate>
         إدارة المنظومات
+    </flux:sidebar.item>
+    <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6] hover:[&_svg]:bg-[#7c3aed]" icon="map" :href="route('supervisor.odes.paths')" :current="request()->routeIs('supervisor.odes.paths*')" wire:navigate>
+        مسارات حفظ المنظومات
     </flux:sidebar.item>
     <flux:sidebar.item class="[&_svg]:bg-[#f43f5e] hover:[&_svg]:bg-[#e11d48]" icon="document-text" :href="route('supervisor.hadiths')" :current="request()->routeIs('supervisor.hadiths') && !request()->routeIs('supervisor.hadiths.create-plan') && !request()->routeIs('supervisor.hadiths.paths')" wire:navigate>
         إدارة الأحاديث

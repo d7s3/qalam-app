@@ -93,6 +93,34 @@ class Competitions extends Component
 
     public bool $extra_points_enabled = true;
 
+    public bool $ode_hifz_enabled = false;
+
+    public int $ode_hifz_excellent = 10;
+
+    public int $ode_hifz_good = 7;
+
+    public int $ode_hifz_acceptable = 4;
+
+    public bool $ode_review_enabled = false;
+
+    public int $ode_review_excellent = 5;
+
+    public int $ode_review_good = 3;
+
+    public bool $hadith_hifz_enabled = false;
+
+    public int $hadith_hifz_excellent = 10;
+
+    public int $hadith_hifz_good = 7;
+
+    public int $hadith_hifz_acceptable = 4;
+
+    public bool $hadith_review_enabled = false;
+
+    public int $hadith_review_excellent = 5;
+
+    public int $hadith_review_good = 3;
+
     public array $criteria = [];
 
     public $circlesList = [];
@@ -199,6 +227,20 @@ class Competitions extends Component
         $this->attendance_present = 4;
         $this->attendance_late = 2;
         $this->extra_points_enabled = true;
+        $this->ode_hifz_enabled = false;
+        $this->ode_hifz_excellent = 10;
+        $this->ode_hifz_good = 7;
+        $this->ode_hifz_acceptable = 4;
+        $this->ode_review_enabled = false;
+        $this->ode_review_excellent = 5;
+        $this->ode_review_good = 3;
+        $this->hadith_hifz_enabled = false;
+        $this->hadith_hifz_excellent = 10;
+        $this->hadith_hifz_good = 7;
+        $this->hadith_hifz_acceptable = 4;
+        $this->hadith_review_enabled = false;
+        $this->hadith_review_excellent = 5;
+        $this->hadith_review_good = 3;
         $this->isEditing = false;
         $this->currentStep = 1;
         $this->showModal = true;
@@ -296,6 +338,20 @@ class Competitions extends Component
         $this->attendance_present = $settings['attendance_present'] ?? 4;
         $this->attendance_late = $settings['attendance_late'] ?? 2;
         $this->extra_points_enabled = $settings['extra_points_enabled'] ?? true;
+        $this->ode_hifz_enabled = $settings['ode_hifz_enabled'] ?? false;
+        $this->ode_hifz_excellent = $settings['ode_hifz_excellent'] ?? 10;
+        $this->ode_hifz_good = $settings['ode_hifz_good'] ?? 7;
+        $this->ode_hifz_acceptable = $settings['ode_hifz_acceptable'] ?? 4;
+        $this->ode_review_enabled = $settings['ode_review_enabled'] ?? false;
+        $this->ode_review_excellent = $settings['ode_review_excellent'] ?? 5;
+        $this->ode_review_good = $settings['ode_review_good'] ?? 3;
+        $this->hadith_hifz_enabled = $settings['hadith_hifz_enabled'] ?? false;
+        $this->hadith_hifz_excellent = $settings['hadith_hifz_excellent'] ?? 10;
+        $this->hadith_hifz_good = $settings['hadith_hifz_good'] ?? 7;
+        $this->hadith_hifz_acceptable = $settings['hadith_hifz_acceptable'] ?? 4;
+        $this->hadith_review_enabled = $settings['hadith_review_enabled'] ?? false;
+        $this->hadith_review_excellent = $settings['hadith_review_excellent'] ?? 5;
+        $this->hadith_review_good = $settings['hadith_review_good'] ?? 3;
 
         $this->criteria = $competition->criteria->map(fn ($c) => [
             'id' => $c->id,
@@ -441,6 +497,20 @@ class Competitions extends Component
             $settings['attendance_enabled'] = $this->attendance_enabled;
             $settings['attendance_present'] = (int) $this->attendance_present;
             $settings['attendance_late'] = (int) $this->attendance_late;
+            $settings['ode_hifz_enabled'] = $this->ode_hifz_enabled;
+            $settings['ode_hifz_excellent'] = (int) $this->ode_hifz_excellent;
+            $settings['ode_hifz_good'] = (int) $this->ode_hifz_good;
+            $settings['ode_hifz_acceptable'] = (int) $this->ode_hifz_acceptable;
+            $settings['ode_review_enabled'] = $this->ode_review_enabled;
+            $settings['ode_review_excellent'] = (int) $this->ode_review_excellent;
+            $settings['ode_review_good'] = (int) $this->ode_review_good;
+            $settings['hadith_hifz_enabled'] = $this->hadith_hifz_enabled;
+            $settings['hadith_hifz_excellent'] = (int) $this->hadith_hifz_excellent;
+            $settings['hadith_hifz_good'] = (int) $this->hadith_hifz_good;
+            $settings['hadith_hifz_acceptable'] = (int) $this->hadith_hifz_acceptable;
+            $settings['hadith_review_enabled'] = $this->hadith_review_enabled;
+            $settings['hadith_review_excellent'] = (int) $this->hadith_review_excellent;
+            $settings['hadith_review_good'] = (int) $this->hadith_review_good;
         }
 
         $competition = Leaderboard::updateOrCreate(

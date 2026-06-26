@@ -282,4 +282,24 @@
             <flux:button variant="primary" wire:click="savePlan" icon="check">حفظ خطة المسار وتوزيع الحفظ</flux:button>
         </div>
     @endif
+
+    {{-- Confirmation modal for deleting affected achievements --}}
+    <flux:modal name="confirm-delete-achievements" variant="flyout" class="max-w-md">
+        <div class="space-y-4">
+            <flux:heading size="lg">⚠️ تأكيد حذف التقييمات</flux:heading>
+            <flux:text>
+                <p class="text-red-600 dark:text-red-400 font-semibold">
+                    يوجد {{ $affectedAchievementsCount }} تقييم مرتبط بالأيام المتأثرة (من اليوم رقم {{ $affectedFromDayNumber }} وما بعده).
+                </p>
+                <p class="mt-2">
+                    سيتم <strong>حذف جميع التقييمات</strong> لهذا اليوم والأيام اللاحقة. التقييمات السابقة لهذا اليوم ستبقى كما هي.
+                </p>
+                <p class="mt-2 text-sm text-zinc-500">هذا الإجراء لا يمكن التراجع عنه.</p>
+            </flux:text>
+            <div class="flex justify-end gap-2 pt-4">
+                <flux:button variant="ghost" wire:click="cancelSave">إلغاء</flux:button>
+                <flux:button variant="danger" wire:click="confirmSaveWithDeletion" icon="trash">تأكيد الحذف والحفظ</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>

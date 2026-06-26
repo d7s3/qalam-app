@@ -4,11 +4,13 @@ use App\Livewire\Shared\OdePlanCreator;
 use App\Models\Ayah;
 use App\Models\Circle;
 use App\Models\Ode;
+use App\Models\OdePath;
+use App\Models\OdePathDay;
 use App\Models\OdeVerse;
 use App\Models\Stage;
 use App\Models\Student;
+use App\Models\StudentOdeAchievement;
 use App\Models\StudentOdePlan;
-use App\Models\StudentOdePlanDay;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\Supervisor;
@@ -16,6 +18,7 @@ use App\Models\Surah;
 use App\Models\Teacher;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -49,14 +52,19 @@ beforeEach(function () {
             'ajuz' => "العجز {$i}",
         ]);
     }
+
+    $this->odePath = OdePath::create([
+        'ode_id' => $this->ode->id,
+        'name' => 'مسار تحفة الأطفال',
+        'start_date' => '2026-06-18',
+    ]);
 });
 
-it('allows supervisor to create a student ode plan', function () {
+it('allows supervisor to generate and save a shared ode path schedule', function () {
     $this->actingAs($this->supervisor, 'supervisor');
 
     Livewire::test(OdePlanCreator::class)
-        ->set('studentId', $this->student->id)
-        ->set('odeId', $this->ode->id)
+        ->set('odePathId', $this->odePath->id)
         ->set('startDate', '2026-06-18')
         ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday'])
         ->set('hifzStart', 1)
@@ -71,12 +79,7 @@ it('allows supervisor to create a student ode plan', function () {
         ->call('savePlan')
         ->assertHasNoErrors();
 
-    $plan = StudentOdePlan::where('student_id', $this->student->id)->where('ode_id', $this->ode->id)->first();
-    expect($plan)->not->toBeNull();
-    expect($plan->status)->toBe('active');
-    expect($plan->created_by_role)->toBe('supervisor');
-
-    $days = StudentOdePlanDay::where('student_ode_plan_id', $plan->id)->orderBy('date')->get();
+    $days = OdePathDay::where('ode_path_id', $this->odePath->id)->orderBy('day_number')->get();
     expect($days)->toHaveCount(5);
     expect($days[0]->from_verse_number)->toBe(1);
     expect($days[0]->to_verse_number)->toBe(2);
@@ -84,43 +87,52 @@ it('allows supervisor to create a student ode plan', function () {
     expect($days[0]->review_to_verse_number)->toBe(11);
 });
 
-it('allows teacher to create a student ode plan', function () {
-    $this->actingAs($this->teacher, 'teacher');
+it('does not duplicate path days when enrolling students', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
 
-    Livewire::test(OdePlanCreator::class)
-        ->set('studentId', $this->student->id)
-        ->set('odeId', $this->ode->id)
-        ->set('startDate', '2026-06-18')
-        ->set('activeDays', ['Sunday', 'Monday', 'Tuesday', 'Wednesday'])
-        ->set('hifzStart', 1)
-        ->set('hifzEnd', 12)
-        ->set('hifzRate', 3) // 4 days
-        ->call('generatePreview')
-        ->assertHasNoErrors()
-        ->call('savePlan')
+    // Pre-create a shared schedule on the path
+    OdePathDay::create([
+        'ode_path_id' => $this->odePath->id,
+        'day_number' => 1,
+        'date' => '2026-06-18',
+        'day_name' => 'الخميس',
+        'from_verse_number' => 1,
+        'to_verse_number' => 5,
+    ]);
+
+    Livewire::test('supervisor.manage-ode-paths')
+        ->set('enrollingPathId', $this->odePath->id)
+        ->set('selectedStudentIds', [$this->student->id])
+        ->call('enrollStudents')
         ->assertHasNoErrors();
 
-    $plan = StudentOdePlan::where('student_id', $this->student->id)->where('ode_id', $this->ode->id)->first();
+    $plan = StudentOdePlan::where('student_id', $this->student->id)
+        ->where('ode_path_id', $this->odePath->id)
+        ->first();
     expect($plan)->not->toBeNull();
-    expect($plan->created_by_role)->toBe('teacher');
+    expect($plan->status)->toBe('active');
 
-    $days = StudentOdePlanDay::where('student_ode_plan_id', $plan->id)->orderBy('date')->get();
-    expect($days)->toHaveCount(4);
+    // The old per-student day table must be gone entirely
+    expect(Schema::hasTable('student_ode_plan_days'))->toBeFalse();
+
+    // Only the single shared schedule day exists, regardless of enrollment
+    expect(OdePathDay::where('ode_path_id', $this->odePath->id)->count())->toBe(1);
 });
 
-it('allows teacher to grade student recitation of ode plan days', function () {
+it('allows teacher to grade student recitation of ode path days', function () {
     $this->actingAs($this->teacher, 'teacher');
 
     $plan = StudentOdePlan::create([
         'student_id' => $this->student->id,
-        'ode_id' => $this->ode->id,
+        'ode_path_id' => $this->odePath->id,
         'start_date' => '2026-06-18',
         'status' => 'active',
         'created_by_role' => 'teacher',
     ]);
 
-    $day = StudentOdePlanDay::create([
-        'student_ode_plan_id' => $plan->id,
+    $day = OdePathDay::create([
+        'ode_path_id' => $this->odePath->id,
+        'day_number' => 1,
         'date' => '2026-06-18',
         'day_name' => 'الخميس',
         'from_verse_number' => 1,
@@ -139,8 +151,14 @@ it('allows teacher to grade student recitation of ode plan days', function () {
         ->call('saveOdeAchievement', $day->id, 'hifz', 3) // Excellent
         ->assertHasNoErrors();
 
-    expect($day->fresh()->hifz_achievement)->toBe(3);
-    expect($day->fresh()->hifz_graded_at)->not->toBeNull();
+    $achievement = StudentOdeAchievement::where([
+        'student_ode_plan_id' => $plan->id,
+        'ode_path_day_id' => $day->id,
+    ])->first();
+
+    expect($achievement)->not->toBeNull();
+    expect($achievement->hifz_achievement)->toBe(3);
+    expect($achievement->hifz_graded_at)->not->toBeNull();
 
     // Test grading Review
     Livewire::test('teacher.student-tasmeeh-card', [
@@ -152,8 +170,9 @@ it('allows teacher to grade student recitation of ode plan days', function () {
         ->call('saveOdeAchievement', $day->id, 'review', 2) // Good
         ->assertHasNoErrors();
 
-    expect($day->fresh()->review_achievement)->toBe(2);
-    expect($day->fresh()->review_graded_at)->not->toBeNull();
+    $achievement = $achievement->fresh();
+    expect($achievement->review_achievement)->toBe(2);
+    expect($achievement->review_graded_at)->not->toBeNull();
 });
 
 it('renders odes plans list page for supervisor', function () {
@@ -172,12 +191,20 @@ it('renders odes plans list page for teacher', function () {
     $response->assertSee('خطط المنظومات المنشأة');
 });
 
+it('renders ode paths management page for supervisor', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $response = $this->get(route('supervisor.odes.paths'));
+    $response->assertSuccessful();
+    $response->assertSee('مسارات حفظ المنظومات');
+});
+
 it('allows supervisor and teacher to delete ode plans', function () {
     $this->actingAs($this->teacher, 'teacher');
 
     $plan = StudentOdePlan::create([
         'student_id' => $this->student->id,
-        'ode_id' => $this->ode->id,
+        'ode_path_id' => $this->odePath->id,
         'start_date' => '2026-06-18',
         'status' => 'active',
         'created_by_role' => 'teacher',
@@ -190,10 +217,114 @@ it('allows supervisor and teacher to delete ode plans', function () {
     expect(StudentOdePlan::where('id', $plan->id)->exists())->toBeFalse();
 });
 
+it('keeps achievements for unchanged days and invalidates changed/later achievements when editing path', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $plan = StudentOdePlan::create([
+        'student_id' => $this->student->id,
+        'ode_path_id' => $this->odePath->id,
+        'start_date' => '2026-06-18',
+        'status' => 'active',
+        'created_by_role' => 'supervisor',
+    ]);
+
+    $day1 = OdePathDay::create([
+        'ode_path_id' => $this->odePath->id,
+        'day_number' => 1,
+        'date' => '2026-06-18',
+        'from_verse_number' => 1,
+        'to_verse_number' => 2,
+    ]);
+
+    $day2 = OdePathDay::create([
+        'ode_path_id' => $this->odePath->id,
+        'day_number' => 2,
+        'date' => '2026-06-19',
+        'from_verse_number' => 3,
+        'to_verse_number' => 4,
+    ]);
+
+    $day3 = OdePathDay::create([
+        'ode_path_id' => $this->odePath->id,
+        'day_number' => 3,
+        'date' => '2026-06-20',
+        'from_verse_number' => 5,
+        'to_verse_number' => 6,
+    ]);
+
+    StudentOdeAchievement::create([
+        'student_ode_plan_id' => $plan->id,
+        'ode_path_day_id' => $day1->id,
+        'hifz_achievement' => 3,
+    ]);
+
+    StudentOdeAchievement::create([
+        'student_ode_plan_id' => $plan->id,
+        'ode_path_day_id' => $day2->id,
+        'hifz_achievement' => 2,
+    ]);
+
+    // Modify day 2 (and keep day 1 unchanged) so changes start from day 2
+    $newDays = [
+        [
+            'day_name' => 'الخميس',
+            'date' => '2026-06-18',
+            'from_verse_number' => 1,
+            'to_verse_number' => 2,
+            'review_from_verse_number' => null,
+            'review_to_verse_number' => null,
+        ],
+        [
+            'day_name' => 'الجمعة',
+            'date' => '2026-06-19',
+            'from_verse_number' => 3,
+            'to_verse_number' => 5, // changed
+            'review_from_verse_number' => null,
+            'review_to_verse_number' => null,
+        ],
+        [
+            'day_name' => 'السبت',
+            'date' => '2026-06-20',
+            'from_verse_number' => 6,
+            'to_verse_number' => 7,
+            'review_from_verse_number' => null,
+            'review_to_verse_number' => null,
+        ],
+    ];
+
+    Livewire::test('shared.ode-plan-creator', [
+        'odePathId' => $this->odePath->id,
+        'userRole' => 'supervisor',
+    ])
+        ->set('startDate', '2026-06-18')
+        ->set('planDays', $newDays)
+        ->call('savePlan')
+        ->assertSet('confirmingDeletion', true)
+        ->assertSet('affectedAchievementsCount', 1)
+        ->assertSet('affectedFromDayNumber', 2)
+        ->call('confirmSaveWithDeletion')
+        ->assertHasNoErrors();
+
+    $newDay1 = OdePathDay::where('ode_path_id', $this->odePath->id)->where('day_number', 1)->first();
+    $newDay2 = OdePathDay::where('ode_path_id', $this->odePath->id)->where('day_number', 2)->first();
+
+    // Day 1 achievement remains (unchanged)
+    $ach1 = StudentOdeAchievement::where('student_ode_plan_id', $plan->id)
+        ->where('ode_path_day_id', $newDay1->id)
+        ->first();
+    expect($ach1)->not->toBeNull();
+    expect($ach1->hifz_achievement)->toBe(3);
+
+    // Day 2 achievement removed (invalidated)
+    $ach2 = StudentOdeAchievement::where('student_ode_plan_id', $plan->id)
+        ->where('ode_path_day_id', $newDay2->id)
+        ->first();
+    expect($ach2)->toBeNull();
+});
+
 it('renders both Quranic plan and Ode plan simultaneously in student-tasmeeh-card', function () {
     $this->actingAs($this->teacher, 'teacher');
 
-    // Create dummy Surah and Ayah for database constraints
     Surah::create([
         'id' => 1,
         'number' => 1,
@@ -222,7 +353,6 @@ it('renders both Quranic plan and Ode plan simultaneously in student-tasmeeh-car
         'text_uthmani' => 'Ayah 1 text',
     ]);
 
-    // Create a Quranic plan
     $quranicPlan = StudentPlan::create([
         'student_id' => $this->student->id,
         'teacher_id' => $this->teacher->id,
@@ -236,7 +366,6 @@ it('renders both Quranic plan and Ode plan simultaneously in student-tasmeeh-car
         'created_by_role' => 'teacher',
     ]);
 
-    // Create Quranic days
     for ($i = 0; $i < 5; $i++) {
         StudentPlanDay::create([
             'student_plan_id' => $quranicPlan->id,
@@ -247,25 +376,23 @@ it('renders both Quranic plan and Ode plan simultaneously in student-tasmeeh-car
         ]);
     }
 
-    // Create an Ode plan
     $odePlan = StudentOdePlan::create([
         'student_id' => $this->student->id,
-        'ode_id' => $this->ode->id,
+        'ode_path_id' => $this->odePath->id,
         'start_date' => '2026-06-18',
         'status' => 'active',
         'created_by_role' => 'teacher',
     ]);
 
-    // Create an Ode day
-    $odeDay = StudentOdePlanDay::create([
-        'student_ode_plan_id' => $odePlan->id,
+    $odeDay = OdePathDay::create([
+        'ode_path_id' => $this->odePath->id,
+        'day_number' => 1,
         'date' => '2026-06-18',
         'day_name' => 'الخميس',
         'from_verse_number' => 1,
         'to_verse_number' => 5,
     ]);
 
-    // Instantiate card component and check it loads both
     $component = Livewire::test('teacher.student-tasmeeh-card', [
         'student' => $this->student,
         'sPlans' => collect([$quranicPlan]),
@@ -273,13 +400,9 @@ it('renders both Quranic plan and Ode plan simultaneously in student-tasmeeh-car
         'gradedAtDate' => '2026-06-18',
     ]);
 
-    // Quranic plan should be selected in the selector
     expect($component->get('selectedPlanId'))->toBe($quranicPlan->id);
 
-    // Both plans should be returned to the view with Alpine mapping variables
     $viewData = $component->instance()->with();
-    $firstQuranDay = StudentPlanDay::where('student_plan_id', $quranicPlan->id)->orderBy('date')->first();
-
     $expectedQuranMap = [];
     $allQuranDays = StudentPlanDay::where('student_plan_id', $quranicPlan->id)->orderBy('date')->get();
     foreach ($allQuranDays as $day) {

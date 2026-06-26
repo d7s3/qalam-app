@@ -156,6 +156,62 @@ class ManageGamification extends Component
 
     public bool $attendance_enthusiasm_trigger = true;
 
+    public bool $ode_hifz_enabled = false;
+
+    public int $ode_hifz_excellent_xp = 10;
+
+    public int $ode_hifz_excellent_coins = 10;
+
+    public int $ode_hifz_good_xp = 7;
+
+    public int $ode_hifz_good_coins = 7;
+
+    public int $ode_hifz_acceptable_xp = 4;
+
+    public int $ode_hifz_acceptable_coins = 4;
+
+    public bool $ode_hifz_enthusiasm_trigger = false;
+
+    public bool $ode_review_enabled = false;
+
+    public int $ode_review_excellent_xp = 5;
+
+    public int $ode_review_excellent_coins = 5;
+
+    public int $ode_review_good_xp = 3;
+
+    public int $ode_review_good_coins = 3;
+
+    public bool $ode_review_enthusiasm_trigger = false;
+
+    public bool $hadith_hifz_enabled = false;
+
+    public int $hadith_hifz_excellent_xp = 10;
+
+    public int $hadith_hifz_excellent_coins = 10;
+
+    public int $hadith_hifz_good_xp = 7;
+
+    public int $hadith_hifz_good_coins = 7;
+
+    public int $hadith_hifz_acceptable_xp = 4;
+
+    public int $hadith_hifz_acceptable_coins = 4;
+
+    public bool $hadith_hifz_enthusiasm_trigger = false;
+
+    public bool $hadith_review_enabled = false;
+
+    public int $hadith_review_excellent_xp = 5;
+
+    public int $hadith_review_excellent_coins = 5;
+
+    public int $hadith_review_good_xp = 3;
+
+    public int $hadith_review_good_coins = 3;
+
+    public bool $hadith_review_enthusiasm_trigger = false;
+
     public $badge_image_file;
 
     public int $badgeStep = 1;
@@ -319,6 +375,38 @@ class ManageGamification extends Component
         $this->attendance_late_xp = (int) ($settings['attendance_late_xp'] ?? ($settings['attendance_late'] ?? 2));
         $this->attendance_late_coins = (int) ($settings['attendance_late_coins'] ?? ($settings['attendance_late'] ?? 2));
         $this->attendance_enthusiasm_trigger = (bool) ($settings['attendance_enthusiasm_trigger'] ?? true);
+
+        $this->ode_hifz_enabled = (bool) ($settings['ode_hifz_enabled'] ?? false);
+        $this->ode_hifz_excellent_xp = (int) ($settings['ode_hifz_excellent_xp'] ?? 10);
+        $this->ode_hifz_excellent_coins = (int) ($settings['ode_hifz_excellent_coins'] ?? 10);
+        $this->ode_hifz_good_xp = (int) ($settings['ode_hifz_good_xp'] ?? 7);
+        $this->ode_hifz_good_coins = (int) ($settings['ode_hifz_good_coins'] ?? 7);
+        $this->ode_hifz_acceptable_xp = (int) ($settings['ode_hifz_acceptable_xp'] ?? 4);
+        $this->ode_hifz_acceptable_coins = (int) ($settings['ode_hifz_acceptable_coins'] ?? 4);
+        $this->ode_hifz_enthusiasm_trigger = (bool) ($settings['ode_hifz_enthusiasm_trigger'] ?? false);
+
+        $this->ode_review_enabled = (bool) ($settings['ode_review_enabled'] ?? false);
+        $this->ode_review_excellent_xp = (int) ($settings['ode_review_excellent_xp'] ?? 5);
+        $this->ode_review_excellent_coins = (int) ($settings['ode_review_excellent_coins'] ?? 5);
+        $this->ode_review_good_xp = (int) ($settings['ode_review_good_xp'] ?? 3);
+        $this->ode_review_good_coins = (int) ($settings['ode_review_good_coins'] ?? 3);
+        $this->ode_review_enthusiasm_trigger = (bool) ($settings['ode_review_enthusiasm_trigger'] ?? false);
+
+        $this->hadith_hifz_enabled = (bool) ($settings['hadith_hifz_enabled'] ?? false);
+        $this->hadith_hifz_excellent_xp = (int) ($settings['hadith_hifz_excellent_xp'] ?? 10);
+        $this->hadith_hifz_excellent_coins = (int) ($settings['hadith_hifz_excellent_coins'] ?? 10);
+        $this->hadith_hifz_good_xp = (int) ($settings['hadith_hifz_good_xp'] ?? 7);
+        $this->hadith_hifz_good_coins = (int) ($settings['hadith_hifz_good_coins'] ?? 7);
+        $this->hadith_hifz_acceptable_xp = (int) ($settings['hadith_hifz_acceptable_xp'] ?? 4);
+        $this->hadith_hifz_acceptable_coins = (int) ($settings['hadith_hifz_acceptable_coins'] ?? 4);
+        $this->hadith_hifz_enthusiasm_trigger = (bool) ($settings['hadith_hifz_enthusiasm_trigger'] ?? false);
+
+        $this->hadith_review_enabled = (bool) ($settings['hadith_review_enabled'] ?? false);
+        $this->hadith_review_excellent_xp = (int) ($settings['hadith_review_excellent_xp'] ?? 5);
+        $this->hadith_review_excellent_coins = (int) ($settings['hadith_review_excellent_coins'] ?? 5);
+        $this->hadith_review_good_xp = (int) ($settings['hadith_review_good_xp'] ?? 3);
+        $this->hadith_review_good_coins = (int) ($settings['hadith_review_good_coins'] ?? 3);
+        $this->hadith_review_enthusiasm_trigger = (bool) ($settings['hadith_review_enthusiasm_trigger'] ?? false);
     }
 
     public function loadCompetition(): void
@@ -547,6 +635,26 @@ class ManageGamification extends Component
             'attendance_present_coins' => 'required|integer|min:0',
             'attendance_late_xp' => 'required|integer|min:0',
             'attendance_late_coins' => 'required|integer|min:0',
+            'ode_hifz_excellent_xp' => 'required|integer|min:0',
+            'ode_hifz_excellent_coins' => 'required|integer|min:0',
+            'ode_hifz_good_xp' => 'required|integer|min:0',
+            'ode_hifz_good_coins' => 'required|integer|min:0',
+            'ode_hifz_acceptable_xp' => 'required|integer|min:0',
+            'ode_hifz_acceptable_coins' => 'required|integer|min:0',
+            'ode_review_excellent_xp' => 'required|integer|min:0',
+            'ode_review_excellent_coins' => 'required|integer|min:0',
+            'ode_review_good_xp' => 'required|integer|min:0',
+            'ode_review_good_coins' => 'required|integer|min:0',
+            'hadith_hifz_excellent_xp' => 'required|integer|min:0',
+            'hadith_hifz_excellent_coins' => 'required|integer|min:0',
+            'hadith_hifz_good_xp' => 'required|integer|min:0',
+            'hadith_hifz_good_coins' => 'required|integer|min:0',
+            'hadith_hifz_acceptable_xp' => 'required|integer|min:0',
+            'hadith_hifz_acceptable_coins' => 'required|integer|min:0',
+            'hadith_review_excellent_xp' => 'required|integer|min:0',
+            'hadith_review_excellent_coins' => 'required|integer|min:0',
+            'hadith_review_good_xp' => 'required|integer|min:0',
+            'hadith_review_good_coins' => 'required|integer|min:0',
         ]);
 
         DB::transaction(function () {
@@ -593,6 +701,38 @@ class ManageGamification extends Component
                 'attendance_late_xp' => $this->attendance_late_xp,
                 'attendance_late_coins' => $this->attendance_late_coins,
                 'attendance_enthusiasm_trigger' => $this->attendance_enthusiasm_trigger,
+
+                'ode_hifz_enabled' => $this->ode_hifz_enabled,
+                'ode_hifz_excellent_xp' => $this->ode_hifz_excellent_xp,
+                'ode_hifz_excellent_coins' => $this->ode_hifz_excellent_coins,
+                'ode_hifz_good_xp' => $this->ode_hifz_good_xp,
+                'ode_hifz_good_coins' => $this->ode_hifz_good_coins,
+                'ode_hifz_acceptable_xp' => $this->ode_hifz_acceptable_xp,
+                'ode_hifz_acceptable_coins' => $this->ode_hifz_acceptable_coins,
+                'ode_hifz_enthusiasm_trigger' => $this->ode_hifz_enthusiasm_trigger,
+
+                'ode_review_enabled' => $this->ode_review_enabled,
+                'ode_review_excellent_xp' => $this->ode_review_excellent_xp,
+                'ode_review_excellent_coins' => $this->ode_review_excellent_coins,
+                'ode_review_good_xp' => $this->ode_review_good_xp,
+                'ode_review_good_coins' => $this->ode_review_good_coins,
+                'ode_review_enthusiasm_trigger' => $this->ode_review_enthusiasm_trigger,
+
+                'hadith_hifz_enabled' => $this->hadith_hifz_enabled,
+                'hadith_hifz_excellent_xp' => $this->hadith_hifz_excellent_xp,
+                'hadith_hifz_excellent_coins' => $this->hadith_hifz_excellent_coins,
+                'hadith_hifz_good_xp' => $this->hadith_hifz_good_xp,
+                'hadith_hifz_good_coins' => $this->hadith_hifz_good_coins,
+                'hadith_hifz_acceptable_xp' => $this->hadith_hifz_acceptable_xp,
+                'hadith_hifz_acceptable_coins' => $this->hadith_hifz_acceptable_coins,
+                'hadith_hifz_enthusiasm_trigger' => $this->hadith_hifz_enthusiasm_trigger,
+
+                'hadith_review_enabled' => $this->hadith_review_enabled,
+                'hadith_review_excellent_xp' => $this->hadith_review_excellent_xp,
+                'hadith_review_excellent_coins' => $this->hadith_review_excellent_coins,
+                'hadith_review_good_xp' => $this->hadith_review_good_xp,
+                'hadith_review_good_coins' => $this->hadith_review_good_coins,
+                'hadith_review_enthusiasm_trigger' => $this->hadith_review_enthusiasm_trigger,
             ]);
             $this->competition->save();
         });

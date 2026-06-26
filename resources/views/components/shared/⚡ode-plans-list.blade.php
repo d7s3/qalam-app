@@ -53,7 +53,7 @@ new class extends Component {
     {
         $circleIds = $this->getCircleIds();
 
-        $plans = StudentOdePlan::with(['student.circle', 'ode'])
+        $plans = StudentOdePlan::with(['student.circle', 'path.ode', 'path.days'])
             ->whereHas('student', function ($q) use ($circleIds) {
                 $q->whereIn('circle_id', $circleIds);
             })
@@ -78,9 +78,11 @@ new class extends Component {
             <flux:heading size="xl" level="1">{{ __('خطط المنظومات المنشأة') }}</flux:heading>
             <flux:subheading>{{ __('عرض وإدارة خطط حفظ ومراجعة المنظومات العلمية والشعرية للطلاب') }}</flux:subheading>
         </div>
-        <flux:button variant="primary" icon="plus" href="{{ $role === 'supervisor' ? route('supervisor.odes.create-plan') : route('teacher.ode-plan-creator') }}">
-            {{ __('إنشاء خطة جديدة') }}
-        </flux:button>
+        @if($role === 'supervisor')
+            <flux:button variant="primary" icon="plus" href="{{ route('supervisor.odes.paths') }}">
+                {{ __('إدارة المسارات والتسكين') }}
+            </flux:button>
+        @endif
     </div>
 
     <flux:card class="p-0 overflow-hidden">
@@ -109,9 +111,9 @@ new class extends Component {
                                 <span class="text-xs text-zinc-500">{{ $plan->student->circle->name ?? 'بلا حلقة' }}</span>
                             </div>
                         </flux:table.cell>
-                        <flux:table.cell>{{ $plan->ode->name }}</flux:table.cell>
+                        <flux:table.cell>{{ $plan->path->ode->name ?? '—' }}</flux:table.cell>
                         <flux:table.cell>{{ $plan->start_date->format('Y-m-d') }}</flux:table.cell>
-                        <flux:table.cell>{{ $plan->days->count() }}</flux:table.cell>
+                        <flux:table.cell>{{ $plan->path->days->count() ?? 0 }}</flux:table.cell>
                         <flux:table.cell>
                             @if($plan->status === 'active')
                                 <flux:badge color="green" size="sm">{{ __('نشطة') }}</flux:badge>

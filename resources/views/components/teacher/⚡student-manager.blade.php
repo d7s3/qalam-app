@@ -149,6 +149,8 @@ new class extends Component {
             'odePlans' => function ($q) {
                 $q->latest();
             },
+            'odePlans.path.ode',
+            'odePlans.path.days',
             'attendances',
             'statusHistories',
         ])
@@ -523,9 +525,6 @@ new class extends Component {
                         <flux:heading size="sm">
                             {{ __('خطط المنظومات (' . $viewingStudent->odePlans->count() . ')') }}
                         </flux:heading>
-                        <flux:button size="xs" variant="filled" as="a" href="{{ route('teacher.ode-plan-creator', ['student_id' => $viewingStudent->id]) }}">
-                            إنشاء خطة منظومة
-                        </flux:button>
                     </div>
 
                     <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
@@ -533,11 +532,11 @@ new class extends Component {
                             <div class="flex items-center justify-between p-3 border border-zinc-200 dark:border-zinc-700/50 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                                 <div class="flex flex-col">
                                     <span class="text-sm font-medium">
-                                        {{ $plan->ode->name }}
+                                        {{ $plan->path->ode->name ?? '—' }}
                                     </span>
                                     <span class="text-xs text-zinc-500">
-                                        {{ $plan->start_date->format('Y/m/d') }} • 
-                                        {{ $plan->days->count() }} يوم •
+                                        {{ $plan->start_date->format('Y/m/d') }} •
+                                        {{ $plan->path->days->count() ?? 0 }} يوم •
                                         @if($plan->status === 'active')
                                             <span class="text-green-600 font-semibold">نشطة</span>
                                         @else

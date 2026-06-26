@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class StudentOdePlan extends Model
 {
     protected $fillable = [
         'student_id',
-        'ode_id',
+        'ode_path_id',
         'start_date',
         'status',
         'created_by_role',
@@ -18,18 +20,21 @@ class StudentOdePlan extends Model
         'start_date' => 'date',
     ];
 
-    public function student()
+    /** @return BelongsTo<Student, $this> */
+    public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
     }
 
-    public function ode()
+    /** @return BelongsTo<OdePath, $this> */
+    public function path(): BelongsTo
     {
-        return $this->belongsTo(Ode::class);
+        return $this->belongsTo(OdePath::class, 'ode_path_id');
     }
 
-    public function days()
+    /** @return HasMany<StudentOdeAchievement, $this> */
+    public function achievements(): HasMany
     {
-        return $this->hasMany(StudentOdePlanDay::class, 'student_ode_plan_id');
+        return $this->hasMany(StudentOdeAchievement::class, 'student_ode_plan_id');
     }
 }

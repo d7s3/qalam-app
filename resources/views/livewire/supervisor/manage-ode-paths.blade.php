@@ -6,8 +6,8 @@
                 <flux:icon icon="map" />
             </div>
             <div>
-                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">مسارات حفظ المتون</flux:heading>
-                <flux:subheading>تعريف مسارات الحفظ المنهجية (بالأحاديث أو بالأسطر) وتسكين الطلاب فيها</flux:subheading>
+                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">مسارات حفظ المنظومات</flux:heading>
+                <flux:subheading>تعريف مسارات حفظ المنظومات المنهجية (بالأبيات) وتسكين الطلاب فيها</flux:subheading>
             </div>
         </div>
         <flux:button variant="primary" icon="plus" wire:click="createPath">مسار جديد</flux:button>
@@ -15,7 +15,7 @@
 
     {{-- Search Bar --}}
     <div class="flex flex-col sm:flex-row gap-2">
-        <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث باسم المسار أو المتن..." class="flex-1" />
+        <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث باسم المسار أو المنظومة..." class="flex-1" />
     </div>
 
     {{-- Paths Table Card --}}
@@ -23,9 +23,8 @@
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>المسار</flux:table.column>
-                <flux:table.column>المتن التابع له</flux:table.column>
-                <flux:table.column>نوع الحفظ</flux:table.column>
-                <flux:table.column>المعدل اليومي</flux:table.column>
+                <flux:table.column>المنظومة التابع لها</flux:table.column>
+                <flux:table.column>عدد الأيام</flux:table.column>
                 <flux:table.column>تاريخ البدء</flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
             </flux:table.columns>
@@ -37,17 +36,10 @@
                             {{ $path->name }}
                         </flux:table.cell>
                         <flux:table.cell>
-                            {{ $path->text->name ?? 'بلا متن' }}
+                            {{ $path->ode->name ?? 'بلا منظومة' }}
                         </flux:table.cell>
                         <flux:table.cell>
-                            @if ($path->memorize_type === 'lines')
-                                <flux:badge size="sm" color="indigo" variant="outline">بالأسطر</flux:badge>
-                            @else
-                                <flux:badge size="sm" color="emerald" variant="outline">بالأحاديث</flux:badge>
-                            @endif
-                        </flux:table.cell>
-                        <flux:table.cell>
-                            {{ $path->memorize_amount }} {{ $path->memorize_type === 'lines' ? 'أسطر' : 'أحاديث' }}
+                            {{ $path->days()->count() }} يوماً
                         </flux:table.cell>
                         <flux:table.cell>
                             {{ $path->start_date->format('Y-m-d') }}
@@ -56,7 +48,7 @@
                             <flux:dropdown>
                                 <flux:button variant="ghost" size="xs" icon="ellipsis-horizontal" />
                                 <flux:menu>
-                                    <flux:menu.item href="{{ route('supervisor.hadiths.create-plan', ['path_id' => $path->id]) }}" icon="calendar-days" wire:navigate>
+                                    <flux:menu.item href="{{ route('supervisor.odes.create-plan', ['path_id' => $path->id]) }}" icon="calendar-days" wire:navigate>
                                         تعديل جدول الحفظ
                                     </flux:menu.item>
                                     <flux:menu.item wire:click="showEnrollModal({{ $path->id }})" icon="user-plus">
@@ -75,7 +67,7 @@
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="6" class="text-center py-8">
+                        <flux:table.cell colspan="5" class="text-center py-8">
                             <flux:icon icon="map" class="size-8 mx-auto text-zinc-400 mb-2" />
                             <flux:text class="text-zinc-400 text-sm">لا توجد مسارات حفظ معرفة حالياً</flux:text>
                         </flux:table.cell>
@@ -89,45 +81,27 @@
     <flux:modal name="path-modal" class="md:w-[500px]">
         <form wire:submit.prevent="savePath" class="space-y-6">
             <div>
-                <flux:heading size="lg">{{ $editingPathId ? 'تعديل مسار حفظ' : 'مسار حفظ متون جديد' }}</flux:heading>
-                <flux:subheading>أدخل تفاصيل المسار والمنهج الدراسي المرتبط به.</flux:subheading>
+                <flux:heading size="lg">{{ $editingPathId ? 'تعديل مسار حفظ' : 'مسار حفظ منظومة جديد' }}</flux:heading>
+                <flux:subheading>أدخل تفاصيل المسار والمنظومة المرتبطة به.</flux:subheading>
             </div>
 
             <div class="space-y-4">
                 <flux:field>
                     <flux:label>اسم المسار</flux:label>
-                    <flux:input wire:model="name" placeholder="مثال: مسار حفظ الأربعين النووية - حديث يومياً" required />
+                    <flux:input wire:model="name" placeholder="مثال: مسار حفظ تحفة الأطفال - بيتان يومياً" required />
                     <flux:error name="name" />
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>المتن (الكتاب)</flux:label>
-                    <flux:select wire:model="hadithTextId" placeholder="اختر المتن المنهجي...">
-                        <flux:select.option value="">اختر المتن ...</flux:select.option>
-                    @foreach ($texts as $text)
-                    
-                            <flux:select.option value="{{ $text->id }}">{{ $text->name }}</flux:select.option>
+                    <flux:label>المنظومة</flux:label>
+                    <flux:select wire:model="odeId" placeholder="اختر المنظومة...">
+                        <flux:select.option value="">اختر المنظومة ...</flux:select.option>
+                        @foreach ($odes as $ode)
+                            <flux:select.option value="{{ $ode->id }}">{{ $ode->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
-                    <flux:error name="hadithTextId" />
+                    <flux:error name="odeId" />
                 </flux:field>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <flux:field>
-                        <flux:label>نوع الحفظ اليومي</flux:label>
-                        <flux:select wire:model.live="memorizeType">
-                            <flux:select.option value="hadiths">بالأحاديث الكاملة</flux:select.option>
-                            <flux:select.option value="lines">بالأسطر</flux:select.option>
-                        </flux:select>
-                        <flux:error name="memorizeType" />
-                    </flux:field>
-
-                    <flux:field>
-                        <flux:label>مقدار الحفظ اليومي</flux:label>
-                        <flux:input type="number" min="1" wire:model="memorizeAmount" required />
-                        <flux:error name="memorizeAmount" />
-                    </flux:field>
-                </div>
 
                 <flux:field>
                     <flux:label>تاريخ البدء الافتراضي</flux:label>
@@ -138,7 +112,7 @@
                 <flux:field>
                     <flux:label>تاريخ الانتهاء (اختياري)</flux:label>
                     <livewire:shared.hijri-datepicker wire:model="endDate" label="تاريخ الانتهاء" />
-                    <flux:description>إذا حُدّد، يتوقف توليد الأيام عند هذا التاريخ حتى لو لم يكتمل المتن.</flux:description>
+                    <flux:description>إذا حُدّد، يتوقف توليد الأيام عند هذا التاريخ حتى لو لم تكتمل المنظومة.</flux:description>
                     <flux:error name="endDate" />
                 </flux:field>
             </div>
@@ -157,7 +131,7 @@
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg">تسكين الطلاب في المسار</flux:heading>
-                <flux:subheading>اختر الطلاب لتسكينهم وتوليد جدول الحفظ الخاص بهم بناءً على المسار المختار.</flux:subheading>
+                <flux:subheading>اختر الطلاب لتسكينهم في المسار. جميع الطلاب يشتركون في نفس جدول الحفظ دون تكرار البيانات.</flux:subheading>
             </div>
 
             <div class="space-y-4">
@@ -172,11 +146,11 @@
                         ->with('circle')
                         ->orderBy('name')
                         ->get();
-                    
+
                     $grouped = $students->groupBy(function($student) {
                         return $student->circle->name ?? 'بلا حلقة';
                     });
-                    
+
                     $allStudentIds = $students->pluck('id')->toArray();
                     $selectedIdsInt = array_map('intval', $selectedStudentIds);
                     $isAllSelected = count($allStudentIds) > 0 && count(array_intersect($selectedIdsInt, $allStudentIds)) === count($allStudentIds);
@@ -185,13 +159,13 @@
                 @if($students->isNotEmpty())
                     <div class="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-between shadow-xs">
                         <label class="flex items-center gap-2.5 cursor-pointer text-sm font-bold text-zinc-800 dark:text-zinc-200">
-                            <input type="checkbox" 
+                            <input type="checkbox"
                                    wire:click="toggleSelectAll([{{ implode(',', $allStudentIds) }}])"
                                    @if($isAllSelected) checked @endif
                                    class="rounded text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-700 size-4.5" />
                             <span>تحديد جميع الطلاب ({{ $students->count() }})</span>
                         </label>
-                        
+
                         <span class="text-xs text-zinc-500 dark:text-zinc-400 font-semibold bg-zinc-200 dark:bg-zinc-700/50 px-2.5 py-1 rounded-lg">
                             المحدد: {{ count(array_intersect($selectedIdsInt, $allStudentIds)) }} من {{ $students->count() }}
                         </span>
@@ -204,7 +178,7 @@
                             $circleStudentIds = $circleStudents->pluck('id')->toArray();
                             $isCircleAllSelected = count(array_intersect($selectedIdsInt, $circleStudentIds)) === count($circleStudentIds);
                         @endphp
-                        
+
                         <div class="border border-zinc-200 dark:border-zinc-800/80 rounded-xl bg-white dark:bg-zinc-950 p-3.5 shadow-xs">
                             <div class="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2.5 mb-2.5">
                                 <span class="font-bold text-sm text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
@@ -212,7 +186,7 @@
                                     {{ $circleName }}
                                     <span class="text-xs font-normal text-zinc-400 dark:text-zinc-500">({{ $circleStudents->count() }} طالباً)</span>
                                 </span>
-                                
+
                                 <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
                                     <input type="checkbox"
                                            wire:click="toggleSelectCircle([{{ implode(',', $circleStudentIds) }}])"
@@ -221,7 +195,7 @@
                                     <span>تحديد الحلقة</span>
                                 </label>
                             </div>
-                            
+
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 @foreach($circleStudents as $student)
                                     <label class="flex items-center gap-2.5 p-2 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg cursor-pointer transition-colors border border-zinc-100 dark:border-zinc-900">

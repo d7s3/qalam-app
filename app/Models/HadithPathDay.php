@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HadithPathDay extends Model
 {
@@ -89,5 +90,11 @@ class HadithPathDay extends Model
         }
 
         return null;
+    }
+
+    /** @return HasMany<StudentHadithAchievement, $this> */
+    public function achievements(): HasMany
+    {
+        return $this->hasMany(StudentHadithAchievement::class, 'hadith_path_day_id');
     }
 }

@@ -16,8 +16,8 @@ class Ode extends Model
         return $this->hasMany(OdeVerse::class)->orderBy('verse_number', 'asc');
     }
 
-    public function plans()
+    public function paths()
     {
-        return $this->hasMany(StudentOdePlan::class);
+        return $this->hasMany(OdePath::class);
     }
 }

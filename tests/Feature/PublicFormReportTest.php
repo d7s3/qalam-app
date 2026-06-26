@@ -63,14 +63,21 @@ beforeEach(function () {
 });
 
 it('blocks public access to reports if sharing is disabled', function () {
-    $this->get(route('forms.report', 'colors-countries-survey'))
-        ->assertStatus(403);
+    $this->get(route('forms.report', [$this->form->slug, $this->form->public_report_token]))
+        ->assertStatus(404);
 });
 
-it('allows public access to reports if sharing is enabled', function () {
+it('blocks access if the public token is invalid', function () {
     $this->form->update(['is_public_report' => true]);
 
-    $this->get(route('forms.report', 'colors-countries-survey'))
+    $this->get(route('forms.report', [$this->form->slug, 'invalid-token-123']))
+        ->assertStatus(404);
+});
+
+it('allows public access to reports if sharing is enabled and token matches', function () {
+    $this->form->update(['is_public_report' => true]);
+
+    $this->get(route('forms.report', [$this->form->slug, $this->form->public_report_token]))
         ->assertSuccessful()
         ->assertSee('استبيان الألوان والبلدان');
 });
@@ -78,7 +85,7 @@ it('allows public access to reports if sharing is enabled', function () {
 it('filters responses by text input', function () {
     $this->form->update(['is_public_report' => true]);
 
-    Livewire::test(FormReport::class, ['slug' => 'colors-countries-survey'])
+    Livewire::test(FormReport::class, ['slug' => $this->form->slug, 'token' => $this->form->public_report_token])
         ->set('filters.f_name', 'أحمد')
         ->assertSee('أحمد علي')
         ->assertDontSee('عمر فاروق');
@@ -87,7 +94,7 @@ it('filters responses by text input', function () {
 it('filters responses by select choice', function () {
     $this->form->update(['is_public_report' => true]);
 
-    Livewire::test(FormReport::class, ['slug' => 'colors-countries-survey'])
+    Livewire::test(FormReport::class, ['slug' => $this->form->slug, 'token' => $this->form->public_report_token])
         ->set('filters.f_color', 'أزرق')
         ->assertSee('عمر فاروق')
         ->assertDontSee('أحمد علي');
@@ -96,7 +103,7 @@ it('filters responses by select choice', function () {
 it('filters responses by multiselect checkbox', function () {
     $this->form->update(['is_public_report' => true]);
 
-    Livewire::test(FormReport::class, ['slug' => 'colors-countries-survey'])
+    Livewire::test(FormReport::class, ['slug' => $this->form->slug, 'token' => $this->form->public_report_token])
         ->set('filters.f_hobbies', ['الرياضة'])
         ->assertSee('عمر فاروق')
         ->assertDontSee('أحمد علي');
@@ -105,7 +112,7 @@ it('filters responses by multiselect checkbox', function () {
 it('groups responses by a selected field', function () {
     $this->form->update(['is_public_report' => true]);
 
-    Livewire::test(FormReport::class, ['slug' => 'colors-countries-survey'])
+    Livewire::test(FormReport::class, ['slug' => $this->form->slug, 'token' => $this->form->public_report_token])
         ->set('groupBy', 'f_color')
         ->assertSee('اللون المفضل')
         ->assertSee('أحمر')
@@ -115,7 +122,7 @@ it('groups responses by a selected field', function () {
 it('groups responses by nested primary and secondary fields', function () {
     $this->form->update(['is_public_report' => true]);
 
-    Livewire::test(FormReport::class, ['slug' => 'colors-countries-survey'])
+    Livewire::test(FormReport::class, ['slug' => $this->form->slug, 'token' => $this->form->public_report_token])
         ->set('groupBy', 'f_color')
         ->set('subGroupBy', 'f_name')
         ->assertSee('اللون المفضل')

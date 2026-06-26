@@ -6,6 +6,7 @@ use App\Models\AcademicCalendarEvent;
 use App\Models\Hadith;
 use App\Models\HadithPath;
 use App\Models\HadithPathDay;
+use App\Models\StudentHadithAchievement;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
@@ -20,6 +21,8 @@ class HadithPlanCreator extends Component
     public ?int $hadithTextId = null;
 
     public string $startDate = '';
+
+    public string $endDate = '';
 
     public array $activeDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday'];
 
@@ -92,6 +95,7 @@ class HadithPlanCreator extends Component
             $this->memorizeType = $path->memorize_type;
             $this->memorizeAmount = $path->memorize_amount;
             $this->startDate = $path->start_date->format('Y-m-d');
+            $this->endDate = $path->end_date?->format('Y-m-d') ?? '';
 
             $this->bulkType = $this->memorizeType;
             $this->bulkAmount = $this->memorizeAmount;
@@ -125,6 +129,7 @@ class HadithPlanCreator extends Component
         $this->validate([
             'hadithPathId' => 'required|exists:hadith_paths,id',
             'startDate' => 'required|date',
+            'endDate' => 'nullable|date|after_or_equal:startDate',
             'activeDays' => 'required|array|min:1',
             'memorizeType' => 'required|in:hadiths,lines',
             'memorizeAmount' => 'required|integer|min:1',
@@ -190,6 +195,7 @@ class HadithPlanCreator extends Component
 
         $this->planDays = [];
         $currentDate = Carbon::parse($this->startDate);
+        $endDateObj = $this->endDate ? Carbon::parse($this->endDate) : null;
         $scheduledDays = 0;
         $daysCount = count($chunks);
 
@@ -210,6 +216,11 @@ class HadithPlanCreator extends Component
         $hasPeriods = $attendancePeriods->isNotEmpty();
 
         while ($scheduledDays < $daysCount) {
+            // Stop at the path end date even if the text is not fully covered.
+            if ($endDateObj && $currentDate->gt($endDateObj)) {
+                break;
+            }
+
             $dayOfWeek = $currentDate->format('l');
             $dateStr = $currentDate->toDateString();
 
@@ -249,6 +260,12 @@ class HadithPlanCreator extends Component
                 $scheduledDays++;
             }
             $currentDate->addDay();
+        }
+
+        if (empty($this->planDays)) {
+            $this->addError('endDate', 'تاريخ الانتهاء قريب جداً بحيث لا يسمح بجدولة أي يوم. وسّع المدة أو راجع أيام الأسبوع.');
+
+            return;
         }
 
         $this->isGenerated = true;
@@ -573,11 +590,18 @@ class HadithPlanCreator extends Component
         $this->planDays = [];
     }
 
+    public bool $confirmingDeletion = false;
+
+    public int $affectedAchievementsCount = 0;
+
+    public int $affectedFromDayNumber = 0;
+
     public function savePlan(): void
     {
         $this->validate([
             'hadithPathId' => 'required|exists:hadith_paths,id',
             'startDate' => 'required|date',
+            'endDate' => 'nullable|date|after_or_equal:startDate',
         ]);
 
         if (empty($this->planDays)) {
@@ -586,29 +610,110 @@ class HadithPlanCreator extends Component
             return;
         }
 
-        // 1. Update HadithPath start_date and parameters
         $path = HadithPath::findOrFail($this->hadithPathId);
+
+        // Check for existing achievements that may be affected by changes
+        $oldDays = HadithPathDay::where('hadith_path_id', $this->hadithPathId)
+            ->orderBy('day_number')
+            ->get();
+
+        if ($oldDays->isNotEmpty() && ! $this->confirmingDeletion) {
+            $firstChangedDayNumber = $this->findFirstChangedDay($oldDays);
+
+            if ($firstChangedDayNumber !== null) {
+                // Check if there are achievements on or after the changed day
+                $affectedDayIds = $oldDays->where('day_number', '>=', $firstChangedDayNumber)->pluck('id');
+                $affectedCount = StudentHadithAchievement::whereIn('hadith_path_day_id', $affectedDayIds)
+                    ->count();
+
+                if ($affectedCount > 0) {
+                    $this->affectedAchievementsCount = $affectedCount;
+                    $this->affectedFromDayNumber = $firstChangedDayNumber;
+                    $this->confirmingDeletion = true;
+                    Flux::modal('confirm-delete-achievements')->show();
+
+                    return;
+                }
+            }
+        }
+
+        $this->performSave($path, $oldDays);
+    }
+
+    public function confirmSaveWithDeletion(): void
+    {
+        $path = HadithPath::findOrFail($this->hadithPathId);
+        $oldDays = HadithPathDay::where('hadith_path_id', $this->hadithPathId)
+            ->orderBy('day_number')
+            ->get();
+
+        // Delete achievements from the affected day onwards
+        $affectedDayIds = $oldDays->where('day_number', '>=', $this->affectedFromDayNumber)->pluck('id');
+        StudentHadithAchievement::whereIn('hadith_path_day_id', $affectedDayIds)->delete();
+
+        $this->confirmingDeletion = false;
+        $this->affectedAchievementsCount = 0;
+        $this->affectedFromDayNumber = 0;
+        Flux::modal('confirm-delete-achievements')->close();
+
+        $this->performSave($path, $oldDays);
+    }
+
+    public function cancelSave(): void
+    {
+        $this->confirmingDeletion = false;
+        $this->affectedAchievementsCount = 0;
+        $this->affectedFromDayNumber = 0;
+        Flux::modal('confirm-delete-achievements')->close();
+    }
+
+    private function performSave(HadithPath $path, $oldDays): void
+    {
+        // 1. Update HadithPath start_date, end_date and parameters
         $path->update([
             'start_date' => $this->startDate,
+            'end_date' => $this->endDate ?: null,
             'memorize_type' => $this->memorizeType,
             'memorize_amount' => $this->memorizeAmount,
         ]);
 
         // 2. Save HadithPathDay template records
-        HadithPathDay::where('hadith_path_id', $this->hadithPathId)->delete();
+        // Instead of deleting all days (which cascades and deletes all student achievements),
+        // we keep the days that are completely unaffected (before the first changed day number).
+        $affectedFrom = $this->affectedFromDayNumber ?: (count($this->planDays) + 1);
+
+        // Delete affected days and any extra days
+        HadithPathDay::where('hadith_path_id', $this->hadithPathId)
+            ->where('day_number', '>=', $affectedFrom)
+            ->delete();
+
+        $newCount = count($this->planDays);
+        HadithPathDay::where('hadith_path_id', $this->hadithPathId)
+            ->where('day_number', '>', $newCount)
+            ->delete();
+
         foreach ($this->planDays as $index => $day) {
-            HadithPathDay::create([
-                'hadith_path_id' => $this->hadithPathId,
-                'day_number' => $index + 1,
-                'date' => $day['date'] ?? null,
-                'day_name' => $day['day_name'] ?? null,
-                'memorize_type' => $day['memorize_type'],
-                'memorize_amount' => $day['memorize_amount'],
-                'from_hadith_id' => $day['from_hadith_id'],
-                'to_hadith_id' => $day['to_hadith_id'],
-                'from_line_number' => $day['from_line_number'],
-                'to_line_number' => $day['to_line_number'],
-            ]);
+            $dayNumber = $index + 1;
+            HadithPathDay::updateOrCreate(
+                [
+                    'hadith_path_id' => $this->hadithPathId,
+                    'day_number' => $dayNumber,
+                ],
+                [
+                    'date' => $day['date'] ?? null,
+                    'day_name' => $day['day_name'] ?? null,
+                    'memorize_type' => $day['memorize_type'],
+                    'memorize_amount' => $day['memorize_amount'],
+                    'from_hadith_id' => $day['from_hadith_id'] ?? null,
+                    'to_hadith_id' => $day['to_hadith_id'] ?? null,
+                    'from_line_number' => $day['from_line_number'] ?? null,
+                    'to_line_number' => $day['to_line_number'] ?? null,
+                    'review_from_hadith_id' => $day['review_from_hadith_id'] ?? null,
+                    'review_to_hadith_id' => $day['review_to_hadith_id'] ?? null,
+                    'review_from_line_number' => $day['review_from_line_number'] ?? null,
+                    'review_to_line_number' => $day['review_to_line_number'] ?? null,
+                ]
+            );
         }
 
         Flux::toast('تم حفظ خطة المسار بنجاح', variant: 'success');
@@ -618,6 +723,40 @@ class HadithPlanCreator extends Component
         } else {
             $this->redirectRoute('teacher.dashboard');
         }
+    }
+
+    /**
+     * Compare old and new plan days to find the first day number that changed.
+     *
+     * @return int|null Day number of first change, or null if no change
+     */
+    private function findFirstChangedDay($oldDays): ?int
+    {
+        $newDaysCount = count($this->planDays);
+        $oldDaysCount = $oldDays->count();
+
+        foreach ($oldDays as $index => $oldDay) {
+            // If the new plan has fewer days, everything from here onwards changed
+            if ($index >= $newDaysCount) {
+                return $oldDay->day_number;
+            }
+
+            $newDay = $this->planDays[$index];
+
+            // Compare relevant fields
+            if (
+                $oldDay->memorize_type !== ($newDay['memorize_type'] ?? null) ||
+                $oldDay->memorize_amount !== (int) ($newDay['memorize_amount'] ?? 0) ||
+                $oldDay->from_hadith_id !== ($newDay['from_hadith_id'] ?? null) ||
+                $oldDay->to_hadith_id !== ($newDay['to_hadith_id'] ?? null) ||
+                $oldDay->from_line_number !== ($newDay['from_line_number'] ?? null) ||
+                $oldDay->to_line_number !== ($newDay['to_line_number'] ?? null)
+            ) {
+                return $oldDay->day_number;
+            }
+        }
+
+        return null;
     }
 
     private function translateDay(string $day): string

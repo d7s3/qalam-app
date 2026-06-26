@@ -91,7 +91,7 @@
                                                 @endforeach
                                             </div>
                                         @else
-                                            <span class="line-clamp-2" title="{{ is_array($answer) ? implode(', ', $answer) : $answer }}">
+                                            <span title="{{ is_array($answer) ? implode(', ', $answer) : $answer }}">
                                                 {{ is_array($answer) ? implode(', ', $answer) : $answer }}
                                             </span>
                                         @endif

@@ -36,10 +36,6 @@
     </flux:sidebar.group>
 
     <flux:sidebar.group heading="{{ __('خطط المنظومات') }}" class="mt-4">
-        <flux:sidebar.item icon="pencil-square" wire:navigate
-            :current="request()->routeIs('teacher.ode-plan-creator')" href="{{ route('teacher.ode-plan-creator') }}">
-            {{ __('إنشاء خطة منظومة') }}
-        </flux:sidebar.item>
         <flux:sidebar.item icon="clipboard-document-list" wire:navigate
             :current="request()->routeIs('teacher.ode-plans')" href="{{ route('teacher.ode-plans') }}">
             {{ __('عرض الخطط المنشأة') }}

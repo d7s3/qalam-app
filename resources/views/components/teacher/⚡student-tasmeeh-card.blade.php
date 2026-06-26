@@ -5,9 +5,11 @@ use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\StudentOdePlan;
-use App\Models\StudentOdePlanDay;
+use App\Models\StudentOdeAchievement;
+use App\Models\OdePathDay;
 use App\Models\StudentHadithPlan;
-use App\Models\StudentHadithPlanDay;
+use App\Models\StudentHadithAchievement;
+use App\Models\HadithPathDay;
 use Flux\Flux;
 use Livewire\Attributes\Reactive;
 
@@ -66,8 +68,18 @@ new class extends Component {
         Flux::toast('تم حفظ التقييم', variant: 'success');
     }
 
-    public function saveOdeAchievement($dayId, $type, $value)
+    public function saveOdeAchievement($pathDayId, $type, $value)
     {
+        // Find the student's active ode plan
+        $activeOdePlan = StudentOdePlan::where('student_id', $this->student->id)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $activeOdePlan) {
+            Flux::toast('لا توجد خطة منظومة نشطة لهذا الطالب', variant: 'danger');
+            return;
+        }
+
         $updateData = [];
         $gradeTime = null;
         if ($this->gradedAtDate) {
@@ -86,13 +98,31 @@ new class extends Component {
             $updateData['review_graded_at'] = $value !== null ? $gradeTime : null;
         }
 
-        StudentOdePlanDay::where('id', $dayId)->update($updateData);
+        $achievement = StudentOdeAchievement::updateOrCreate(
+            [
+                'student_ode_plan_id' => $activeOdePlan->id,
+                'ode_path_day_id' => $pathDayId,
+            ],
+            $updateData
+        );
 
-        Flux::toast('تم حفظ تقييم المنظومة', variant: 'success');
+        \App\Services\GamificationService::syncStudentOdeAchievementXP($achievement->fresh(['plan.student', 'pathDay']));
+
+        Flux::toast('تم حفظ تقييم المنظومة بنجاح', variant: 'success');
     }
 
-    public function saveHadithAchievement($dayId, $type, $value)
+    public function saveHadithAchievement($pathDayId, $type, $value)
     {
+        // Find the student's active hadith plan
+        $activeHadithPlan = StudentHadithPlan::where('student_id', $this->student->id)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $activeHadithPlan) {
+            Flux::toast('لا توجد خطة حديث نشطة لهذا الطالب', variant: 'danger');
+            return;
+        }
+
         $updateData = [];
         $gradeTime = null;
         if ($this->gradedAtDate) {
@@ -111,7 +141,15 @@ new class extends Component {
             $updateData['review_graded_at'] = $value !== null ? $gradeTime : null;
         }
 
-        StudentHadithPlanDay::where('id', $dayId)->update($updateData);
+        $achievement = StudentHadithAchievement::updateOrCreate(
+            [
+                'student_hadith_plan_id' => $activeHadithPlan->id,
+                'hadith_path_day_id' => $pathDayId,
+            ],
+            $updateData
+        );
+
+        \App\Services\GamificationService::syncStudentHadithAchievementXP($achievement->fresh(['plan.student', 'pathDay']));
 
         Flux::toast('تم حفظ تقييم الحديث بنجاح', variant: 'success');
     }
@@ -127,7 +165,7 @@ new class extends Component {
                 $studentOdePlans->push($activeOdePlan);
             }
         } else {
-            $studentOdePlans = StudentOdePlan::with('ode')
+            $studentOdePlans = StudentOdePlan::with('path.ode')
                 ->where('student_id', $this->student->id)
                 ->get();
             $activeOdePlan = $studentOdePlans->firstWhere('status', 'active');
@@ -167,10 +205,22 @@ new class extends Component {
             if (app()->bound('tasmeeh_ode_days_cache')) {
                 $odeDays = app('tasmeeh_ode_days_cache')->get($activeOdePlan->id) ?? collect();
             } else {
-                $odeDays = StudentOdePlanDay::with('plan.ode')
-                    ->where('student_ode_plan_id', $activeOdePlan->id)
-                    ->orderBy('date', 'asc')
+                $rawOdeDays = OdePathDay::where('ode_path_id', $activeOdePlan->ode_path_id)
+                    ->orderBy('day_number', 'asc')
                     ->get();
+
+                $odeAchievements = StudentOdeAchievement::where('student_ode_plan_id', $activeOdePlan->id)
+                    ->get()
+                    ->keyBy('ode_path_day_id');
+
+                $odeDays = $rawOdeDays->map(function ($day) use ($odeAchievements) {
+                    $achievement = $odeAchievements->get($day->id);
+                    $day->hifz_achievement = $achievement?->hifz_achievement;
+                    $day->review_achievement = $achievement?->review_achievement;
+                    $day->hifz_graded_at = $achievement?->hifz_graded_at;
+                    $day->review_graded_at = $achievement?->review_graded_at;
+                    return $day;
+                });
             }
         }
 
@@ -180,12 +230,26 @@ new class extends Component {
             if (app()->bound('tasmeeh_hadith_days_cache')) {
                 $hadithDays = app('tasmeeh_hadith_days_cache')->get($activeHadithPlan->id) ?? collect();
             } else {
-                $hadithDays = StudentHadithPlanDay::with(['plan.path', 'fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
-                    ->where('student_hadith_plan_id', $activeHadithPlan->id)
-                    ->orderBy('date', 'asc')
+                $rawDays = HadithPathDay::with(['fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
+                    ->where('hadith_path_id', $activeHadithPlan->hadith_path_id)
+                    ->orderBy('day_number', 'asc')
                     ->get();
+
+                $achievements = StudentHadithAchievement::where('student_hadith_plan_id', $activeHadithPlan->id)
+                    ->get()
+                    ->keyBy('hadith_path_day_id');
+
+                $hadithDays = $rawDays->map(function ($day) use ($achievements) {
+                    $achievement = $achievements->get($day->id);
+                    $day->hifz_achievement = $achievement?->hifz_achievement;
+                    $day->review_achievement = $achievement?->review_achievement;
+                    $day->hifz_graded_at = $achievement?->hifz_graded_at;
+                    $day->review_graded_at = $achievement?->review_graded_at;
+                    return $day;
+                });
             }
         }
+
 
         // Find the specific Ode plan day matching the selected gradedAtDate
         $odeDayForSelectedDate = null;
@@ -321,7 +385,7 @@ new class extends Component {
         // Fetch all verses of the active Ode plan's ode
         $odeVerses = collect();
         if ($activeOdePlan) {
-            $odeVerses = \App\Models\OdeVerse::where('ode_id', $activeOdePlan->ode_id)
+            $odeVerses = \App\Models\OdeVerse::where('ode_id', $activeOdePlan->path->ode_id)
                 ->orderBy('verse_number', 'asc')
                 ->get();
         }
@@ -735,14 +799,28 @@ new class extends Component {
                     });
                 }
 
+                $previousHifzVerses = collect();
+                if ($odeDay->from_verse_number && $odeDay->from_verse_number > 1) {
+                    $previousHifzVerses = $odeVerses->filter(function ($v) use ($odeDay) {
+                        return $v->verse_number < $odeDay->from_verse_number;
+                    })->values()->slice(-5)->values();
+                }
+
                 $reviewVerses = collect();
                 if ($odeDay->review_from_verse_number && $odeDay->review_to_verse_number) {
                     $reviewVerses = $odeVerses->filter(function ($v) use ($odeDay) {
                         return $v->verse_number >= $odeDay->review_from_verse_number && $v->verse_number <= $odeDay->review_to_verse_number;
                     });
                 }
+
+                $previousReviewVerses = collect();
+                if ($odeDay->review_from_verse_number && $odeDay->review_from_verse_number > 1) {
+                    $previousReviewVerses = $odeVerses->filter(function ($v) use ($odeDay) {
+                        return $v->verse_number < $odeDay->review_from_verse_number;
+                    })->values()->slice(-5)->values();
+                }
             @endphp
-            <div wire:key="ode-day-card-container-{{ $odeDay->id }}" x-show="activeOdeDayId == {{ $odeDay->id }}" class="mt-4" x-data="{ showHifzModal: false, showReviewModal: false }">
+            <div wire:key="ode-day-card-container-{{ $odeDay->id }}" x-show="activeOdeDayId == {{ $odeDay->id }}" class="mt-4" x-data="{ showHifzModal: false, showReviewModal: false, prevHifzCount: 0, prevReviewCount: 0 }">
                 
                 {{-- Unified Card --}}
                 <flux:card x-data="{ syncingTask: null }" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveOdeAchievement">
@@ -757,7 +835,7 @@ new class extends Component {
                             <div class="font-bold text-lg leading-none">{{ $odeDay->day_name }}</div>
                             <div class="text-zinc-500 text-sm dir-ltr mt-1 leading-none">{{ $odeDay->date->format('Y/m/d') }}</div>
                             <div class="text-xs text-indigo-600 dark:text-indigo-400 mt-1.5 font-semibold">
-                                {{ __('تسميع المنظومة') }}: {{ $activeOdePlan->ode->name }}
+                                {{ __('تسميع المنظومة') }}: {{ $activeOdePlan->path->ode->name }}
                             </div>
                         </div>
 
@@ -923,7 +1001,7 @@ new class extends Component {
                                         {{ __('حفظ المنظومة') }}
                                     </h3>
                                     <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-semibold">
-                                        {{ $activeOdePlan->ode->name }} ({{ $odeDay->formatOdeRange('hifz') }})
+                                        {{ $activeOdePlan->path->ode->name }} ({{ $odeDay->formatOdeRange('hifz') }})
                                     </p>
                                 </div>
                                 <button type="button" @click="showHifzModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
@@ -934,6 +1012,36 @@ new class extends Component {
                             {{-- Modal Content (Scrollable) --}}
                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
                                 <div class="max-w-4xl mx-auto space-y-4">
+                                    {{-- Previous Verses Button --}}
+                                    @if($previousHifzVerses->isNotEmpty())
+                                        <div x-show="prevHifzCount < {{ $previousHifzVerses->count() }}" class="flex justify-center mb-4 shrink-0">
+                                            <flux:button type="button" @click="prevHifzCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold border border-zinc-200 dark:border-zinc-700">
+                                                {{ __('إظهار البيت السابق') }}
+                                            </flux:button>
+                                        </div>
+                                    @endif
+
+                                    {{-- Previous Verses (Dimmed) --}}
+                                    @foreach($previousHifzVerses as $index => $verse)
+                                        <div x-show="prevHifzCount >= {{ $previousHifzVerses->count() - $index }}"
+                                             x-cloak
+                                             class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100/60 dark:border-zinc-800/40 shadow-sm opacity-40 hover:opacity-80 transition-opacity">
+                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
+                                                {{ $verse->verse_number }}
+                                            </span>
+                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
+                                                <div class="font-semibold text-zinc-500 dark:text-zinc-400 text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
+                                                    {{ $verse->sadr }}
+                                                </div>
+                                                <div class="font-semibold text-zinc-400 dark:text-zinc-500 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
+                                                    {{ $verse->ajuz }}
+                                                    <span class="text-xs font-sans text-zinc-400 dark:text-zinc-600 mr-2">({{ __('سابق') }})</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+
+                                    {{-- Current Hifz Verses --}}
                                     @foreach($hifzVerses as $verse)
                                         <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 shadow-sm hover:shadow-md transition-shadow">
                                             <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-extrabold text-sm shadow-sm">
@@ -954,7 +1062,7 @@ new class extends Component {
 
                             {{-- Modal Footer --}}
                             <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                                <flux:button type="button" @click="showHifzModal = false" variant="ghost">
+                                <flux:button type="button" @click="showHifzModal = false; prevHifzCount = 0" variant="ghost">
                                     {{ __('إغلاق') }}
                                 </flux:button>
                             </div>
@@ -980,7 +1088,7 @@ new class extends Component {
                                         {{ __('مراجعة المنظومة') }}
                                     </h3>
                                     <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
-                                        {{ $activeOdePlan->ode->name }} ({{ $odeDay->formatOdeRange('review') }})
+                                        {{ $activeOdePlan->path->ode->name }} ({{ $odeDay->formatOdeRange('review') }})
                                     </p>
                                 </div>
                                 <button type="button" @click="showReviewModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
@@ -991,6 +1099,36 @@ new class extends Component {
                             {{-- Modal Content (Scrollable) --}}
                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
                                 <div class="max-w-4xl mx-auto space-y-4">
+                                    {{-- Previous Verses Button --}}
+                                    @if($previousReviewVerses->isNotEmpty())
+                                        <div x-show="prevReviewCount < {{ $previousReviewVerses->count() }}" class="flex justify-center mb-4 shrink-0">
+                                            <flux:button type="button" @click="prevReviewCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold border border-zinc-200 dark:border-zinc-700">
+                                                {{ __('إظهار البيت السابق') }}
+                                            </flux:button>
+                                        </div>
+                                    @endif
+
+                                    {{-- Previous Verses (Dimmed) --}}
+                                    @foreach($previousReviewVerses as $index => $verse)
+                                        <div x-show="prevReviewCount >= {{ $previousReviewVerses->count() - $index }}"
+                                             x-cloak
+                                             class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100/60 dark:border-zinc-800/40 shadow-sm opacity-40 hover:opacity-80 transition-opacity">
+                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
+                                                {{ $verse->verse_number }}
+                                            </span>
+                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
+                                                <div class="font-semibold text-zinc-500 dark:text-zinc-400 text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
+                                                    {{ $verse->sadr }}
+                                                </div>
+                                                <div class="font-semibold text-zinc-400 dark:text-zinc-500 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
+                                                    {{ $verse->ajuz }}
+                                                    <span class="text-xs font-sans text-zinc-400 dark:text-zinc-600 mr-2">({{ __('سابق') }})</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+
+                                    {{-- Current Review Verses --}}
                                     @foreach($reviewVerses as $verse)
                                         <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-emerald-100/60 dark:border-emerald-950/40 shadow-sm hover:shadow-md transition-shadow">
                                             <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-sm shadow-sm">
@@ -1011,7 +1149,7 @@ new class extends Component {
 
                             {{-- Modal Footer --}}
                             <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                                <flux:button type="button" @click="showReviewModal = false" variant="ghost">
+                                <flux:button type="button" @click="showReviewModal = false; prevReviewCount = 0" variant="ghost">
                                     {{ __('إغلاق') }}
                                 </flux:button>
                             </div>
@@ -1026,7 +1164,7 @@ new class extends Component {
                 <flux:icon icon="book-open" class="size-5 text-indigo-500" />
                 <div>
                     <flux:heading size="md" class="font-bold text-zinc-900 dark:text-white">
-                        {{ __('تسميع المنظومة') }}: {{ $activeOdePlan->ode->name }}
+                        {{ __('تسميع المنظومة') }}: {{ $activeOdePlan->path->ode->name }}
                     </flux:heading>
                 </div>
             </div>
@@ -1528,10 +1666,9 @@ new class extends Component {
         <div class="flex flex-col items-center justify-center p-12 bg-zinc-50/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl text-center h-full min-h-[400px]">
             <flux:icon icon="document-text" class="size-16 text-zinc-300 dark:text-zinc-600 mb-4" />
             <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400 mb-2">{{ __('لا توجد خطط لهذا الطالب') }}</flux:heading>
-            <p class="text-zinc-400 dark:text-zinc-500 text-sm max-w-sm mb-6">{{ __('قم بإنشاء خطة قرآنية أو خطة منظومة للطالب للبدء بتقييم التسميع والمراجعة.') }}</p>
+            <p class="text-zinc-400 dark:text-zinc-500 text-sm max-w-sm mb-6">{{ __('قم بإنشاء خطة قرآنية للطالب، أو اطلب من المشرف تسكينه في مسار منظومة، للبدء بتقييم التسميع والمراجعة.') }}</p>
             <div class="flex flex-wrap gap-2 justify-center">
                 <flux:button href="{{ route('teacher.plan-creator', ['studentId' => $student->id]) }}" variant="primary" icon="plus">{{ __('خطة قرآنية جديدة') }}</flux:button>
-                <flux:button href="{{ route('teacher.ode-plan-creator', ['student_id' => $student->id]) }}" variant="filled" icon="plus">{{ __('خطة منظومة جديدة') }}</flux:button>
             </div>
         </div>
     @endif

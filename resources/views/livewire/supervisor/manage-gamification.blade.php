@@ -298,7 +298,7 @@
                                         <span>طاقة الخبرة (XP)</span>
                                         <span>العملات ({{ $theme['currency_name'] }})</span>
                                     </div>
-                                    
+
                                     <div class="space-y-2">
                                         <div class="grid grid-cols-2 gap-2 items-center">
                                             <flux:input type="number" wire:model="attendance_present_xp" label="حاضر بوقت (XP)" size="sm" />
@@ -312,6 +312,157 @@
 
                                     <div class="pt-2 border-t border-zinc-200/40 dark:border-zinc-800/40">
                                         <flux:switch wire:model="attendance_enthusiasm_trigger" label="مغذي لشعلة الحماسة 🔥" />
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Ode & Hadith automatic settings --}}
+                    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mt-6">
+                        <!-- Ode Hifz -->
+                        <div class="p-5 rounded-2xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/30 dark:bg-violet-950/10 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-1.5 rounded-lg bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">
+                                        <flux:icon icon="musical-note" class="size-5" />
+                                    </div>
+                                    <span class="font-bold text-zinc-900 dark:text-white">حفظ المنظومة</span>
+                                </div>
+                                <flux:switch wire:model.live="ode_hifz_enabled" />
+                            </div>
+
+                            @if($ode_hifz_enabled)
+                                <div class="space-y-3 pt-2 border-t border-violet-200/60 dark:border-violet-800/80">
+                                    <div class="grid grid-cols-2 gap-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                        <span>طاقة الخبرة (XP)</span>
+                                        <span>العملات ({{ $theme['currency_name'] }})</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="ode_hifz_excellent_xp" label="ممتاز (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="ode_hifz_excellent_coins" label="ممتاز (عملة)" size="sm" />
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="ode_hifz_good_xp" label="جيد (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="ode_hifz_good_coins" label="جيد (عملة)" size="sm" />
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="ode_hifz_acceptable_xp" label="مقبول (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="ode_hifz_acceptable_coins" label="مقبول (عملة)" size="sm" />
+                                        </div>
+                                    </div>
+                                    <div class="pt-2 border-t border-violet-200/40 dark:border-violet-800/40">
+                                        <flux:switch wire:model="ode_hifz_enthusiasm_trigger" label="مغذي لشعلة الحماسة 🔥" />
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+
+                        <!-- Ode Review -->
+                        <div class="p-5 rounded-2xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/30 dark:bg-violet-950/10 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-1.5 rounded-lg bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">
+                                        <flux:icon icon="arrow-path" class="size-5" />
+                                    </div>
+                                    <span class="font-bold text-zinc-900 dark:text-white">مراجعة المنظومة</span>
+                                </div>
+                                <flux:switch wire:model.live="ode_review_enabled" />
+                            </div>
+
+                            @if($ode_review_enabled)
+                                <div class="space-y-3 pt-2 border-t border-violet-200/60 dark:border-violet-800/80">
+                                    <div class="grid grid-cols-2 gap-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                        <span>طاقة الخبرة (XP)</span>
+                                        <span>العملات ({{ $theme['currency_name'] }})</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="ode_review_excellent_xp" label="ممتاز (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="ode_review_excellent_coins" label="ممتاز (عملة)" size="sm" />
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="ode_review_good_xp" label="جيد ومقبول (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="ode_review_good_coins" label="جيد ومقبول (عملة)" size="sm" />
+                                        </div>
+                                    </div>
+                                    <div class="pt-2 border-t border-violet-200/40 dark:border-violet-800/40">
+                                        <flux:switch wire:model="ode_review_enthusiasm_trigger" label="مغذي لشعلة الحماسة 🔥" />
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+
+                        <!-- Hadith Hifz -->
+                        <div class="p-5 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/30 dark:bg-rose-950/10 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
+                                        <flux:icon icon="document-text" class="size-5" />
+                                    </div>
+                                    <span class="font-bold text-zinc-900 dark:text-white">حفظ الحديث</span>
+                                </div>
+                                <flux:switch wire:model.live="hadith_hifz_enabled" />
+                            </div>
+
+                            @if($hadith_hifz_enabled)
+                                <div class="space-y-3 pt-2 border-t border-rose-200/60 dark:border-rose-800/80">
+                                    <div class="grid grid-cols-2 gap-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                        <span>طاقة الخبرة (XP)</span>
+                                        <span>العملات ({{ $theme['currency_name'] }})</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="hadith_hifz_excellent_xp" label="ممتاز (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="hadith_hifz_excellent_coins" label="ممتاز (عملة)" size="sm" />
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="hadith_hifz_good_xp" label="جيد (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="hadith_hifz_good_coins" label="جيد (عملة)" size="sm" />
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="hadith_hifz_acceptable_xp" label="مقبول (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="hadith_hifz_acceptable_coins" label="مقبول (عملة)" size="sm" />
+                                        </div>
+                                    </div>
+                                    <div class="pt-2 border-t border-rose-200/40 dark:border-rose-800/40">
+                                        <flux:switch wire:model="hadith_hifz_enthusiasm_trigger" label="مغذي لشعلة الحماسة 🔥" />
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+
+                        <!-- Hadith Review -->
+                        <div class="p-5 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/30 dark:bg-rose-950/10 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
+                                        <flux:icon icon="arrow-path" class="size-5" />
+                                    </div>
+                                    <span class="font-bold text-zinc-900 dark:text-white">مراجعة الحديث</span>
+                                </div>
+                                <flux:switch wire:model.live="hadith_review_enabled" />
+                            </div>
+
+                            @if($hadith_review_enabled)
+                                <div class="space-y-3 pt-2 border-t border-rose-200/60 dark:border-rose-800/80">
+                                    <div class="grid grid-cols-2 gap-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                        <span>طاقة الخبرة (XP)</span>
+                                        <span>العملات ({{ $theme['currency_name'] }})</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="hadith_review_excellent_xp" label="ممتاز (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="hadith_review_excellent_coins" label="ممتاز (عملة)" size="sm" />
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <flux:input type="number" wire:model="hadith_review_good_xp" label="جيد ومقبول (XP)" size="sm" />
+                                            <flux:input type="number" wire:model="hadith_review_good_coins" label="جيد ومقبول (عملة)" size="sm" />
+                                        </div>
+                                    </div>
+                                    <div class="pt-2 border-t border-rose-200/40 dark:border-rose-800/40">
+                                        <flux:switch wire:model="hadith_review_enthusiasm_trigger" label="مغذي لشعلة الحماسة 🔥" />
                                     </div>
                                 </div>
                             @endif

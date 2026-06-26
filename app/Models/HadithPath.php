@@ -19,10 +19,12 @@ class HadithPath extends Model
         'memorize_type',
         'memorize_amount',
         'start_date',
+        'end_date',
     ];
 
     protected $casts = [
         'start_date' => 'date',
+        'end_date' => 'date',
     ];
 
     /** @return BelongsTo<HadithText, $this> */

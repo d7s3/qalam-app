@@ -35,9 +35,9 @@ class StudentHadithPlan extends Model
         return $this->belongsTo(HadithPath::class, 'hadith_path_id');
     }
 
-    /** @return HasMany<StudentHadithPlanDay, $this> */
-    public function days(): HasMany
+    /** @return HasMany<StudentHadithAchievement, $this> */
+    public function achievements(): HasMany
     {
-        return $this->hasMany(StudentHadithPlanDay::class, 'student_hadith_plan_id');
+        return $this->hasMany(StudentHadithAchievement::class, 'student_hadith_plan_id');
     }
 }

@@ -225,7 +225,7 @@
                                     
                                     <div x-show="open" x-collapse class="p-4 bg-white space-y-4 border-t border-zinc-200 divide-y divide-zinc-150">
                                         @foreach($form->fields as $field)
-                                            <div class="pt-3 first:pt-0 space-y-2">
+                                            <div wire:key="filter-field-{{ $field['id'] }}" class="pt-3 first:pt-0 space-y-2">
                                                 <label class="text-xs font-bold text-zinc-800">{{ $field['label'] }}</label>
                                                 
                                                 @if($field['type'] === 'text')
@@ -238,8 +238,8 @@
                                                         @php
                                                             $optionsList = $field['options'] ?? [];
                                                         @endphp
-                                                        @foreach($optionsList as $opt)
-                                                            <label class="flex items-center gap-2 cursor-pointer text-xs py-1">
+                                                        @foreach($optionsList as $index => $opt)
+                                                            <label wire:key="filter-opt-{{ $field['id'] }}-{{ $index }}" class="flex items-center gap-2 cursor-pointer text-xs py-1">
                                                                 <input type="checkbox" wire:model.live="filters.{{ $field['id'] }}" value="{{ $opt }}" class="rounded border-zinc-300 text-accent focus:ring-accent" />
                                                                 <span class="text-zinc-700">{{ $opt }}</span>
                                                             </label>

@@ -3,12 +3,10 @@
 namespace App\Livewire\Shared;
 
 use App\Models\AcademicCalendarEvent;
-use App\Models\Circle;
-use App\Models\Ode;
+use App\Models\OdePath;
+use App\Models\OdePathDay;
 use App\Models\OdeVerse;
-use App\Models\Student;
-use App\Models\StudentOdePlan;
-use App\Models\StudentOdePlanDay;
+use App\Models\StudentOdeAchievement;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
@@ -18,11 +16,13 @@ class OdePlanCreator extends Component
     public $userRole; // 'supervisor' or 'teacher'
 
     // Form inputs
-    public ?int $studentId = null;
+    public ?int $odePathId = null;
 
     public ?int $odeId = null;
 
     public string $startDate = '';
+
+    public string $endDate = '';
 
     public array $activeDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday'];
 
@@ -47,7 +47,14 @@ class OdePlanCreator extends Component
 
     public bool $isGenerated = false;
 
-    public function mount(?int $studentId = null): void
+    // Destructive-edit protection
+    public bool $confirmingDeletion = false;
+
+    public int $affectedAchievementsCount = 0;
+
+    public int $affectedFromDayNumber = 0;
+
+    public function mount(): void
     {
         if (auth()->guard('supervisor')->check()) {
             $this->userRole = 'supervisor';
@@ -57,11 +64,12 @@ class OdePlanCreator extends Component
 
         $this->startDate = now()->format('Y-m-d');
 
-        if ($studentId) {
-            $this->studentId = $studentId;
+        $pathId = request()->query('path_id');
+        if ($pathId) {
+            $this->odePathId = (int) $pathId;
+            $this->updatedOdePathId($this->odePathId);
         }
 
-        // Auto-fill active days from the current attendance period if any
         $this->autoFillActiveDays();
     }
 
@@ -88,23 +96,48 @@ class OdePlanCreator extends Component
         }
     }
 
-    public function updatedOdeId($value): void
+    public function updatedOdePathId($value): void
     {
         if ($value) {
-            $maxVerse = OdeVerse::where('ode_id', $value)->max('verse_number') ?: 1;
+            $path = OdePath::findOrFail($value);
+            $this->odeId = $path->ode_id;
+            $this->startDate = $path->start_date->format('Y-m-d');
+            $this->endDate = $path->end_date?->format('Y-m-d') ?? '';
+
+            $maxVerse = OdeVerse::where('ode_id', $this->odeId)->max('verse_number') ?: 1;
             $this->hifzStart = 1;
             $this->hifzEnd = $maxVerse;
             $this->reviewStart = 1;
             $this->reviewEnd = $maxVerse;
+
+            // Load existing template days if any
+            $existingDays = OdePathDay::where('ode_path_id', $value)->orderBy('day_number')->get();
+            if ($existingDays->isNotEmpty()) {
+                $this->hasReview = $existingDays->contains(fn ($d) => $d->review_from_verse_number !== null);
+                $this->planDays = $existingDays->map(fn ($d) => [
+                    'date' => $d->date ? $d->date->toDateString() : null,
+                    'day_name' => $d->day_name,
+                    'from_verse_number' => $d->from_verse_number,
+                    'to_verse_number' => $d->to_verse_number,
+                    'review_from_verse_number' => $d->review_from_verse_number,
+                    'review_to_verse_number' => $d->review_to_verse_number,
+                ])->toArray();
+                $this->isGenerated = true;
+            } else {
+                $this->isGenerated = false;
+                $this->planDays = [];
+            }
+        } else {
+            $this->reset(['odeId', 'isGenerated', 'planDays', 'hasReview']);
         }
     }
 
     public function generatePreview(): void
     {
         $this->validate([
-            'studentId' => 'required|exists:students,id',
-            'odeId' => 'required|exists:odes,id',
+            'odePathId' => 'required|exists:ode_paths,id',
             'startDate' => 'required|date',
+            'endDate' => 'nullable|date|after_or_equal:startDate',
             'activeDays' => 'required|array|min:1',
             'hifzStart' => 'required|integer|min:1',
             'hifzEnd' => 'required|integer|gte:hifzStart',
@@ -142,6 +175,7 @@ class OdePlanCreator extends Component
 
         $this->planDays = [];
         $currentDate = Carbon::parse($this->startDate);
+        $endDateObj = $this->endDate ? Carbon::parse($this->endDate) : null;
         $count = 0;
 
         $attendancePeriods = AcademicCalendarEvent::where('is_attendance_period', true)
@@ -161,6 +195,11 @@ class OdePlanCreator extends Component
         $hasPeriods = $attendancePeriods->isNotEmpty();
 
         while ($count < $daysNeeded) {
+            // Stop at the path end date even if the ode is not fully covered.
+            if ($endDateObj && $currentDate->gt($endDateObj)) {
+                break;
+            }
+
             $dayOfWeek = $currentDate->format('l');
             $dateStr = $currentDate->toDateString();
 
@@ -221,6 +260,12 @@ class OdePlanCreator extends Component
             $currentDate->addDay();
         }
 
+        if (empty($this->planDays)) {
+            $this->addError('endDate', 'تاريخ الانتهاء قريب جداً بحيث لا يسمح بجدولة أي يوم. وسّع المدة أو راجع أيام الأسبوع.');
+
+            return;
+        }
+
         $this->isGenerated = true;
     }
 
@@ -233,9 +278,9 @@ class OdePlanCreator extends Component
     public function savePlan(): void
     {
         $this->validate([
-            'studentId' => 'required|exists:students,id',
-            'odeId' => 'required|exists:odes,id',
+            'odePathId' => 'required|exists:ode_paths,id',
             'startDate' => 'required|date',
+            'endDate' => 'nullable|date|after_or_equal:startDate',
         ]);
 
         if (empty($this->planDays)) {
@@ -244,42 +289,151 @@ class OdePlanCreator extends Component
             return;
         }
 
-        // Deactivate existing active plans for this student and this ode
-        StudentOdePlan::where('student_id', $this->studentId)
-            ->where('ode_id', $this->odeId)
-            ->where('status', 'active')
-            ->update(['status' => 'completed']);
+        $path = OdePath::findOrFail($this->odePathId);
 
-        // Create new plan
-        $plan = StudentOdePlan::create([
-            'student_id' => $this->studentId,
-            'ode_id' => $this->odeId,
+        // Check for existing achievements that may be affected by changes
+        $oldDays = OdePathDay::where('ode_path_id', $this->odePathId)
+            ->orderBy('day_number')
+            ->get();
+
+        if ($oldDays->isNotEmpty() && ! $this->confirmingDeletion) {
+            $firstChangedDayNumber = $this->findFirstChangedDay($oldDays);
+
+            if ($firstChangedDayNumber !== null) {
+                // Check if there are achievements on or after the changed day
+                $affectedDayIds = $oldDays->where('day_number', '>=', $firstChangedDayNumber)->pluck('id');
+                $affectedCount = StudentOdeAchievement::whereIn('ode_path_day_id', $affectedDayIds)
+                    ->count();
+
+                if ($affectedCount > 0) {
+                    $this->affectedAchievementsCount = $affectedCount;
+                    $this->affectedFromDayNumber = $firstChangedDayNumber;
+                    $this->confirmingDeletion = true;
+                    Flux::modal('confirm-delete-achievements')->show();
+
+                    return;
+                }
+            }
+        }
+
+        $this->performSave($path, $oldDays);
+    }
+
+    public function confirmSaveWithDeletion(): void
+    {
+        $path = OdePath::findOrFail($this->odePathId);
+        $oldDays = OdePathDay::where('ode_path_id', $this->odePathId)
+            ->orderBy('day_number')
+            ->get();
+
+        // Delete achievements from the affected day onwards
+        $affectedDayIds = $oldDays->where('day_number', '>=', $this->affectedFromDayNumber)->pluck('id');
+        StudentOdeAchievement::whereIn('ode_path_day_id', $affectedDayIds)->delete();
+
+        $this->confirmingDeletion = false;
+        $this->affectedAchievementsCount = 0;
+        $this->affectedFromDayNumber = 0;
+        Flux::modal('confirm-delete-achievements')->close();
+
+        $this->performSave($path, $oldDays);
+    }
+
+    public function cancelSave(): void
+    {
+        $this->confirmingDeletion = false;
+        $this->affectedAchievementsCount = 0;
+        $this->affectedFromDayNumber = 0;
+        Flux::modal('confirm-delete-achievements')->close();
+    }
+
+    private function performSave(OdePath $path, $oldDays): void
+    {
+        // 1. Update OdePath start_date and end_date
+        $path->update([
             'start_date' => $this->startDate,
-            'status' => 'active',
-            'created_by_role' => $this->userRole,
+            'end_date' => $this->endDate ?: null,
         ]);
 
-        // Create plan days
-        foreach ($this->planDays as $day) {
-            StudentOdePlanDay::create([
-                'student_ode_plan_id' => $plan->id,
-                'date' => $day['date'],
-                'day_name' => $day['day_name'],
-                'from_verse_number' => $day['from_verse_number'],
-                'to_verse_number' => $day['to_verse_number'],
-                'review_from_verse_number' => $day['review_from_verse_number'],
-                'review_to_verse_number' => $day['review_to_verse_number'],
-            ]);
+        // 2. Save OdePathDay template records.
+        // Instead of deleting all days (which cascades and deletes all student achievements),
+        // we keep the days that are completely unaffected (before the first changed day number).
+        $affectedFrom = $this->affectedFromDayNumber ?: (count($this->planDays) + 1);
+
+        // Delete affected days and any extra days
+        OdePathDay::where('ode_path_id', $this->odePathId)
+            ->where('day_number', '>=', $affectedFrom)
+            ->delete();
+
+        $newCount = count($this->planDays);
+        OdePathDay::where('ode_path_id', $this->odePathId)
+            ->where('day_number', '>', $newCount)
+            ->delete();
+
+        foreach ($this->planDays as $index => $day) {
+            $dayNumber = $index + 1;
+            OdePathDay::updateOrCreate(
+                [
+                    'ode_path_id' => $this->odePathId,
+                    'day_number' => $dayNumber,
+                ],
+                [
+                    'date' => $day['date'] ?? null,
+                    'day_name' => $day['day_name'] ?? null,
+                    'from_verse_number' => $day['from_verse_number'] ?? null,
+                    'to_verse_number' => $day['to_verse_number'] ?? null,
+                    'review_from_verse_number' => $day['review_from_verse_number'] ?? null,
+                    'review_to_verse_number' => $day['review_to_verse_number'] ?? null,
+                ]
+            );
         }
 
-        Flux::toast('تم حفظ خطة المنظومة للطالب بنجاح', variant: 'success');
+        Flux::toast('تم حفظ خطة المسار بنجاح', variant: 'success');
 
-        // Redirect back to circular management/dashboard or list
         if ($this->userRole === 'supervisor') {
-            $this->redirectRoute('supervisor.students');
+            $this->redirectRoute('supervisor.odes.paths');
         } else {
-            $this->redirectRoute('teacher.students');
+            $this->redirectRoute('teacher.ode-plans');
         }
+    }
+
+    /**
+     * Compare old and new plan days to find the first day number that changed.
+     *
+     * @return int|null Day number of first change, or null if no change
+     */
+    private function findFirstChangedDay($oldDays): ?int
+    {
+        $newDaysCount = count($this->planDays);
+
+        foreach ($oldDays as $index => $oldDay) {
+            // If the new plan has fewer days, everything from here onwards changed
+            if ($index >= $newDaysCount) {
+                return $oldDay->day_number;
+            }
+
+            $newDay = $this->planDays[$index];
+
+            // Compare relevant fields
+            if (
+                $oldDay->from_verse_number !== $this->nullableInt($newDay['from_verse_number'] ?? null) ||
+                $oldDay->to_verse_number !== $this->nullableInt($newDay['to_verse_number'] ?? null) ||
+                $oldDay->review_from_verse_number !== $this->nullableInt($newDay['review_from_verse_number'] ?? null) ||
+                $oldDay->review_to_verse_number !== $this->nullableInt($newDay['review_to_verse_number'] ?? null)
+            ) {
+                return $oldDay->day_number;
+            }
+        }
+
+        return null;
+    }
+
+    private function nullableInt($value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     private function translateDay(string $day): string
@@ -297,35 +451,12 @@ class OdePlanCreator extends Component
         return $days[$day] ?? $day;
     }
 
-    private function getSupervisorCircleIds(): array
-    {
-        $supervisor = auth()->guard('supervisor')->user();
-        if (! $supervisor) {
-            return [];
-        }
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
-    }
-
     public function render()
     {
-        // Get list of odes
-        $odes = Ode::orderBy('name')->get();
-
-        // Get list of students based on user role
-        $students = [];
-        if ($this->userRole === 'teacher') {
-            $teacher = auth()->guard('teacher')->user();
-            $circleIds = $teacher->circles->pluck('id');
-            $students = Student::whereIn('circle_id', $circleIds)->orderBy('name')->get();
-        } else {
-            $circleIds = $this->getSupervisorCircleIds();
-            $students = Student::whereIn('circle_id', $circleIds)->orderBy('name')->get();
-        }
+        $paths = OdePath::with('ode')->orderBy('name')->get();
 
         return view('livewire.shared.ode-plan-creator', [
-            'odes' => $odes,
-            'students' => $students,
+            'paths' => $paths,
         ]);
     }
 }

@@ -284,6 +284,9 @@ class Students extends Component
             'circle.stage',
             'guardian',
             'plans' => fn ($q) => $q->latest(),
+            'odePlans' => fn ($q) => $q->latest(),
+            'odePlans.path.ode',
+            'odePlans.path.days',
             'attendances',
             'statusHistories',
         ])

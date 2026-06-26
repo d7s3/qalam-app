@@ -306,9 +306,10 @@
                         إعدادات النقاط التلقائية
                     </flux:heading>
  
+                    {{-- Quran + Attendance --}}
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-3">
-                            <flux:switch wire:model="hifz_enabled" label="نقاط الحفظ" />
+                            <flux:switch wire:model="hifz_enabled" label="نقاط حفظ القرآن" />
                             <div x-show="$wire.hifz_enabled"
                                 class="space-y-2 mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
                                 <flux:input type="number" size="sm" wire:model="hifz_excellent" label="تقييم ممتاز" />
@@ -317,7 +318,7 @@
                             </div>
                         </div>
                         <div class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-3">
-                            <flux:switch wire:model="review_enabled" label="نقاط المراجعة" />
+                            <flux:switch wire:model="review_enabled" label="نقاط مراجعة القرآن" />
                             <div x-show="$wire.review_enabled"
                                 class="space-y-2 mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
                                 <flux:input type="number" size="sm" wire:model="review_excellent" label="تقييم ممتاز" />
@@ -330,6 +331,44 @@
                                 class="space-y-2 mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
                                 <flux:input type="number" size="sm" wire:model="attendance_present" label="حاضر بوقت" />
                                 <flux:input type="number" size="sm" wire:model="attendance_late" label="حاضر متأخر" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Ode + Hadith --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                        <div class="p-4 rounded-xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/30 dark:bg-violet-950/10 space-y-3">
+                            <flux:switch wire:model="ode_hifz_enabled" label="نقاط حفظ المنظومة" />
+                            <div x-show="$wire.ode_hifz_enabled"
+                                class="space-y-2 mt-2 pt-2 border-t border-violet-100 dark:border-violet-900/30">
+                                <flux:input type="number" size="sm" wire:model="ode_hifz_excellent" label="تقييم ممتاز" />
+                                <flux:input type="number" size="sm" wire:model="ode_hifz_good" label="تقييم جيد" />
+                                <flux:input type="number" size="sm" wire:model="ode_hifz_acceptable" label="تقييم مقبول" />
+                            </div>
+                        </div>
+                        <div class="p-4 rounded-xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/30 dark:bg-violet-950/10 space-y-3">
+                            <flux:switch wire:model="ode_review_enabled" label="نقاط مراجعة المنظومة" />
+                            <div x-show="$wire.ode_review_enabled"
+                                class="space-y-2 mt-2 pt-2 border-t border-violet-100 dark:border-violet-900/30">
+                                <flux:input type="number" size="sm" wire:model="ode_review_excellent" label="تقييم ممتاز" />
+                                <flux:input type="number" size="sm" wire:model="ode_review_good" label="تقييم جيد وجيد جدا" />
+                            </div>
+                        </div>
+                        <div class="p-4 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/30 dark:bg-rose-950/10 space-y-3">
+                            <flux:switch wire:model="hadith_hifz_enabled" label="نقاط حفظ المتون" />
+                            <div x-show="$wire.hadith_hifz_enabled"
+                                class="space-y-2 mt-2 pt-2 border-t border-rose-100 dark:border-rose-900/30">
+                                <flux:input type="number" size="sm" wire:model="hadith_hifz_excellent" label="تقييم ممتاز" />
+                                <flux:input type="number" size="sm" wire:model="hadith_hifz_good" label="تقييم جيد" />
+                                <flux:input type="number" size="sm" wire:model="hadith_hifz_acceptable" label="تقييم مقبول" />
+                            </div>
+                        </div>
+                        <div class="p-4 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/30 dark:bg-rose-950/10 space-y-3">
+                            <flux:switch wire:model="hadith_review_enabled" label="نقاط مراجعة المتون" />
+                            <div x-show="$wire.hadith_review_enabled"
+                                class="space-y-2 mt-2 pt-2 border-t border-rose-100 dark:border-rose-900/30">
+                                <flux:input type="number" size="sm" wire:model="hadith_review_excellent" label="تقييم ممتاز" />
+                                <flux:input type="number" size="sm" wire:model="hadith_review_good" label="تقييم جيد وجيد جدا" />
                             </div>
                         </div>
                     </div>

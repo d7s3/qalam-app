@@ -5,9 +5,11 @@ use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\StudentOdePlan;
-use App\Models\StudentOdePlanDay;
+use App\Models\StudentOdeAchievement;
+use App\Models\OdePathDay;
 use App\Models\StudentHadithPlan;
-use App\Models\StudentHadithPlanDay;
+use App\Models\StudentHadithAchievement;
+use App\Models\HadithPathDay;
 use Illuminate\Support\Facades\Auth;
 use Flux\Flux;
 use Livewire\Attributes\On;
@@ -171,7 +173,7 @@ new class extends Component {
         app()->instance('tasmeeh_days_cache', $allDays);
 
         // Preload all active student ode plans and their days to prevent N+1 queries in child components
-        $studentOdePlans = StudentOdePlan::with('ode')
+        $studentOdePlans = StudentOdePlan::with('path.ode')
             ->whereIn('student_id', $students->pluck('id'))
             ->where('status', 'active')
             ->get()
@@ -179,11 +181,34 @@ new class extends Component {
 
         $allOdeDays = collect();
         if ($studentOdePlans->isNotEmpty()) {
-            $allOdeDays = StudentOdePlanDay::with('plan.ode')
-                ->whereIn('student_ode_plan_id', $studentOdePlans->pluck('id'))
-                ->orderBy('date', 'asc')
+            $odePathIds = $studentOdePlans->pluck('ode_path_id')->unique();
+
+            $odePathDays = OdePathDay::whereIn('ode_path_id', $odePathIds)
+                ->orderBy('day_number', 'asc')
+                ->get()
+                ->groupBy('ode_path_id');
+
+            $odeAchievements = StudentOdeAchievement::whereIn('student_ode_plan_id', $studentOdePlans->pluck('id'))
                 ->get()
                 ->groupBy('student_ode_plan_id');
+
+            $allOdeDays = $studentOdePlans->mapWithKeys(function ($plan) use ($odePathDays, $odeAchievements) {
+                $daysForPath = $odePathDays->get($plan->ode_path_id) ?? collect();
+                $planAchievements = $odeAchievements->get($plan->id) ?? collect();
+                $achievementsByDay = $planAchievements->keyBy('ode_path_day_id');
+
+                $mappedDays = $daysForPath->map(function ($day) use ($achievementsByDay) {
+                    $clonedDay = clone $day;
+                    $achievement = $achievementsByDay->get($clonedDay->id);
+                    $clonedDay->hifz_achievement = $achievement?->hifz_achievement;
+                    $clonedDay->review_achievement = $achievement?->review_achievement;
+                    $clonedDay->hifz_graded_at = $achievement?->hifz_graded_at;
+                    $clonedDay->review_graded_at = $achievement?->review_graded_at;
+                    return $clonedDay;
+                });
+
+                return [$plan->id => $mappedDays];
+            });
         }
 
         // Preload all active student hadith plans and their days to prevent N+1 queries in child components
@@ -195,11 +220,35 @@ new class extends Component {
 
         $allHadithDays = collect();
         if ($studentHadithPlans->isNotEmpty()) {
-            $allHadithDays = StudentHadithPlanDay::with(['plan.path', 'fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
-                ->whereIn('student_hadith_plan_id', $studentHadithPlans->pluck('id'))
-                ->orderBy('date', 'asc')
+            $pathIds = $studentHadithPlans->pluck('hadith_path_id')->unique();
+            
+            $pathDays = HadithPathDay::with(['fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
+                ->whereIn('hadith_path_id', $pathIds)
+                ->orderBy('day_number', 'asc')
+                ->get()
+                ->groupBy('hadith_path_id');
+            
+            $achievements = StudentHadithAchievement::whereIn('student_hadith_plan_id', $studentHadithPlans->pluck('id'))
                 ->get()
                 ->groupBy('student_hadith_plan_id');
+
+            $allHadithDays = $studentHadithPlans->mapWithKeys(function ($plan) use ($pathDays, $achievements) {
+                $daysForPath = $pathDays->get($plan->hadith_path_id) ?? collect();
+                $planAchievements = $achievements->get($plan->id) ?? collect();
+                $achievementsByDay = $planAchievements->keyBy('hadith_path_day_id');
+
+                $mappedDays = $daysForPath->map(function ($day) use ($achievementsByDay) {
+                    $clonedDay = clone $day;
+                    $achievement = $achievementsByDay->get($clonedDay->id);
+                    $clonedDay->hifz_achievement = $achievement?->hifz_achievement;
+                    $clonedDay->review_achievement = $achievement?->review_achievement;
+                    $clonedDay->hifz_graded_at = $achievement?->hifz_graded_at;
+                    $clonedDay->review_graded_at = $achievement?->review_graded_at;
+                    return $clonedDay;
+                });
+
+                return [$plan->id => $mappedDays];
+            });
         }
 
         app()->instance('tasmeeh_ode_plans_cache', $studentOdePlans);

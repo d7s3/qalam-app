@@ -2,5 +2,5 @@
     <x-slot:sidebar>
         @include('supervisor.sidebar-nav')
     </x-slot:sidebar>
-    <livewire:shared.ode-plan-creator />
+    <livewire:supervisor.manage-ode-paths />
 </x-layouts.role-shell>

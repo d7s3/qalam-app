@@ -6,6 +6,8 @@ use App\Models\Attendance;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardScore;
 use App\Models\Student;
+use App\Models\StudentHadithAchievement;
+use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
 use Illuminate\Support\Facades\DB;
 
@@ -229,6 +231,106 @@ class LeaderboardService
                     }
                     $totalScore += $hifzScore + $reviewScore;
                 }
+
+                // 4. Ode Hifz & Review Points
+                if (($settings['ode_hifz_enabled'] ?? false) || ($settings['ode_review_enabled'] ?? false)) {
+                    $odeAchievements = StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+                        ->where(function ($q) use ($startDate, $endDate) {
+                            $q->whereBetween('hifz_graded_at', [$startDate, $endDate])
+                                ->orWhereBetween('review_graded_at', [$startDate, $endDate])
+                                ->orWhere(function ($sub) use ($startDate, $endDate) {
+                                    $sub->whereNull('hifz_graded_at')
+                                        ->whereNull('review_graded_at')
+                                        ->whereHas('pathDay', fn ($pd) => $pd->whereBetween('date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')]))
+                                        ->where(fn ($s) => $s->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'));
+                                });
+                        })->with('pathDay')->get();
+
+                    $odeHifzScore = 0;
+                    $odeReviewScore = 0;
+
+                    if ($settings['ode_hifz_enabled'] ?? false) {
+                        foreach ($odeAchievements as $ach) {
+                            $gradedAt = $ach->hifz_graded_at ?? $ach->pathDay?->date;
+                            if ($gradedAt && $gradedAt >= $startDate && $gradedAt <= $endDate && $ach->hifz_achievement !== null) {
+                                if ($ach->hifz_achievement == 3) {
+                                    $odeHifzScore += ($settings['ode_hifz_excellent'] ?? 10);
+                                } elseif ($ach->hifz_achievement == 2) {
+                                    $odeHifzScore += ($settings['ode_hifz_good'] ?? 7);
+                                } elseif ($ach->hifz_achievement == 1) {
+                                    $odeHifzScore += ($settings['ode_hifz_acceptable'] ?? 4);
+                                }
+                            }
+                        }
+                    }
+
+                    if ($settings['ode_review_enabled'] ?? false) {
+                        foreach ($odeAchievements as $ach) {
+                            $gradedAt = $ach->review_graded_at ?? $ach->pathDay?->date;
+                            if ($gradedAt && $gradedAt >= $startDate && $gradedAt <= $endDate && $ach->review_achievement !== null) {
+                                if ($ach->review_achievement == 3) {
+                                    $odeReviewScore += ($settings['ode_review_excellent'] ?? 5);
+                                } elseif ($ach->review_achievement <= 2) {
+                                    $odeReviewScore += ($settings['ode_review_good'] ?? 3);
+                                }
+                            }
+                        }
+                    }
+
+                    $hifzScore += $odeHifzScore;
+                    $reviewScore += $odeReviewScore;
+                    $totalScore += $odeHifzScore + $odeReviewScore;
+                }
+
+                // 5. Hadith Hifz & Review Points
+                if (($settings['hadith_hifz_enabled'] ?? false) || ($settings['hadith_review_enabled'] ?? false)) {
+                    $hadithAchievements = StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+                        ->where(function ($q) use ($startDate, $endDate) {
+                            $q->whereBetween('hifz_graded_at', [$startDate, $endDate])
+                                ->orWhereBetween('review_graded_at', [$startDate, $endDate])
+                                ->orWhere(function ($sub) use ($startDate, $endDate) {
+                                    $sub->whereNull('hifz_graded_at')
+                                        ->whereNull('review_graded_at')
+                                        ->whereHas('pathDay', fn ($pd) => $pd->whereBetween('date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')]))
+                                        ->where(fn ($s) => $s->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'));
+                                });
+                        })->with('pathDay')->get();
+
+                    $hadithHifzScore = 0;
+                    $hadithReviewScore = 0;
+
+                    if ($settings['hadith_hifz_enabled'] ?? false) {
+                        foreach ($hadithAchievements as $ach) {
+                            $gradedAt = $ach->hifz_graded_at ?? $ach->pathDay?->date;
+                            if ($gradedAt && $gradedAt >= $startDate && $gradedAt <= $endDate && $ach->hifz_achievement !== null) {
+                                if ($ach->hifz_achievement == 3) {
+                                    $hadithHifzScore += ($settings['hadith_hifz_excellent'] ?? 10);
+                                } elseif ($ach->hifz_achievement == 2) {
+                                    $hadithHifzScore += ($settings['hadith_hifz_good'] ?? 7);
+                                } elseif ($ach->hifz_achievement == 1) {
+                                    $hadithHifzScore += ($settings['hadith_hifz_acceptable'] ?? 4);
+                                }
+                            }
+                        }
+                    }
+
+                    if ($settings['hadith_review_enabled'] ?? false) {
+                        foreach ($hadithAchievements as $ach) {
+                            $gradedAt = $ach->review_graded_at ?? $ach->pathDay?->date;
+                            if ($gradedAt && $gradedAt >= $startDate && $gradedAt <= $endDate && $ach->review_achievement !== null) {
+                                if ($ach->review_achievement == 3) {
+                                    $hadithReviewScore += ($settings['hadith_review_excellent'] ?? 5);
+                                } elseif ($ach->review_achievement <= 2) {
+                                    $hadithReviewScore += ($settings['hadith_review_good'] ?? 3);
+                                }
+                            }
+                        }
+                    }
+
+                    $hifzScore += $hadithHifzScore;
+                    $reviewScore += $hadithReviewScore;
+                    $totalScore += $hadithHifzScore + $hadithReviewScore;
+                }
             }
 
             $standings[] = [
@@ -362,6 +464,87 @@ class LeaderboardService
                 $automatedScore += $hifzScoreDaily + $reviewScoreDaily;
             }
 
+            // Ode Hifz & Review for THIS day
+            if (($settings['ode_hifz_enabled'] ?? false) || ($settings['ode_review_enabled'] ?? false)) {
+                $odeAchievementsDaily = StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+                    ->where(function ($q) use ($date) {
+                        $q->whereDate('hifz_graded_at', $date)
+                            ->orWhereDate('review_graded_at', $date)
+                            ->orWhere(function ($sub) use ($date) {
+                                $sub->whereNull('hifz_graded_at')
+                                    ->whereNull('review_graded_at')
+                                    ->whereHas('pathDay', fn ($pd) => $pd->whereDate('date', $date))
+                                    ->where(fn ($s) => $s->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'));
+                            });
+                    })->get();
+
+                foreach ($odeAchievementsDaily as $ach) {
+                    if (($settings['ode_hifz_enabled'] ?? false) && $ach->hifz_achievement !== null) {
+                        $gradedAt = $ach->hifz_graded_at ? $ach->hifz_graded_at->format('Y-m-d') : $date;
+                        if ($gradedAt === $date) {
+                            if ($ach->hifz_achievement == 3) {
+                                $hifzScoreDaily += ($settings['ode_hifz_excellent'] ?? 10);
+                            } elseif ($ach->hifz_achievement == 2) {
+                                $hifzScoreDaily += ($settings['ode_hifz_good'] ?? 7);
+                            } elseif ($ach->hifz_achievement == 1) {
+                                $hifzScoreDaily += ($settings['ode_hifz_acceptable'] ?? 4);
+                            }
+                        }
+                    }
+                    if (($settings['ode_review_enabled'] ?? false) && $ach->review_achievement !== null) {
+                        $gradedAt = $ach->review_graded_at ? $ach->review_graded_at->format('Y-m-d') : $date;
+                        if ($gradedAt === $date) {
+                            if ($ach->review_achievement == 3) {
+                                $reviewScoreDaily += ($settings['ode_review_excellent'] ?? 5);
+                            } elseif ($ach->review_achievement <= 2) {
+                                $reviewScoreDaily += ($settings['ode_review_good'] ?? 3);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Hadith Hifz & Review for THIS day
+            if (($settings['hadith_hifz_enabled'] ?? false) || ($settings['hadith_review_enabled'] ?? false)) {
+                $hadithAchievementsDaily = StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+                    ->where(function ($q) use ($date) {
+                        $q->whereDate('hifz_graded_at', $date)
+                            ->orWhereDate('review_graded_at', $date)
+                            ->orWhere(function ($sub) use ($date) {
+                                $sub->whereNull('hifz_graded_at')
+                                    ->whereNull('review_graded_at')
+                                    ->whereHas('pathDay', fn ($pd) => $pd->whereDate('date', $date))
+                                    ->where(fn ($s) => $s->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'));
+                            });
+                    })->get();
+
+                foreach ($hadithAchievementsDaily as $ach) {
+                    if (($settings['hadith_hifz_enabled'] ?? false) && $ach->hifz_achievement !== null) {
+                        $gradedAt = $ach->hifz_graded_at ? $ach->hifz_graded_at->format('Y-m-d') : $date;
+                        if ($gradedAt === $date) {
+                            if ($ach->hifz_achievement == 3) {
+                                $hifzScoreDaily += ($settings['hadith_hifz_excellent'] ?? 10);
+                            } elseif ($ach->hifz_achievement == 2) {
+                                $hifzScoreDaily += ($settings['hadith_hifz_good'] ?? 7);
+                            } elseif ($ach->hifz_achievement == 1) {
+                                $hifzScoreDaily += ($settings['hadith_hifz_acceptable'] ?? 4);
+                            }
+                        }
+                    }
+                    if (($settings['hadith_review_enabled'] ?? false) && $ach->review_achievement !== null) {
+                        $gradedAt = $ach->review_graded_at ? $ach->review_graded_at->format('Y-m-d') : $date;
+                        if ($gradedAt === $date) {
+                            if ($ach->review_achievement == 3) {
+                                $reviewScoreDaily += ($settings['hadith_review_excellent'] ?? 5);
+                            } elseif ($ach->review_achievement <= 2) {
+                                $reviewScoreDaily += ($settings['hadith_review_good'] ?? 3);
+                            }
+                        }
+                    }
+                }
+            }
+
+            $automatedScore = $hifzScoreDaily + $reviewScoreDaily + $attendanceScoreDaily;
             $totalScore += $automatedScore;
 
             $dailyScores[$student->id] = [

@@ -15,6 +15,8 @@ use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
 use App\Models\LeaderboardScore;
 use App\Models\Student;
+use App\Models\StudentHadithAchievement;
+use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -172,6 +174,184 @@ class GamificationService
                 if ($transaction) {
                     $transaction->delete();
                 }
+            }
+
+            self::recalculateStudentState($student->id, $leaderboard->id);
+            self::updateStudentStreak($student, $date, $leaderboard);
+            self::syncStudentBadges($student->id, $leaderboard->id);
+        }
+    }
+
+    /**
+     * Sync XP/coins transaction for Ode achievement grading.
+     */
+    public static function syncStudentOdeAchievementXP(StudentOdeAchievement $achievement): void
+    {
+        $student = $achievement->plan->student;
+        $date = $achievement->hifz_graded_at ?? $achievement->review_graded_at ?? $achievement->pathDay?->date;
+        if (! $date) {
+            return;
+        }
+        $leaderboards = self::getActiveLeaderboards($student, $date);
+
+        foreach ($leaderboards as $leaderboard) {
+            $settings = $leaderboard->settings ?? [];
+            $xpPoints = 0;
+            $coinPoints = 0;
+            $details = [];
+
+            if (($settings['ode_hifz_enabled'] ?? false) && $achievement->hifz_achievement !== null) {
+                $hifz = $achievement->hifz_achievement;
+                if ($hifz == 3) {
+                    $xpPts = (int) ($settings['ode_hifz_excellent_xp'] ?? 10);
+                    $coinPts = (int) ($settings['ode_hifz_excellent_coins'] ?? 10);
+                } elseif ($hifz == 2) {
+                    $xpPts = (int) ($settings['ode_hifz_good_xp'] ?? 7);
+                    $coinPts = (int) ($settings['ode_hifz_good_coins'] ?? 7);
+                } else {
+                    $xpPts = (int) ($settings['ode_hifz_acceptable_xp'] ?? 4);
+                    $coinPts = (int) ($settings['ode_hifz_acceptable_coins'] ?? 4);
+                }
+                $xpPoints += $xpPts;
+                $coinPoints += $coinPts;
+                $details[] = "حفظ منظومة (+{$xpPts} XP، +{$coinPts} عملة)";
+            }
+
+            if (($settings['ode_review_enabled'] ?? false) && $achievement->review_achievement !== null) {
+                $rev = $achievement->review_achievement;
+                if ($rev == 3) {
+                    $xpPts = (int) ($settings['ode_review_excellent_xp'] ?? 5);
+                    $coinPts = (int) ($settings['ode_review_excellent_coins'] ?? 5);
+                } else {
+                    $xpPts = (int) ($settings['ode_review_good_xp'] ?? 3);
+                    $coinPts = (int) ($settings['ode_review_good_coins'] ?? 3);
+                }
+                $xpPoints += $xpPts;
+                $coinPoints += $coinPts;
+                $details[] = "مراجعة منظومة (+{$xpPts} XP، +{$coinPts} عملة)";
+            }
+
+            $multiplier = min(2, self::getMultiplierForStudent($student, $leaderboard->id, $date));
+            $finalXP = $xpPoints * $multiplier;
+            $finalCoins = $coinPoints * $multiplier;
+
+            $transaction = GamificationTransaction::where('leaderboard_id', $leaderboard->id)
+                ->where('student_id', $student->id)
+                ->where('reference_type', StudentOdeAchievement::class)
+                ->where('reference_id', $achievement->id)
+                ->first();
+
+            if ($finalXP > 0 || $finalCoins > 0) {
+                $dateStr = ($date instanceof Carbon ? $date : Carbon::parse($date))->format('Y-m-d');
+                $desc = implode(' و ', $details).' لليوم '.$dateStr;
+                if ($multiplier > 1) {
+                    $desc .= ' [مضاعف النقاط نشط!]';
+                }
+                if ($transaction) {
+                    $transaction->update(['amount' => $finalCoins, 'xp_amount' => $finalXP, 'description' => $desc]);
+                } else {
+                    GamificationTransaction::create([
+                        'leaderboard_id' => $leaderboard->id,
+                        'student_id' => $student->id,
+                        'type' => 'earn',
+                        'amount' => $finalCoins,
+                        'xp_amount' => $finalXP,
+                        'description' => $desc,
+                        'reference_type' => StudentOdeAchievement::class,
+                        'reference_id' => $achievement->id,
+                    ]);
+                }
+            } elseif ($transaction) {
+                $transaction->delete();
+            }
+
+            self::recalculateStudentState($student->id, $leaderboard->id);
+            self::updateStudentStreak($student, $date, $leaderboard);
+            self::syncStudentBadges($student->id, $leaderboard->id);
+        }
+    }
+
+    /**
+     * Sync XP/coins transaction for Hadith achievement grading.
+     */
+    public static function syncStudentHadithAchievementXP(StudentHadithAchievement $achievement): void
+    {
+        $student = $achievement->plan->student;
+        $date = $achievement->hifz_graded_at ?? $achievement->review_graded_at ?? $achievement->pathDay?->date;
+        if (! $date) {
+            return;
+        }
+        $leaderboards = self::getActiveLeaderboards($student, $date);
+
+        foreach ($leaderboards as $leaderboard) {
+            $settings = $leaderboard->settings ?? [];
+            $xpPoints = 0;
+            $coinPoints = 0;
+            $details = [];
+
+            if (($settings['hadith_hifz_enabled'] ?? false) && $achievement->hifz_achievement !== null) {
+                $hifz = $achievement->hifz_achievement;
+                if ($hifz == 3) {
+                    $xpPts = (int) ($settings['hadith_hifz_excellent_xp'] ?? 10);
+                    $coinPts = (int) ($settings['hadith_hifz_excellent_coins'] ?? 10);
+                } elseif ($hifz == 2) {
+                    $xpPts = (int) ($settings['hadith_hifz_good_xp'] ?? 7);
+                    $coinPts = (int) ($settings['hadith_hifz_good_coins'] ?? 7);
+                } else {
+                    $xpPts = (int) ($settings['hadith_hifz_acceptable_xp'] ?? 4);
+                    $coinPts = (int) ($settings['hadith_hifz_acceptable_coins'] ?? 4);
+                }
+                $xpPoints += $xpPts;
+                $coinPoints += $coinPts;
+                $details[] = "حفظ حديث (+{$xpPts} XP، +{$coinPts} عملة)";
+            }
+
+            if (($settings['hadith_review_enabled'] ?? false) && $achievement->review_achievement !== null) {
+                $rev = $achievement->review_achievement;
+                if ($rev == 3) {
+                    $xpPts = (int) ($settings['hadith_review_excellent_xp'] ?? 5);
+                    $coinPts = (int) ($settings['hadith_review_excellent_coins'] ?? 5);
+                } else {
+                    $xpPts = (int) ($settings['hadith_review_good_xp'] ?? 3);
+                    $coinPts = (int) ($settings['hadith_review_good_coins'] ?? 3);
+                }
+                $xpPoints += $xpPts;
+                $coinPoints += $coinPts;
+                $details[] = "مراجعة حديث (+{$xpPts} XP، +{$coinPts} عملة)";
+            }
+
+            $multiplier = min(2, self::getMultiplierForStudent($student, $leaderboard->id, $date));
+            $finalXP = $xpPoints * $multiplier;
+            $finalCoins = $coinPoints * $multiplier;
+
+            $transaction = GamificationTransaction::where('leaderboard_id', $leaderboard->id)
+                ->where('student_id', $student->id)
+                ->where('reference_type', StudentHadithAchievement::class)
+                ->where('reference_id', $achievement->id)
+                ->first();
+
+            if ($finalXP > 0 || $finalCoins > 0) {
+                $dateStr = ($date instanceof Carbon ? $date : Carbon::parse($date))->format('Y-m-d');
+                $desc = implode(' و ', $details).' لليوم '.$dateStr;
+                if ($multiplier > 1) {
+                    $desc .= ' [مضاعف النقاط نشط!]';
+                }
+                if ($transaction) {
+                    $transaction->update(['amount' => $finalCoins, 'xp_amount' => $finalXP, 'description' => $desc]);
+                } else {
+                    GamificationTransaction::create([
+                        'leaderboard_id' => $leaderboard->id,
+                        'student_id' => $student->id,
+                        'type' => 'earn',
+                        'amount' => $finalCoins,
+                        'xp_amount' => $finalXP,
+                        'description' => $desc,
+                        'reference_type' => StudentHadithAchievement::class,
+                        'reference_id' => $achievement->id,
+                    ]);
+                }
+            } elseif ($transaction) {
+                $transaction->delete();
             }
 
             self::recalculateStudentState($student->id, $leaderboard->id);
@@ -412,6 +592,10 @@ class GamificationService
         $hifzTrigger = (bool) ($settings['hifz_enthusiasm_trigger'] ?? true);
         $reviewTrigger = (bool) ($settings['review_enthusiasm_trigger'] ?? true);
         $attendanceTrigger = (bool) ($settings['attendance_enthusiasm_trigger'] ?? true);
+        $odeHifzTrigger = (bool) ($settings['ode_hifz_enthusiasm_trigger'] ?? false);
+        $odeReviewTrigger = (bool) ($settings['ode_review_enthusiasm_trigger'] ?? false);
+        $hadithHifzTrigger = (bool) ($settings['hadith_hifz_enthusiasm_trigger'] ?? false);
+        $hadithReviewTrigger = (bool) ($settings['hadith_review_enthusiasm_trigger'] ?? false);
 
         // 1. Attendance Trigger
         $attendanceMet = false;
@@ -461,6 +645,43 @@ class GamificationService
             }
         }
 
+        // 2b. Ode & Hadith Achievement Trigger
+        if (! $achievementMet && ($odeHifzTrigger || $odeReviewTrigger)) {
+            $odeAch = StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+                ->where(function ($q) use ($dateStr) {
+                    $q->whereDate('hifz_graded_at', $dateStr)
+                        ->orWhereDate('review_graded_at', $dateStr)
+                        ->orWhere(fn ($sub) => $sub->whereNull('hifz_graded_at')->whereNull('review_graded_at')
+                            ->whereHas('pathDay', fn ($pd) => $pd->whereDate('date', $dateStr))
+                            ->where(fn ($s) => $s->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement')));
+                })->first();
+            if ($odeAch) {
+                $hifzOk = $odeHifzTrigger && $odeAch->hifz_achievement !== null;
+                $revOk = $odeReviewTrigger && $odeAch->review_achievement !== null;
+                if ($hifzOk || $revOk) {
+                    $achievementMet = true;
+                }
+            }
+        }
+
+        if (! $achievementMet && ($hadithHifzTrigger || $hadithReviewTrigger)) {
+            $hadithAch = StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+                ->where(function ($q) use ($dateStr) {
+                    $q->whereDate('hifz_graded_at', $dateStr)
+                        ->orWhereDate('review_graded_at', $dateStr)
+                        ->orWhere(fn ($sub) => $sub->whereNull('hifz_graded_at')->whereNull('review_graded_at')
+                            ->whereHas('pathDay', fn ($pd) => $pd->whereDate('date', $dateStr))
+                            ->where(fn ($s) => $s->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement')));
+                })->first();
+            if ($hadithAch) {
+                $hifzOk = $hadithHifzTrigger && $hadithAch->hifz_achievement !== null;
+                $revOk = $hadithReviewTrigger && $hadithAch->review_achievement !== null;
+                if ($hifzOk || $revOk) {
+                    $achievementMet = true;
+                }
+            }
+        }
+
         // 3. Custom Criteria Trigger
         $customMet = false;
         $customCriteriaIds = LeaderboardCriterion::where('leaderboard_id', $leaderboard->id)
@@ -500,6 +721,10 @@ class GamificationService
         $hifzTrigger = (bool) ($settings['hifz_enthusiasm_trigger'] ?? true);
         $reviewTrigger = (bool) ($settings['review_enthusiasm_trigger'] ?? true);
         $attendanceTrigger = (bool) ($settings['attendance_enthusiasm_trigger'] ?? true);
+        $odeHifzTrigger = (bool) ($settings['ode_hifz_enthusiasm_trigger'] ?? false);
+        $odeReviewTrigger = (bool) ($settings['ode_review_enthusiasm_trigger'] ?? false);
+        $hadithHifzTrigger = (bool) ($settings['hadith_hifz_enthusiasm_trigger'] ?? false);
+        $hadithReviewTrigger = (bool) ($settings['hadith_review_enthusiasm_trigger'] ?? false);
 
         // Fetch attendances in range
         $attendances = Attendance::where('student_id', $student->id)
@@ -531,6 +756,60 @@ class GamificationService
             if ($dp->review_achievement !== null) {
                 $date = $revDate ?: $schedDate;
                 $evalPlanDays[$date][] = ['type' => 'review', 'achievement' => $dp->review_achievement];
+            }
+        }
+
+        // Fetch ode achievements in range
+        $evalOdeDays = [];
+        if ($odeHifzTrigger || $odeReviewTrigger) {
+            $odeAchs = StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->whereBetween('hifz_graded_at', [$startDate, $endDate])
+                        ->orWhereBetween('review_graded_at', [$startDate, $endDate])
+                        ->orWhereHas('pathDay', fn ($pd) => $pd->whereBetween('date', [$startDate, $endDate]));
+                })->with('pathDay')->get();
+
+            foreach ($odeAchs as $oa) {
+                $schedDate = $oa->pathDay ? Carbon::parse($oa->pathDay->date)->format('Y-m-d') : null;
+                if ($oa->hifz_achievement !== null) {
+                    $date = $oa->hifz_graded_at ? Carbon::parse($oa->hifz_graded_at)->format('Y-m-d') : $schedDate;
+                    if ($date) {
+                        $evalOdeDays[$date][] = ['type' => 'hifz', 'achievement' => $oa->hifz_achievement];
+                    }
+                }
+                if ($oa->review_achievement !== null) {
+                    $date = $oa->review_graded_at ? Carbon::parse($oa->review_graded_at)->format('Y-m-d') : $schedDate;
+                    if ($date) {
+                        $evalOdeDays[$date][] = ['type' => 'review', 'achievement' => $oa->review_achievement];
+                    }
+                }
+            }
+        }
+
+        // Fetch hadith achievements in range
+        $evalHadithDays = [];
+        if ($hadithHifzTrigger || $hadithReviewTrigger) {
+            $hadithAchs = StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->whereBetween('hifz_graded_at', [$startDate, $endDate])
+                        ->orWhereBetween('review_graded_at', [$startDate, $endDate])
+                        ->orWhereHas('pathDay', fn ($pd) => $pd->whereBetween('date', [$startDate, $endDate]));
+                })->with('pathDay')->get();
+
+            foreach ($hadithAchs as $ha) {
+                $schedDate = $ha->pathDay ? Carbon::parse($ha->pathDay->date)->format('Y-m-d') : null;
+                if ($ha->hifz_achievement !== null) {
+                    $date = $ha->hifz_graded_at ? Carbon::parse($ha->hifz_graded_at)->format('Y-m-d') : $schedDate;
+                    if ($date) {
+                        $evalHadithDays[$date][] = ['type' => 'hifz', 'achievement' => $ha->hifz_achievement];
+                    }
+                }
+                if ($ha->review_achievement !== null) {
+                    $date = $ha->review_graded_at ? Carbon::parse($ha->review_graded_at)->format('Y-m-d') : $schedDate;
+                    if ($date) {
+                        $evalHadithDays[$date][] = ['type' => 'review', 'achievement' => $ha->review_achievement];
+                    }
+                }
             }
         }
 
@@ -594,6 +873,28 @@ class GamificationService
                             $achievementMet = true;
                             break;
                         }
+                    }
+                }
+            }
+
+            if (! $achievementMet && ($odeHifzTrigger || $odeReviewTrigger)) {
+                foreach ($evalOdeDays[$dateStr] ?? [] as $ev) {
+                    $ok = ($ev['type'] === 'hifz' && $odeHifzTrigger && $ev['achievement'] !== null)
+                        || ($ev['type'] === 'review' && $odeReviewTrigger && $ev['achievement'] !== null);
+                    if ($ok) {
+                        $achievementMet = true;
+                        break;
+                    }
+                }
+            }
+
+            if (! $achievementMet && ($hadithHifzTrigger || $hadithReviewTrigger)) {
+                foreach ($evalHadithDays[$dateStr] ?? [] as $ev) {
+                    $ok = ($ev['type'] === 'hifz' && $hadithHifzTrigger && $ev['achievement'] !== null)
+                        || ($ev['type'] === 'review' && $hadithReviewTrigger && $ev['achievement'] !== null);
+                    if ($ok) {
+                        $achievementMet = true;
+                        break;
                     }
                 }
             }

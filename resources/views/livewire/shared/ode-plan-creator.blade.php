@@ -1,40 +1,31 @@
-<div class="space-y-6">
+<div class="space-y-6" dir="rtl">
     <div class="flex items-center gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800">
         <div class="p-2 rounded-lg bg-zinc-50 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
             <flux:icon icon="pencil-square" />
         </div>
         <div>
             <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">منشئ خطط المنظومات</flux:heading>
-            <flux:subheading>توزيع أبيات المنظومة آلياً لحفظ ومراجعة الطلاب وتنسيقها زمنياً</flux:subheading>
+            <flux:subheading>توليد وتعديل خطة التوزيع اليومي النموذجية للمسار، يشترك فيها جميع الطلاب المسكّنين</flux:subheading>
         </div>
     </div>
 
     @if (!$isGenerated)
-        {{-- Plan Configuration Form --}}
+        {{-- STEP 1: PATH SELECTION & PLAN CONFIGURATION FORM --}}
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-6 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {{-- Select Student --}}
-                <flux:field>
-                    <flux:label class="font-bold">الطالب المستهدف</flux:label>
-                    <flux:select wire:model="studentId" placeholder="اختر طالباً..." search>
-                        @foreach ($students as $student)
-                            <flux:select.option :value="$student->id">{{ $student->name }} ({{ $student->circle->name ?? 'بلا حلقة' }})</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                    <flux:error name="studentId" />
-                </flux:field>
+            <flux:field>
+                <flux:label class="font-bold">المسار المنهجي</flux:label>
+                <flux:select wire:model.live="odePathId" placeholder="اختر المسار..." required>
+                    <flux:select.option value="">-- اختر المسار --</flux:select.option>
+                    @foreach ($paths as $path)
+                        <flux:select.option value="{{ $path->id }}">
+                            {{ $path->name }} (منظومة: {{ $path->ode->name ?? 'بلا منظومة' }})
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="odePathId" />
+            </flux:field>
 
-                {{-- Select Ode --}}
-                <flux:field>
-                    <flux:label class="font-bold">المنظومة العلمية</flux:label>
-                    <flux:select wire:model.live="odeId" placeholder="اختر منظومة...">
-                        @foreach ($odes as $ode)
-                            <flux:select.option :value="$ode->id">{{ $ode->name }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                    <flux:error name="odeId" />
-                </flux:field>
-
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {{-- Start Date --}}
                 <flux:field>
                     <flux:label class="font-bold">تاريخ البدء</flux:label>
@@ -126,20 +117,24 @@
                 @endif
             </div>
 
-            <div class="flex justify-end pt-4">
+            <div class="flex justify-end gap-2 pt-4">
+                <flux:button variant="ghost" href="{{ $userRole === 'supervisor' ? route('supervisor.odes.paths') : route('teacher.ode-plans') }}">إلغاء</flux:button>
                 <flux:button variant="primary" icon="arrow-path" wire:click="generatePreview">توليد الخطة ومعاينتها</flux:button>
             </div>
         </div>
     @else
-        {{-- Preview & Confirmation Panel --}}
+        {{-- STEP 2: Preview & Confirmation Panel --}}
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-6 space-y-6">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-100 dark:border-zinc-800">
                 <div>
-                    <flux:heading size="lg" class="font-bold text-zinc-900 dark:text-white">معاينة وتعديل خطة المنظومة</flux:heading>
+                    <div class="text-xs font-bold text-indigo-500 mb-1">الخطة النموذجية للمسار</div>
+                    <flux:heading size="lg" class="font-bold text-zinc-900 dark:text-white">
+                        مسار: {{ $paths->firstWhere('id', $odePathId)->name ?? '' }}
+                    </flux:heading>
                     <flux:subheading>راجع التوزيع اليومي، ويمكنك التعديل اليدوي على نطاق الأبيات لكل يوم قبل الحفظ النهائي.</flux:subheading>
                 </div>
                 <div class="flex items-center gap-2">
-                    <flux:button variant="ghost" icon="chevron-right" wire:click="resetPlan">رجوع لتعديل المعطيات</flux:button>
+                    <flux:button variant="ghost" icon="arrow-path" wire:click="resetPlan" class="text-rose-500 hover:bg-rose-50">إعادة ضبط وملء جديد</flux:button>
                     <flux:button variant="primary" icon="check" wire:click="savePlan">اعتماد وحفظ الخطة</flux:button>
                 </div>
             </div>
@@ -161,7 +156,10 @@
                         @foreach ($planDays as $index => $day)
                             <flux:table.row :key="$index">
                                 <flux:table.cell class="text-center font-bold text-zinc-700 dark:text-zinc-300">
-                                    {{ $day['day_name'] }}
+                                    <div class="flex flex-col">
+                                        <span>اليوم {{ $index + 1 }}</span>
+                                        <span class="text-xs font-normal text-zinc-500">{{ $day['day_name'] }}</span>
+                                    </div>
                                 </flux:table.cell>
                                 <flux:table.cell class="text-center text-xs text-zinc-500 dark:text-zinc-400">
                                     {{ $day['date'] }}
@@ -194,4 +192,24 @@
             </div>
         </div>
     @endif
+
+    {{-- Confirmation modal for deleting affected achievements --}}
+    <flux:modal name="confirm-delete-achievements" variant="flyout" class="max-w-md">
+        <div class="space-y-4">
+            <flux:heading size="lg">⚠️ تأكيد حذف التقييمات</flux:heading>
+            <flux:text>
+                <p class="text-red-600 dark:text-red-400 font-semibold">
+                    يوجد {{ $affectedAchievementsCount }} تقييم مرتبط بالأيام المتأثرة (من اليوم رقم {{ $affectedFromDayNumber }} وما بعده).
+                </p>
+                <p class="mt-2">
+                    سيتم <strong>حذف جميع التقييمات</strong> لهذا اليوم والأيام اللاحقة. التقييمات السابقة لهذا اليوم ستبقى كما هي.
+                </p>
+                <p class="mt-2 text-sm text-zinc-500">هذا الإجراء لا يمكن التراجع عنه.</p>
+            </flux:text>
+            <div class="flex justify-end gap-2 pt-4">
+                <flux:button variant="ghost" wire:click="cancelSave">إلغاء</flux:button>
+                <flux:button variant="danger" wire:click="confirmSaveWithDeletion" icon="trash">تأكيد الحذف والحفظ</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>
