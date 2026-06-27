@@ -349,6 +349,37 @@ new class extends Component {
         return $upcoming;
     }
 
+    /**
+     * Classify a team's approved store purchase for the inventory list.
+     *
+     * Products with a target date (multiplier, shield) are "not used yet" while
+     * that date is in the future, "active" on the day itself, and "used" once it
+     * has passed. Instant products (team points/attacks) count as used on purchase.
+     *
+     * @return array{state: string, label: string, color: string, icon: string, used: bool}
+     */
+    public function teamPurchaseUsage(\App\Models\GamificationStorePurchase $purchase): array
+    {
+        // Compare calendar dates (the competition runs on Asia/Riyadh days, matching
+        // how purchase effects are applied in GamificationService).
+        $today = Carbon::now('Asia/Riyadh')->toDateString();
+        $targetDate = $purchase->target_date
+            ? Carbon::parse($purchase->target_date)->toDateString()
+            : null;
+
+        if ($targetDate !== null) {
+            if ($targetDate > $today) {
+                return ['state' => 'scheduled', 'label' => 'لم يُستخدم بعد', 'color' => 'blue', 'icon' => 'clock', 'used' => false];
+            }
+
+            if ($targetDate === $today) {
+                return ['state' => 'active', 'label' => 'نشط اليوم', 'color' => 'green', 'icon' => 'bolt', 'used' => true];
+            }
+        }
+
+        return ['state' => 'used', 'label' => 'مُستخدَم', 'color' => 'zinc', 'icon' => 'check-circle', 'used' => true];
+    }
+
     public function with()
     {
         $student = Auth::guard('student')->user();
@@ -388,6 +419,8 @@ new class extends Component {
         $milestones = collect();
         $claimedMilestones = [];
         $pendingTeamPurchases = collect();
+        $teamPurchases = collect();
+        $teamShieldActiveToday = false;
         $studentVotes = [];        $teamColor = '#4f46e5';
         $workingDays = [];
 
@@ -449,6 +482,21 @@ new class extends Component {
                     ->where('status', 'pending_approval')
                     ->with(['item', 'student', 'votes.student'])
                     ->get();
+
+                // Approved products bought from the team treasury (shield, multiplier,
+                // team points, attacks) shown as the team's purchased-products inventory.
+                $teamPurchases = \App\Models\GamificationStorePurchase::where('team_id', $studentTeam->id)
+                    ->where('status', 'approved')
+                    ->with('item')
+                    ->latest()
+                    ->get()
+                    ->filter(fn ($purchase) => $purchase->item !== null)
+                    ->values();
+
+                $teamShieldActiveToday = \App\Services\GamificationService::isShieldActiveForTeam(
+                    $studentTeam,
+                    Carbon::now('Asia/Riyadh')->toDateString()
+                );
             }
             $studentVotes = \Illuminate\Support\Facades\DB::table('gamification_purchase_votes')
                 ->where('student_id', $student->id)
@@ -775,6 +823,8 @@ new class extends Component {
             'milestones' => $milestones,
             'claimedMilestones' => $claimedMilestones,
             'pendingTeamPurchases' => $pendingTeamPurchases,
+            'teamPurchases' => $teamPurchases,
+            'teamShieldActiveToday' => $teamShieldActiveToday,
             'studentVotes' => $studentVotes,
             'style' => $style,
             'teamColor' => $teamColor,
@@ -2326,7 +2376,7 @@ new class extends Component {
                                         <tbody class="divide-y divide-slate-100">
                                             @foreach($group['standings'] as $standing)
                                                 @php $rank = $standing['track_rank']; $isMe = $standing['student']->id === $student->id; @endphp
-                                                @include('components.student.partials.leaderboard-row', ['standing' => $standing, 'rank' => $rank, 'isMe' => $isMe])
+                                                <x-student.partials.leaderboard-row :standing="$standing" :rank="$rank" :is-me="$isMe" />
                                             @endforeach
                                         </tbody>
                                     </table>
@@ -2349,7 +2399,7 @@ new class extends Component {
                                 <tbody class="divide-y divide-slate-100">
                                     @foreach($leaderboardStandings as $index => $standing)
                                         @php $rank = $index + 1; $isMe = $standing['student']->id === $student->id; @endphp
-                                        @include('components.student.partials.leaderboard-row', ['standing' => $standing, 'rank' => $rank, 'isMe' => $isMe])
+                                        <x-student.partials.leaderboard-row :standing="$standing" :rank="$rank" :is-me="$isMe" />
                                     @endforeach
                                 </tbody>
                             </table>
@@ -2452,7 +2502,10 @@ new class extends Component {
         @if($studentTeam)
         <div x-show="currentTab === 'team'" class="space-y-6">
             <!-- Team Info Header Card -->
-            <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden">
+            <div @class([
+                'bg-white border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden',
+                'team-shield-aura' => $teamShieldActiveToday,
+            ])>
                 <!-- Decorative background colored strip -->
                 <div class="absolute top-0 right-0 left-0 h-2" style="background-color: {{ $teamColor }}"></div>
                 
@@ -2556,6 +2609,74 @@ new class extends Component {
                     </div>
                 @endif
             </div>
+
+            <!-- Team purchased products inventory (collapsible, collapsed by default) -->
+            @if($teamPurchases->isNotEmpty())
+                @php
+                    $usedPurchasesCount = $teamPurchases->filter(fn ($p) => $this->teamPurchaseUsage($p)['used'])->count();
+                    $unusedPurchasesCount = $teamPurchases->count() - $usedPurchasesCount;
+                @endphp
+                <div x-data="{ open: false }" class="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+                    <button type="button" @click="open = !open"
+                        class="w-full flex items-center justify-between gap-3 p-5 text-start hover:bg-slate-50 transition-colors">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="size-10 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0">
+                                <flux:icon icon="shopping-bag" class="size-5 text-slate-700" />
+                            </div>
+                            <div class="min-w-0">
+                                <h4 class="font-black text-slate-900 text-base flex items-center gap-2">
+                                    {{ __('مشتريات ومنتجات ال') }}{{ $theme['team_name'] }}
+                                    <flux:badge size="sm" color="zinc">{{ $teamPurchases->count() }}</flux:badge>
+                                </h4>
+                                <p class="text-[11px] text-slate-400 mt-0.5">
+                                    <span class="text-emerald-600 font-bold">{{ $usedPurchasesCount }} {{ __('مُستخدَمة') }}</span>
+                                    <span class="text-slate-300">·</span>
+                                    <span class="text-blue-600 font-bold">{{ $unusedPurchasesCount }} {{ __('لم تُستخدم بعد') }}</span>
+                                </p>
+                            </div>
+                        </div>
+                        <flux:icon icon="chevron-down" class="size-5 text-slate-400 transition-transform shrink-0" ::class="open ? 'rotate-180' : ''" />
+                    </button>
+
+                    <div x-show="open" x-collapse x-cloak class="border-t border-slate-100">
+                        <div class="p-4 space-y-2">
+                            @foreach($teamPurchases as $purchase)
+                                @php
+                                    $usage = $this->teamPurchaseUsage($purchase);
+                                    $typeIcon = match($purchase->item->item_type) {
+                                        'multiplier' => 'bolt',
+                                        'shield' => 'shield-check',
+                                        'team_points' => 'plus-circle',
+                                        'team_attack' => 'arrow-trending-down',
+                                        default => 'shopping-bag',
+                                    };
+                                @endphp
+                                <div class="flex items-center gap-3 p-3 rounded-2xl border {{ $usage['used'] ? 'bg-slate-50/60 border-slate-200/70' : 'bg-blue-50/40 border-blue-200/60' }}">
+                                    <div class="size-9 rounded-xl bg-white flex items-center justify-center shrink-0 border {{ $usage['used'] ? 'border-slate-200' : 'border-blue-200' }}">
+                                        <flux:icon :icon="$typeIcon" class="size-4 {{ $usage['used'] ? 'text-slate-500' : 'text-blue-500' }}" />
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="font-bold text-slate-800 text-sm truncate">{{ $purchase->item->name }}</p>
+                                        <p class="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap mt-0.5">
+                                            @if($purchase->target_date)
+                                                <span class="flex items-center gap-1">
+                                                    <flux:icon icon="calendar" class="size-3 shrink-0" />
+                                                    {{ \Carbon\Carbon::parse($purchase->target_date)->translatedFormat('j F Y') }}
+                                                </span>
+                                                <span class="text-slate-300">·</span>
+                                            @endif
+                                            <span>{{ __('شُريَ') }} {{ $purchase->created_at->diffForHumans() }}</span>
+                                        </p>
+                                    </div>
+                                    <flux:badge size="sm" :color="$usage['color']" :icon="$usage['icon']" class="shrink-0">
+                                        {{ $usage['label'] }}
+                                    </flux:badge>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <!-- Group purchase voting section -->
             @if($pendingTeamPurchases->isNotEmpty())

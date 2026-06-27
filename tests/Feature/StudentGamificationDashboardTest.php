@@ -86,6 +86,51 @@ it('automatically overrides dashboard to themed gamification when active', funct
     $response->assertDontSee('محفوظي من القرآن الكريم'); // Normal dashboard is overridden
 });
 
+it('renders student names in the leaderboard standings table', function () {
+    // Regression guard: the standings table renders each row via the
+    // `student.partials.leaderboard-row` Blade component. That file lives under
+    // `resources/views/components/`, which Livewire's Blaze compiler treats as a
+    // component path — compiling it into a callable function rather than plain
+    // executable view code. Rendering it via `@include(...)` (a plain Blade
+    // include) only *defines* that function and never calls it, so the row
+    // silently renders as an empty string. It must be rendered as a real Blade
+    // component (`<x-student.partials.leaderboard-row ... />`) instead.
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة لوحة المتصدرين',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(2),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $otherStudent = Student::create([
+        'name' => 'الطالب المتصدر الأول',
+        'email' => 'top-student@example.com',
+        'password' => bcrypt('password'),
+        'circle_id' => $this->circle->id,
+        'is_approved' => true,
+        'status' => 'active',
+    ]);
+
+    GamificationTransaction::create([
+        'leaderboard_id' => $leaderboard->id,
+        'student_id' => $otherStudent->id,
+        'type' => 'earn',
+        'amount' => 0,
+        'xp_amount' => 500,
+        'description' => 'كسب تجريبي',
+        'claimed_at' => now(),
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertSee('لوحة المتصدرين')
+        ->assertSee('الطالب المتصدر الأول')
+        ->assertSee('طالب تجربة لوحة التحكم'); // The acting student also appears with a 0 score
+});
+
 it('supports student actions (buying, voting, donating) from the dashboard', function () {
     // 1. Create active gamification leaderboard
     $leaderboard = Leaderboard::create([
@@ -1377,6 +1422,180 @@ it('displays team tasks on the student dashboard team tab', function () {
         ->assertSee('ترتيب القهوة والشاي')
         ->assertSee('البشاشة والسرعة في الضيافة')
         ->assertSee('قيد التنفيذ');
+});
+
+it('lists the team purchased products with used / not-used classification on the team tab', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة مشتريات المجموعة',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(5),
+        'end_date' => now()->addDays(5),
+        'is_active' => true,
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $myTeam = GamificationTeam::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'فريق المؤن',
+        'coins' => 500,
+    ]);
+    $myTeam->students()->attach($this->student->id, ['role' => 'leader']);
+
+    // A multiplier scheduled for the future -> "not used yet".
+    $futureMultiplier = GamificationStoreItem::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'مضاعف نقاط الغد',
+        'price' => 100,
+        'item_type' => 'multiplier',
+        'is_team_product' => true,
+        'value' => 2,
+    ]);
+    GamificationStorePurchase::create([
+        'store_item_id' => $futureMultiplier->id,
+        'student_id' => $this->student->id,
+        'team_id' => $myTeam->id,
+        'price_paid' => 100,
+        'target_date' => now()->addDays(2)->format('Y-m-d'),
+        'status' => 'approved',
+    ]);
+
+    // A shield whose protected day has passed -> "used".
+    $pastShield = GamificationStoreItem::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'درع الأمس',
+        'price' => 80,
+        'item_type' => 'shield',
+        'is_team_product' => true,
+    ]);
+    GamificationStorePurchase::create([
+        'store_item_id' => $pastShield->id,
+        'student_id' => $this->student->id,
+        'team_id' => $myTeam->id,
+        'price_paid' => 80,
+        'target_date' => now()->subDays(2)->format('Y-m-d'),
+        'status' => 'approved',
+    ]);
+
+    // An instant team-points purchase (no target date) -> "used".
+    $teamPoints = GamificationStoreItem::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'دعم نقاط الفريق',
+        'price' => 60,
+        'item_type' => 'team_points',
+        'is_team_product' => true,
+        'value' => 50,
+    ]);
+    GamificationStorePurchase::create([
+        'store_item_id' => $teamPoints->id,
+        'student_id' => $this->student->id,
+        'team_id' => $myTeam->id,
+        'price_paid' => 60,
+        'status' => 'approved',
+    ]);
+
+    // A pending (not yet approved) purchase must NOT appear in the inventory list.
+    $pendingItem = GamificationStoreItem::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'منتج بانتظار التصويت',
+        'price' => 40,
+        'item_type' => 'shield',
+        'is_team_product' => true,
+    ]);
+    GamificationStorePurchase::create([
+        'store_item_id' => $pendingItem->id,
+        'student_id' => $this->student->id,
+        'team_id' => $myTeam->id,
+        'price_paid' => 40,
+        'status' => 'pending_approval',
+    ]);
+
+    $this->actingAs($this->student, 'student');
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertViewHas('teamPurchases', function ($purchases) {
+            return $purchases->count() === 3
+                && $purchases->every(fn ($p) => $p->status === 'approved');
+        })
+        ->assertSee('مشتريات ومنتجات ال')
+        ->assertSee('مضاعف نقاط الغد')
+        ->assertSee('درع الأمس')
+        ->assertSee('دعم نقاط الفريق')
+        ->assertSee('لم يُستخدم بعد')
+        ->assertSee('مُستخدَم');
+});
+
+it('classifies team purchase usage states by target date', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة تصنيف المشتريات',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(5),
+        'end_date' => now()->addDays(5),
+        'is_active' => true,
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'مضاعف',
+        'price' => 100,
+        'item_type' => 'multiplier',
+        'is_team_product' => true,
+    ]);
+
+    $makePurchase = fn (?string $targetDate) => new GamificationStorePurchase([
+        'store_item_id' => $item->id,
+        'target_date' => $targetDate,
+    ]);
+
+    $this->actingAs($this->student, 'student');
+    $component = Livewire::test('student.gamification-dashboard')->instance();
+
+    expect($component->teamPurchaseUsage($makePurchase(now()->addDay()->format('Y-m-d'))))
+        ->toMatchArray(['state' => 'scheduled', 'used' => false]);
+
+    expect($component->teamPurchaseUsage($makePurchase(now()->format('Y-m-d'))))
+        ->toMatchArray(['state' => 'active', 'used' => true]);
+
+    expect($component->teamPurchaseUsage($makePurchase(now()->subDay()->format('Y-m-d'))))
+        ->toMatchArray(['state' => 'used', 'used' => true]);
+
+    expect($component->teamPurchaseUsage($makePurchase(null)))
+        ->toMatchArray(['state' => 'used', 'used' => true]);
+});
+
+it('animates the team page with a sky-blue aura only when shield protection is active today', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة درع الحماية',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(5),
+        'end_date' => now()->addDays(5),
+        'is_active' => true,
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'فريق الدرع',
+        'coins' => 100,
+        'shield_active_until' => now()->addDays(2),
+    ]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $this->actingAs($this->student, 'student');
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertViewHas('teamShieldActiveToday', true)
+        ->assertSee('team-shield-aura');
+
+    // Once the shield has expired, the aura must not be applied.
+    $team->update(['shield_active_until' => now()->subDay()]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertViewHas('teamShieldActiveToday', false)
+        ->assertDontSee('team-shield-aura');
 });
 
 it('displays gamification activities and recorded winners on the student dashboard team tab', function () {

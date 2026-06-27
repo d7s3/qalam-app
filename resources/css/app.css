@@ -132,6 +132,64 @@ select:focus[data-flux-control] {
 }
 
 /*
+ * Sky-blue gradient "shield" aura for the team page when the team's protection
+ * is active for the current day. A gentle animated gradient ring plus a soft
+ * breathing glow. Applied via the `.team-shield-aura` class.
+ */
+@keyframes team-shield-aura-shift {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+@keyframes team-shield-aura-glow {
+    0%, 100% {
+        box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35), 0 0 18px -4px rgba(56, 189, 248, 0.45);
+    }
+
+    50% {
+        box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.55), 0 0 28px -2px rgba(125, 211, 252, 0.7);
+    }
+}
+
+.team-shield-aura {
+    position: relative;
+    animation: team-shield-aura-glow 3s ease-in-out infinite;
+}
+
+.team-shield-aura::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(120deg, #7dd3fc, #38bdf8, #0ea5e9, #bae6fd, #38bdf8, #7dd3fc);
+    background-size: 300% 300%;
+    animation: team-shield-aura-shift 5s ease-in-out infinite;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .team-shield-aura,
+    .team-shield-aura::before {
+        animation: none;
+    }
+}
+
+/*
  * Keep the full-screen mobile backdrop BEHIND the sidebar.
  *
  * Flux gives the sidebar `z-20` via a *layered* `!important` utility
