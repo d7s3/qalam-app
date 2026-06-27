@@ -12,6 +12,10 @@ class GamificationTransaction extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'claimed_at' => 'datetime',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function ($transaction) {
@@ -20,7 +24,29 @@ class GamificationTransaction extends Model
             if ($transaction->type === 'earn' && is_null($transaction->xp_amount)) {
                 $transaction->xp_amount = $transaction->amount;
             }
+
+            // Default to "already claimed" unless the caller explicitly passed
+            // claimed_at (passing null marks the reward as pending a manual claim).
+            if (! array_key_exists('claimed_at', $transaction->getAttributes())) {
+                $transaction->claimed_at = now();
+            }
         });
+    }
+
+    /**
+     * Pending (unclaimed) reward transactions.
+     */
+    public function scopeUnclaimed($query)
+    {
+        return $query->whereNull('claimed_at');
+    }
+
+    /**
+     * Transactions that count toward balances and standings.
+     */
+    public function scopeClaimed($query)
+    {
+        return $query->whereNotNull('claimed_at');
     }
 
     /** @return BelongsTo<Leaderboard, $this> */

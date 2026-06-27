@@ -67,6 +67,12 @@ class Student extends Authenticatable
             ->withPivot('role');
     }
 
+    /** @return BelongsToMany<GamificationTrack, $this> */
+    public function gamificationTracks(): BelongsToMany
+    {
+        return $this->belongsToMany(GamificationTrack::class, 'gamification_track_student', 'student_id', 'track_id');
+    }
+
     /** @return HasMany<GamificationTransaction, $this> */
     public function gamificationTransactions(): HasMany
     {

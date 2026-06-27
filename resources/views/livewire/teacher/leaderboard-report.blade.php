@@ -22,7 +22,10 @@
                     <tr>
                         <th class="p-4 font-semibold text-zinc-800 dark:text-zinc-200">{{ __('الترتيب والطالب') }}</th>
                         <th class="p-4 font-semibold text-zinc-800 dark:text-zinc-200 text-center">{{ __('الإجمالي') }}</th>
-                        
+                        @if($leaderboard->settings['manual_claim_enabled'] ?? false)
+                            <th class="p-4 font-semibold text-amber-700 dark:text-amber-400 text-center bg-amber-50/50 dark:bg-amber-900/10 border-r border-l border-zinc-100 dark:border-zinc-700">{{ __('بانتظار الاستلام') }}</th>
+                        @endif
+
                         <!-- Automated columns -->
                         <th class="p-4 font-semibold text-indigo-700 dark:text-indigo-400 text-center bg-indigo-50/50 dark:bg-indigo-900/10 border-r border-l border-zinc-100 dark:border-zinc-700">{{ __('تلقائي (حفظ)') }}</th>
                         <th class="p-4 font-semibold text-indigo-700 dark:text-indigo-400 text-center bg-indigo-50/50 dark:bg-indigo-900/10 border-r border-l border-zinc-100 dark:border-zinc-700">{{ __('تلقائي (مراجعة)') }}</th>
@@ -40,50 +43,30 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
-                    @foreach($standings as $index => $standing)
-                        @php $rank = $index + 1; @endphp
-                        <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30   s">
-                            <td class="p-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm {{ $rank === 1 ? 'bg-amber-100 text-amber-600 border border-amber-300' : ($rank === 2 ? 'bg-slate-100 text-slate-600 border border-slate-300' : ($rank === 3 ? 'bg-orange-100 text-orange-600 border border-orange-300' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700')) }}">
-                                        {{ $rank }}
+                    @if($standingsByTrack->isNotEmpty())
+                        @foreach($standingsByTrack as $group)
+                            <tr class="bg-purple-50/60 dark:bg-purple-900/10 border-y border-purple-100 dark:border-purple-900/30">
+                                <td colspan="100%" class="px-4 py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <flux:icon icon="flag" class="size-4 text-purple-500 shrink-0" />
+                                        <span class="font-bold text-purple-700 dark:text-purple-300">{{ $group['name'] }}</span>
+                                        <span class="text-xs text-zinc-400">({{ count($group['standings']) }})</span>
+                                        @if($group['description'])
+                                            <span class="text-xs text-zinc-400 truncate">— {{ $group['description'] }}</span>
+                                        @endif
                                     </div>
-                                    <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $standing['student']->name }}</span>
-                                </div>
-                            </td>
-                            <td class="p-4 text-center font-bold text-lg text-emerald-600 dark:text-emerald-500">
-                                {{ $standing['score'] }}
-                            </td>
-                            
-                            <td class="p-4 text-center text-sm font-medium text-zinc-600 dark:text-zinc-400 bg-indigo-50/20 dark:bg-indigo-900/5 border-r border-l border-zinc-100 dark:border-zinc-800/50">
-                                {{ $standing['details']['hifz'] }}
-                            </td>
-                            <td class="p-4 text-center text-sm font-medium text-zinc-600 dark:text-zinc-400 bg-indigo-50/20 dark:bg-indigo-900/5 border-r border-l border-zinc-100 dark:border-zinc-800/50">
-                                {{ $standing['details']['review'] }}
-                            </td>
-                            <td class="p-4 text-center text-sm font-medium text-zinc-600 dark:text-zinc-400 bg-indigo-50/20 dark:bg-indigo-900/5 border-r border-l border-zinc-100 dark:border-zinc-800/50">
-                                {{ $standing['details']['attendance'] }}
-                            </td>
-
-                            @foreach($leaderboard->criteria as $criterion)
-                                @php
-                                    $timesEarned = $standing['details']['criteria_counts'][$criterion->id] ?? 0;
-                                    $pointsEarned = $timesEarned * $criterion->points;
-                                @endphp
-                                <td class="p-4 text-center bg-emerald-50/20 dark:bg-emerald-900 border-l border-zinc-100 dark:border-zinc-800/50">
-                                    @if($timesEarned > 0)
-                                        <div class="flex flex-col items-center">
-                                            <span class="text-sm font-bold text-zinc-700 dark:text-zinc-300">{{ $pointsEarned }}</span>
-                                            <span class="text-[10px] text-zinc-400 bg-white dark:bg-zinc-800 px-1.5 py-0.5 rounded shadow-sm">{{ $timesEarned }} {{ __('مرات') }}</span>
-                                        </div>
-                                    @else
-                                        <span class="text-zinc-300 dark:text-zinc-700">-</span>
-                                    @endif
                                 </td>
+                            </tr>
+                            @foreach($group['standings'] as $standing)
+                                @include('livewire.teacher.partials.report-row', ['standing' => $standing, 'rank' => $standing['track_rank'], 'leaderboard' => $leaderboard])
                             @endforeach
-                        </tr>
-                    @endforeach
-                    
+                        @endforeach
+                    @else
+                        @foreach($standings as $index => $standing)
+                            @include('livewire.teacher.partials.report-row', ['standing' => $standing, 'rank' => $index + 1, 'leaderboard' => $leaderboard])
+                        @endforeach
+                    @endif
+
                     @if($standings->isEmpty())
                         <tr>
                             <td colspan="100%" class="p-8 text-center text-zinc-500">

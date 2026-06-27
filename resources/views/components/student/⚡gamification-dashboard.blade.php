@@ -23,6 +23,13 @@ new class extends Component {
     public string $freezeHijriDate = '';
     public int $freezePrice = 100;
 
+    public ?string $newsDate = null;
+
+    public function setNewsDate(string $date): void
+    {
+        $this->newsDate = $date;
+    }
+
     public function updatedProfileImageFile(): void
     {
         $this->validate([
@@ -187,8 +194,8 @@ new class extends Component {
             Flux::toast('رصيدك غير كافٍ للشراء.', variant: 'danger');
         } elseif ($status === 'insufficient_team_coins') {
             Flux::toast('رصيد الفريق غير كافٍ لشراء هذا المنتج.', variant: 'danger');
-        } elseif ($status === 'only_leader_or_assistant') {
-            Flux::toast('فقط القائد أو المساعد يمكنه شراء هذا المنتج للفريق.', variant: 'danger');
+        } elseif ($status === 'only_leader') {
+            Flux::toast('فقط قائد المجموعة يمكنه شراء منتجات المجموعة وتحديد تفاصيلها.', variant: 'danger');
         } elseif ($status === 'must_be_in_team') {
             Flux::toast('يجب أن تكون في فريق لشراء هذا المنتج.', variant: 'danger');
         } elseif ($status === 'invalid_target_date') {
@@ -626,10 +633,17 @@ new class extends Component {
 
         // Leaderboard standings
         $leaderboardStandings = [];
+        $standingsByTrack = collect();
         if ($activeGamification) {
             $service = new \App\Services\LeaderboardService();
             $leaderboardStandings = $service->getStandings($activeGamification);
+            $standingsByTrack = $service->getStandingsByTrack($activeGamification);
         }
+
+        // News / daily digest
+        $newsDate = $this->newsDate ?: \Carbon\Carbon::today()->toDateString();
+        $dailyDigest = $activeGamification ? \App\Services\GamificationNewsService::getDailyDigest($activeGamification->id, $newsDate) : [];
+        $availableNewsDates = $activeGamification ? \App\Services\GamificationNewsService::getAvailableDates($activeGamification->id) : [];
 
         // Fetch Earliest Pending Missions (one per active approved plan)
         $activeApprovedPlans = \App\Models\StudentPlan::where('student_id', $student->id)->where('status', 'active')->where('is_approved', 1)->get();
@@ -765,7 +779,12 @@ new class extends Component {
             'style' => $style,
             'teamColor' => $teamColor,
             'leaderboardStandings' => $leaderboardStandings,
+            'standingsByTrack' => $standingsByTrack,
+            'dailyDigest' => $dailyDigest,
+            'availableNewsDates' => $availableNewsDates,
+            'newsDate' => $newsDate,
             'studentXP' => $activeGamification ? \App\Services\GamificationService::getStudentXP($student->id, $activeGamification->id) : 0,
+            'pendingRewards' => $activeGamification ? \App\Services\GamificationService::getPendingRewards($student->id, $activeGamification->id) : collect(),
             'pendingMissions' => $pendingMissions,
             'pendingHadithMissions' => $pendingHadithMissions,
             'teamStudents' => $teamStudents,
@@ -889,8 +908,8 @@ new class extends Component {
             unset($this->targetDates[$itemId]);
         } elseif ($status === 'must_be_in_team') {
             Flux::toast('يجب أن تكون في فريق لشراء هذا المنتج.', variant: 'danger');
-        } elseif ($status === 'only_leader_or_assistant') {
-            Flux::toast('فقط القائد أو المساعد يمكنه شراء هذا المنتج للفريق.', variant: 'danger');
+        } elseif ($status === 'only_leader') {
+            Flux::toast('فقط قائد المجموعة يمكنه شراء منتجات المجموعة وتحديد تفاصيلها.', variant: 'danger');
         } elseif ($status === 'insufficient_team_coins') {
             Flux::toast('رصيد الفريق غير كافٍ لشراء هذا المنتج.', variant: 'danger');
         } elseif ($status === 'target_team_required') {
@@ -915,6 +934,27 @@ new class extends Component {
             Flux::toast('تم تسجيل تصويتك بنجاح.', variant: 'success');
         } else {
             Flux::toast('تعذر تسجيل التصويت.', variant: 'danger');
+        }
+    }
+
+    public function claimReward($transactionId)
+    {
+        $student = Auth::guard('student')->user();
+        if (\App\Services\GamificationService::claimReward((int) $transactionId, $student->id)) {
+            Flux::toast('تم استلام المكافأة!', variant: 'success');
+        }
+    }
+
+    public function claimAllRewards()
+    {
+        $student = Auth::guard('student')->user();
+        $leaderboard = \App\Services\GamificationService::getActiveLeaderboards($student)->first();
+        if (! $leaderboard) {
+            return;
+        }
+        $count = \App\Services\GamificationService::claimAllRewards($student->id, $leaderboard->id);
+        if ($count > 0) {
+            Flux::toast("تم استلام {$count} مكافأة!", variant: 'success');
         }
     }
 
@@ -1201,6 +1241,58 @@ new class extends Component {
             </div>
         </div>
     </div>
+
+    <!-- Pending rewards to claim -->
+    @if($pendingRewards->isNotEmpty())
+        <div class="relative z-10 mb-6 rounded-3xl border border-amber-200 bg-white overflow-hidden shadow-sm">
+            <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-100">
+                <div class="flex items-center gap-2.5">
+                    <div class="size-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center"><flux:icon icon="gift" class="size-5" /></div>
+                    <div>
+                        <div class="font-bold text-slate-900">{{ __('مكافآت بانتظار الاستلام') }}</div>
+                        <div class="text-xs text-slate-400">{{ $pendingRewards->count() }} {{ __('مكافآت لم تُستلم بعد') }}</div>
+                    </div>
+                </div>
+                <div class="flex gap-1.5 text-xs font-bold">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600"><flux:icon icon="bolt" class="size-3.5" /> +{{ $pendingRewards->sum('xp_amount') }}</span>
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600"><flux:icon icon="circle-stack" class="size-3.5" /> +{{ $pendingRewards->sum('amount') }}</span>
+                </div>
+            </div>
+
+            <div class="divide-y divide-slate-100 max-h-80 overflow-y-auto scrollbar-thin">
+                @foreach($pendingRewards as $reward)
+                    @php
+                        $rewardIcon = match($reward->reference_type) {
+                            'App\\Models\\StudentPlanDay' => 'book-open',
+                            'App\\Models\\StudentOdeAchievement' => 'musical-note',
+                            'App\\Models\\StudentHadithAchievement' => 'document-text',
+                            'App\\Models\\Attendance' => 'user-group',
+                            'App\\Models\\LeaderboardScore' => 'star',
+                            'App\\Models\\GamificationActivityWinner' => 'trophy',
+                            'leaderboard_extra_points' => 'plus-circle',
+                            default => 'gift',
+                        };
+                    @endphp
+                    <div class="flex items-center gap-3 p-3.5" wire:key="reward-{{ $reward->id }}">
+                        <div class="size-9 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center shrink-0"><flux:icon :icon="$rewardIcon" class="size-5" /></div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm text-slate-800 truncate">{{ $reward->description }}</div>
+                        </div>
+                        <div class="hidden sm:flex gap-1.5 shrink-0">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600">+{{ $reward->xp_amount }} {{ __('خبرة') }}</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600">+{{ $reward->amount }} {{ __('عملة') }}</span>
+                        </div>
+                        <button wire:click="claimReward({{ $reward->id }})" wire:loading.attr="disabled" class="shrink-0 text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-colors">{{ __('استلام') }}</button>
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="flex items-center justify-between gap-3 p-4 bg-slate-50/70 border-t border-slate-100">
+                <span class="text-xs text-slate-500">{{ __('الإجمالي') }}: +{{ $pendingRewards->sum('xp_amount') }} {{ __('خبرة') }} · +{{ $pendingRewards->sum('amount') }} {{ __('عملة') }}</span>
+                <button wire:click="claimAllRewards" wire:loading.attr="disabled" class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm transition-colors"><flux:icon icon="check" class="size-4" /> {{ __('استلام الكل') }}</button>
+            </div>
+        </div>
+    @endif
 
     <!-- Top Core Stats Grid -->
     <div class="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1728,7 +1820,7 @@ new class extends Component {
                             $requiresVoting = $isTeamItem && ($activeGamification->settings['team_purchase_voting_enabled'] ?? false);
                             
                             $reqTeam = $studentTeam !== null;
-                            $reqRole = in_array($teamRole, ['leader', 'assistant']);
+                            $reqRole = $teamRole === 'leader';
                             $reqCoins = $studentTeam && ($studentTeam->coins >= $item->price);
                             $reqMembers = $studentTeam && ($teamStudents->count() > 1);
                             
@@ -1800,7 +1892,7 @@ new class extends Component {
                                                 {{ $reqRole ? '✓' : '✗' }}
                                             </span>
                                             <span class="{{ $reqRole ? 'text-slate-700 font-semibold' : 'text-slate-400' }}">
-                                                {{ __('رتبتك قائد أو مساعد في ال') }}{{ $theme['team_name'] }}
+                                                {{ __('رتبتك قائد ال') }}{{ $theme['team_name'] }}
                                             </span>
                                         </div>
 
@@ -1899,7 +1991,7 @@ new class extends Component {
                 @else
                     @php
                         $showTeamMultiplier = false;
-                        if ($activeGamification && isset($gamificationLevelInfo['current'])) {
+                        if ($activeGamification && isset($gamificationLevelInfo['current']) && $studentTeam && $teamRole === 'leader') {
                             $lvlSettings = $gamificationLevelInfo['current']->settings ?? [];
                             $showTeamMultiplier = (bool) ($lvlSettings['has_team_multiplier'] ?? true);
                         }
@@ -2188,6 +2280,48 @@ new class extends Component {
                         <flux:icon icon="presentation-chart-line" class="size-10 mx-auto text-slate-400 mb-3" />
                         <h4 class="font-bold text-slate-500 text-sm">{{ __('لا توجد نتائج لعرضها') }}</h4>
                     </div>
+                @elseif($standingsByTrack->isNotEmpty())
+                    {{-- Standings divided into tracks, each with its own ranking --}}
+                    @php
+                        $myTrackKey = null;
+                        foreach ($standingsByTrack as $gi => $g) {
+                            foreach ($g['standings'] as $s) {
+                                if ($s['student']->id === $student->id) { $myTrackKey = $gi; break 2; }
+                            }
+                        }
+                    @endphp
+                    <div class="space-y-3">
+                        @foreach($standingsByTrack as $gi => $group)
+                            <div x-data="{ open: {{ $gi === $myTrackKey ? 'true' : 'false' }} }" class="bg-white border {{ $gi === $myTrackKey ? 'border-team-primary' : 'border-slate-200' }} rounded-2xl overflow-hidden shadow-sm">
+                                <button type="button" @click="open = !open" class="w-full flex items-center justify-between gap-3 p-4 hover:bg-slate-50/50">
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <div class="size-9 rounded-xl flex items-center justify-center shrink-0 {{ $gi === $myTrackKey ? 'bg-team-10 text-team-primary' : 'bg-slate-100 text-slate-500' }}"><flux:icon icon="flag" class="size-5" /></div>
+                                        <div class="min-w-0 text-right">
+                                            <div class="font-bold text-slate-900 flex items-center gap-2">
+                                                <span class="truncate">{{ $group['name'] }}</span>
+                                                @if($gi === $myTrackKey)<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-team-10 text-team-primary shrink-0">{{ __('مسارك') }}</span>@endif
+                                            </div>
+                                            @if($group['description'])<div class="text-xs text-slate-400 truncate">{{ $group['description'] }}</div>@endif
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <span class="text-xs text-slate-400">{{ count($group['standings']) }}</span>
+                                        <flux:icon icon="chevron-down" class="size-4 text-slate-400 transition-transform" x-bind:class="open ? 'rotate-180' : ''" />
+                                    </div>
+                                </button>
+                                <div x-show="open" x-collapse class="border-t border-slate-100 overflow-x-auto">
+                                    <table class="w-full text-right">
+                                        <tbody class="divide-y divide-slate-100">
+                                            @foreach($group['standings'] as $standing)
+                                                @php $rank = $standing['track_rank']; $isMe = $standing['student']->id === $student->id; @endphp
+                                                @include('components.student.partials.leaderboard-row', ['standing' => $standing, 'rank' => $rank, 'isMe' => $isMe])
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
                 @else
                     <!-- Themed Leaderboard Table -->
                     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -2202,52 +2336,8 @@ new class extends Component {
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
                                     @foreach($leaderboardStandings as $index => $standing)
-                                        @php
-                                            $rank = $index + 1;
-                                            $isMe = $standing['student']->id === $student->id;
-                                        @endphp
-                                        <tr class="transition-colors duration-150 {{ $isMe ? 'bg-team-10 text-slate-900 font-bold' : 'text-slate-700 hover:bg-slate-50/50' }}">
-                                            <td class="p-1 !w-1 text-center">
-                                                <div class="flex justify-center items-center">
-                                                    @if($rank === 1)
-                                                        <span class="inline-flex items-center justify-center size-6 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 text-amber-950 text-xs font-black shadow-sm border border-amber-200">1</span>
-                                                     @elseif($rank === 2)
-                                                        <span class="inline-flex items-center justify-center size-6 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 text-slate-900 text-xs font-black shadow-sm border border-slate-300">2</span>
-                                                     @elseif($rank === 3)
-                                                        <span class="inline-flex items-center justify-center size-6 rounded-full bg-gradient-to-br from-amber-600 to-amber-700 text-amber-50 text-xs font-black shadow-sm border border-amber-500">3</span>
-                                                     @else
-                                                        <span class="text-slate-400 font-semibold text-xs">#{{ $rank }}</span>
-                                                     @endif
-                                                </div>
-                                            </td>
-                                            <td class="p-2.5">
-                                                <div class="flex items-center gap-3">
-                                                    @if($standing['student']->avatar_path)
-                                                        <img src="{{ Storage::url($standing['student']->avatar_path) }}" class="w-12 h-12 rounded-full object-cover border border-slate-200" />
-                                                    @else
-                                                        <div class="w-12 h-12 rounded-full flex items-center justify-center font-bold text-xs border border-slate-200" style="{{ $standing['student']->avatarStyle() }}">
-                                                            {{ $standing['student']->initials() }}
-                                                        </div>
-                                                    @endif
-                                                    <div class="flex flex-col items-start">
-                                                        <span>{{ $standing['student']->name }}</span>
-                                                        @php
-                                                            $team = $standing['student']->gamificationTeams->first();
-                                                        @endphp
-                                                        @if($team)
-                                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5" style="background-color: {{ $team->color }}1a; color: {{ $team->color }};">
-                                                                {{ $team->name }}
-                                                            </span>
-                                                        @elseif($standing['student']->circle)
-                                                            <span class="text-[10px] text-slate-400 mt-0.5">{{ $standing['student']->circle->name }}</span>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td class="p-4 text-center font-bold">
-                                                {{ $standing['score'] }} XP
-                                            </td>
-                                        </tr>
+                                        @php $rank = $index + 1; $isMe = $standing['student']->id === $student->id; @endphp
+                                        @include('components.student.partials.leaderboard-row', ['standing' => $standing, 'rank' => $rank, 'isMe' => $isMe])
                                     @endforeach
                                 </tbody>
                             </table>
@@ -2255,6 +2345,95 @@ new class extends Component {
                     </div>
                 @endif
             </div>
+        </div>
+
+        <!-- News / Daily digest Content -->
+        <div x-show="currentTab === 'news'" class="space-y-4">
+            @php
+                $typeMeta = [
+                    'level_up'            => ['label' => 'ارتقاء المستويات', 'icon' => 'arrow-trending-up', 'head' => 'bg-emerald-50 text-emerald-700', 'ic' => 'text-emerald-600', 'dot' => 'bg-emerald-400'],
+                    'badge'               => ['label' => 'الأوسمة',          'icon' => 'trophy',            'head' => 'bg-amber-50 text-amber-700',     'ic' => 'text-amber-600',   'dot' => 'bg-amber-400'],
+                    'activity_win'        => ['label' => 'الفعاليات والجولات','icon' => 'flag',             'head' => 'bg-indigo-50 text-indigo-700',   'ic' => 'text-indigo-600',  'dot' => 'bg-indigo-400'],
+                    'team_attack'         => ['label' => 'خصومات الأسر',      'icon' => 'bolt',             'head' => 'bg-rose-50 text-rose-700',       'ic' => 'text-rose-600',    'dot' => 'bg-rose-400'],
+                    'team_attack_blocked' => ['label' => 'هجمات مصدودة',      'icon' => 'shield-check',     'head' => 'bg-sky-50 text-sky-700',         'ic' => 'text-sky-600',     'dot' => 'bg-sky-400'],
+                    'team_task'           => ['label' => 'تقييم مهام الأسر',  'icon' => 'clipboard-document-check', 'head' => 'bg-violet-50 text-violet-700', 'ic' => 'text-violet-600', 'dot' => 'bg-violet-400'],
+                    'adjustment'          => ['label' => 'التسويات',          'icon' => 'adjustments-horizontal', 'head' => 'bg-slate-100 text-slate-700', 'ic' => 'text-slate-600',  'dot' => 'bg-slate-400'],
+                ];
+                $chipDates = collect([\Carbon\Carbon::today()->toDateString()])->merge($availableNewsDates)->unique()->take(10)->values();
+            @endphp
+
+            <div class="flex items-center gap-2">
+                <flux:icon icon="newspaper" class="size-6 text-slate-800" />
+                <h3 class="font-black text-slate-900 text-lg">{{ __('أخبار المسابقة') }}</h3>
+            </div>
+
+            {{-- Day selector --}}
+            <div class="flex gap-2 overflow-x-auto scrollbar-thin pb-1">
+                @foreach($chipDates as $d)
+                    @php $isToday = $d === \Carbon\Carbon::today()->toDateString(); $isSelected = $d === $newsDate; @endphp
+                    <button type="button" wire:click="setNewsDate('{{ $d }}')"
+                        class="shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-colors {{ $isSelected ? 'bg-team-primary text-white border-team-primary' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50' }}">
+                        {{ $isToday ? __('اليوم') : $d }}
+                    </button>
+                @endforeach
+            </div>
+
+            @if(empty($dailyDigest))
+                <div class="text-center py-12 bg-slate-50 border border-slate-200 rounded-2xl">
+                    <flux:icon icon="newspaper" class="size-10 mx-auto text-slate-400 mb-3" />
+                    <h4 class="font-bold text-slate-500 text-sm">{{ __('لا توجد أخبار في هذا اليوم') }}</h4>
+                </div>
+            @else
+                @foreach($typeMeta as $type => $meta)
+                    @if(!empty($dailyDigest[$type]) && count($dailyDigest[$type]) > 0)
+                        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 {{ $meta['head'] }}">
+                                <flux:icon icon="{{ $meta['icon'] }}" class="size-4 {{ $meta['ic'] }}" />
+                                <span class="font-bold text-sm">{{ $meta['label'] }}</span>
+                                <span class="text-xs text-slate-400">({{ count($dailyDigest[$type]) }})</span>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                @foreach($dailyDigest[$type] as $news)
+                                    @php $d = $news['data'] ?? []; @endphp
+                                    <div class="flex items-start gap-2.5 px-4 py-2.5 text-sm text-slate-700">
+                                        <span class="mt-1.5 size-1.5 rounded-full {{ $meta['dot'] }} shrink-0"></span>
+                                        <span>
+                                            @switch($type)
+                                                @case('level_up')
+                                                    {{ __('ارتقى') }} <span class="font-bold">{{ $d['student_name'] ?? '' }}</span> {{ __('إلى') }} <span class="font-bold">{{ $d['level_name'] ?? '' }}</span>
+                                                    @break
+                                                @case('badge')
+                                                    {{ __('حصل') }} <span class="font-bold">{{ $d['student_name'] ?? '' }}</span> {{ __('على وسام') }} <span class="font-bold">{{ $d['badge_name'] ?? '' }}</span>
+                                                    @break
+                                                @case('activity_win')
+                                                    {{ __('فاز') }} <span class="font-bold">{{ $d['team_name'] ?? '' }}</span> {{ __('بـ') }} <span class="font-bold">{{ $d['rank_name'] ?? '' }}</span> {{ __('في') }} {{ $d['activity_name'] ?? '' }} — {{ $d['round_name'] ?? '' }}
+                                                    @break
+                                                @case('team_attack')
+                                                    {{ __('تعرّضت') }} <span class="font-bold">{{ $d['target_team_name'] ?? '' }}</span> {{ __('لهجوم خصم نقاط') }} <span class="font-bold text-rose-600">(-{{ $d['amount'] ?? 0 }})</span>
+                                                    @break
+                                                @case('team_attack_blocked')
+                                                    {{ __('صدّت') }} <span class="font-bold">{{ $d['target_team_name'] ?? '' }}</span> {{ __('هجوماً على نقاطها بفضل درع الحماية') }}
+                                                    @break
+                                                @case('team_task')
+                                                    {{ __('تم تقييم مهمة') }} <span class="font-bold">{{ $d['task_name'] ?? '' }}</span> {{ __('لـ') }} <span class="font-bold">{{ $d['team_name'] ?? '' }}</span> {{ __('بدرجة') }} {{ $d['grade'] ?? 0 }}%
+                                                    @break
+                                                @case('adjustment')
+                                                    @php $isAdd = ($d['action'] ?? 'add') === 'add'; @endphp
+                                                    <span class="font-bold {{ $isAdd ? 'text-emerald-600' : 'text-rose-600' }}">{{ $isAdd ? __('إضافة') : __('خصم') }}</span>
+                                                    {{ __('لـ') }} <span class="font-bold">{{ $d['target_name'] ?? '' }}</span>:
+                                                    @if(($d['xp'] ?? 0) > 0) {{ $d['xp'] }} {{ __('نقطة') }} @endif
+                                                    @if(($d['coins'] ?? 0) > 0) {{ ($d['xp'] ?? 0) > 0 ? '،' : '' }} {{ $d['coins'] }} {{ __('عملة') }} @endif
+                                                    @if(!empty($d['description'])) <span class="text-slate-400">— {{ $d['description'] }}</span> @endif
+                                                    @break
+                                            @endswitch
+                                        </span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                @endforeach
+            @endif
         </div>
 
         <!-- Team Content -->

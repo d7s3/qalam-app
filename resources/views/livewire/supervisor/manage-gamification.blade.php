@@ -45,6 +45,9 @@
         <button wire:click="$set('activeTab', 'teams')" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 {{ $activeTab === 'teams' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
            المجموعات
         </button>
+        <button wire:click="$set('activeTab', 'tracks')" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 {{ $activeTab === 'tracks' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+           المسارات
+        </button>
         <button wire:click="$set('activeTab', 'store')" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 {{ $activeTab === 'store' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
             المتجر
         </button>
@@ -186,6 +189,20 @@
         {{-- TAB: CRITERIA --}}
         @if($activeTab === 'criteria')
             <div class="space-y-6">
+                {{-- Manual reward claim toggle --}}
+                <div class="flex items-center justify-between gap-4 p-5 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/10">
+                    <div class="flex items-start gap-3">
+                        <div class="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0">
+                            <flux:icon icon="gift" class="size-5" />
+                        </div>
+                        <div>
+                            <span class="font-bold text-zinc-900 dark:text-white">استلام المكافآت يدوياً</span>
+                            <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">عند التفعيل لا تُحتسب نقاط الطالب وعملاته حتى يستلمها بنفسه من لوحته.</p>
+                        </div>
+                    </div>
+                    <flux:switch wire:model="manual_claim_enabled" />
+                </div>
+
                 {{-- Automatic Evaluation Items Section --}}
                 <div class="space-y-4 border-b border-zinc-200 dark:border-zinc-800 pb-8">
                     <div>
@@ -778,6 +795,83 @@
             </div>
         @endif
 
+        {{-- TAB: TRACKS (ranking divisions) --}}
+        @if($activeTab === 'tracks')
+            <div class="space-y-6">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <flux:heading size="lg">مسارات الترتيب</flux:heading>
+                        <flux:subheading>قسّم المتصدرين إلى مسارات، لكل مسار ترتيب صدارة مستقل. الطلاب غير المُسكّنين يظهرون في مسار "عام".</flux:subheading>
+                    </div>
+                    <flux:button wire:click="createTrack" variant="primary" icon="plus" class="bg-purple-600 hover:bg-purple-700 border-none text-white shrink-0">مسار جديد</flux:button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    @forelse($dbTracks as $track)
+                        <div class="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm flex flex-col gap-3">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <div class="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 shrink-0"><flux:icon icon="flag" class="size-5" /></div>
+                                    <span class="font-bold text-zinc-900 dark:text-white truncate">{{ $track->name }}</span>
+                                </div>
+                                <flux:dropdown position="bottom" align="end">
+                                    <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" class="shrink-0 text-zinc-400" />
+                                    <flux:menu>
+                                        <flux:menu.item wire:click="editTrack({{ $track->id }})" icon="pencil-square">تعديل</flux:menu.item>
+                                        <flux:menu.separator />
+                                        <flux:menu.item wire:click="deleteTrack({{ $track->id }})" wire:confirm="هل أنت متأكد من حذف هذا المسار؟" icon="trash" class="text-rose-500 hover:text-rose-600">حذف</flux:menu.item>
+                                    </flux:menu>
+                                </flux:dropdown>
+                            </div>
+                            @if($track->description)
+                                <p class="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2">{{ $track->description }}</p>
+                            @endif
+                            <div class="mt-auto pt-1">
+                                <flux:badge size="sm" color="zinc" icon="users">{{ $track->students_count }} طالب</flux:badge>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="col-span-full text-center py-12 text-zinc-500 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
+                            لا توجد مسارات بعد. أنشئ أول مسار لتقسيم المتصدرين.
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- Track editor modal --}}
+            <flux:modal wire:model="showTrackModal" class="md:w-[700px] w-full">
+                <div class="space-y-5">
+                    <flux:heading size="lg">{{ $editingTrackId ? 'تعديل المسار' : 'مسار جديد' }}</flux:heading>
+
+                    <flux:input wire:model="track_name" label="اسم المسار" placeholder="مثال: المتقدمون" required />
+                    <flux:textarea wire:model="track_description" label="الوصف (اختياري)" placeholder="وصف موجز يميّز هذا المسار" rows="2" />
+
+                    <div>
+                        <flux:heading size="sm" class="mb-2">تسكين الطلاب</flux:heading>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto p-2 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+                            @php $trackGrouped = $students->groupBy(fn($s) => $s->circle->name ?? 'بدون حلقة'); @endphp
+                            @forelse($trackGrouped as $circleName => $circleStudents)
+                                <div class="sm:col-span-2 text-xs font-bold text-zinc-400 mt-1">{{ $circleName }}</div>
+                                @foreach($circleStudents as $std)
+                                    <label class="flex items-center gap-2 p-1.5 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
+                                        <flux:checkbox wire:model="track_student_ids" value="{{ $std->id }}" />
+                                        <span class="text-sm text-zinc-800 dark:text-zinc-200">{{ $std->name }}</span>
+                                    </label>
+                                @endforeach
+                            @empty
+                                <span class="text-xs text-zinc-400 col-span-2 text-center py-3">لا يوجد طلاب في الحلقات المشاركة.</span>
+                            @endforelse
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2">
+                        <flux:button wire:click="$set('showTrackModal', false)" variant="ghost">إلغاء</flux:button>
+                        <flux:button wire:click="saveTrack" variant="primary" class="bg-purple-600 hover:bg-purple-700 border-none text-white">حفظ المسار</flux:button>
+                    </div>
+                </div>
+            </flux:modal>
+        @endif
+
         {{-- TAB: TEAM TASKS --}}
         @if($activeTab === 'team_tasks')
             <div class="space-y-8">
@@ -1226,6 +1320,15 @@
                     <!-- Description -->
                     <div class="space-y-2">
                         <flux:input label="السبب" wire:model="adjDescription" placeholder="أدخل سبب إجراء هذا التعديل اليدوي..." required />
+                    </div>
+
+                    <!-- Show in news (default off) -->
+                    <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
+                        <div>
+                            <span class="text-sm font-bold text-zinc-800 dark:text-zinc-200">إظهار التسوية في الأخبار</span>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">افتراضياً لا تظهر التسوية في موجز أخبار الطلاب.</p>
+                        </div>
+                        <flux:switch wire:model="adjShowInNews" />
                     </div>
 
                     <!-- Submit -->

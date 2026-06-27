@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Models\Attendance;
+use App\Models\GamificationTrack;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardScore;
 use App\Models\Student;
 use App\Models\StudentHadithAchievement;
 use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class LeaderboardService
@@ -77,6 +79,7 @@ class LeaderboardService
 
         foreach ($students as $student) {
             $totalScore = 0;
+            $pendingScore = 0;
             $manualScore = 0;
             $attendanceScore = 0;
             $hifzScore = 0;
@@ -90,8 +93,11 @@ class LeaderboardService
                 ->get();
 
             if ($isGamification) {
-                $studentTxs = $transactions->where('student_id', $student->id);
+                $allStudentTxs = $transactions->where('student_id', $student->id);
+                // Only claimed rewards count toward the standing; pending is surfaced separately.
+                $studentTxs = $allStudentTxs->whereNotNull('claimed_at');
                 $totalScore = (int) $studentTxs->sum('xp_amount');
+                $pendingScore = (int) $allStudentTxs->whereNull('claimed_at')->sum('xp_amount');
 
                 foreach ($studentTxs as $tx) {
                     if ($tx->reference_type === 'App\Models\Attendance') {
@@ -336,6 +342,7 @@ class LeaderboardService
             $standings[] = [
                 'student' => $student,
                 'score' => $totalScore,
+                'pending_score' => $pendingScore,
                 'details' => [
                     'manual' => $manualScore,
                     'extra_points_score' => $extraPointsScore,
@@ -362,6 +369,73 @@ class LeaderboardService
     public function getStandings(Leaderboard $leaderboard)
     {
         return $this->getDetailedStandings($leaderboard);
+    }
+
+    /**
+     * Group the (globally ranked) standings into competition tracks, each with its
+     * own internal ranking. Students not assigned to any track fall into a trailing
+     * "عام" group. Returns an empty collection when the competition has no tracks,
+     * so callers can fall back to the flat leaderboard.
+     *
+     * @return Collection<int, array{id: int|null, name: string, description: ?string, standings: array<int, mixed>}>
+     */
+    public function getStandingsByTrack(Leaderboard $leaderboard)
+    {
+        $tracks = GamificationTrack::where('leaderboard_id', $leaderboard->id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->with('students:id')
+            ->get();
+
+        if ($tracks->isEmpty()) {
+            return collect();
+        }
+
+        // One track per student by design — map student id to its track id.
+        $studentTrack = [];
+        foreach ($tracks as $track) {
+            foreach ($track->students as $s) {
+                $studentTrack[$s->id] = $track->id;
+            }
+        }
+
+        $groups = [];
+        foreach ($tracks as $track) {
+            $groups[$track->id] = [
+                'id' => $track->id,
+                'name' => $track->name,
+                'description' => $track->description,
+                'standings' => [],
+            ];
+        }
+        $general = ['id' => null, 'name' => 'عام', 'description' => null, 'standings' => []];
+
+        foreach ($this->getDetailedStandings($leaderboard) as $row) {
+            $trackId = $studentTrack[$row['student']->id] ?? null;
+            if ($trackId !== null && isset($groups[$trackId])) {
+                $groups[$trackId]['standings'][] = $row;
+            } else {
+                $general['standings'][] = $row;
+            }
+        }
+
+        $result = collect(array_values($groups));
+        if (! empty($general['standings'])) {
+            $result->push($general);
+        }
+
+        return $result
+            ->map(function ($group) {
+                $group['standings'] = collect($group['standings'])->values()->map(function ($row, $index) {
+                    $row['track_rank'] = $index + 1;
+
+                    return $row;
+                })->all();
+
+                return $group;
+            })
+            ->filter(fn ($group) => ! empty($group['standings']))
+            ->values();
     }
 
     public function getDailyScores(Leaderboard $leaderboard, $date)

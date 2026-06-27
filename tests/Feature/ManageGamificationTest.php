@@ -9,11 +9,13 @@ use App\Models\GamificationActivityRound;
 use App\Models\GamificationActivityWinner;
 use App\Models\GamificationBadge;
 use App\Models\GamificationLevel;
+use App\Models\GamificationNews;
 use App\Models\GamificationStoreItem;
 use App\Models\GamificationStudentState;
 use App\Models\GamificationTeam;
 use App\Models\GamificationTeamTask;
 use App\Models\GamificationTeamTaskAssignment;
+use App\Models\GamificationTrack;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
@@ -689,6 +691,7 @@ it('can save automatic evaluation settings and custom criteria coins', function 
         ->set('review_good_xp', 6)
         ->set('review_good_coins', 8)
         ->set('attendance_enthusiasm_trigger', false)
+        ->set('manual_claim_enabled', true)
         ->set('criteria', $criteria)
         ->call('saveCriteria')
         ->assertHasNoErrors();
@@ -702,6 +705,7 @@ it('can save automatic evaluation settings and custom criteria coins', function 
     expect($settings['review_good_xp'])->toBe(6);
     expect($settings['review_good_coins'])->toBe(8);
     expect((bool) $settings['attendance_enthusiasm_trigger'])->toBeFalse();
+    expect((bool) $settings['manual_claim_enabled'])->toBeTrue();
 
     // Verify custom criterion coins
     $dbCriterion = LeaderboardCriterion::where('leaderboard_id', $this->leaderboard->id)->first();
@@ -1297,4 +1301,70 @@ it('allows supervisors to apply and delete manual adjustments', function () {
     $component->call('deleteAdjustment', $tx2->id);
     $team->refresh();
     expect($team->coins)->toBe(100); // restored back to 100
+});
+
+it('creates a track, assigns students, and enforces one track per student', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $student2 = Student::create([
+        'name' => 'طالب ثانٍ',
+        'email' => 'track-student2@example.com',
+        'password' => bcrypt('password'),
+        'circle_id' => $this->circle->id,
+        'is_approved' => true,
+        'status' => 'active',
+    ]);
+
+    $component = Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id]);
+
+    // Create track A with both students
+    $component->call('createTrack')
+        ->set('track_name', 'المتقدمون')
+        ->set('track_description', 'مسار المتقدمين')
+        ->set('track_student_ids', [(string) $this->student->id, (string) $student2->id])
+        ->call('saveTrack')
+        ->assertHasNoErrors();
+
+    $trackA = GamificationTrack::where('leaderboard_id', $this->leaderboard->id)->where('name', 'المتقدمون')->first();
+    expect($trackA)->not->toBeNull();
+    expect($trackA->students()->count())->toBe(2);
+
+    // Create track B with student2 → must be removed from track A (one track per student)
+    $component->call('createTrack')
+        ->set('track_name', 'المبتدئون')
+        ->set('track_student_ids', [(string) $student2->id])
+        ->call('saveTrack')
+        ->assertHasNoErrors();
+
+    $trackB = GamificationTrack::where('leaderboard_id', $this->leaderboard->id)->where('name', 'المبتدئون')->first();
+    expect($trackB->students()->count())->toBe(1);
+    expect($trackA->fresh()->students()->count())->toBe(1); // student2 moved out
+    expect($trackA->students()->pluck('students.id')->toArray())->toBe([$this->student->id]);
+
+    // Delete track B
+    $component->call('deleteTrack', $trackB->id);
+    expect(GamificationTrack::find($trackB->id))->toBeNull();
+});
+
+it('records adjustments in the news only when the supervisor opts in', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+    $c = Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id]);
+
+    // Default: opt-in off → no news
+    $c->set('adjTargetType', 'individual')->set('adjStudentId', $this->student->id)
+        ->set('adjActionType', 'add')->set('adjHasXp', true)->set('adjXpVal', 10)
+        ->set('adjDescription', 'مكافأة')->set('adjShowInNews', false)
+        ->call('applyAdjustment')->assertHasNoErrors();
+    expect(GamificationNews::where('type', 'adjustment')->count())->toBe(0);
+
+    // Opt-in on → news recorded
+    $c->set('adjTargetType', 'individual')->set('adjStudentId', $this->student->id)
+        ->set('adjActionType', 'add')->set('adjHasXp', true)->set('adjXpVal', 15)
+        ->set('adjDescription', 'مكافأة ثانية')->set('adjShowInNews', true)
+        ->call('applyAdjustment')->assertHasNoErrors();
+
+    $news = GamificationNews::where('type', 'adjustment')->first();
+    expect($news)->not->toBeNull();
+    expect($news->data['target_name'])->toBe($this->student->name);
+    expect($news->data['xp'])->toBe(15);
 });

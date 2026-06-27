@@ -33,6 +33,7 @@
                 ['tab' => 'leaderboard', 'name' => 'الرئيسية',  'icon' => 'home'],
                 ['tab' => 'store',       'name' => 'المتجر',     'icon' => 'shopping-bag'],
                 ['tab' => 'badges',      'name' => 'الأوسمة',    'icon' => 'trophy'],
+                ['tab' => 'news',        'name' => 'الأخبار',    'icon' => 'newspaper'],
             ];
 
             if ($studentTeam) {

@@ -5,10 +5,12 @@ use App\Models\Attendance;
 use App\Models\Circle;
 use App\Models\GamificationBadge;
 use App\Models\GamificationLevel;
+use App\Models\GamificationNews;
 use App\Models\GamificationStoreItem;
 use App\Models\GamificationStorePurchase;
 use App\Models\GamificationStudentState;
 use App\Models\GamificationTeam;
+use App\Models\GamificationTrack;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
 use App\Models\Ode;
@@ -21,7 +23,9 @@ use App\Models\StudentOdePlan;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\Teacher;
+use App\Services\GamificationNewsService;
 use App\Services\GamificationService;
+use App\Services\LeaderboardService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -115,6 +119,95 @@ it('syncs student hifz and review points', function () {
 
     $state = GamificationStudentState::where('student_id', $this->student->id)->first();
     expect($state->coins)->toBe(13);
+});
+
+it('holds rewards as pending until claimed when manual claim is enabled', function () {
+    $settings = $this->leaderboard->settings;
+    $settings['manual_claim_enabled'] = true;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    $day = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->format('Y-m-d'),
+        'day_name' => 'الجمعة',
+        'hifz_achievement' => 3,
+        'review_achievement' => 2,
+        'hifz_graded_at' => now(),
+        'review_graded_at' => now(),
+    ]);
+    GamificationService::syncStudentPlanDayXP($day);
+
+    // Transaction exists but is pending → not counted yet
+    $tx = GamificationTransaction::where('student_id', $this->student->id)->first();
+    expect($tx->claimed_at)->toBeNull();
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(0);
+    expect(GamificationStudentState::where('student_id', $this->student->id)->first()->coins)->toBe(0);
+    expect(GamificationService::getPendingRewards($this->student->id, $this->leaderboard->id))->toHaveCount(1);
+
+    // Claim it → now counted
+    expect(GamificationService::claimReward($tx->id, $this->student->id))->toBeTrue();
+    expect($tx->fresh()->claimed_at)->not->toBeNull();
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(13);
+    expect(GamificationStudentState::where('student_id', $this->student->id)->first()->coins)->toBe(13);
+    expect(GamificationService::getPendingRewards($this->student->id, $this->leaderboard->id))->toHaveCount(0);
+});
+
+it('claims all pending rewards at once and applies deductions immediately', function () {
+    $settings = $this->leaderboard->settings;
+    $settings['manual_claim_enabled'] = true;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    // Two pending positive rewards (attendance + extra points)
+    $attendance = Attendance::create([
+        'student_id' => $this->student->id,
+        'circle_id' => $this->circle->id,
+        'teacher_id' => $this->teacher->id,
+        'date' => now()->format('Y-m-d'),
+        'status' => 'present',
+    ]);
+    GamificationService::syncStudentAttendanceXP($attendance);
+
+    $extraId = DB::table('leaderboard_extra_points')->insertGetId([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'date' => now()->format('Y-m-d'),
+        'points' => 6,
+        'notes' => 'مكافأة',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    GamificationService::syncStudentExtraPointsXP($extraId);
+
+    // A deduction must NOT be pending — it applies immediately
+    $deductId = DB::table('leaderboard_extra_points')->insertGetId([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'date' => now()->format('Y-m-d'),
+        'points' => -2,
+        'notes' => 'خصم',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    GamificationService::syncStudentExtraPointsXP($deductId);
+
+    // Only the deduction counts so far: 0 claimed positives - 2 = clamped to 0 coins, XP -2
+    expect(GamificationService::getPendingRewards($this->student->id, $this->leaderboard->id))->toHaveCount(2);
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(-2);
+
+    $count = GamificationService::claimAllRewards($this->student->id, $this->leaderboard->id);
+    expect($count)->toBe(2);
+
+    // present(4) + extra(6) - deduct(2) = 8
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(8);
+    expect(GamificationService::getPendingRewards($this->student->id, $this->leaderboard->id))->toHaveCount(0);
 });
 
 it('syncs student attendance points', function () {
@@ -657,4 +750,157 @@ it('applies the team multiplier to ode and hadith memorization points', function
 
     // Team score IS doubled: 10 * 2 = 20
     expect(GamificationService::getTeamScore($team, $this->leaderboard))->toBe(20);
+});
+
+it('groups standings into tracks with independent ranking and a general bucket', function () {
+    $s2 = Student::create(['name' => 'طالب ب', 'email' => 'trk-b@example.com', 'password' => bcrypt('x'), 'circle_id' => $this->circle->id, 'is_approved' => true, 'status' => 'active']);
+    $s3 = Student::create(['name' => 'طالب ج', 'email' => 'trk-c@example.com', 'password' => bcrypt('x'), 'circle_id' => $this->circle->id, 'is_approved' => true, 'status' => 'active']);
+
+    // Scores: student=10, s2=30, s3=20 (all claimed)
+    foreach ([[$this->student->id, 10], [$s2->id, 30], [$s3->id, 20]] as [$sid, $xp]) {
+        GamificationTransaction::create([
+            'leaderboard_id' => $this->leaderboard->id,
+            'student_id' => $sid,
+            'type' => 'earn',
+            'amount' => $xp,
+            'xp_amount' => $xp,
+            'description' => 'كسب',
+        ]);
+    }
+
+    // Track holds student (10) and s2 (30); s3 (20) is unassigned → "عام"
+    $track = GamificationTrack::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'المتقدمون',
+        'description' => 'وصف',
+        'sort_order' => 1,
+    ]);
+    $track->students()->sync([$this->student->id, $s2->id]);
+
+    $groups = (new LeaderboardService)->getStandingsByTrack($this->leaderboard);
+
+    expect($groups)->toHaveCount(2);
+
+    $trackGroup = $groups->firstWhere('name', 'المتقدمون');
+    expect($trackGroup['description'])->toBe('وصف');
+    // Ranked within track by score: s2 (30) #1, student (10) #2
+    expect($trackGroup['standings'][0]['student']->id)->toBe($s2->id);
+    expect($trackGroup['standings'][0]['track_rank'])->toBe(1);
+    expect($trackGroup['standings'][1]['student']->id)->toBe($this->student->id);
+    expect($trackGroup['standings'][1]['track_rank'])->toBe(2);
+
+    // General bucket has only s3, ranked #1 within it
+    $general = $groups->firstWhere('id', null);
+    expect($general['name'])->toBe('عام');
+    expect($general['standings'])->toHaveCount(1);
+    expect($general['standings'][0]['student']->id)->toBe($s3->id);
+    expect($general['standings'][0]['track_rank'])->toBe(1);
+});
+
+it('returns an empty collection from getStandingsByTrack when no tracks exist', function () {
+    expect((new LeaderboardService)->getStandingsByTrack($this->leaderboard))->toHaveCount(0);
+});
+
+it('allows only the team leader to buy team products', function () {
+    $assistant = Student::create(['name' => 'مساعد', 'email' => 'assist@example.com', 'password' => bcrypt('x'), 'circle_id' => $this->circle->id, 'is_approved' => true, 'status' => 'active']);
+
+    $team = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق', 'coins' => 100]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+    $team->students()->attach($assistant->id, ['role' => 'assistant']);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'دعم الفريق',
+        'price' => 20,
+        'item_type' => 'team_points',
+        'value' => 10,
+        'is_team_product' => true,
+        'is_active' => true,
+    ]);
+
+    // Assistant (and any non-leader) is blocked
+    expect(GamificationService::requestStorePurchase($assistant->id, $item->id))->toBe('only_leader');
+
+    // Leader is allowed
+    expect(GamificationService::requestStorePurchase($this->student->id, $item->id))->not->toBe('only_leader');
+});
+
+it('records a level-up news item only when a student crosses to a higher level', function () {
+    GamificationLevel::create(['leaderboard_id' => $this->leaderboard->id, 'level_number' => 1, 'name' => 'مبتدئ', 'xp_required' => 0, 'icon' => 'star']);
+    GamificationLevel::create(['leaderboard_id' => $this->leaderboard->id, 'level_number' => 2, 'name' => 'متقدم', 'xp_required' => 100, 'icon' => 'star']);
+
+    // Baseline at level 1 → no news
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+    expect(GamificationNews::where('type', 'level_up')->count())->toBe(0);
+
+    // Earn 100 XP → reaches level 2
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 100,
+        'xp_amount' => 100,
+        'description' => 'كسب',
+    ]);
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+
+    $news = GamificationNews::where('type', 'level_up')->get();
+    expect($news)->toHaveCount(1);
+    expect($news->first()->data['level'])->toBe(2);
+    expect($news->first()->data['student_name'])->toBe($this->student->name);
+
+    // Re-running does not duplicate
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+    expect(GamificationNews::where('type', 'level_up')->count())->toBe(1);
+});
+
+it('groups the daily digest by type and lists available dates', function () {
+    GamificationNewsService::record($this->leaderboard->id, 'badge', ['student_name' => 'أ', 'badge_name' => 'وسام']);
+    GamificationNewsService::record($this->leaderboard->id, 'badge', ['student_name' => 'ب', 'badge_name' => 'وسام']);
+    GamificationNewsService::record($this->leaderboard->id, 'team_task', ['team_name' => 'فريق', 'task_name' => 'مهمة', 'grade' => 90]);
+    GamificationNewsService::record($this->leaderboard->id, 'badge', ['student_name' => 'ج', 'badge_name' => 'وسام'], now()->subDay()->toDateString());
+
+    $today = now()->toDateString();
+    $digest = GamificationNewsService::getDailyDigest($this->leaderboard->id, $today);
+    expect($digest['badge'])->toHaveCount(2);
+    expect($digest['team_task'])->toHaveCount(1);
+
+    $dates = GamificationNewsService::getAvailableDates($this->leaderboard->id);
+    expect($dates)->toHaveCount(2);
+    expect($dates[0])->toBe($today); // newest first
+});
+
+it('records team attacks anonymously and notes shield blocks', function () {
+    $attacker = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق المهاجم', 'coins' => 200]);
+    $attacker->students()->attach($this->student->id, ['role' => 'leader']);
+    $target = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق الهدف', 'coins' => 100]);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'خصم نقاط',
+        'price' => 30,
+        'item_type' => 'team_attack',
+        'value' => 20,
+        'is_team_product' => true,
+        'is_active' => true,
+    ]);
+
+    // Successful attack
+    GamificationService::requestStorePurchase($this->student->id, $item->id, $target->id);
+
+    $attackNews = GamificationNews::where('type', 'team_attack')->first();
+    expect($attackNews)->not->toBeNull();
+    expect($attackNews->data['target_team_name'])->toBe('فريق الهدف');
+    expect($attackNews->data['amount'])->toBe(20);
+    // The attacker is NOT named anywhere in the payload
+    expect(json_encode($attackNews->data))->not->toContain('المهاجم');
+
+    // Now the target raises a shield → next attack is blocked
+    $target->update(['shield_active_until' => now()->addDays(2)]);
+    GamificationService::requestStorePurchase($this->student->id, $item->id, $target->id);
+
+    $blocked = GamificationNews::where('type', 'team_attack_blocked')->first();
+    expect($blocked)->not->toBeNull();
+    expect($blocked->data['target_team_name'])->toBe('فريق الهدف');
+    expect(json_encode($blocked->data))->not->toContain('المهاجم');
 });

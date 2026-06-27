@@ -19,6 +19,7 @@ use App\Models\StudentHadithAchievement;
 use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -69,10 +70,33 @@ class GamificationService
         $coins = GamificationTransaction::where('leaderboard_id', $leaderboardId)
             ->where('student_id', $studentId)
             ->whereNull('team_id')
+            ->claimed()
             ->sum('amount');
 
         $state->coins = max(0, (int) $coins);
         $state->save();
+
+        // Announce a level-up in the competition news feed when XP crosses a level.
+        GamificationNewsService::syncStudentLevel($studentId, $leaderboardId);
+    }
+
+    /**
+     * Resolve the claimed_at value for a newly earned individual reward.
+     *
+     * Returns null (pending a manual claim) only when the competition has manual
+     * claim enabled and this is an individual positive earning. Everything else —
+     * deductions, team-treasury entries, store spends, or competitions without the
+     * feature — is claimed immediately.
+     */
+    public static function resolveClaimedAt(Leaderboard $leaderboard, int $amount, int $xpAmount): ?CarbonInterface
+    {
+        $manualClaim = (bool) ($leaderboard->settings['manual_claim_enabled'] ?? false);
+
+        if ($manualClaim && ($amount >= 0 && $xpAmount >= 0) && ($amount > 0 || $xpAmount > 0)) {
+            return null;
+        }
+
+        return now();
     }
 
     /**
@@ -168,6 +192,7 @@ class GamificationService
                         'description' => $desc,
                         'reference_type' => StudentPlanDay::class,
                         'reference_id' => $day->id,
+                        'claimed_at' => self::resolveClaimedAt($leaderboard, (int) $finalCoins, (int) $finalXP),
                     ]);
                 }
             } else {
@@ -259,6 +284,7 @@ class GamificationService
                         'description' => $desc,
                         'reference_type' => StudentOdeAchievement::class,
                         'reference_id' => $achievement->id,
+                        'claimed_at' => self::resolveClaimedAt($leaderboard, (int) $finalCoins, (int) $finalXP),
                     ]);
                 }
             } elseif ($transaction) {
@@ -348,6 +374,7 @@ class GamificationService
                         'description' => $desc,
                         'reference_type' => StudentHadithAchievement::class,
                         'reference_id' => $achievement->id,
+                        'claimed_at' => self::resolveClaimedAt($leaderboard, (int) $finalCoins, (int) $finalXP),
                     ]);
                 }
             } elseif ($transaction) {
@@ -424,6 +451,7 @@ class GamificationService
                         'description' => $desc,
                         'reference_type' => Attendance::class,
                         'reference_id' => $attendance->id,
+                        'claimed_at' => self::resolveClaimedAt($leaderboard, (int) $finalCoins, (int) $finalXP),
                     ]);
                 }
             } else {
@@ -489,6 +517,7 @@ class GamificationService
                     'description' => $desc,
                     'reference_type' => LeaderboardScore::class,
                     'reference_id' => $score->id,
+                    'claimed_at' => self::resolveClaimedAt($leaderboard, (int) $finalCoins, (int) $finalXP),
                 ]);
             }
         } else {
@@ -564,6 +593,7 @@ class GamificationService
                     'description' => $desc,
                     'reference_type' => 'leaderboard_extra_points',
                     'reference_id' => $extraPointId,
+                    'claimed_at' => self::resolveClaimedAt($leaderboard, (int) $points, (int) $points),
                 ]);
             }
         } else {
@@ -1167,10 +1197,11 @@ class GamificationService
         $todayStart = Carbon::today()->startOfDay();
         $todayEnd = Carbon::today()->endOfDay();
 
-        // Coin balance as it stood at the start of today (all transactions before today).
+        // Coin balance as it stood at the start of today (all claimed transactions before today).
         $base = (int) GamificationTransaction::where('student_id', $studentId)
             ->where('leaderboard_id', $leaderboardId)
             ->whereNull('team_id')
+            ->claimed()
             ->where('created_at', '<', $todayStart)
             ->sum('amount');
         $base = max(0, $base);
@@ -1365,8 +1396,8 @@ class GamificationService
             }
 
             $role = $team->pivot->role;
-            if ($role !== 'leader' && $role !== 'assistant') {
-                return 'only_leader_or_assistant';
+            if ($role !== 'leader') {
+                return 'only_leader';
             }
 
             if ($team->coins < $price) {
@@ -1640,6 +1671,11 @@ class GamificationService
                             'amount' => 0,
                             'description' => 'تم صد هجوم خصم النقاط من فريق '.($purchase->team ? $purchase->team->name : 'فريق منافس').' بفضل درع الحماية!',
                         ]);
+
+                        // News: the attacker is intentionally not named.
+                        GamificationNewsService::record($leaderboardId, 'team_attack_blocked', [
+                            'target_team_name' => $targetTeam->name,
+                        ]);
                     } else {
                         // Deduct points/coins from target team treasury
                         $teamAttackValue = (int) $item->value;
@@ -1652,6 +1688,12 @@ class GamificationService
                             'type' => 'spend',
                             'amount' => -$teamAttackValue,
                             'description' => 'خصم عملات بسبب هجوم من فريق '.($purchase->team ? $purchase->team->name : 'فريق منافس').": -{$teamAttackValue} عملة",
+                        ]);
+
+                        // News: the attacker is intentionally not named.
+                        GamificationNewsService::record($leaderboardId, 'team_attack', [
+                            'target_team_name' => $targetTeam->name,
+                            'amount' => $teamAttackValue,
                         ]);
                     }
                 }
@@ -1897,7 +1939,70 @@ class GamificationService
         return (int) GamificationTransaction::where('leaderboard_id', $leaderboardId)
             ->where('student_id', $studentId)
             ->where('type', 'earn')
+            ->claimed()
             ->sum('xp_amount');
+    }
+
+    /**
+     * Pending (unclaimed) reward transactions for a student in a leaderboard.
+     *
+     * @return Collection<int, GamificationTransaction>
+     */
+    public static function getPendingRewards(int $studentId, int $leaderboardId)
+    {
+        return GamificationTransaction::where('student_id', $studentId)
+            ->where('leaderboard_id', $leaderboardId)
+            ->where('type', 'earn')
+            ->unclaimed()
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    /**
+     * Claim a single pending reward; only the owning student may claim it.
+     */
+    public static function claimReward(int $transactionId, int $studentId): bool
+    {
+        $tx = GamificationTransaction::whereKey($transactionId)
+            ->where('student_id', $studentId)
+            ->unclaimed()
+            ->first();
+
+        if (! $tx) {
+            return false;
+        }
+
+        $tx->claimed_at = now();
+        $tx->save();
+
+        self::recalculateStudentState($studentId, $tx->leaderboard_id);
+        self::syncStudentBadges($studentId, $tx->leaderboard_id);
+
+        return true;
+    }
+
+    /**
+     * Claim every pending reward for a student in a leaderboard.
+     *
+     * @return int Number of rewards claimed.
+     */
+    public static function claimAllRewards(int $studentId, int $leaderboardId): int
+    {
+        $ids = GamificationTransaction::where('student_id', $studentId)
+            ->where('leaderboard_id', $leaderboardId)
+            ->unclaimed()
+            ->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return 0;
+        }
+
+        GamificationTransaction::whereIn('id', $ids)->update(['claimed_at' => now()]);
+
+        self::recalculateStudentState($studentId, $leaderboardId);
+        self::syncStudentBadges($studentId, $leaderboardId);
+
+        return $ids->count();
     }
 
     /**
@@ -1916,6 +2021,7 @@ class GamificationService
                     ->orWhere(fn ($q) => $q->whereNull('student_id')->where('team_id', $team->id));
             })
             ->where('type', 'earn')
+            ->claimed()
             ->get();
 
         // Pre-fetch related models to get their dates and avoid N+1 queries
@@ -2235,6 +2341,13 @@ class GamificationService
                         'status' => 'pending_approval',
                         'created_at' => now(),
                         'updated_at' => now(),
+                    ]);
+
+                    GamificationNewsService::record($leaderboardId, 'badge', [
+                        'student_id' => $studentId,
+                        'student_name' => Student::find($studentId)?->name ?? '',
+                        'badge_name' => $badge->name,
+                        'badge_icon' => $badge->icon,
                     ]);
                 }
             } else {

@@ -11,11 +11,13 @@ use App\Models\GamificationStoreItem;
 use App\Models\GamificationTeam;
 use App\Models\GamificationTeamTask;
 use App\Models\GamificationTeamTaskAssignment;
+use App\Models\GamificationTrack;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
 use App\Models\Student;
 use App\Models\Teacher;
+use App\Services\GamificationNewsService;
 use App\Services\GamificationService;
 use App\Services\GamificationThemeService;
 use Flux\Flux;
@@ -155,6 +157,8 @@ class ManageGamification extends Component
     public int $attendance_late_coins = 2;
 
     public bool $attendance_enthusiasm_trigger = true;
+
+    public bool $manual_claim_enabled = false;
 
     public bool $ode_hifz_enabled = false;
 
@@ -340,6 +344,8 @@ class ManageGamification extends Component
 
     public string $adjDescription = '';
 
+    public bool $adjShowInNews = false;
+
     public function mount($competitionId): void
     {
         $this->competitionId = $competitionId;
@@ -375,6 +381,8 @@ class ManageGamification extends Component
         $this->attendance_late_xp = (int) ($settings['attendance_late_xp'] ?? ($settings['attendance_late'] ?? 2));
         $this->attendance_late_coins = (int) ($settings['attendance_late_coins'] ?? ($settings['attendance_late'] ?? 2));
         $this->attendance_enthusiasm_trigger = (bool) ($settings['attendance_enthusiasm_trigger'] ?? true);
+
+        $this->manual_claim_enabled = (bool) ($settings['manual_claim_enabled'] ?? false);
 
         $this->ode_hifz_enabled = (bool) ($settings['ode_hifz_enabled'] ?? false);
         $this->ode_hifz_excellent_xp = (int) ($settings['ode_hifz_excellent_xp'] ?? 10);
@@ -688,6 +696,8 @@ class ManageGamification extends Component
                 'attendance_late_xp' => $this->attendance_late_xp,
                 'attendance_late_coins' => $this->attendance_late_coins,
                 'attendance_enthusiasm_trigger' => $this->attendance_enthusiasm_trigger,
+
+                'manual_claim_enabled' => $this->manual_claim_enabled,
 
                 'ode_hifz_enabled' => $this->ode_hifz_enabled,
                 'ode_hifz_excellent_xp' => $this->ode_hifz_excellent_xp,
@@ -1101,6 +1111,82 @@ class ManageGamification extends Component
     {
         GamificationTeam::findOrFail($id)->delete();
         Flux::toast('تم حذف الفريق', variant: 'success');
+    }
+
+    // --- Tracks (ranking divisions) Logic ---
+    public bool $showTrackModal = false;
+
+    public ?int $editingTrackId = null;
+
+    public string $track_name = '';
+
+    public string $track_description = '';
+
+    public array $track_student_ids = [];
+
+    public function createTrack(): void
+    {
+        $this->reset('editingTrackId', 'track_name', 'track_description', 'track_student_ids');
+        $this->showTrackModal = true;
+    }
+
+    public function editTrack($id): void
+    {
+        $track = GamificationTrack::with('students:id')->findOrFail($id);
+        $this->editingTrackId = $track->id;
+        $this->track_name = $track->name;
+        $this->track_description = $track->description ?? '';
+        $this->track_student_ids = $track->students->pluck('id')->map(fn ($id) => (string) $id)->toArray();
+        $this->showTrackModal = true;
+    }
+
+    public function saveTrack(): void
+    {
+        $this->validate([
+            'track_name' => 'required|string|max:255',
+            'track_description' => 'nullable|string|max:1000',
+        ]);
+
+        DB::transaction(function () {
+            $track = GamificationTrack::updateOrCreate(
+                ['id' => $this->editingTrackId],
+                [
+                    'leaderboard_id' => $this->competitionId,
+                    'name' => $this->track_name,
+                    'description' => $this->track_description ?: null,
+                    'sort_order' => $this->editingTrackId
+                        ? (GamificationTrack::find($this->editingTrackId)->sort_order ?? 0)
+                        : (GamificationTrack::where('leaderboard_id', $this->competitionId)->max('sort_order') + 1),
+                ]
+            );
+
+            $studentIds = collect($this->track_student_ids)->map(fn ($id) => (int) $id)->filter()->unique()->toArray();
+
+            // Enforce one track per student within this competition.
+            $otherTrackIds = GamificationTrack::where('leaderboard_id', $this->competitionId)
+                ->where('id', '!=', $track->id)
+                ->pluck('id')
+                ->toArray();
+
+            if (! empty($otherTrackIds) && ! empty($studentIds)) {
+                DB::table('gamification_track_student')
+                    ->whereIn('track_id', $otherTrackIds)
+                    ->whereIn('student_id', $studentIds)
+                    ->delete();
+            }
+
+            $track->students()->sync($studentIds);
+        });
+
+        $this->showTrackModal = false;
+        $this->reset('editingTrackId', 'track_name', 'track_description', 'track_student_ids');
+        Flux::toast('تم حفظ المسار بنجاح', variant: 'success');
+    }
+
+    public function deleteTrack($id): void
+    {
+        GamificationTrack::where('leaderboard_id', $this->competitionId)->findOrFail($id)->delete();
+        Flux::toast('تم حذف المسار', variant: 'success');
     }
 
     // --- Store Logic ---
@@ -1596,6 +1682,12 @@ class ManageGamification extends Component
 
                 $newTeam = GamificationTeam::findOrFail($this->assignment_team_id);
                 $newTeam->increment('coins', $awardedCoins);
+
+                GamificationNewsService::record($this->competitionId, 'team_task', [
+                    'team_name' => $newTeam->name,
+                    'task_name' => $task->name,
+                    'grade' => (int) $this->assignment_grade,
+                ]);
             } else {
                 if ($tx) {
                     $tx->delete();
@@ -1876,6 +1968,14 @@ class ManageGamification extends Component
 
         $transactionDate = $round->round_date->startOfDay();
 
+        // News: announce the round placement.
+        GamificationNewsService::record($this->competitionId, 'activity_win', [
+            'team_name' => $team->name,
+            'rank_name' => $rank->name,
+            'activity_name' => $activity->name,
+            'round_name' => $round->name,
+        ]);
+
         // 1. Award Team directly
         if ($rank->team_xp > 0 || $rank->team_coins > 0) {
             GamificationTransaction::create([
@@ -1911,6 +2011,7 @@ class ManageGamification extends Component
                     'reference_id' => $winner->id,
                     'created_at' => $transactionDate,
                     'updated_at' => $transactionDate,
+                    'claimed_at' => GamificationService::resolveClaimedAt($this->competition, (int) $rank->member_coins, (int) $rank->member_xp),
                 ]);
 
                 GamificationService::recalculateStudentState($member->id, $this->competitionId);
@@ -1999,6 +2100,7 @@ class ManageGamification extends Component
                     'amount' => $coins,
                     'xp_amount' => $xp,
                     'description' => 'تسوية يدوية (من المشرف): '.$this->adjDescription,
+                    'claimed_at' => GamificationService::resolveClaimedAt($this->competition, (int) $coins, (int) $xp),
                 ]);
 
                 GamificationService::recalculateStudentState($this->adjStudentId, $this->competitionId);
@@ -2023,6 +2125,22 @@ class ManageGamification extends Component
             }
         });
 
+        // Adjustments stay out of the news feed unless the supervisor opts in.
+        if ($this->adjShowInNews) {
+            $name = $this->adjTargetType === 'individual'
+                ? (Student::find($this->adjStudentId)?->name ?? '')
+                : (GamificationTeam::find($this->adjTeamId)?->name ?? '');
+
+            GamificationNewsService::record($this->competitionId, 'adjustment', [
+                'target_type' => $this->adjTargetType,
+                'target_name' => $name,
+                'action' => $this->adjActionType,
+                'xp' => abs($xp),
+                'coins' => abs($coins),
+                'description' => $this->adjDescription,
+            ]);
+        }
+
         Flux::toast('تم تطبيق التسوية بنجاح', variant: 'success');
 
         $this->reset([
@@ -2033,6 +2151,7 @@ class ManageGamification extends Component
             'adjHasXp',
             'adjHasCoins',
             'adjDescription',
+            'adjShowInNews',
         ]);
     }
 
@@ -2085,6 +2204,7 @@ class ManageGamification extends Component
 
         $dbBadges = GamificationBadge::with('leaderboardCriterion')->where('leaderboard_id', $this->competitionId)->get();
         $dbTeams = GamificationTeam::withCount('students')->where('leaderboard_id', $this->competitionId)->get();
+        $dbTracks = GamificationTrack::withCount('students')->where('leaderboard_id', $this->competitionId)->orderBy('sort_order')->orderBy('id')->get();
 
         // Ensure permanent individual multiplier store item exists
         GamificationStoreItem::firstOrCreate([
@@ -2160,6 +2280,7 @@ class ManageGamification extends Component
             'milestones' => $milestones,
             'dbBadges' => $dbBadges,
             'dbTeams' => $dbTeams,
+            'dbTracks' => $dbTracks,
             'dbStoreItems' => $dbStoreItems,
             'students' => $students,
             'dbCriteria' => $dbCriteria,
