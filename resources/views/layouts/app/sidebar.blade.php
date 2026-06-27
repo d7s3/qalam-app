@@ -54,6 +54,7 @@
 
             <flux:spacer />
 
+            <flux:dropdown position="bottom" align="start">
                 <flux:profile
                     :initials="$authUser?->initials() ?? ''"
                     icon-trailing="chevron-down"

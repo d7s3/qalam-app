@@ -39,7 +39,7 @@
                     <flux:table.row :key="$guardian->id"
                         class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50   s"
                         x-on:click="$flux.modal('guardian-modal').show(); $wire.edit({{ $guardian->id }})">
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex flex-col">
                                 <span class="font-bold text-zinc-900 dark:text-white">{{ $guardian->name }}</span>
                                 <div class="flex gap-2">
@@ -69,7 +69,7 @@
                         <flux:table.cell class="hidden md:table-cell text-xs text-zinc-400">
                             {{ $guardian->created_at?->format('Y-m-d') }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2" @click.stop>
                                 @if (!$guardian->is_approved)
                                     <flux:button size="sm" variant="primary" class="bg-emerald-600 hover:bg-emerald-700"

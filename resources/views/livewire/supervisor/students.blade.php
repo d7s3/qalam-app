@@ -75,10 +75,10 @@
                     <flux:table.row :key="$student->id"
                         class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                         x-on:click="$flux.modal('student-modal').show(); $wire.edit({{ $student->id }})">
-                        <flux:table.cell x-on:click.stop>
+                        <flux:table.cell x-on:click.stop="">
                             <flux:checkbox wire:model.live="selectedStudentIds" value="{{ $student->id }}" />
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex flex-col">
                                 <span class="font-bold text-zinc-900 dark:text-white">{{ $student->name }}</span>
                                 <div class="flex gap-2">
@@ -107,7 +107,7 @@
                                 <flux:badge size="sm" variant="neutral">غادر الحلقات</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2" @click.stop>
                                 @if(!$student->is_approved)
                                     <flux:button size="xs" variant="primary" wire:click.stop="approve({{ $student->id }})">

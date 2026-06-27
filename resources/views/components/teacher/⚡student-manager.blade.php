@@ -312,7 +312,7 @@ new class extends Component {
                         <flux:table.cell class="font-medium whitespace-nowrap">
                             {{ $student->name }}
                         </flux:table.cell>
-                        <flux:table.cell @click.stop>
+                        <flux:table.cell @click.stop="">
                             @if ($student->phone)
                                 <flux:button as="a"
                                     href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $student->phone) }}"
@@ -324,10 +324,10 @@ new class extends Component {
                                 <span class="text-zinc-400 text-xs">-</span>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             {{ $student->joined_at ? $student->joined_at->format('Y-m-d') : '-' }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             @php
                                 $statusColors = [
                                     'active' => 'green',
@@ -346,7 +346,7 @@ new class extends Component {
                             @endphp
                             <flux:badge :color="$stColor" size="sm">{{ $stLabel }}</flux:badge>
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             @if ($student->is_data_completed)
                                 <flux:badge color="green" size="sm" icon="check-circle">{{ __('مكتملة') }}
                                 </flux:badge>
@@ -355,7 +355,7 @@ new class extends Component {
                                 </flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell @click.stop>
+                        <flux:table.cell @click.stop="">
                             @if ($student->access_token)
                                 <div class="flex items-center gap-2" x-data="{ copied: false, link: '{{ route('magic-link', ['token' => $student->access_token]) }}' }" @click.stop>
                                     <flux:input readonly copyable class="max-w-xs text-xs"
@@ -363,7 +363,7 @@ new class extends Component {
                                 </div>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div @click.stop>
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="xs" icon="ellipsis-horizontal" />

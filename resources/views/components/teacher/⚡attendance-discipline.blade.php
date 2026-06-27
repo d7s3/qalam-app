@@ -217,13 +217,13 @@ new class extends Component {
                 @forelse($students as $student)
                     <flux:table.row>
                         <flux:table.cell class="font-medium whitespace-nowrap">{{ $student['name'] }}</flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:badge color="green" size="sm">{{ $student['present_count'] }}</flux:badge>
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:badge color="red" size="sm">{{ $student['absent_count'] }}</flux:badge>
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:badge color="amber" size="sm">{{ $student['late_count'] }}</flux:badge>
                         </flux:table.cell>
                     </flux:table.row>

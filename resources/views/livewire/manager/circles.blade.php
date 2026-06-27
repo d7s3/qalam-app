@@ -52,7 +52,7 @@
                 @forelse ($circles as $circle)
                     <flux:table.row :key="$circle->id">
                         <flux:table.cell class="font-bold text-zinc-900 dark:text-white">{{ $circle->name }}</flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:badge size="sm" variant="neutral">{{ $circle->stage->name }}</flux:badge>
                         </flux:table.cell>
                         <flux:table.cell class="text-center">
@@ -70,7 +70,7 @@
                         <flux:table.cell class="text-center text-xs text-zinc-400">
                             {{ $circle->created_at?->format('Y-m-d') }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2">
                                 <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
                                 <flux:button size="sm" variant="ghost" icon="trash" class="text-red-500 hover:text-red-600" wire:confirm="هل أنت متأكد من حذف هذه الحلقة؟" wire:click="delete({{ $circle->id }})" />

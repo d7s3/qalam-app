@@ -62,7 +62,7 @@
                         <flux:table.cell class="text-center text-xs text-zinc-400">
                             {{ $stage->created_at?->format('Y-m-d') }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2">
                                 <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $stage->id }})" />
                                 <flux:button size="sm" variant="ghost" icon="trash" class="text-red-500 hover:text-red-600" wire:confirm="هل أنت متأكد من حذف هذه المرحلة؟" wire:click="delete({{ $stage->id }})" />

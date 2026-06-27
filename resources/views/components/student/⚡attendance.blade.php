@@ -102,7 +102,7 @@ new class extends Component {
                                 {{ \Carbon\Carbon::parse($attendance->date)->translatedFormat('l, d F Y') }}
                             </flux:table.cell>
                             
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @php
                                     $statusDetails = match($attendance->status) {
                                         'present' => ['color' => 'green', 'label' => 'حاضر', 'icon' => 'check-circle'],
@@ -118,7 +118,7 @@ new class extends Component {
                                 </div>
                             </flux:table.cell>
 
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($attendance->notes)
                                     <span class="text-sm text-zinc-600 dark:text-zinc-400">{{ $attendance->notes }}</span>
                                 @else

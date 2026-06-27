@@ -54,7 +54,7 @@
                         <flux:table.cell class="text-center">
                             <flux:badge size="sm" variant="neutral">{{ $circle->students_count }}</flux:badge>
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
                         </flux:table.cell>
                     </flux:table.row>

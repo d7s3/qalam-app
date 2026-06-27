@@ -35,16 +35,16 @@
                         <flux:table.cell class="font-bold text-zinc-900 dark:text-white">
                             {{ $path->name }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             {{ $path->ode->name ?? 'بلا منظومة' }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             {{ $path->days()->count() }} يوماً
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             {{ $path->start_date->format('Y-m-d') }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:dropdown>
                                 <flux:button variant="ghost" size="xs" icon="ellipsis-horizontal" />
                                 <flux:menu>

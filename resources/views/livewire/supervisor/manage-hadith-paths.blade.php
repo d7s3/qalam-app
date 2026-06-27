@@ -36,23 +36,23 @@
                         <flux:table.cell class="font-bold text-zinc-900 dark:text-white">
                             {{ $path->name }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             {{ $path->text->name ?? 'بلا متن' }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             @if ($path->memorize_type === 'lines')
                                 <flux:badge size="sm" color="indigo" variant="outline">بالأسطر</flux:badge>
                             @else
                                 <flux:badge size="sm" color="emerald" variant="outline">بالأحاديث</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             {{ $path->memorize_amount }} {{ $path->memorize_type === 'lines' ? 'أسطر' : 'أحاديث' }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             {{ $path->start_date->format('Y-m-d') }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:dropdown>
                                 <flux:button variant="ghost" size="xs" icon="ellipsis-horizontal" />
                                 <flux:menu>

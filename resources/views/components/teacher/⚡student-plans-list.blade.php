@@ -188,7 +188,7 @@ new class extends Component {
                 @foreach($plans as $plan)
                     <flux:table.row class="{{ !$plan->is_approved ? 'bg-amber-50/50 dark:bg-amber-900/10' : '' }}">
                         <flux:table.cell class="font-medium">{{ $plan->student->name }}</flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             @if($plan->plan_type === 'review')
                                 <flux:badge color="indigo" size="sm">{{ __('مراجعة') }}</flux:badge>
                             @elseif($plan->plan_type === 'hifz_review')
@@ -197,16 +197,16 @@ new class extends Component {
                                 <flux:badge color="green" size="sm">{{ __('حفظ') }}</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>{{ $plan->start_date->format('Y-m-d') }}</flux:table.cell>
-                        <flux:table.cell>{{ $plan->days_count }}</flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >{{ $plan->start_date->format('Y-m-d') }}</flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >{{ $plan->days_count }}</flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             @if(!$plan->is_approved)
                                 <flux:badge color="amber" size="sm" icon="clock">{{ __('قيد الاعتماد') }}</flux:badge>
                             @else
                                 <flux:badge size="sm">{{ $plan->status }}</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:dropdown>
                                 <flux:button variant="ghost" size="xs" icon="ellipsis-horizontal" />
                                 <flux:menu>

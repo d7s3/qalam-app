@@ -111,24 +111,24 @@ new class extends Component {
                                 <span class="text-xs text-zinc-500">{{ $plan->student->circle->name ?? 'بلا حلقة' }}</span>
                             </div>
                         </flux:table.cell>
-                        <flux:table.cell>{{ $plan->path->ode->name ?? '—' }}</flux:table.cell>
-                        <flux:table.cell>{{ $plan->start_date->format('Y-m-d') }}</flux:table.cell>
-                        <flux:table.cell>{{ $plan->path->days->count() ?? 0 }}</flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >{{ $plan->path->ode->name ?? '—' }}</flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >{{ $plan->start_date->format('Y-m-d') }}</flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >{{ $plan->path->days->count() ?? 0 }}</flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             @if($plan->status === 'active')
                                 <flux:badge color="green" size="sm">{{ __('نشطة') }}</flux:badge>
                             @else
                                 <flux:badge color="zinc" size="sm">{{ __('مكتملة') }}</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             @if($plan->created_by_role === 'supervisor')
                                 <flux:badge color="blue" size="sm">{{ __('مشرف') }}</flux:badge>
                             @else
                                 <flux:badge color="indigo" size="sm">{{ __('معلم') }}</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:dropdown>
                                 <flux:button variant="ghost" size="xs" icon="ellipsis-horizontal" />
                                 <flux:menu>

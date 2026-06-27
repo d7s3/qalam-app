@@ -57,16 +57,16 @@ new class extends Component
                 @foreach ($ayahs as $ayah)
                     <flux:table.row :key="$ayah->id">
                         <flux:table.cell class="font-mono text-zinc-400">{{ $ayah->verse_number }}</flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex flex-col gap-1">
                                 <span class="text-lg font-arabic leading-loose">{{ $ayah->text_uthmani }}</span>
                                 <span class="text-xs text-zinc-400">{{ $ayah->verse_key }}</span>
                             </div>
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:badge size="sm" color="zinc">{{ $ayah->page_number }}</flux:badge>
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <flux:input 
                                 type="number" 
                                 size="sm" 

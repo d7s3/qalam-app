@@ -105,7 +105,7 @@ new class extends Component {
                             $isFuture = $day->date > $todayStr;
                         @endphp
                         <flux:table.row class="{{ $isToday ? 'bg-emerald-50/50 dark:bg-emerald-900/20' : '' }}">
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <span class="font-bold {{ $isToday ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-800 dark:text-zinc-200' }}">
@@ -121,7 +121,7 @@ new class extends Component {
                                 </div>
                             </flux:table.cell>
                             
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($day->from_ayah_id)
                                     <div class="text-sm font-medium">
                                         {{ $day->fromAyah->surah->name_arabic }} ({{ $day->fromAyah->verse_number }}) - {{ $day->toAyah->surah->name_arabic }} ({{ $day->toAyah->verse_number }})
@@ -131,7 +131,7 @@ new class extends Component {
                                 @endif
                             </flux:table.cell>
 
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($day->from_ayah_id)
                                     @if($isFuture && is_null($day->hifz_achievement))
                                         <flux:badge color="zinc" size="sm">{{ __('قادم') }}</flux:badge>
@@ -146,7 +146,7 @@ new class extends Component {
                                 @endif
                             </flux:table.cell>
 
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($day->review_from_ayah_id)
                                     <div class="text-sm font-medium">
                                         {{ $day->reviewFromAyah->surah->name_arabic }} ({{ $day->reviewFromAyah->verse_number }}) - {{ $day->reviewToAyah->surah->name_arabic }} ({{ $day->reviewToAyah->verse_number }})
@@ -156,7 +156,7 @@ new class extends Component {
                                 @endif
                             </flux:table.cell>
 
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($day->review_from_ayah_id)
                                     @if($isFuture && is_null($day->review_achievement))
                                         <flux:badge color="zinc" size="sm">{{ __('قادم') }}</flux:badge>

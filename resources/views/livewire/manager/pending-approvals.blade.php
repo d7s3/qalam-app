@@ -52,11 +52,11 @@
                 @forelse ($this->pendingUsers as $user)
                     <flux:table.row :key="$user->id">
                         <flux:table.cell class="font-bold text-zinc-900 dark:text-white">{{ $user->name }}</flux:table.cell>
-                        <flux:table.cell>{{ $user->email }}</flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >{{ $user->email }}</flux:table.cell>
                         <flux:table.cell class="whitespace-nowrap text-xs text-zinc-500">
                             {{ $user->created_at->diffForHumans() }}
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center gap-2 justify-end">
                                 <flux:button size="sm" variant="primary" wire:click="approve({{ $user->id }})"
                                     wire:loading.attr="disabled" wire:target="approve({{ $user->id }})"

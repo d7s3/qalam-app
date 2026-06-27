@@ -172,7 +172,7 @@
                                 <flux:table.cell class="text-center text-xs text-zinc-500 dark:text-zinc-400">
                                     {{ $day['date'] }}
                                 </flux:table.cell>
-                                <flux:table.cell>
+                                <flux:table.cell class="first:ps-3" >
                                     <div class="flex items-center justify-center gap-2 max-w-[250px] mx-auto">
                                         <flux:input type="number" size="sm" wire:model="planDays.{{ $index }}.from_verse_number" placeholder="من" class="text-center w-20" />
                                         <span class="text-zinc-400">-</span>
@@ -180,7 +180,7 @@
                                     </div>
                                 </flux:table.cell>
                                 @if ($hasReview)
-                                    <flux:table.cell>
+                                    <flux:table.cell class="first:ps-3" >
                                         <div class="flex items-center justify-center gap-2 max-w-[250px] mx-auto">
                                             <flux:input type="number" size="sm" wire:model="planDays.{{ $index }}.review_from_verse_number" placeholder="من" class="text-center w-20" />
                                             <span class="text-zinc-400">-</span>

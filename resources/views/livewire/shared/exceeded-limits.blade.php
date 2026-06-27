@@ -34,10 +34,10 @@
                     @foreach ($students as $student)
                         <flux:table.row :key="$student->id"
                             class="{{ $student->recent_absences_count >= $absenceLimit ? 'bg-red-50/50 dark:bg-red-900/10' : '' }}">
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <span class="font-bold text-zinc-900 dark:text-white">{{ $student->name }}</span>
                             </flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if ($student->circle)
                                     <flux:badge size="sm" variant="neutral">{{ $student->circle->name }}</flux:badge>
                                     <span class="text-xs text-zinc-400 block mt-1">{{ $student->circle->stage->name }}</span>

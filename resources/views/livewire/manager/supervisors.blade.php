@@ -63,7 +63,7 @@
                     <flux:table.row :key="$supervisor->id"
                         class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50   s"
                         x-on:click="$flux.modal('supervisor-modal').show(); $wire.edit({{ $supervisor->id }})">
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex flex-col">
                                 <span class="font-bold text-zinc-900 dark:text-white">{{ $supervisor->name }}</span>
                                 <div class="flex gap-2">
@@ -90,7 +90,7 @@
                                 <flux:badge color="amber" size="sm" icon="clock">{{ __('غير مكتملة') }}</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell>
+                        <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2" @click.stop>
                                 @if (!$supervisor->is_approved)
                                     <flux:button size="sm" variant="primary" class="bg-emerald-600 hover:bg-emerald-700"

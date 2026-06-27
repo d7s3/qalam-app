@@ -131,67 +131,13 @@ select:focus[data-flux-control] {
     }
 }
 
-/* Custom CSS to handle collapsible mobile sidebar and backdrop styling in Tailwind v4 */
+/* Fix mobile sidebar z-index so it appears above the backdrop */
 @media (max-width: 1023px) {
-    /* Mobile sidebar basic styles */
     ui-sidebar[data-flux-sidebar-on-mobile] {
-        position: fixed !important;
-        top: 0 !important;
-        bottom: 0 !important;
         z-index: 50 !important;
-        min-height: 100vh !important;
-        max-height: 100vh !important;
-        width: 16rem !important; /* 64 (w-64) = 16rem */
-        transition-property: transform !important;
-        transition-duration: 200ms !important;
-        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
-        background-color: white !important;
-    }
-    
-    /* Dark mode background for mobile sidebar */
-    .dark ui-sidebar[data-flux-sidebar-on-mobile] {
-        background-color: var(--color-zinc-900) !important;
-    }
-    
-    /* Position the mobile sidebar at start: 0 (right: 0 in RTL, left: 0 in LTR) */
-    html[dir="rtl"] ui-sidebar[data-flux-sidebar-on-mobile] {
-        right: 0 !important;
-        left: auto !important;
-    }
-    html[dir="ltr"] ui-sidebar[data-flux-sidebar-on-mobile] {
-        left: 0 !important;
-        right: auto !important;
-    }
-    
-    /* Collapsed state transitions */
-    html[dir="ltr"] ui-sidebar[data-flux-sidebar-on-mobile][data-flux-sidebar-collapsed-mobile] {
-        transform: translateX(-100%) !important;
-    }
-    
-    html[dir="rtl"] ui-sidebar[data-flux-sidebar-on-mobile][data-flux-sidebar-collapsed-mobile] {
-        transform: translateX(100%) !important;
-    }
-    
-    /* Expanded state (active/open) */
-    ui-sidebar[data-flux-sidebar-on-mobile]:not([data-flux-sidebar-collapsed-mobile]) {
-        transform: translateX(0) !important;
     }
 
-    /* Backdrop basic styles */
     ui-sidebar-toggle[data-flux-sidebar-backdrop][data-flux-sidebar-on-mobile] {
-        position: fixed !important;
-        inset: 0 !important;
-        background-color: rgba(0, 0, 0, 0.25) !important;
         z-index: 40 !important;
-    }
-    
-    /* Hide backdrop when collapsed */
-    ui-sidebar-toggle[data-flux-sidebar-backdrop][data-flux-sidebar-on-mobile][data-flux-sidebar-collapsed-mobile] {
-        display: none !important;
-    }
-    
-    /* Show backdrop when open (not collapsed) */
-    ui-sidebar-toggle[data-flux-sidebar-backdrop][data-flux-sidebar-on-mobile]:not([data-flux-sidebar-collapsed-mobile]) {
-        display: block !important;
     }
 }

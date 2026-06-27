@@ -327,28 +327,28 @@ new class extends Component {
                         <flux:table.row>
                             <flux:table.cell class="font-bold">{{ $stat['student']->name }}</flux:table.cell>
 
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <span
                                     class="font-semibold {{ $stat['unrecited'] > 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-400' }}">
                                     {{ $stat['unrecited'] }}
                                 </span>
                             </flux:table.cell>
 
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <span
                                     class="font-semibold {{ $stat['acceptable'] > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400' }}">
                                     {{ $stat['acceptable'] }}
                                 </span>
                             </flux:table.cell>
 
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <span
                                     class="font-semibold {{ $stat['good'] > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-400' }}">
                                     {{ $stat['good'] }}
                                 </span>
                             </flux:table.cell>
 
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <span
                                     class="font-semibold {{ $stat['excellent'] > 0 ? 'text-green-600 dark:text-green-400' : 'text-zinc-400' }}">
                                     {{ $stat['excellent'] }}

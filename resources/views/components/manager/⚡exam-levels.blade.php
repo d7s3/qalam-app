@@ -169,35 +169,35 @@ new class extends Component {
                     @forelse ($levels as $level)
                         <flux:table.row>
                             <flux:table.cell class="font-semibold">{{ $level->name }}</flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($level->direction === 'nas_to_baqarah')
                                     <flux:badge color="indigo">من الناس إلى البقرة</flux:badge>
                                 @else
                                     <flux:badge color="emerald">من البقرة إلى الناس</flux:badge>
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($level->startAyah)
                                     سورة {{ $level->startAyah->surah->name_arabic }} - آية {{ $level->startAyah->verse_number }}
                                 @else
                                     -
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($level->endAyah)
                                     سورة {{ $level->endAyah->surah->name_arabic }} - آية {{ $level->endAyah->verse_number }}
                                 @else
                                     -
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($level->nextLevel)
                                     <flux:badge size="sm" color="zinc">{{ $level->nextLevel->name }}</flux:badge>
                                 @else
                                     <span class="text-zinc-400">-</span>
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-vertical" inset="top bottom" />
                                     <flux:menu>

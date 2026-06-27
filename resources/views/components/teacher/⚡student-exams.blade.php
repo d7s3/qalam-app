@@ -168,10 +168,10 @@ new class extends Component {
                     @forelse ($exams as $exam)
                         <flux:table.row>
                             <flux:table.cell class="font-semibold">{{ $exam->student->name ?? '-' }}</flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <flux:badge color="indigo">{{ $exam->examLevel->name ?? '-' }}</flux:badge>
                             </flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($exam->status === 'passed')
                                     <flux:badge color="emerald">تم التجاوز</flux:badge>
                                 @elseif($exam->status === 'failed')
@@ -184,11 +184,11 @@ new class extends Component {
                                     <flux:badge color="zinc">ملغى</flux:badge>
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <div class="text-sm">{{ $exam->date_time->format('Y-m-d') }}</div>
                                 <div class="text-xs text-zinc-500">{{ $exam->date_time->format('h:i A') }}</div>
                             </flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 @if($exam->score_percentage !== null)
                                     <span
                                         class="font-bold {{ $exam->score_percentage >= 90 ? 'text-green-600' : ($exam->score_percentage >= 70 ? 'text-amber-500' : 'text-red-500') }}">
@@ -198,8 +198,8 @@ new class extends Component {
                                     <span class="text-zinc-400 text-sm">لم ترصد</span>
                                 @endif
                             </flux:table.cell>
-                            <flux:table.cell>{{ $exam->location ?? '-' }}</flux:table.cell>
-                            <flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >{{ $exam->location ?? '-' }}</flux:table.cell>
+                            <flux:table.cell class="first:ps-3" >
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-vertical" inset="top bottom" />
                                     <flux:menu>

@@ -1230,14 +1230,11 @@ new class extends Component {
             <div class="flex items-center gap-3 mb-1">
                 <flux:heading size="2xl" class="text-slate-900 font-black">{{ $activeGamification->title }}</flux:heading>
             </div>
-            <flux:subheading class="text-slate-500 font-medium">
-                {{ __('مرحباً بك في نظام التلعيب التفاعلي! حقق الإنجازات اليومية لتتطور في المستويات وتجمع العملات.') }}
-            </flux:subheading>
         </div>
         <div class="flex items-center gap-3">
             <div class="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-2 shadow-sm">
                 <flux:icon icon="calendar-days" class="size-4 text-slate-400" />
-                <span class="text-xs font-semibold text-slate-600">{{ \Carbon\Carbon::now('Asia/Riyadh')->translatedFormat('l، d F Y') }}</span>
+                <span class="text-xs font-semibold text-slate-600">تاريخ هجري </span>
             </div>
         </div>
     </div>
