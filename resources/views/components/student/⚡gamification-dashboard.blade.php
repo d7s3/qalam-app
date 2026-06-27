@@ -1217,7 +1217,7 @@ new class extends Component {
     @endif
 
     <!-- Theme Background Effects -->
-    <div class="absolute inset-0 pointer-events-none opacity-10">
+    <div class="absolute inset-0 pointer-events-none opacity-10 overflow-hidden rounded-3xl">
         <div class="absolute -top-40 -left-40 w-96 h-96 bg-team-primary rounded-full blur-3xl"></div>
         <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-team-primary rounded-full blur-3xl"></div>
     </div>

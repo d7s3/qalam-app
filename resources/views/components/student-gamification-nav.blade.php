@@ -43,7 +43,7 @@
 
         <div x-data="{ activeTab: localStorage.getItem('student-gam-tab') || 'leaderboard' }"
             x-on:gamnav-changed.window="activeTab = $event.detail.tab; localStorage.setItem('student-gam-tab', $event.detail.tab)"
-            class="fixed bottom-0 left-0 right-0 z-[9999] lg:hidden border-t border-white/10 shadow-none"
+            class="fixed bottom-0 w-full start-0 z-[9999] lg:hidden border-t border-white/10 shadow-none"
             style="background-color: {{ $navColor }}; padding-bottom: env(safe-area-inset-bottom, 12px);">
             <div class="flex items-center justify-around px-2 min-h-18 max-w-lg mx-auto">
 
