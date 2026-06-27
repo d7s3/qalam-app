@@ -67,6 +67,10 @@ class GamificationService
             'student_id' => $studentId,
         ]);
 
+        // Grant any newly-reached level rewards first so immediately-claimed
+        // (non-manual-claim) rewards are reflected in the coin total below.
+        self::syncStudentLevelRewards($studentId, $leaderboardId);
+
         $coins = GamificationTransaction::where('leaderboard_id', $leaderboardId)
             ->where('student_id', $studentId)
             ->whereNull('team_id')
@@ -78,6 +82,65 @@ class GamificationService
 
         // Announce a level-up in the competition news feed when XP crosses a level.
         GamificationNewsService::syncStudentLevel($studentId, $leaderboardId);
+    }
+
+    /**
+     * Grant a one-time coin reward for every level the student has reached.
+     *
+     * Idempotent: each level's reward is tied to a single transaction keyed by
+     * the level (reference_type/reference_id), so repeated recalculations never
+     * duplicate it. Rewards flow through the standard claim pipeline — pending a
+     * manual claim when the competition enables it, applied immediately otherwise.
+     * Level rewards are coins-only by design so they cannot feed back into XP and
+     * trigger further level-ups.
+     */
+    public static function syncStudentLevelRewards(int $studentId, int $leaderboardId): void
+    {
+        $leaderboard = Leaderboard::find($leaderboardId);
+
+        if (! $leaderboard) {
+            return;
+        }
+
+        $levelInfo = self::getStudentLevel($studentId, $leaderboardId);
+        $currentLevelNumber = (int) ($levelInfo['current']->level_number ?? 1);
+
+        // Only persisted levels can be referenced by a transaction. Reward every
+        // reached level (level_number <= current) that has a coin reward set.
+        $reachedLevels = GamificationLevel::where('leaderboard_id', $leaderboardId)
+            ->where('level_number', '<=', $currentLevelNumber)
+            ->orderBy('level_number')
+            ->get();
+
+        foreach ($reachedLevels as $level) {
+            $rewardCoins = (int) ($level->settings['reward_coins'] ?? 0);
+
+            if ($rewardCoins <= 0) {
+                continue;
+            }
+
+            $alreadyGranted = GamificationTransaction::where('leaderboard_id', $leaderboardId)
+                ->where('student_id', $studentId)
+                ->where('reference_type', GamificationLevel::class)
+                ->where('reference_id', $level->id)
+                ->exists();
+
+            if ($alreadyGranted) {
+                continue;
+            }
+
+            GamificationTransaction::create([
+                'leaderboard_id' => $leaderboardId,
+                'student_id' => $studentId,
+                'type' => 'earn',
+                'amount' => $rewardCoins,
+                'xp_amount' => 0,
+                'description' => "مكافأة الوصول للمستوى {$level->level_number}: {$level->name}",
+                'reference_type' => GamificationLevel::class,
+                'reference_id' => $level->id,
+                'claimed_at' => self::resolveClaimedAt($leaderboard, $rewardCoins, 0),
+            ]);
+        }
     }
 
     /**

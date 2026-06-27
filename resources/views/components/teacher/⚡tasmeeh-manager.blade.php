@@ -162,100 +162,11 @@ new class extends Component {
 
         $studentsWithPlansPresent = collect($studentsWithPlansPresent)->sortBy('turn_number')->values();
 
-        // Preload all plan days with relationships in a single query to avoid N+1 queries in child components
-        $activePlanIds = collect($activePlans)->pluck('id');
-        $allDays = StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah', 'plan'])
-            ->whereIn('student_plan_id', $activePlanIds)
-            ->orderBy('date', 'asc')
-            ->get()
-            ->groupBy('student_plan_id');
-
-        app()->instance('tasmeeh_days_cache', $allDays);
-
-        // Preload all active student ode plans and their days to prevent N+1 queries in child components
-        $studentOdePlans = StudentOdePlan::with('path.ode')
-            ->whereIn('student_id', $students->pluck('id'))
-            ->where('status', 'active')
-            ->get()
-            ->keyBy('student_id');
-
-        $allOdeDays = collect();
-        if ($studentOdePlans->isNotEmpty()) {
-            $odePathIds = $studentOdePlans->pluck('ode_path_id')->unique();
-
-            $odePathDays = OdePathDay::whereIn('ode_path_id', $odePathIds)
-                ->orderBy('day_number', 'asc')
-                ->get()
-                ->groupBy('ode_path_id');
-
-            $odeAchievements = StudentOdeAchievement::whereIn('student_ode_plan_id', $studentOdePlans->pluck('id'))
-                ->get()
-                ->groupBy('student_ode_plan_id');
-
-            $allOdeDays = $studentOdePlans->mapWithKeys(function ($plan) use ($odePathDays, $odeAchievements) {
-                $daysForPath = $odePathDays->get($plan->ode_path_id) ?? collect();
-                $planAchievements = $odeAchievements->get($plan->id) ?? collect();
-                $achievementsByDay = $planAchievements->keyBy('ode_path_day_id');
-
-                $mappedDays = $daysForPath->map(function ($day) use ($achievementsByDay) {
-                    $clonedDay = clone $day;
-                    $achievement = $achievementsByDay->get($clonedDay->id);
-                    $clonedDay->hifz_achievement = $achievement?->hifz_achievement;
-                    $clonedDay->review_achievement = $achievement?->review_achievement;
-                    $clonedDay->hifz_graded_at = $achievement?->hifz_graded_at;
-                    $clonedDay->review_graded_at = $achievement?->review_graded_at;
-                    return $clonedDay;
-                });
-
-                return [$plan->id => $mappedDays];
-            });
-        }
-
-        // Preload all active student hadith plans and their days to prevent N+1 queries in child components
-        $studentHadithPlans = StudentHadithPlan::with('path')
-            ->whereIn('student_id', $students->pluck('id'))
-            ->where('status', 'active')
-            ->get()
-            ->keyBy('student_id');
-
-        $allHadithDays = collect();
-        if ($studentHadithPlans->isNotEmpty()) {
-            $pathIds = $studentHadithPlans->pluck('hadith_path_id')->unique();
-            
-            $pathDays = HadithPathDay::with(['fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
-                ->whereIn('hadith_path_id', $pathIds)
-                ->orderBy('day_number', 'asc')
-                ->get()
-                ->groupBy('hadith_path_id');
-            
-            $achievements = StudentHadithAchievement::whereIn('student_hadith_plan_id', $studentHadithPlans->pluck('id'))
-                ->get()
-                ->groupBy('student_hadith_plan_id');
-
-            $allHadithDays = $studentHadithPlans->mapWithKeys(function ($plan) use ($pathDays, $achievements) {
-                $daysForPath = $pathDays->get($plan->hadith_path_id) ?? collect();
-                $planAchievements = $achievements->get($plan->id) ?? collect();
-                $achievementsByDay = $planAchievements->keyBy('hadith_path_day_id');
-
-                $mappedDays = $daysForPath->map(function ($day) use ($achievementsByDay) {
-                    $clonedDay = clone $day;
-                    $achievement = $achievementsByDay->get($clonedDay->id);
-                    $clonedDay->hifz_achievement = $achievement?->hifz_achievement;
-                    $clonedDay->review_achievement = $achievement?->review_achievement;
-                    $clonedDay->hifz_graded_at = $achievement?->hifz_graded_at;
-                    $clonedDay->review_graded_at = $achievement?->review_graded_at;
-                    return $clonedDay;
-                });
-
-                return [$plan->id => $mappedDays];
-            });
-        }
-
-        app()->instance('tasmeeh_ode_plans_cache', $studentOdePlans);
-        app()->instance('tasmeeh_ode_days_cache', $allOdeDays);
-
-        app()->instance('tasmeeh_hadith_plans_cache', $studentHadithPlans);
-        app()->instance('tasmeeh_hadith_days_cache', $allHadithDays);
+        // Student cards render lazily (one request each) and fetch their own
+        // plan/ode/hadith days via their built-in fallback queries, so nothing is
+        // eager-loaded or cached here. This keeps the initial tasmeeh render light
+        // and prevents memory exhaustion for teachers with many students or large
+        // plans (each card now carries only its own data in its own request).
 
         return [
             'studentsWithPlansPresent' => $studentsWithPlansPresent,
@@ -519,6 +430,7 @@ hifz/review — local state per day card for instant visual feedback
             @foreach($studentsWithPlansPresent->merge($studentsWithPlansAbsent)->merge($studentsWithoutPlans) as $student)
                 <div x-show="activeStudentId == {{ $student->id }}" x-cloak>
                     <livewire:teacher.student-tasmeeh-card
+                        lazy
                         :wire:key="'student-card-'.$student->id"
                         :student="$student"
                         :s-plans="$studentPlansList[$student->id] ?? collect()"

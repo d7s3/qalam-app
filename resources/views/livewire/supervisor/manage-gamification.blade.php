@@ -97,6 +97,11 @@
                                 <flux:input type="number" wire:model="levels.{{ $index }}.xp_required" label="طاقة الخبرة (XP) المطلوبة" placeholder="نقاط" />
                             </div>
 
+                            <div class="mt-3">
+                                <flux:input type="number" min="0" wire:model="levels.{{ $index }}.settings.reward_coins" label="مكافأة العملات عند بلوغ هذا المستوى" placeholder="0 = بدون مكافأة" />
+                                <flux:text size="sm" class="mt-1 text-zinc-400">تُمنح مرة واحدة، وتظهر للطالب في قائمة المكافآت بانتظار الاستلام.</flux:text>
+                            </div>
+
                             <div class="border-t border-zinc-200/60 dark:border-zinc-800/80 my-2"></div>
                             
                             <div class="space-y-3">

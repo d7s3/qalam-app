@@ -1228,13 +1228,27 @@ new class extends Component {
         <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200/80">
         <div>
             <div class="flex items-center gap-3 mb-1">
-                <flux:heading size="2xl" class="text-slate-900 font-black">{{ $activeGamification->title }}</flux:heading>
+                <flux:heading size="3xl" class="text-slate-900 text-4xl font-black">{{ __('منصة التاج الرقمية') }}</flux:heading>
             </div>
+            @if($activeGamification?->title)
+                <flux:subheading class="text-slate-500 font-medium">{{ $activeGamification->title }}</flux:subheading>
+            @endif
         </div>
+        @php
+            $hijriFormatter = new \IntlDateFormatter(
+                'ar_SA@calendar=islamic-umalqura',
+                \IntlDateFormatter::FULL,
+                \IntlDateFormatter::NONE,
+                'Asia/Riyadh',
+                \IntlDateFormatter::TRADITIONAL,
+                'd MMMM yyyy'
+            );
+            $hijriToday = $hijriFormatter->format(now());
+        @endphp
         <div class="flex items-center gap-3">
             <div class="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-2 shadow-sm">
                 <flux:icon icon="calendar-days" class="size-4 text-slate-400" />
-                <span class="text-xs font-semibold text-slate-600">تاريخ هجري </span>
+                <span class="text-xs font-semibold text-slate-600">{{ $hijriToday }} هـ</span>
             </div>
         </div>
     </div>
@@ -1266,6 +1280,7 @@ new class extends Component {
                             'App\\Models\\Attendance' => 'user-group',
                             'App\\Models\\LeaderboardScore' => 'star',
                             'App\\Models\\GamificationActivityWinner' => 'trophy',
+                            'App\\Models\\GamificationLevel' => 'academic-cap',
                             'leaderboard_extra_points' => 'plus-circle',
                             default => 'gift',
                         };

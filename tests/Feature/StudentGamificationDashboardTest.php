@@ -82,7 +82,7 @@ it('automatically overrides dashboard to themed gamification when active', funct
     $response = $this->get(route('student.dashboard'));
     $response->assertSuccessful();
     $response->assertSee('مسابقة الفضاء والمجرات للطلاب');
-    $response->assertSee('مرحباً بك في نظام التلعيب التفاعلي');
+    $response->assertSee('منصة التاج الرقمية'); // Gamification header brand
     $response->assertDontSee('محفوظي من القرآن الكريم'); // Normal dashboard is overridden
 });
 

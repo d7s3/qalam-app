@@ -517,6 +517,7 @@ class ManageGamification extends Component
                 $lvlSettings['freeze_max_days'] = (int) ($lvlSettings['freeze_max_days'] ?? 1);
                 $lvlSettings['has_donation'] = (bool) ($lvlSettings['has_donation'] ?? true);
                 $lvlSettings['donation_max_limit'] = (int) ($lvlSettings['donation_max_limit'] ?? 10);
+                $lvlSettings['reward_coins'] = max(0, (int) ($lvlSettings['reward_coins'] ?? 0));
 
                 GamificationLevel::updateOrCreate(
                     ['id' => $lvl['id'], 'leaderboard_id' => $this->competitionId],

@@ -131,13 +131,21 @@ select:focus[data-flux-control] {
     }
 }
 
-/* Fix mobile sidebar z-index so it appears above the backdrop */
+/*
+ * Keep the full-screen mobile backdrop BEHIND the sidebar.
+ *
+ * Flux gives the sidebar `z-20` via a *layered* `!important` utility
+ * (in `@layer utilities`). Per the CSS cascade, a layered `!important`
+ * beats an un-layered `!important`, so a raw `ui-sidebar { z-index: 50 !important }`
+ * override silently loses and the sidebar stays at z-20. Meanwhile the backdrop's
+ * stub `z-20` is a *normal* declaration, so it is trivially overridable.
+ *
+ * Therefore we lower the backdrop below the sidebar's z-20 instead of trying to
+ * raise the sidebar. Otherwise the `fixed inset-0` backdrop sits on top of the menu
+ * and swallows taps on nav items — closing the drawer without navigating.
+ */
 @media (max-width: 1023px) {
-    ui-sidebar[data-flux-sidebar-on-mobile] {
-        z-index: 50 !important;
-    }
-
     ui-sidebar-toggle[data-flux-sidebar-backdrop][data-flux-sidebar-on-mobile] {
-        z-index: 40 !important;
+        z-index: 10 !important;
     }
 }
