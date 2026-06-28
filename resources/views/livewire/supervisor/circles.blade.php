@@ -9,6 +9,9 @@
                 <flux:subheading>الحلقات الواقعة ضمن المراحل التي تشرف عليها</flux:subheading>
             </div>
         </div>
+        @if($stages->isNotEmpty())
+            <flux:button variant="primary" size="sm" icon="plus" wire:click="create">إضافة حلقة جديدة</flux:button>
+        @endif
     </div>
 
     <div class="flex flex-col md:flex-row gap-4 items-end">
@@ -73,11 +76,19 @@
     <flux:modal name="circle-modal" class="md:w-[500px]">
         <form wire:submit="save" class="space-y-6">
             <div>
-                <flux:heading size="lg">تعديل بيانات الحلقة</flux:heading>
-                <flux:subheading>يمكنك تعديل اسم الحلقة ووصفها وتعيين المعلمين لها.</flux:subheading>
+                <flux:heading size="lg">{{ $editingCircleId ? 'تعديل بيانات الحلقة' : 'إضافة حلقة جديدة' }}</flux:heading>
+                <flux:subheading>يمكنك تحديد اسم الحلقة ووصفها وتعيين المعلمين لها.</flux:subheading>
             </div>
 
             <div class="space-y-4">
+                @if(!$editingCircleId)
+                    <flux:select label="المرحلة التعليمية" wire:model="stage_id" required>
+                        <flux:select.option value="" >اختر المرحلة</flux:select.option>
+                        @foreach($stages as $stage)
+                            <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                @endif
                 <flux:input label="اسم الحلقة" wire:model="name" placeholder="مثال: حلقة ابن كثير" required />
                 <flux:textarea label="وصف الحلقة (اختياري)" wire:model="description" placeholder="وصف موجز للحلقة..." />
             </div>

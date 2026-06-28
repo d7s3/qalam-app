@@ -17,6 +17,8 @@ class Circles extends Component
 
     public $editingCircleId = null;
 
+    public $stage_id = null;
+
     public string $search = '';
 
     public string $teacherFilter = 'all';
@@ -78,6 +80,24 @@ class Circles extends Component
         $this->loadData();
     }
 
+    public function create(): void
+    {
+        $stages = $this->getSupervisorStages();
+        if ($stages->isEmpty()) {
+            Flux::toast(__('عذراً، لا توجد مراحل تعليمية مخصصة لك لإضافة حلقة.'), variant: 'danger');
+            return;
+        }
+
+        $this->reset(['name', 'description', 'editingCircleId', 'selectedTeachers', 'stage_id']);
+        
+        // Auto-select if there's only one stage
+        if ($stages->count() === 1) {
+            $this->stage_id = $stages->first()->id;
+        }
+
+        Flux::modal('circle-modal')->show();
+    }
+
     public function edit($id): void
     {
         $circleIds = $this->getSupervisorCircleIds();
@@ -86,6 +106,7 @@ class Circles extends Component
         $this->editingCircleId = $circle->id;
         $this->name = $circle->name;
         $this->description = $circle->description ?? '';
+        $this->stage_id = $circle->stage_id;
         $this->selectedTeachers = $circle->teachers->pluck('id')->toArray();
 
         Flux::modal('circle-modal')->show();
@@ -93,18 +114,43 @@ class Circles extends Component
 
     public function save(): void
     {
-        $this->validate([
+        $rules = [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-        ]);
+        ];
+
+        if (!$this->editingCircleId) {
+            $rules['stage_id'] = 'required|exists:stages,id';
+        }
+
+        $this->validate($rules);
 
         $circleIds = $this->getSupervisorCircleIds();
-        $circle = Circle::whereIn('id', $circleIds)->findOrFail($this->editingCircleId);
+        
+        if ($this->editingCircleId) {
+            $circle = Circle::whereIn('id', $circleIds)->findOrFail($this->editingCircleId);
+            $circle->update([
+                'name' => $this->name,
+                'description' => $this->description,
+            ]);
+            $message = __('تم تحديث الحلقة بنجاح');
+        } else {
+            // Verify supervisor has access to the chosen stage
+            $validStages = $this->getSupervisorStages()->pluck('id')->toArray();
+            if (!in_array($this->stage_id, $validStages)) {
+                abort(403, 'Unauthorized action.');
+            }
 
-        $circle->update([
-            'name' => $this->name,
-            'description' => $this->description,
-        ]);
+            $circle = Circle::create([
+                'name' => $this->name,
+                'description' => $this->description,
+                'stage_id' => $this->stage_id,
+            ]);
+            $message = __('تم إضافة الحلقة بنجاح');
+            
+            // Re-fetch circleIds after creating the new circle so it can assign teachers
+            $circleIds = $this->getSupervisorCircleIds();
+        }
 
         // Only assign teachers from this supervisor's scope
         $validTeachers = Teacher::whereHas('circles', function ($q) use ($circleIds) {
@@ -113,15 +159,15 @@ class Circles extends Component
 
         $circle->teachers()->sync($validTeachers);
 
-        Flux::toast(__('تم تحديث الحلقة بنجاح'), variant: 'success');
-        $this->reset(['name', 'description', 'editingCircleId', 'selectedTeachers']);
+        Flux::toast($message, variant: 'success');
+        $this->reset(['name', 'description', 'editingCircleId', 'selectedTeachers', 'stage_id']);
         $this->loadData();
         Flux::modal('circle-modal')->close();
     }
 
     public function cancel(): void
     {
-        $this->reset(['name', 'description', 'editingCircleId', 'selectedTeachers']);
+        $this->reset(['name', 'description', 'editingCircleId', 'selectedTeachers', 'stage_id']);
     }
 
     public function render()
