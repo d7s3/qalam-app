@@ -5,7 +5,9 @@ namespace App\Livewire\Supervisor;
 use App\Models\Circle;
 use App\Models\Form;
 use App\Models\FormResponse;
+use App\Models\Stage;
 use App\Models\Student;
+use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -18,18 +20,30 @@ class FormResponses extends Component
 
     public string $activeTab = 'responses'; // 'responses' or 'reports'
 
-    // Student account creation modal state
+    // Single student account creation modal state
     public bool $showCreateModal = false;
 
     public ?int $selectedResponseId = null;
 
     public string $newStudentName = '';
 
-    public string $newStudentUsername = '';
+    public string $newStudentEmail = '';
+
+    public bool $newStudentRandomEmail = false;
+
+    public string $newStudentPhone = '';
+
+    public string $newStudentBirthDate = '';
+
+    public string $newStudentNationality = '';
+
+    public string $newStudentNationalId = '';
 
     public string $newStudentPassword = 'password';
 
-    public ?int $newStudentCircleId = null;
+    public ?int $targetCircleId = null;
+
+    public ?int $targetStageId = null;
 
     // Student linking modal state
     public bool $showLinkModal = false;
@@ -41,7 +55,27 @@ class FormResponses extends Component
     // Bulk creation modal state
     public bool $showBulkModal = false;
 
+    /** @var array<string, string|null> attribute => form field id */
+    public array $bulkMap = [];
+
+    public bool $bulkRandomEmail = false;
+
+    public string $bulkPassword = 'password';
+
     public ?int $bulkCircleId = null;
+
+    public ?int $bulkStageId = null;
+
+    public bool $bulkAnalyzed = false;
+
+    /** @var array<int, array<string, mixed>> */
+    public array $bulkReady = [];
+
+    /** @var array<int, array<string, mixed>> */
+    public array $bulkNeedsReview = [];
+
+    /** @var array<int, array{name: string, birth_date: string}> keyed by response id */
+    public array $reviewEdits = [];
 
     // Search and filters
     public string $search = '';
@@ -53,27 +87,190 @@ class FormResponses extends Component
         $this->form = Form::where('supervisor_id', $supervisorId)->findOrFail($formId);
     }
 
-    public function openCreateModal(int $responseId): void
+    /**
+     * User attributes that can be fed from form fields.
+     *
+     * @return array<int, string>
+     */
+    private function mappableAttributes(): array
     {
-        $this->selectedResponseId = $responseId;
-        $response = FormResponse::findOrFail($responseId);
+        return ['name', 'email', 'phone', 'birth_date', 'nationality', 'national_id'];
+    }
 
-        // Find designated name and username fields
-        $nameField = collect($this->form->fields)->firstWhere('is_student_name', true);
-        $usernameField = collect($this->form->fields)->firstWhere('is_student_username', true);
+    /**
+     * Best-effort guess of which form field feeds each user attribute, using the
+     * builder designations first, then label/type heuristics.
+     *
+     * @return array<string, string|null>
+     */
+    private function guessFieldMap(): array
+    {
+        $fields = collect($this->form->fields);
 
-        $this->newStudentName = $nameField ? ($response->answers[$nameField['id']] ?? '') : '';
+        $byLabel = fn (array $needles): ?string => $fields->first(function ($f) use ($needles) {
+            $label = $f['label'] ?? '';
+            foreach ($needles as $needle) {
+                if (str_contains($label, $needle)) {
+                    return true;
+                }
+            }
 
-        $rawUsername = $usernameField ? ($response->answers[$usernameField['id']] ?? '') : '';
-        // If username was provided, clean it, else generate a random email prefix
-        if ($rawUsername) {
-            $this->newStudentUsername = Str::slug($rawUsername);
-        } else {
-            $this->newStudentUsername = 'student_'.Str::random(6);
+            return false;
+        })['id'] ?? null;
+
+        $nameField = $fields->firstWhere('is_student_name', true);
+        $emailField = $fields->firstWhere('is_student_username', true);
+        $dateField = $fields->firstWhere('type', 'date');
+
+        return [
+            'name' => $nameField['id'] ?? $byLabel(['الاسم', 'اسم']),
+            'email' => $emailField['id'] ?? $byLabel(['بريد', 'ايميل', 'إيميل', 'email']),
+            'phone' => $byLabel(['جوال', 'هاتف', 'تواصل', 'الرقم']),
+            'birth_date' => $dateField['id'] ?? $byLabel(['ميلاد', 'مواليد']),
+            'nationality' => $byLabel(['جنسية']),
+            'national_id' => $byLabel(['هوية', 'إقامة', 'اقامة', 'سجل']),
+        ];
+    }
+
+    private function extractAnswer(FormResponse $response, ?string $fieldId): ?string
+    {
+        if (! $fieldId) {
+            return null;
         }
 
+        $answer = $response->answers[$fieldId] ?? null;
+
+        return is_array($answer) ? implode(', ', $answer) : $answer;
+    }
+
+    private function normalizePhone(?string $raw): ?string
+    {
+        if (! $raw) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', $raw);
+
+        return $digits !== '' ? $digits : null;
+    }
+
+    /**
+     * Parse a free-text birth date into Y-m-d, or null when it cannot be parsed.
+     */
+    private function parseBirthDate(?string $raw): ?string
+    {
+        if (! $raw) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($raw)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function resolveEmail(?string $raw, bool $random): string
+    {
+        if ($random || ! $raw) {
+            return $this->ensureUniqueEmail('std_'.Str::random(6).'@altag-student.com');
+        }
+
+        if (str_contains($raw, '@')) {
+            return $this->ensureUniqueEmail($raw);
+        }
+
+        $prefix = Str::slug($raw);
+        if ($prefix === '') {
+            $prefix = 'std_'.Str::random(6);
+        }
+
+        return $this->ensureUniqueEmail($prefix.'@altag-student.com');
+    }
+
+    private function ensureUniqueEmail(string $email): string
+    {
+        if (! Student::where('email', $email)->exists()) {
+            return $email;
+        }
+
+        [$local, $domain] = str_contains($email, '@') ? explode('@', $email, 2) : [$email, 'altag-student.com'];
+
+        for ($i = 0; $i < 5; $i++) {
+            $candidate = $local.'_'.mt_rand(100, 999).'@'.$domain;
+            if (! Student::where('email', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        return 'std_'.Str::random(8).'@altag-student.com';
+    }
+
+    /**
+     * Resolve target circle/stage applying the precedence rule: the circle always
+     * wins (its stage is the effective one), so stage_id is only stored when there
+     * is no circle.
+     *
+     * @return array{circle_id: ?int, stage_id: ?int}
+     */
+    private function resolvePlacement(?int $circleId, ?int $stageId): array
+    {
+        if ($circleId) {
+            return ['circle_id' => $circleId, 'stage_id' => null];
+        }
+
+        return ['circle_id' => null, 'stage_id' => $stageId ?: null];
+    }
+
+    /**
+     * Create one student from resolved attributes and link the response to it.
+     *
+     * @param  array<string, mixed>  $attrs
+     */
+    private function createStudent(FormResponse $response, array $attrs): Student
+    {
+        $placement = $this->resolvePlacement($attrs['circle_id'] ?? null, $attrs['stage_id'] ?? null);
+
+        $student = Student::create([
+            'name' => $attrs['name'],
+            'email' => $attrs['email'],
+            'password' => bcrypt($attrs['password']),
+            'phone' => $attrs['phone'] ?? null,
+            'birth_date' => $attrs['birth_date'] ?? null,
+            'nationality' => $attrs['nationality'] ?? null,
+            'national_id' => $attrs['national_id'] ?? null,
+            'circle_id' => $placement['circle_id'],
+            'stage_id' => $placement['stage_id'],
+            'status' => 'registering',
+            'is_approved' => false,
+        ]);
+
+        $response->update([
+            'student_id' => $student->id,
+            'is_processed' => true,
+        ]);
+
+        return $student;
+    }
+
+    public function openCreateModal(int $responseId): void
+    {
+        $this->resetValidation();
+        $this->selectedResponseId = $responseId;
+        $response = FormResponse::findOrFail($responseId);
+        $map = $this->guessFieldMap();
+
+        $this->newStudentName = trim((string) $this->extractAnswer($response, $map['name']));
+        $rawEmail = $this->extractAnswer($response, $map['email']);
+        $this->newStudentRandomEmail = empty($rawEmail);
+        $this->newStudentEmail = (string) $rawEmail;
+        $this->newStudentPhone = (string) $this->normalizePhone($this->extractAnswer($response, $map['phone']));
+        $this->newStudentBirthDate = (string) $this->parseBirthDate($this->extractAnswer($response, $map['birth_date']));
+        $this->newStudentNationality = trim((string) $this->extractAnswer($response, $map['nationality']));
+        $this->newStudentNationalId = trim((string) $this->extractAnswer($response, $map['national_id']));
         $this->newStudentPassword = 'password';
-        $this->newStudentCircleId = null;
+        $this->targetCircleId = null;
+        $this->targetStageId = null;
         $this->showCreateModal = true;
     }
 
@@ -81,38 +278,28 @@ class FormResponses extends Component
     {
         $this->validate([
             'newStudentName' => 'required|string|max:255',
-            'newStudentUsername' => 'required|string|max:255',
+            'newStudentEmail' => 'nullable|string|max:255',
+            'newStudentPhone' => 'nullable|string|max:50',
+            'newStudentBirthDate' => 'nullable|date',
+            'newStudentNationality' => 'nullable|string|max:255',
+            'newStudentNationalId' => 'nullable|string|max:255',
             'newStudentPassword' => 'required|string|min:6',
-            'newStudentCircleId' => 'nullable|exists:circles,id',
+            'targetCircleId' => 'nullable|exists:circles,id',
+            'targetStageId' => 'nullable|exists:stages,id',
         ]);
 
-        // Standardize username to unique email format
-        $email = $this->newStudentUsername;
-        if (! str_contains($email, '@')) {
-            $email = $this->newStudentUsername.'@altag-student.com';
-        }
-
-        // Handle uniqueness
-        if (Student::where('email', $email)->exists()) {
-            // Append random suffix
-            $email = str_replace('@altag-student.com', '_'.mt_rand(100, 999).'@altag-student.com', $email);
-        }
-
-        // Create Student Account - status 'registering' (under registration) and is_approved = false
-        $student = Student::create([
-            'name' => $this->newStudentName,
-            'email' => $email,
-            'password' => bcrypt($this->newStudentPassword),
-            'circle_id' => $this->newStudentCircleId ?: null,
-            'status' => 'registering',
-            'is_approved' => false,
-        ]);
-
-        // Link response
         $response = FormResponse::findOrFail($this->selectedResponseId);
-        $response->update([
-            'student_id' => $student->id,
-            'is_processed' => true,
+
+        $this->createStudent($response, [
+            'name' => $this->newStudentName,
+            'email' => $this->resolveEmail($this->newStudentEmail ?: null, $this->newStudentRandomEmail),
+            'phone' => $this->normalizePhone($this->newStudentPhone),
+            'birth_date' => $this->newStudentBirthDate ?: null,
+            'nationality' => $this->newStudentNationality ?: null,
+            'national_id' => $this->newStudentNationalId ?: null,
+            'password' => $this->newStudentPassword,
+            'circle_id' => $this->targetCircleId,
+            'stage_id' => $this->targetStageId,
         ]);
 
         $this->showCreateModal = false;
@@ -137,7 +324,6 @@ class FormResponses extends Component
         $student = Student::findOrFail($this->linkStudentId);
         $response = FormResponse::findOrFail($this->selectedResponseId);
 
-        // If supervisor chose to adopt the name in the form response
         if ($this->linkNameOption === 'response') {
             $nameField = collect($this->form->fields)->firstWhere('is_student_name', true);
             if ($nameField && isset($response->answers[$nameField['id']])) {
@@ -156,67 +342,148 @@ class FormResponses extends Component
 
     public function openBulkModal(): void
     {
+        $this->bulkMap = $this->guessFieldMap();
+        $this->bulkRandomEmail = empty($this->bulkMap['email']);
+        $this->bulkPassword = 'password';
         $this->bulkCircleId = null;
+        $this->bulkStageId = null;
+        $this->bulkAnalyzed = false;
+        $this->bulkReady = [];
+        $this->bulkNeedsReview = [];
+        $this->reviewEdits = [];
         $this->showBulkModal = true;
     }
 
-    public function bulkCreateStudents(): void
+    /**
+     * Sort unprocessed responses into "ready" (all mapped values valid) and
+     * "needs review" (missing name or an unparseable birth date), without
+     * creating anything yet.
+     */
+    public function analyzeBulk(): void
     {
-        $unprocessedResponses = FormResponse::where('form_id', $this->form->id)
+        $responses = FormResponse::where('form_id', $this->form->id)
             ->whereNull('student_id')
             ->get();
 
-        $nameField = collect($this->form->fields)->firstWhere('is_student_name', true);
-        $usernameField = collect($this->form->fields)->firstWhere('is_student_username', true);
+        $this->bulkReady = [];
+        $this->bulkNeedsReview = [];
+        $this->reviewEdits = [];
 
-        if (! $nameField) {
-            $this->showBulkModal = false;
-            Flux::toast('يرجى تحديد حقل كـ (اسم الطالب) في تصميم النموذج أولاً لتفعيل الإنشاء الجماعي.', variant: 'danger');
+        foreach ($responses as $response) {
+            $name = trim((string) $this->extractAnswer($response, $this->bulkMap['name'] ?? null));
+            $birthRaw = $this->extractAnswer($response, $this->bulkMap['birth_date'] ?? null);
+            $parsedBirth = $this->parseBirthDate($birthRaw);
+
+            $reasons = [];
+            if ($name === '') {
+                $reasons[] = 'الاسم غير متوفر';
+            }
+            if (! empty($birthRaw) && $parsedBirth === null) {
+                $reasons[] = 'تاريخ الميلاد غير صالح';
+            }
+
+            if ($reasons) {
+                $this->bulkNeedsReview[] = [
+                    'response_id' => $response->id,
+                    'name' => $name,
+                    'birth_raw' => $birthRaw,
+                    'reasons' => $reasons,
+                ];
+                $this->reviewEdits[$response->id] = [
+                    'name' => $name,
+                    'birth_date' => $parsedBirth ?? '',
+                ];
+            } else {
+                $this->bulkReady[] = [
+                    'response_id' => $response->id,
+                    'name' => $name,
+                ];
+            }
+        }
+
+        $this->bulkAnalyzed = true;
+    }
+
+    private function bulkAttrs(FormResponse $response, ?string $nameOverride = null, ?string $birthOverride = null): array
+    {
+        $name = $nameOverride !== null
+            ? $nameOverride
+            : trim((string) $this->extractAnswer($response, $this->bulkMap['name'] ?? null));
+
+        $birth = $birthOverride !== null
+            ? ($birthOverride ?: null)
+            : $this->parseBirthDate($this->extractAnswer($response, $this->bulkMap['birth_date'] ?? null));
+
+        return [
+            'name' => $name,
+            'email' => $this->resolveEmail($this->extractAnswer($response, $this->bulkMap['email'] ?? null), $this->bulkRandomEmail),
+            'phone' => $this->normalizePhone($this->extractAnswer($response, $this->bulkMap['phone'] ?? null)),
+            'birth_date' => $birth,
+            'nationality' => trim((string) $this->extractAnswer($response, $this->bulkMap['nationality'] ?? null)) ?: null,
+            'national_id' => trim((string) $this->extractAnswer($response, $this->bulkMap['national_id'] ?? null)) ?: null,
+            'password' => $this->bulkPassword ?: 'password',
+            'circle_id' => $this->bulkCircleId,
+            'stage_id' => $this->bulkStageId,
+        ];
+    }
+
+    /**
+     * Create accounts for every "ready" response in one go. The "needs review"
+     * ones are left untouched for manual handling.
+     */
+    public function createReadyStudents(): void
+    {
+        $this->validate([
+            'bulkPassword' => 'required|string|min:6',
+            'bulkCircleId' => 'nullable|exists:circles,id',
+            'bulkStageId' => 'nullable|exists:stages,id',
+        ]);
+
+        $created = 0;
+        foreach ($this->bulkReady as $row) {
+            $response = FormResponse::find($row['response_id']);
+            if (! $response || $response->student_id) {
+                continue;
+            }
+            $this->createStudent($response, $this->bulkAttrs($response));
+            $created++;
+        }
+
+        $this->analyzeBulk();
+        Flux::toast("تم إنشاء {$created} حساب طالب بنجاح", variant: 'success');
+    }
+
+    /**
+     * Create a single account from a reviewed response after the supervisor
+     * corrected the flagged values.
+     */
+    public function createReviewedStudent(int $responseId): void
+    {
+        $edit = $this->reviewEdits[$responseId] ?? null;
+        $name = trim((string) ($edit['name'] ?? ''));
+        $birth = $edit['birth_date'] ?? '';
+
+        if ($name === '') {
+            $this->addError("reviewEdits.{$responseId}.name", 'الاسم مطلوب لإنشاء الحساب.');
 
             return;
         }
 
-        $createdCount = 0;
+        if ($birth !== '' && $this->parseBirthDate($birth) === null) {
+            $this->addError("reviewEdits.{$responseId}.birth_date", 'تاريخ الميلاد غير صالح.');
 
-        foreach ($unprocessedResponses as $response) {
-            $studentName = $response->answers[$nameField['id']] ?? null;
-            if (! $studentName) {
-                continue;
-            }
-
-            // Extract username or generate unique random email
-            $rawUsername = $usernameField ? ($response->answers[$usernameField['id']] ?? null) : null;
-            if ($rawUsername) {
-                $emailPrefix = Str::slug($rawUsername);
-            } else {
-                $emailPrefix = 'std_'.Str::random(6);
-            }
-
-            $email = $emailPrefix.'@altag-student.com';
-            if (Student::where('email', $email)->exists()) {
-                $email = $emailPrefix.'_'.mt_rand(100, 999).'@altag-student.com';
-            }
-
-            // Create student in registering status and unapproved
-            $student = Student::create([
-                'name' => $studentName,
-                'email' => $email,
-                'password' => bcrypt('password'),
-                'circle_id' => $this->bulkCircleId ?: null,
-                'status' => 'registering',
-                'is_approved' => false,
-            ]);
-
-            $response->update([
-                'student_id' => $student->id,
-                'is_processed' => true,
-            ]);
-
-            $createdCount++;
+            return;
         }
 
-        $this->showBulkModal = false;
-        Flux::toast("تم إنشاء {$createdCount} حساب طالب تحت التسجيل بنجاح", variant: 'success');
+        $response = FormResponse::find($responseId);
+        if (! $response || $response->student_id) {
+            return;
+        }
+
+        $this->createStudent($response, $this->bulkAttrs($response, $name, $birth));
+
+        $this->analyzeBulk();
+        Flux::toast('تم إنشاء حساب الطالب بنجاح', variant: 'success');
     }
 
     public function deleteResponse(int $id): void
@@ -239,13 +506,11 @@ class FormResponses extends Component
                 $fieldId = $field['id'];
                 $label = $field['label'];
 
-                // Initialize option counts
                 $optionCounts = [];
                 foreach ($field['options'] ?? [] as $option) {
                     $optionCounts[$option] = 0;
                 }
 
-                // Process answers
                 foreach ($responses as $response) {
                     $answer = $response->answers[$fieldId] ?? null;
                     if ($answer) {
@@ -280,7 +545,6 @@ class FormResponses extends Component
             ->with('student')
             ->latest();
 
-        // Apply simple search filtering if any
         if ($this->search) {
             $responsesQuery->where(function ($q) {
                 $q->where('answers', 'like', '%'.$this->search.'%');
@@ -289,21 +553,22 @@ class FormResponses extends Component
 
         $responses = $responsesQuery->get();
 
-        // Get supervisor circles for registration
         $supervisor = auth()->guard('supervisor')->user();
-        $circleIds = Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
-        $circles = Circle::whereIn('id', $circleIds)->get();
+        $stageIds = $supervisor->stages()->pluck('stages.id')->toArray();
+        $circles = Circle::with('stage')->whereIn('stage_id', $stageIds)->get();
+        $stages = Stage::whereIn('id', $stageIds)->get();
 
-        // Get students listing for existing linking
-        $students = Student::whereIn('circle_id', $circleIds)->orderBy('name')->get();
+        $students = Student::whereIn('circle_id', $circles->pluck('id'))->orderBy('name')->get();
 
         $reportsData = $this->getReportsData();
 
         return view('livewire.supervisor.form-responses', [
             'responses' => $responses,
             'circles' => $circles,
+            'stages' => $stages,
             'students' => $students,
             'reportsData' => $reportsData,
+            'unprocessedCount' => $responses->whereNull('student_id')->count(),
         ]);
     }
 }

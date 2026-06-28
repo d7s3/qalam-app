@@ -165,40 +165,85 @@
     </div>
 
     <!-- Modal: Create Student Account -->
-    <flux:modal wire:model="showCreateModal" class="w-full max-w-md space-y-4">
+    <flux:modal wire:model="showCreateModal" class="w-full max-w-lg space-y-4">
         <div>
             <h2 class="text-lg font-bold text-zinc-900 dark:text-white">إنشاء حساب طالب جديد</h2>
-            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">سيتم إنشاء حساب طالب جديد في النظام ووضعه بالحالة (تحت التسجيل).</p>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">القيم معبّأة تلقائيًا من الرد؛ صحّح ما لا يتطابق قبل الحفظ. يُنشأ الحساب بالحالة (تحت التسجيل).</p>
         </div>
 
-        <flux:field>
-            <flux:label>اسم الطالب المعتمد *</flux:label>
-            <flux:input wire:model="newStudentName" />
-            <flux:error name="newStudentName" />
-        </flux:field>
+        <div class="max-h-[60vh] overflow-y-auto space-y-4 pe-1">
+            <flux:field>
+                <flux:label>اسم الطالب المعتمد *</flux:label>
+                <flux:input wire:model="newStudentName" />
+                <flux:error name="newStudentName" />
+            </flux:field>
 
-        <flux:field>
-            <flux:label>اسم المستخدم / البريد الإلكتروني *</flux:label>
-            <flux:input wire:model="newStudentUsername" placeholder="مثال: ahmad_ali" />
-            <flux:error name="newStudentUsername" />
-        </flux:field>
+            <flux:field>
+                <flux:label>البريد الإلكتروني (يُستخدم للدخول)</flux:label>
+                <label class="flex items-center gap-2 cursor-pointer text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                    <input type="checkbox" wire:model.live="newStudentRandomEmail" class="rounded text-accent focus:ring-accent" />
+                    <span>توليد بريد عشوائي تلقائيًا</span>
+                </label>
+                <flux:input wire:model="newStudentEmail" :disabled="$newStudentRandomEmail" placeholder="ahmad@example.com أو اتركه للعشوائي" />
+                <flux:error name="newStudentEmail" />
+            </flux:field>
 
-        <flux:field>
-            <flux:label>كلمة المرور الافتراضية *</flux:label>
-            <flux:input type="text" wire:model="newStudentPassword" />
-            <flux:error name="newStudentPassword" />
-        </flux:field>
+            <div class="grid grid-cols-2 gap-3">
+                <flux:field>
+                    <flux:label>الجوال</flux:label>
+                    <flux:input type="tel" wire:model="newStudentPhone" dir="ltr" />
+                    <flux:error name="newStudentPhone" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>تاريخ الميلاد</flux:label>
+                    <flux:input type="date" wire:model="newStudentBirthDate" />
+                    <flux:error name="newStudentBirthDate" />
+                </flux:field>
+            </div>
 
-        <flux:field>
-            <flux:label>الحلقة المستهدفة (اختياري)</flux:label>
-            <select wire:model="newStudentCircleId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
-                <option value="">-- بلا حلقة --</option>
-                @foreach($circles as $c)
-                    <option value="{{ $c->id }}">{{ $c->name }} ({{ $c->stage->name }})</option>
-                @endforeach
-            </select>
-            <flux:error name="newStudentCircleId" />
-        </flux:field>
+            <div class="grid grid-cols-2 gap-3">
+                <flux:field>
+                    <flux:label>الجنسية</flux:label>
+                    <flux:input wire:model="newStudentNationality" />
+                    <flux:error name="newStudentNationality" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>رقم الهوية / الإقامة</flux:label>
+                    <flux:input wire:model="newStudentNationalId" dir="ltr" />
+                    <flux:error name="newStudentNationalId" />
+                </flux:field>
+            </div>
+
+            <flux:field>
+                <flux:label>كلمة المرور *</flux:label>
+                <flux:input type="text" wire:model="newStudentPassword" />
+                <flux:error name="newStudentPassword" />
+            </flux:field>
+
+            <div class="grid grid-cols-2 gap-3">
+                <flux:field>
+                    <flux:label>المرحلة (اختياري)</flux:label>
+                    <select wire:model="targetStageId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
+                        <option value="">-- بلا مرحلة --</option>
+                        @foreach($stages as $s)
+                            <option value="{{ $s->id }}">{{ $s->name }}</option>
+                        @endforeach
+                    </select>
+                    <flux:error name="targetStageId" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>الحلقة (اختياري)</flux:label>
+                    <select wire:model="targetCircleId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
+                        <option value="">-- بلا حلقة --</option>
+                        @foreach($circles as $c)
+                            <option value="{{ $c->id }}">{{ $c->name }} ({{ $c->stage->name }})</option>
+                        @endforeach
+                    </select>
+                    <flux:error name="targetCircleId" />
+                </flux:field>
+            </div>
+            <p class="text-[11px] text-zinc-400">عند اختيار حلقة تُعتمد مرحلتها تلقائيًا. اختيار المرحلة وحدها يُنشئ الطالب بلا حلقة ضمن تلك المرحلة.</p>
+        </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t border-zinc-150 dark:border-zinc-850">
             <flux:button @click="$wire.showCreateModal = false" variant="ghost">إلغاء</flux:button>
@@ -245,27 +290,131 @@
         </div>
     </flux:modal>
 
-    <!-- Modal: Bulk Create Confirmation -->
-    <flux:modal wire:model="showBulkModal" class="w-full max-w-md space-y-4">
+    <!-- Modal: Bulk Create -->
+    <flux:modal wire:model="showBulkModal" class="w-full max-w-2xl space-y-4">
         <div>
             <h2 class="text-lg font-bold text-zinc-900 dark:text-white">الإنشاء الجماعي لحسابات الطلاب</h2>
-            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">سيتم معالجة جميع الردود غير المرتبطة وإنشاء حسابات طلاب جديدة لها تلقائياً بالحالة (تحت التسجيل) وبكلمة مرور افتراضية (password).</p>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">اربط حقول النموذج ببيانات الطالب، ثم حلّل الردود. تُنشأ الردود الصالحة دفعةً، وتُعرض المشكِلة لمراجعتها يدويًا قبل إنشائها.</p>
         </div>
 
-        <flux:field>
-            <flux:label>تعيينهم في الحلقة المستهدفة (اختياري)</flux:label>
-            <select wire:model="bulkCircleId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
-                <option value="">-- بلا حلقة --</option>
-                @foreach($circles as $c)
-                    <option value="{{ $c->id }}">{{ $c->name }} ({{ $c->stage->name }})</option>
-                @endforeach
-            </select>
-            <flux:error name="bulkCircleId" />
-        </flux:field>
+        <div class="max-h-[62vh] overflow-y-auto space-y-5 pe-1">
+            <!-- Field mapping -->
+            <div class="space-y-3">
+                <h3 class="text-sm font-bold text-zinc-700 dark:text-zinc-300">ربط الحقول بالبيانات</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    @php
+                        $attrLabels = ['name' => 'الاسم *', 'email' => 'البريد', 'phone' => 'الجوال', 'birth_date' => 'تاريخ الميلاد', 'nationality' => 'الجنسية', 'national_id' => 'رقم الهوية / الإقامة'];
+                    @endphp
+                    @foreach($attrLabels as $attr => $label)
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">{{ $label }}</label>
+                            <select wire:model="bulkMap.{{ $attr }}" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
+                                <option value="">-- لا شيء --</option>
+                                @foreach($form->fields as $field)
+                                    <option value="{{ $field['id'] }}">{{ $field['label'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Global options -->
+            <div class="space-y-3 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+                <h3 class="text-sm font-bold text-zinc-700 dark:text-zinc-300">إعدادات عامة للدفعة</h3>
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-zinc-600 dark:text-zinc-300">
+                    <input type="checkbox" wire:model="bulkRandomEmail" class="rounded text-accent focus:ring-accent" />
+                    <span>توليد بريد عشوائي لكل حساب (يتجاهل حقل البريد)</span>
+                </label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <flux:field>
+                        <flux:label>كلمة مرور موحّدة *</flux:label>
+                        <flux:input type="text" wire:model="bulkPassword" />
+                        <flux:error name="bulkPassword" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>المرحلة (اختياري)</flux:label>
+                        <select wire:model="bulkStageId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
+                            <option value="">-- بلا مرحلة --</option>
+                            @foreach($stages as $s)
+                                <option value="{{ $s->id }}">{{ $s->name }}</option>
+                            @endforeach
+                        </select>
+                        <flux:error name="bulkStageId" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:label>الحلقة (اختياري)</flux:label>
+                        <select wire:model="bulkCircleId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
+                            <option value="">-- بلا حلقة --</option>
+                            @foreach($circles as $c)
+                                <option value="{{ $c->id }}">{{ $c->name }} ({{ $c->stage->name }})</option>
+                            @endforeach
+                        </select>
+                        <flux:error name="bulkCircleId" />
+                    </flux:field>
+                </div>
+            </div>
+
+            <!-- Analysis results -->
+            @if($bulkAnalyzed)
+                <div class="space-y-4 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+                    <div class="flex items-center gap-3 text-sm">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 font-semibold">
+                            <flux:icon name="check-circle" class="size-4" /> {{ count($bulkReady) }} جاهز
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 font-semibold">
+                            <flux:icon name="exclamation-triangle" class="size-4" /> {{ count($bulkNeedsReview) }} يحتاج مراجعة
+                        </span>
+                    </div>
+
+                    @if(count($bulkReady) > 0)
+                        <flux:button wire:click="createReadyStudents" variant="primary" class="bg-accent hover:bg-accent/90 text-white border-0" icon="bolt">
+                            إنشاء الحسابات الجاهزة ({{ count($bulkReady) }})
+                        </flux:button>
+                    @endif
+
+                    @if(count($bulkNeedsReview) > 0)
+                        <div class="space-y-2">
+                            <h4 class="text-sm font-bold text-amber-700 dark:text-amber-400">ردود تحتاج مراجعة يدوية</h4>
+                            @foreach($bulkNeedsReview as $row)
+                                <div class="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50/40 dark:bg-amber-500/5 p-3 space-y-2">
+                                    <div class="flex flex-wrap gap-1.5">
+                                        @foreach($row['reasons'] as $reason)
+                                            <span class="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300">{{ $reason }}</span>
+                                        @endforeach
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[11px] text-zinc-500 mb-1">الاسم</label>
+                                            <flux:input size="sm" wire:model="reviewEdits.{{ $row['response_id'] }}.name" />
+                                            <flux:error name="reviewEdits.{{ $row['response_id'] }}.name" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] text-zinc-500 mb-1">تاريخ الميلاد @if($row['birth_raw'])<span class="text-amber-600">(الوارد: {{ $row['birth_raw'] }})</span>@endif</label>
+                                            <flux:input size="sm" type="date" wire:model="reviewEdits.{{ $row['response_id'] }}.birth_date" />
+                                            <flux:error name="reviewEdits.{{ $row['response_id'] }}.birth_date" />
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-end">
+                                        <flux:button size="sm" wire:click="createReviewedStudent({{ $row['response_id'] }})" variant="filled" class="text-xs">إنشاء هذا الحساب</flux:button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if(count($bulkReady) === 0 && count($bulkNeedsReview) === 0)
+                        <p class="text-sm text-zinc-500 text-center py-4">لا توجد ردود غير معالَجة لإنشاء حسابات لها.</p>
+                    @endif
+                </div>
+            @endif
+        </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t border-zinc-150 dark:border-zinc-850">
-            <flux:button @click="$wire.showBulkModal = false" variant="ghost">إلغاء</flux:button>
-            <flux:button wire:click="bulkCreateStudents" variant="primary" class="bg-accent hover:bg-accent/90 text-white border-0">تأكيد الإنشاء الجماعي</flux:button>
+            <flux:button @click="$wire.showBulkModal = false" variant="ghost">إغلاق</flux:button>
+            <flux:button wire:click="analyzeBulk" variant="primary" icon="magnifying-glass">
+                {{ $bulkAnalyzed ? 'إعادة التحليل' : 'تحليل الردود' }}
+            </flux:button>
         </div>
     </flux:modal>
 </div>

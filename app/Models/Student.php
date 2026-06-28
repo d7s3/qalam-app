@@ -24,6 +24,22 @@ class Student extends Authenticatable
         return $this->belongsTo(Circle::class);
     }
 
+    /** @return BelongsTo<Stage, $this> */
+    public function stage(): BelongsTo
+    {
+        return $this->belongsTo(Stage::class);
+    }
+
+    /**
+     * The student's effective stage id. The circle's stage always wins when the
+     * student is assigned to a circle; the direct stage_id only applies to
+     * circle-less (still registering) students.
+     */
+    public function getEffectiveStageIdAttribute(): ?int
+    {
+        return $this->circle?->stage_id ?? $this->stage_id;
+    }
+
     /** @return BelongsTo<Guardian, $this> */
     public function guardian(): BelongsTo
     {
@@ -100,10 +116,13 @@ class Student extends Authenticatable
         'name',
         'email',
         'phone',
+        'national_id',
+        'nationality',
         'password',
         'is_approved',
         'approved_by',
         'circle_id',
+        'stage_id',
         'guardian_id',
         'access_token',
         'is_data_completed',

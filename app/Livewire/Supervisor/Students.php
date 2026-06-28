@@ -58,20 +58,31 @@ class Students extends Component
         $this->loadData();
     }
 
+    private function getSupervisorStageIds(): array
+    {
+        return auth()->guard('supervisor')->user()->stages()->pluck('stages.id')->toArray();
+    }
+
     private function getSupervisorCircleIds(): array
     {
-        $supervisor = auth()->guard('supervisor')->user();
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
+        return Circle::whereIn('stage_id', $this->getSupervisorStageIds())->pluck('id')->toArray();
     }
 
     public function loadData(): void
     {
         $circleIds = $this->getSupervisorCircleIds();
+        $stageIds = $this->getSupervisorStageIds();
         $this->circles = Circle::with('stage')->whereIn('id', $circleIds)->get();
 
-        $query = Student::with(['circle.stage', 'guardian'])
-            ->whereIn('circle_id', $circleIds);
+        // Students in the supervisor's circles, plus circle-less students assigned
+        // directly to one of the supervisor's stages (still registering).
+        $query = Student::with(['circle.stage', 'stage', 'guardian'])
+            ->where(function ($q) use ($circleIds, $stageIds) {
+                $q->whereIn('circle_id', $circleIds)
+                    ->orWhere(function ($sub) use ($stageIds) {
+                        $sub->whereNull('circle_id')->whereIn('stage_id', $stageIds);
+                    });
+            });
 
         if ($this->search) {
             $query->where(function ($q) {

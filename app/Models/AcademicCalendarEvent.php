@@ -89,8 +89,9 @@ class AcademicCalendarEvent extends Model
                                 if ($user->circle_id) {
                                     $jsonQuery->orWhereJsonContains('shared_with->circle_ids', $user->circle_id);
                                 }
-                                if ($user->circle && $user->circle->stage_id) {
-                                    $jsonQuery->orWhereJsonContains('shared_with->stage_ids_for_students', $user->circle->stage_id);
+                                $effectiveStageId = $user->circle?->stage_id ?? $user->stage_id;
+                                if ($effectiveStageId) {
+                                    $jsonQuery->orWhereJsonContains('shared_with->stage_ids_for_students', $effectiveStageId);
                                 }
                             } elseif ($userType === Manager::class) {
                                 $jsonQuery->whereJsonContains('shared_with->all_managers', true)

@@ -251,8 +251,8 @@ it('allows supervisor to create a new student account from response with registe
     Livewire::test(FormResponses::class, ['formId' => $form->id])
         ->call('openCreateModal', $response->id)
         ->assertSet('newStudentName', 'خالد عبد الله')
-        ->assertSet('newStudentUsername', 'khaled99')
-        ->set('newStudentCircleId', $this->circle->id)
+        ->assertSet('newStudentEmail', 'khaled99')
+        ->set('targetCircleId', $this->circle->id)
         ->call('createStudentAccount')
         ->assertHasNoErrors();
 
@@ -262,6 +262,8 @@ it('allows supervisor to create a new student account from response with registe
     expect($newStudent->status)->toBe('registering');
     expect($newStudent->is_approved)->toBeFalse();
     expect($newStudent->circle_id)->toBe($this->circle->id);
+    // Circle wins: stage_id stays null and the effective stage comes from the circle.
+    expect($newStudent->stage_id)->toBeNull();
 
     expect($response->fresh()->student_id)->toBe($newStudent->id);
     expect($response->fresh()->is_processed)->toBeTrue();
@@ -302,8 +304,10 @@ it('allows supervisor to bulk create students from all unlinked responses', func
     $this->actingAs($this->supervisor, 'supervisor');
 
     Livewire::test(FormResponses::class, ['formId' => $form->id])
+        ->call('openBulkModal')
         ->set('bulkCircleId', $this->circle->id)
-        ->call('bulkCreateStudents')
+        ->call('analyzeBulk')
+        ->call('createReadyStudents')
         ->assertHasNoErrors();
 
     expect(Student::where('name', 'ياسر محمد')->exists())->toBeTrue();
