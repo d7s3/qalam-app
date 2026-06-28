@@ -2,12 +2,14 @@
 
 use App\Models\Ayah;
 use App\Models\Circle;
+use App\Models\GamificationTransaction;
 use App\Models\Hadith;
 use App\Models\HadithChapter;
 use App\Models\HadithLine;
 use App\Models\HadithPath;
 use App\Models\HadithPathDay;
 use App\Models\HadithText;
+use App\Models\Leaderboard;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentHadithAchievement;
@@ -17,6 +19,7 @@ use App\Models\StudentPlanDay;
 use App\Models\Supervisor;
 use App\Models\Surah;
 use App\Models\Teacher;
+use App\Services\GamificationService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
@@ -390,4 +393,72 @@ it('keeps achievements for unchanged days and invalidates changed/later achievem
         ->where('hadith_path_day_id', $newDay2->id)
         ->first();
     expect($ach2)->toBeNull();
+});
+
+it('creates gamification transaction when teacher grades hadith achievement on active leaderboard', function () {
+    $this->actingAs($this->teacher, 'teacher');
+
+    // Create active leaderboard
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة التاج 13',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(5)->format('Y-m-d'),
+        'end_date' => now()->addDays(5)->format('Y-m-d'),
+        'is_active' => true,
+        'settings' => [
+            'hadith_hifz_enabled' => true,
+            'hadith_hifz_excellent_xp' => 10,
+            'hadith_hifz_excellent_coins' => 10,
+            'manual_claim_enabled' => true,
+        ],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $plan = StudentHadithPlan::create([
+        'student_id' => $this->student->id,
+        'hadith_path_id' => $this->hadithPath->id,
+        'start_date' => now()->subDays(5)->format('Y-m-d'),
+        'status' => 'active',
+        'created_by_role' => 'teacher',
+    ]);
+
+    $day = HadithPathDay::create([
+        'hadith_path_id' => $this->hadithPath->id,
+        'day_number' => 1,
+        'date' => now()->format('Y-m-d'),
+        'day_name' => 'الأحد',
+        'memorize_type' => 'lines',
+        'memorize_amount' => 5,
+        'from_hadith_id' => $this->hadith->id,
+        'to_hadith_id' => $this->hadith->id,
+        'from_line_number' => 1,
+        'to_line_number' => 5,
+    ]);
+
+    // Test grading Hifz on the same day
+    Livewire::test('teacher.student-tasmeeh-card', [
+        'student' => $this->student,
+        'sPlans' => collect(),
+        'activePlanId' => null,
+        'gradedAtDate' => now()->format('Y-m-d'),
+    ])
+        ->call('saveHadithAchievement', $day->id, 'hifz', 3) // Excellent
+        ->assertHasNoErrors();
+
+    // Verify transaction was created in DB
+    $transaction = GamificationTransaction::where('student_id', $this->student->id)
+        ->where('leaderboard_id', $leaderboard->id)
+        ->where('reference_type', StudentHadithAchievement::class)
+        ->first();
+
+    expect($transaction)->not->toBeNull();
+    expect($transaction->xp_amount)->toBe(10);
+    expect($transaction->amount)->toBe(10);
+    expect($transaction->claimed_at)->toBeNull();
+
+    // Verify getPendingRewards retrieves it
+    $pending = GamificationService::getPendingRewards($this->student->id, $leaderboard->id);
+    expect($pending)->toHaveCount(1);
+    expect($pending->first()->id)->toBe($transaction->id);
 });

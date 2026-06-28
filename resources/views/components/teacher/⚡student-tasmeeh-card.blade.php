@@ -41,7 +41,7 @@ new class extends Component {
     public function saveAchievement($dayId, $type, $value)
     {
         $updateData = [];
-        $gradeTime = null;
+        $gradeTime = now();
         if ($this->gradedAtDate) {
             if ($this->gradedAtDate === now()->format('Y-m-d')) {
                 $gradeTime = now();
@@ -81,7 +81,7 @@ new class extends Component {
         }
 
         $updateData = [];
-        $gradeTime = null;
+        $gradeTime = now();
         if ($this->gradedAtDate) {
             if ($this->gradedAtDate === now()->format('Y-m-d')) {
                 $gradeTime = now();
@@ -124,7 +124,7 @@ new class extends Component {
         }
 
         $updateData = [];
-        $gradeTime = null;
+        $gradeTime = now();
         if ($this->gradedAtDate) {
             if ($this->gradedAtDate === now()->format('Y-m-d')) {
                 $gradeTime = now();
