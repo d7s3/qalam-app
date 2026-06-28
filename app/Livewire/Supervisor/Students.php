@@ -289,7 +289,7 @@ class Students extends Component
 
         $student->update([
             'is_approved' => 1,
-            'approved_by' => auth()->id(),
+            'approved_by' => auth('manager')->id(),
         ]);
 
         $this->loadData();

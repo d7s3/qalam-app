@@ -145,7 +145,7 @@ class Teachers extends Component
 
         $teacher->update([
             'is_approved' => true,
-            'approved_by' => auth()->id(),
+            'approved_by' => auth('manager')->id(),
         ]);
         $this->loadData();
         Flux::toast(__('تمت الموافقة على المعلم بنجاح'), variant: 'success');
@@ -174,7 +174,7 @@ class Teachers extends Component
             'email' => 'teacher_'.Str::random(10).'@uncompleted.altag.app',
             'password' => Hash::make(Str::random(10)),
             'is_approved' => true,
-            'approved_by' => auth()->id(),
+            'approved_by' => auth('manager')->id(),
             'access_token' => Str::random(32),
             'is_data_completed' => false,
         ]);
