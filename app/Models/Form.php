@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Form extends Model
 {
@@ -22,6 +23,7 @@ class Form extends Model
         'policy_text',
         'success_text',
         'is_public_report',
+        'is_supervisor_shared',
         'public_report_token',
     ];
 
@@ -29,7 +31,7 @@ class Form extends Model
     {
         static::creating(function (Form $form) {
             if (empty($form->public_report_token)) {
-                $form->public_report_token = \Illuminate\Support\Str::random(12);
+                $form->public_report_token = Str::random(12);
             }
         });
     }
@@ -44,6 +46,7 @@ class Form extends Model
         return [
             'fields' => 'array',
             'is_public_report' => 'boolean',
+            'is_supervisor_shared' => 'boolean',
         ];
     }
 

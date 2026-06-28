@@ -123,6 +123,61 @@ it('syncs student hifz and review points', function () {
     expect($state->coins)->toBe(13);
 });
 
+it('awards points based on the memorization day, even when graded outside the competition window', function () {
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+
+    // The day is inside the competition window (today), but the teacher graded it
+    // long before the competition started. Points must still be awarded.
+    $day = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->format('Y-m-d'),
+        'day_name' => 'الجمعة',
+        'hifz_achievement' => 3,
+        'review_achievement' => 2,
+        'hifz_graded_at' => now()->subDays(20),
+        'review_graded_at' => now()->subDays(20),
+    ]);
+
+    GamificationService::syncStudentPlanDayXP($day);
+
+    $transactions = GamificationTransaction::where('student_id', $this->student->id)->get();
+    expect($transactions)->toHaveCount(1);
+    expect($transactions->first()->amount)->toBe(13);
+});
+
+it('backfills points for already-graded days via the recompute command', function () {
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+
+    // A graded day with no transaction yet (e.g. graded before the fix).
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->format('Y-m-d'),
+        'day_name' => 'الجمعة',
+        'hifz_achievement' => 3,
+        'review_achievement' => 2,
+    ]);
+
+    expect(GamificationTransaction::where('student_id', $this->student->id)->count())->toBe(0);
+
+    $this->artisan('gamification:recompute-plan-day-points')->assertSuccessful();
+
+    expect(GamificationTransaction::where('student_id', $this->student->id)->count())->toBe(1);
+});
+
 it('holds rewards as pending until claimed when manual claim is enabled', function () {
     $settings = $this->leaderboard->settings;
     $settings['manual_claim_enabled'] = true;

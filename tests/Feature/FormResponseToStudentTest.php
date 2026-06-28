@@ -171,28 +171,26 @@ it('sorts bulk responses into ready and needs-review, and creates after manual r
     expect($noName->fresh()->student_id)->not->toBeNull();
 });
 
-it('lets the supervisor place a new student into a stage and circle outside their own scope', function () {
+it('rejects placing a student into a stage or circle outside the supervisor scope', function () {
     // A stage/circle the supervisor is NOT assigned to.
     $foreignStage = Stage::create(['name' => 'مرحلة أخرى']);
     $foreignCircle = Circle::create(['name' => 'حلقة بعيدة', 'stage_id' => $foreignStage->id]);
 
-    $byCircle = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'طالب حلقة بعيدة', 'f_email' => 'fc']]);
-    $byStage = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'طالب مرحلة بعيدة', 'f_email' => 'fs']]);
+    $response = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'طالب خارج النطاق', 'f_email' => 'oos']]);
 
     Livewire::test(FormResponses::class, ['formId' => $this->form->id])
-        ->call('openCreateModal', $byCircle->id)
+        ->call('openCreateModal', $response->id)
         ->set('targetCircleId', $foreignCircle->id)
         ->call('createStudentAccount')
-        ->assertHasNoErrors();
+        ->assertHasErrors('targetCircleId');
 
     Livewire::test(FormResponses::class, ['formId' => $this->form->id])
-        ->call('openCreateModal', $byStage->id)
+        ->call('openCreateModal', $response->id)
         ->set('targetStageId', $foreignStage->id)
         ->call('createStudentAccount')
-        ->assertHasNoErrors();
+        ->assertHasErrors('targetStageId');
 
-    expect(Student::where('name', 'طالب حلقة بعيدة')->first()->circle_id)->toBe($foreignCircle->id);
-    expect(Student::where('name', 'طالب مرحلة بعيدة')->first()->stage_id)->toBe($foreignStage->id);
+    expect(Student::where('name', 'طالب خارج النطاق')->exists())->toBeFalse();
 });
 
 it('searches responses across all fields, not just the name', function () {

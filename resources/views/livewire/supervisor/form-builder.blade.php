@@ -97,6 +97,15 @@
                     </label>
                     <p class="text-xs text-zinc-500 mt-1">عند تفعيله، سيتمكن أي شخص يمتلك الرابط من رؤية جدول الردود وتصفيتها وتجميعها دون تسجيل دخول.</p>
                 </div>
+
+                <!-- Share with all supervisors -->
+                <div class="pt-3 border-t border-zinc-150 dark:border-zinc-850">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" wire:model="is_supervisor_shared" class="rounded border-zinc-300 text-accent focus:ring-accent" />
+                        <span class="text-zinc-700 dark:text-zinc-300 font-semibold">نموذج عام للمشرفين</span>
+                    </label>
+                    <p class="text-xs text-zinc-500 mt-1">عند تفعيله، يمكن لأي مشرف الدخول إلى هذا النموذج والتعديل عليه وإنشاء حسابات الطلاب ضمن مرحلته وحلقاته هو.</p>
+                </div>
             </div>
         </div>
 

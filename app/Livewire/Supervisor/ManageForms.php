@@ -20,13 +20,20 @@ class ManageForms extends Component
     public function render()
     {
         $supervisorId = auth()->guard('supervisor')->id();
-        $forms = Form::where('supervisor_id', $supervisorId)
+
+        // Own forms, plus forms other supervisors have shared with all supervisors.
+        $forms = Form::where(function ($q) use ($supervisorId) {
+            $q->where('supervisor_id', $supervisorId)
+                ->orWhere('is_supervisor_shared', true);
+        })
             ->withCount('responses')
+            ->with('supervisor:id,name')
             ->latest()
             ->get();
 
         return view('livewire.supervisor.manage-forms', [
             'forms' => $forms,
+            'currentSupervisorId' => $supervisorId,
         ]);
     }
 }

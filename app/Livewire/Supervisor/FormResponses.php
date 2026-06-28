@@ -10,6 +10,7 @@ use App\Models\Student;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class FormResponses extends Component
@@ -93,7 +94,26 @@ class FormResponses extends Component
     {
         $this->formId = $formId;
         $supervisorId = auth()->guard('supervisor')->id();
-        $this->form = Form::where('supervisor_id', $supervisorId)->findOrFail($formId);
+
+        // The owner, or any supervisor when the form is shared, may manage responses.
+        $this->form = Form::where('id', $formId)
+            ->where(function ($q) use ($supervisorId) {
+                $q->where('supervisor_id', $supervisorId)
+                    ->orWhere('is_supervisor_shared', true);
+            })
+            ->firstOrFail();
+    }
+
+    /** @return array<int, int> stage ids the acting supervisor manages */
+    private function supervisorStageIds(): array
+    {
+        return auth()->guard('supervisor')->user()->stages()->pluck('stages.id')->all();
+    }
+
+    /** @return array<int, int> circle ids within the acting supervisor's stages */
+    private function supervisorCircleIds(): array
+    {
+        return Circle::whereIn('stage_id', $this->supervisorStageIds())->pluck('id')->all();
     }
 
     /**
@@ -293,8 +313,11 @@ class FormResponses extends Component
             'newStudentNationality' => 'nullable|string|max:255',
             'newStudentNationalId' => 'nullable|string|max:255',
             'newStudentPassword' => 'required|string|min:6',
-            'targetCircleId' => 'nullable|exists:circles,id',
-            'targetStageId' => 'nullable|exists:stages,id',
+            'targetCircleId' => ['nullable', Rule::in($this->supervisorCircleIds())],
+            'targetStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
+        ], [
+            'targetCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
+            'targetStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
         ]);
 
         $response = FormResponse::findOrFail($this->selectedResponseId);
@@ -480,8 +503,11 @@ class FormResponses extends Component
     {
         $this->validate([
             'bulkPassword' => 'required|string|min:6',
-            'bulkCircleId' => 'nullable|exists:circles,id',
-            'bulkStageId' => 'nullable|exists:stages,id',
+            'bulkCircleId' => ['nullable', Rule::in($this->supervisorCircleIds())],
+            'bulkStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
+        ], [
+            'bulkCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
+            'bulkStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
         ]);
 
         $created = 0;
@@ -505,6 +531,14 @@ class FormResponses extends Component
      */
     public function createReviewedStudent(int $responseId): void
     {
+        $this->validate([
+            'bulkCircleId' => ['nullable', Rule::in($this->supervisorCircleIds())],
+            'bulkStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
+        ], [
+            'bulkCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
+            'bulkStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
+        ]);
+
         $edit = $this->reviewEdits[$responseId] ?? null;
         $name = trim((string) ($edit['name'] ?? ''));
         $birth = $edit['birth_date'] ?? '';
@@ -610,17 +644,13 @@ class FormResponses extends Component
             })->values();
         }
 
-        $supervisor = auth()->guard('supervisor')->user();
-        $scopedCircleIds = Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id');
+        // Each supervisor places students only into their own stages and circles,
+        // even for a form shared by another supervisor.
+        $stageIds = $this->supervisorStageIds();
+        $circles = Circle::with('stage')->whereIn('stage_id', $stageIds)->orderBy('name')->get();
+        $stages = Stage::whereIn('id', $stageIds)->orderBy('name')->get();
 
-        // The supervisor may place new students into any stage or circle, not only
-        // their own scope.
-        $circles = Circle::with('stage')->orderBy('name')->get();
-        $stages = Stage::orderBy('name')->get();
-
-        // Linking a response to an existing student stays within the supervisor's
-        // own students.
-        $students = Student::whereIn('circle_id', $scopedCircleIds)->orderBy('name')->get();
+        $students = Student::whereIn('circle_id', $circles->pluck('id'))->orderBy('name')->get();
 
         $reportsData = $this->getReportsData();
 

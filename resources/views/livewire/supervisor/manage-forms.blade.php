@@ -46,6 +46,18 @@
                                     {{ $form->responses_count }} رد
                                 </span>
                             </div>
+                            <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                                @if($form->is_supervisor_shared)
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                                        <flux:icon name="users" class="size-3" /> عام للمشرفين
+                                    </span>
+                                @endif
+                                @if($form->supervisor_id !== $currentSupervisorId)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                                        أنشأه: {{ $form->supervisor?->name ?? 'مشرف آخر' }}
+                                    </span>
+                                @endif
+                            </div>
                             <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-2 line-clamp-2">
                                 {{ $form->description ?: 'لا يوجد وصف للنموذج.' }}
                             </p>
@@ -95,7 +107,9 @@
                                 @endif
                             </div>
 
-                            <flux:button wire:click="delete({{ $form->id }})" wire:confirm="هل أنت متأكد من رغبتك في حذف هذا النموذج وجميع إجاباته؟ لا يمكن التراجع عن هذا الإجراء." size="sm" variant="ghost" icon="trash" class="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs" />
+                            @if($form->supervisor_id === $currentSupervisorId)
+                                <flux:button wire:click="delete({{ $form->id }})" wire:confirm="هل أنت متأكد من رغبتك في حذف هذا النموذج وجميع إجاباته؟ لا يمكن التراجع عن هذا الإجراء." size="sm" variant="ghost" icon="trash" class="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs" />
+                            @endif
                         </div>
                     </div>
                 </div>

@@ -168,7 +168,12 @@ class GamificationService
     public static function syncStudentPlanDayXP(StudentPlanDay $day): void
     {
         $student = $day->plan->student;
-        $date = $day->hifz_graded_at ?? $day->review_graded_at ?? $day->date;
+        // Gate the competition on the memorization day itself, not when the teacher
+        // happened to grade it. Using the grading time made points vanish whenever a
+        // day was graded outside the competition window (e.g. before it started),
+        // and it was inconsistent with the multiplier/team-score paths that already
+        // resolve by $day->date.
+        $date = $day->date;
         $leaderboards = self::getActiveLeaderboards($student, $date);
 
         foreach ($leaderboards as $leaderboard) {

@@ -39,6 +39,8 @@ class FormBuilder extends Component
 
     public bool $is_public_report = false;
 
+    public bool $is_supervisor_shared = false;
+
     // Fields
     public array $fields = [];
 
@@ -49,7 +51,12 @@ class FormBuilder extends Component
             $this->isEditing = true;
 
             $supervisorId = auth()->guard('supervisor')->id();
-            $form = Form::where('supervisor_id', $supervisorId)->findOrFail($formId);
+            $form = Form::where('id', $formId)
+                ->where(function ($q) use ($supervisorId) {
+                    $q->where('supervisor_id', $supervisorId)
+                        ->orWhere('is_supervisor_shared', true);
+                })
+                ->firstOrFail();
 
             $this->title = $form->title;
             $this->description = $form->description;
@@ -59,6 +66,7 @@ class FormBuilder extends Component
             $this->policy_text = $form->policy_text;
             $this->success_text = $form->success_text;
             $this->is_public_report = $form->is_public_report ?? false;
+            $this->is_supervisor_shared = $form->is_supervisor_shared ?? false;
             $this->fields = $form->fields ?? [];
         } else {
             $this->slug = Str::random(8);
@@ -154,6 +162,7 @@ class FormBuilder extends Component
             'policy_text' => 'nullable|string',
             'success_text' => 'nullable|string',
             'is_public_report' => 'boolean',
+            'is_supervisor_shared' => 'boolean',
             'fields' => 'required|array|min:1',
             'fields.*.label' => 'required|string|max:255',
             'fields.*.type' => 'required|in:text,image,select,multiselect,date',
@@ -190,22 +199,28 @@ class FormBuilder extends Component
             $this->header_image_path = $filename;
         }
 
-        // Save Form
-        Form::updateOrCreate(
-            ['id' => $this->formId, 'supervisor_id' => $supervisorId],
-            [
-                'supervisor_id' => $supervisorId,
-                'title' => $this->title,
-                'description' => $this->description,
-                'color' => $this->color,
-                'slug' => $this->slug,
-                'header_image_path' => $this->header_image_path,
-                'policy_text' => $this->policy_text,
-                'success_text' => $this->success_text,
-                'is_public_report' => $this->is_public_report,
-                'fields' => $this->fields,
-            ]
-        );
+        $data = [
+            'title' => $this->title,
+            'description' => $this->description,
+            'color' => $this->color,
+            'slug' => $this->slug,
+            'header_image_path' => $this->header_image_path,
+            'policy_text' => $this->policy_text,
+            'success_text' => $this->success_text,
+            'is_public_report' => $this->is_public_report,
+            'is_supervisor_shared' => $this->is_supervisor_shared,
+            'fields' => $this->fields,
+        ];
+
+        if ($this->formId) {
+            // A shared form may be edited by any supervisor; ownership is preserved.
+            $form = Form::findOrFail($this->formId);
+            abort_unless($form->supervisor_id === $supervisorId || $form->is_supervisor_shared, 403);
+            $form->update($data);
+        } else {
+            $data['supervisor_id'] = $supervisorId;
+            Form::create($data);
+        }
 
         Flux::toast($this->isEditing ? 'تم تعديل النموذج بنجاح' : 'تم حفظ النموذج بنجاح', variant: 'success');
         $this->redirectRoute('supervisor.forms');
