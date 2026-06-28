@@ -171,6 +171,30 @@ it('sorts bulk responses into ready and needs-review, and creates after manual r
     expect($noName->fresh()->student_id)->not->toBeNull();
 });
 
+it('lets the supervisor place a new student into a stage and circle outside their own scope', function () {
+    // A stage/circle the supervisor is NOT assigned to.
+    $foreignStage = Stage::create(['name' => 'مرحلة أخرى']);
+    $foreignCircle = Circle::create(['name' => 'حلقة بعيدة', 'stage_id' => $foreignStage->id]);
+
+    $byCircle = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'طالب حلقة بعيدة', 'f_email' => 'fc']]);
+    $byStage = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'طالب مرحلة بعيدة', 'f_email' => 'fs']]);
+
+    Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->call('openCreateModal', $byCircle->id)
+        ->set('targetCircleId', $foreignCircle->id)
+        ->call('createStudentAccount')
+        ->assertHasNoErrors();
+
+    Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->call('openCreateModal', $byStage->id)
+        ->set('targetStageId', $foreignStage->id)
+        ->call('createStudentAccount')
+        ->assertHasNoErrors();
+
+    expect(Student::where('name', 'طالب حلقة بعيدة')->first()->circle_id)->toBe($foreignCircle->id);
+    expect(Student::where('name', 'طالب مرحلة بعيدة')->first()->stage_id)->toBe($foreignStage->id);
+});
+
 it('creates accounts only for the selected responses', function () {
     $pick1 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد أول', 'f_email' => 'pick1']]);
     $pick2 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد ثاني', 'f_email' => 'pick2']]);

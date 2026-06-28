@@ -601,11 +601,16 @@ class FormResponses extends Component
         $responses = $responsesQuery->get();
 
         $supervisor = auth()->guard('supervisor')->user();
-        $stageIds = $supervisor->stages()->pluck('stages.id')->toArray();
-        $circles = Circle::with('stage')->whereIn('stage_id', $stageIds)->get();
-        $stages = Stage::whereIn('id', $stageIds)->get();
+        $scopedCircleIds = Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id');
 
-        $students = Student::whereIn('circle_id', $circles->pluck('id'))->orderBy('name')->get();
+        // The supervisor may place new students into any stage or circle, not only
+        // their own scope.
+        $circles = Circle::with('stage')->orderBy('name')->get();
+        $stages = Stage::orderBy('name')->get();
+
+        // Linking a response to an existing student stays within the supervisor's
+        // own students.
+        $students = Student::whereIn('circle_id', $scopedCircleIds)->orderBy('name')->get();
 
         $reportsData = $this->getReportsData();
 
