@@ -1,0 +1,149 @@
+<?php
+
+use App\Models\Attendance;
+use App\Models\Circle;
+use App\Models\Guardian;
+use App\Models\Stage;
+use App\Models\Student;
+use App\Models\StudentPlan;
+use App\Models\StudentPlanDay;
+use App\Models\Surah;
+use App\Models\Teacher;
+use App\Services\MemorizationJourneyService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    Carbon\Carbon::setTestNow('2026-06-10 10:00:00');
+
+    $this->stage = Stage::factory()->create();
+    $this->circle = Circle::factory()->create(['stage_id' => $this->stage->id]);
+    $this->teacher = Teacher::factory()->create();
+    $this->guardian = Guardian::factory()->create(['is_approved' => true]);
+    $this->child = Student::factory()->create([
+        'name' => 'الابن الأول',
+        'guardian_id' => $this->guardian->id,
+        'circle_id' => $this->circle->id,
+    ]);
+});
+
+function seedJuzAyahs(): void
+{
+    $surah = Surah::create([
+        'number' => 1,
+        'name_arabic' => 'سورة',
+        'name_simple' => 'Surah',
+        'revelation_place' => 'makkah',
+        'revelation_order' => 1,
+        'verses_count' => 6,
+        'start_page' => 1,
+        'end_page' => 1,
+    ]);
+
+    // Ayah ids 1-3 in juz 1, ids 4-6 in juz 2.
+    foreach (range(1, 6) as $id) {
+        DB::table('ayahs')->insert([
+            'id' => $id,
+            'surah_id' => $surah->id,
+            'verse_number' => $id,
+            'verse_key' => "1:{$id}",
+            'juz_number' => $id <= 3 ? 1 : 2,
+            'hizb_number' => 1,
+            'rub_number' => 1,
+            'page_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => 'نص',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+}
+
+it('returns 30 juz all marked none when the student has no memorization', function () {
+    $map = MemorizationJourneyService::juzMap($this->child);
+
+    expect($map)->toHaveCount(30);
+    expect(collect($map)->pluck('status')->unique()->all())->toBe(['none']);
+});
+
+it('marks a juz full or partial based on the memorized range', function () {
+    seedJuzAyahs();
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'direction' => 'forward',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => today(),
+        'day_name' => 'الأربعاء',
+        'hifz_achievement' => 3,
+        'from_ayah_id' => 1,
+        'to_ayah_id' => 3,
+    ]);
+
+    $map = collect(MemorizationJourneyService::juzMap($this->child->fresh()))->keyBy('juz');
+
+    expect($map[1]['status'])->toBe('full');   // juz 1 (ayahs 1-3) fully within [1,3]
+    expect($map[2]['status'])->toBe('none');   // juz 2 (ayahs 4-6) untouched
+});
+
+it('returns the score trend oldest-first', function () {
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    foreach ([['2026-06-08', 2], ['2026-06-09', 3], ['2026-06-10', 1]] as [$date, $score]) {
+        StudentPlanDay::create([
+            'student_plan_id' => $plan->id,
+            'date' => $date,
+            'day_name' => 'يوم',
+            'hifz_achievement' => $score,
+        ]);
+    }
+
+    $trend = MemorizationJourneyService::scoreTrend($this->child);
+
+    expect($trend)->toHaveCount(3);
+    expect(array_column($trend, 'achievement'))->toBe([2, 3, 1]);
+});
+
+it('buckets attendance into the last 8 weeks', function () {
+    foreach ([['2026-06-10', 'present'], ['2026-06-09', 'absent'], ['2026-06-02', 'present']] as [$date, $status]) {
+        Attendance::create([
+            'student_id' => $this->child->id,
+            'circle_id' => $this->circle->id,
+            'teacher_id' => $this->teacher->id,
+            'date' => $date,
+            'status' => $status,
+        ]);
+    }
+
+    $trend = MemorizationJourneyService::attendanceTrend($this->child);
+
+    expect($trend)->toHaveCount(8);
+    expect($trend[7])->toMatchArray(['present' => 1, 'total' => 2]); // current week
+    expect($trend[6])->toMatchArray(['present' => 1, 'total' => 1]); // previous week
+});
+
+it('renders the memorization journey on the guardian student detail page', function () {
+    $this->actingAs($this->guardian, 'guardian');
+
+    $this->get(route('guardian.student', $this->child->id))
+        ->assertSuccessful()
+        ->assertSee('رحلة الحفظ')
+        ->assertSee('تطوّر التقييم')
+        ->assertSee('حضور آخر 8 أسابيع');
+});

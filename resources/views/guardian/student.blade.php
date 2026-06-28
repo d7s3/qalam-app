@@ -124,6 +124,9 @@
             </div>
         </div>
 
+        {{-- Memorization journey + progress charts --}}
+        <x-guardian.memorization-journey :student="$student" />
+
         <div class="grid md:grid-cols-2 gap-6">
 
             {{-- Today's task --}}

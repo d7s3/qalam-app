@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('db:backup')->daily();
+
+// Weekly progress digest for guardians, sent every Saturday morning.
+Schedule::command('guardian:weekly-digest')->weeklyOn(6, '07:00');

@@ -1,0 +1,128 @@
+<?php
+
+use App\Livewire\Teacher\Attendance;
+use App\Models\Circle;
+use App\Models\Guardian;
+use App\Models\GuardianNotification;
+use App\Models\Leaderboard;
+use App\Models\Stage;
+use App\Models\Student;
+use App\Models\Supervisor;
+use App\Models\Teacher;
+use App\Services\GuardianNotificationService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Livewire\Livewire;
+
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    Carbon\Carbon::setTestNow('2026-06-10 10:00:00');
+
+    $this->stage = Stage::factory()->create();
+    $this->circle = Circle::factory()->create(['stage_id' => $this->stage->id]);
+    $this->teacher = Teacher::factory()->create();
+    $this->guardian = Guardian::factory()->create(['is_approved' => true, 'phone' => '0501234567']);
+    $this->child = Student::factory()->create([
+        'name' => 'الابن الأول',
+        'guardian_id' => $this->guardian->id,
+        'circle_id' => $this->circle->id,
+    ]);
+});
+
+function activateWhatsappSender($circle): Supervisor
+{
+    $supervisor = Supervisor::factory()->create();
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $circle->id,
+        'title' => 'مسابقة',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDay(),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'supervisor_id' => $supervisor->id,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($circle->id);
+
+    return $supervisor;
+}
+
+it('records an in-app absence notification for the guardian', function () {
+    $note = GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    expect($note)->not->toBeNull();
+    expect(GuardianNotification::where('guardian_id', $this->guardian->id)->where('type', 'absence')->count())->toBe(1);
+    expect($note->student_id)->toBe($this->child->id);
+});
+
+it('does not record a duplicate absence for the same student and date', function () {
+    GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+    $second = GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    expect($second)->toBeNull();
+    expect(GuardianNotification::where('student_id', $this->child->id)->count())->toBe(1);
+});
+
+it('does nothing for a student without a linked guardian', function () {
+    $orphan = Student::factory()->create(['guardian_id' => null, 'circle_id' => $this->circle->id]);
+
+    expect(GuardianNotificationService::notifyAbsence($orphan, 'absent', '2026-06-10'))->toBeNull();
+    expect(GuardianNotification::count())->toBe(0);
+});
+
+it('pushes a WhatsApp message when a sender session and phone are available', function () {
+    Http::fake(['*' => Http::response(['ok' => true])]);
+    config(['services.whatsapp.url' => 'http://wa.test']);
+    $supervisor = activateWhatsappSender($this->circle);
+
+    GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    Http::assertSent(function ($request) use ($supervisor) {
+        return str_contains($request->url(), '/send')
+            && $request['clientId'] === 'supervisor_'.$supervisor->id
+            && $request['phone'] === '966501234567';
+    });
+});
+
+it('does not push WhatsApp when no sender session can be resolved', function () {
+    Http::fake();
+
+    GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    Http::assertNothingSent();
+});
+
+it('creates a guardian absence notification when a teacher marks a student absent', function () {
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test(Attendance::class)
+        ->set('selectedCircle', $this->circle->id)
+        ->set('date', '2026-06-10')
+        ->call('markStatus', $this->child->id, 'absent');
+
+    expect(GuardianNotification::where('student_id', $this->child->id)->where('type', 'absence')->exists())->toBeTrue();
+});
+
+it('records a weekly digest notification for every guardian', function () {
+    $this->artisan('guardian:weekly-digest')->assertSuccessful();
+
+    $digest = GuardianNotification::where('guardian_id', $this->guardian->id)->where('type', 'weekly_digest')->first();
+
+    expect($digest)->not->toBeNull();
+    expect($digest->body)->toContain('الابن الأول');
+});
+
+it('shows notifications and marks them read from the guardian dashboard', function () {
+    GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    $this->actingAs($this->guardian, 'guardian');
+
+    $component = Livewire::test('guardian.dashboard')
+        ->assertSee('تنبيه غياب')
+        ->assertSee('آخر التنبيهات');
+
+    $component->call('markAllNotificationsRead');
+
+    expect(GuardianNotification::where('guardian_id', $this->guardian->id)->whereNull('read_at')->count())->toBe(0);
+});

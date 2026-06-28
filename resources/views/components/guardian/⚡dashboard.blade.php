@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Attendance;
+use App\Models\GuardianNotification;
 use App\Models\StudentPlanDay;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
@@ -8,6 +9,29 @@ use Livewire\Component;
 
 new class extends Component
 {
+    /**
+     * The guardian's most recent in-app notifications (absences, weekly digests).
+     *
+     * @return \Illuminate\Support\Collection<int, GuardianNotification>
+     */
+    #[Computed]
+    public function notifications()
+    {
+        return GuardianNotification::where('guardian_id', Auth::guard('guardian')->id())
+            ->latest()
+            ->limit(20)
+            ->get();
+    }
+
+    public function markAllNotificationsRead(): void
+    {
+        GuardianNotification::where('guardian_id', Auth::guard('guardian')->id())
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+
+        unset($this->notifications);
+    }
+
     /**
      * The guardian's children with all their dashboard stats pre-computed in a
      * handful of batched queries (instead of a query-per-child inside the view).
@@ -105,6 +129,59 @@ new class extends Component
                     </h3>
                 </div>
             </div>
+        </div>
+    </div>
+
+    @php
+        $unreadCount = $this->notifications->whereNull('read_at')->count();
+    @endphp
+    <div class="relative rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold flex items-center gap-2">
+                <flux:icon icon="bell" class="size-5" />
+                آخر التنبيهات
+                @if($unreadCount > 0)
+                    <span class="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-black">{{ $unreadCount > 9 ? '9+' : $unreadCount }}</span>
+                @endif
+            </h2>
+            @if($unreadCount > 0)
+                <flux:button wire:click="markAllNotificationsRead" size="xs" variant="ghost" icon="check">
+                    تعليم الكل كمقروء
+                </flux:button>
+            @endif
+        </div>
+
+        <div class="space-y-2">
+            @forelse($this->notifications as $notification)
+                @php
+                    $isUnread = $notification->read_at === null;
+                    $tone = match ($notification->type) {
+                        'absence' => 'bg-rose-50 dark:bg-rose-500/10 border-rose-100 dark:border-rose-500/20',
+                        'late' => 'bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20',
+                        default => 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20',
+                    };
+                    $icon = match ($notification->type) {
+                        'absence' => 'x-circle',
+                        'late' => 'clock',
+                        default => 'sparkles',
+                    };
+                @endphp
+                <div class="flex items-start gap-3 rounded-xl border p-3 {{ $isUnread ? $tone : 'bg-neutral-50 dark:bg-neutral-900 border-neutral-100 dark:border-neutral-800' }}">
+                    <flux:icon icon="{{ $icon }}" class="size-4 mt-0.5 shrink-0 {{ $isUnread ? '' : 'text-neutral-400' }}" />
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-bold {{ $isUnread ? 'text-neutral-900 dark:text-neutral-100' : 'text-neutral-500' }}">{{ $notification->title }}</p>
+                            @if($isUnread)
+                                <span class="size-2 rounded-full bg-rose-500 shrink-0"></span>
+                            @endif
+                        </div>
+                        <p class="text-xs whitespace-pre-line {{ $isUnread ? 'text-neutral-600 dark:text-neutral-300' : 'text-neutral-400' }} leading-relaxed mt-0.5">{{ $notification->body }}</p>
+                        <p class="text-[10px] text-neutral-400 mt-1">{{ $notification->created_at->diffForHumans() }}</p>
+                    </div>
+                </div>
+            @empty
+                <div class="text-center py-6 text-sm text-neutral-400">لا توجد تنبيهات حالياً</div>
+            @endforelse
         </div>
     </div>
 

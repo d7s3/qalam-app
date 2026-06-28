@@ -7,6 +7,8 @@ use App\Models\GamificationTransaction;
 use App\Models\Setting;
 use App\Models\Student;
 use App\Services\GamificationService;
+use App\Services\GuardianNotificationService;
+use Carbon\Carbon;
 use Flux\Flux;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
@@ -220,6 +222,13 @@ class Attendance extends Component
         }
 
         GamificationService::syncStudentAttendanceXP($existing);
+
+        if (in_array($status, ['absent', 'late'], true)) {
+            $student = Student::find($studentId);
+            if ($student) {
+                GuardianNotificationService::notifyAbsence($student, $status, Carbon::parse($this->date)->toDateString());
+            }
+        }
     }
 
     public function getWhatsAppMessage(Student $student, string $status = 'absent'): string

@@ -46,6 +46,15 @@ it('renders the guardian dashboard with all children listed', function () {
         ->assertSee('الابن الثاني');
 });
 
+it('renders the create-challenge page via the single-file component', function () {
+    $this->actingAs($this->guardian, 'guardian');
+
+    // Regression: a stale class component used to shadow the SFC and 500 with a
+    // missing view. The page must resolve to the SFC and render successfully.
+    $this->get(route('guardian.student.challenge.create', $this->child->id))
+        ->assertSuccessful();
+});
+
 it('shows the latest hifz score and this week attendance for a child', function () {
     // Two attendance records this week: one present (today), one absent (yesterday).
     Attendance::create([
