@@ -25,7 +25,7 @@
                     رابط التقرير العام
                 </flux:button>
             @endif
-            <flux:button wire:click="openBulkModal" variant="primary" icon="users" class="bg-accent hover:bg-accent/90 text-white border-0">
+            <flux:button wire:click="openBulkModal(false)" variant="primary" icon="users" class="bg-accent hover:bg-accent/90 text-white border-0">
                 إضافة كافة الردود كطلاب
             </flux:button>
         </div>
@@ -48,6 +48,21 @@
             <flux:input wire:model.live.debounce.300ms="search" placeholder="البحث في الردود والإجابات..." class="flex-1" icon="magnifying-glass" />
         </div>
 
+        <!-- Selection action bar -->
+        @if(count($selectedResponseIds) > 0)
+            <div class="flex items-center justify-between gap-3 flex-wrap bg-accent/5 dark:bg-accent/10 border border-accent/30 rounded-xl px-4 py-3">
+                <span class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+                    تم تحديد {{ count($selectedResponseIds) }} ردًّا
+                </span>
+                <div class="flex items-center gap-2">
+                    <flux:button wire:click="openBulkModal(true)" size="sm" variant="primary" icon="user-plus" class="bg-accent hover:bg-accent/90 text-white border-0">
+                        إنشاء حسابات للمحدّد
+                    </flux:button>
+                    <flux:button wire:click="clearSelection" size="sm" variant="ghost">إلغاء التحديد</flux:button>
+                </div>
+            </div>
+        @endif
+
         <!-- Responses Table -->
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto shadow-xs">
             @if($responses->isEmpty())
@@ -58,6 +73,13 @@
                 <table class="w-full text-start border-collapse text-sm">
                     <thead>
                         <tr class="bg-zinc-50 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
+                            <th class="p-4 text-start w-10">
+                                @if($unprocessedCount > 0)
+                                    <input type="checkbox" wire:click="toggleSelectAllUnprocessed"
+                                        @checked(count($selectedResponseIds) >= $unprocessedCount)
+                                        class="rounded text-accent focus:ring-accent" title="تحديد كل غير المعالَج" />
+                                @endif
+                            </th>
                             <th class="p-4 text-start">تاريخ الرد</th>
                             @foreach($form->fields as $field)
                                 <th class="p-4 text-start min-w-[120px]">{{ $field['label'] }}</th>
@@ -68,7 +90,13 @@
                     </thead>
                     <tbody class="divide-y divide-zinc-150 dark:divide-zinc-850">
                         @foreach($responses as $response)
-                            <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/20 text-zinc-850 dark:text-zinc-200">
+                            <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/20 text-zinc-850 dark:text-zinc-200" wire:key="response-{{ $response->id }}">
+                                <td class="p-4 whitespace-nowrap">
+                                    @if(!$response->student_id)
+                                        <input type="checkbox" value="{{ $response->id }}" wire:model.live="selectedResponseIds"
+                                            class="rounded text-accent focus:ring-accent" />
+                                    @endif
+                                </td>
                                 <td class="p-4 whitespace-nowrap text-xs text-zinc-400 dark:text-zinc-500">
                                     {{ $response->created_at->format('Y-m-d H:i') }}
                                 </td>
@@ -293,8 +321,15 @@
     <!-- Modal: Bulk Create -->
     <flux:modal wire:model="showBulkModal" class="w-full max-w-2xl space-y-4">
         <div>
-            <h2 class="text-lg font-bold text-zinc-900 dark:text-white">الإنشاء الجماعي لحسابات الطلاب</h2>
-            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">اربط حقول النموذج ببيانات الطالب، ثم حلّل الردود. تُنشأ الردود الصالحة دفعةً، وتُعرض المشكِلة لمراجعتها يدويًا قبل إنشائها.</p>
+            <h2 class="text-lg font-bold text-zinc-900 dark:text-white">
+                {{ $bulkSelectedOnly ? 'إنشاء حسابات للردود المحددة' : 'الإنشاء الجماعي لحسابات الطلاب' }}
+            </h2>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                @if($bulkSelectedOnly)
+                    سيقتصر الإنشاء على <span class="font-bold text-accent">{{ count($bulkScopeIds) }}</span> ردًّا محددًا.
+                @endif
+                اربط حقول النموذج ببيانات الطالب، ثم حلّل الردود. تُنشأ الردود الصالحة دفعةً، وتُعرض المشكِلة لمراجعتها يدويًا قبل إنشائها.
+            </p>
         </div>
 
         <div class="max-h-[62vh] overflow-y-auto space-y-5 pe-1">

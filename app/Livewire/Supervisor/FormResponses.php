@@ -52,8 +52,17 @@ class FormResponses extends Component
 
     public string $linkNameOption = 'existing'; // 'existing' or 'response'
 
+    // Row selection state
+    /** @var array<int, int> selected (unprocessed) response ids */
+    public array $selectedResponseIds = [];
+
     // Bulk creation modal state
     public bool $showBulkModal = false;
+
+    public bool $bulkSelectedOnly = false;
+
+    /** @var array<int, int> snapshot of response ids the bulk run is scoped to */
+    public array $bulkScopeIds = [];
 
     /** @var array<string, string|null> attribute => form field id */
     public array $bulkMap = [];
@@ -340,8 +349,42 @@ class FormResponses extends Component
         Flux::toast('تم ربط الرد بالطالب بنجاح', variant: 'success');
     }
 
-    public function openBulkModal(): void
+    /** @return array<int, int> ids of unprocessed responses for this form */
+    private function unprocessedResponseIds(): array
     {
+        return FormResponse::where('form_id', $this->form->id)
+            ->whereNull('student_id')
+            ->pluck('id')
+            ->all();
+    }
+
+    public function toggleSelectAllUnprocessed(): void
+    {
+        $all = $this->unprocessedResponseIds();
+        $this->selectedResponseIds = count($this->selectedResponseIds) >= count($all) ? [] : $all;
+    }
+
+    public function clearSelection(): void
+    {
+        $this->selectedResponseIds = [];
+    }
+
+    /**
+     * Drop already-processed (or no longer existing) ids from the selection,
+     * e.g. after some selected responses have just been turned into accounts.
+     */
+    private function pruneSelection(): void
+    {
+        $this->selectedResponseIds = array_values(array_intersect(
+            array_map('intval', $this->selectedResponseIds),
+            $this->unprocessedResponseIds()
+        ));
+    }
+
+    public function openBulkModal(bool $selectedOnly = false): void
+    {
+        $this->bulkSelectedOnly = $selectedOnly;
+        $this->bulkScopeIds = $selectedOnly ? array_map('intval', $this->selectedResponseIds) : [];
         $this->bulkMap = $this->guessFieldMap();
         $this->bulkRandomEmail = empty($this->bulkMap['email']);
         $this->bulkPassword = 'password';
@@ -361,9 +404,11 @@ class FormResponses extends Component
      */
     public function analyzeBulk(): void
     {
-        $responses = FormResponse::where('form_id', $this->form->id)
-            ->whereNull('student_id')
-            ->get();
+        $query = FormResponse::where('form_id', $this->form->id)->whereNull('student_id');
+        if ($this->bulkSelectedOnly) {
+            $query->whereIn('id', $this->bulkScopeIds ?: [0]);
+        }
+        $responses = $query->get();
 
         $this->bulkReady = [];
         $this->bulkNeedsReview = [];
@@ -449,6 +494,7 @@ class FormResponses extends Component
             $created++;
         }
 
+        $this->pruneSelection();
         $this->analyzeBulk();
         Flux::toast("تم إنشاء {$created} حساب طالب بنجاح", variant: 'success');
     }
@@ -482,6 +528,7 @@ class FormResponses extends Component
 
         $this->createStudent($response, $this->bulkAttrs($response, $name, $birth));
 
+        $this->pruneSelection();
         $this->analyzeBulk();
         Flux::toast('تم إنشاء حساب الطالب بنجاح', variant: 'success');
     }

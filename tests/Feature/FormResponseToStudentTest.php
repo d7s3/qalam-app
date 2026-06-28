@@ -171,6 +171,39 @@ it('sorts bulk responses into ready and needs-review, and creates after manual r
     expect($noName->fresh()->student_id)->not->toBeNull();
 });
 
+it('creates accounts only for the selected responses', function () {
+    $pick1 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد أول', 'f_email' => 'pick1']]);
+    $pick2 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد ثاني', 'f_email' => 'pick2']]);
+    $skip = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'غير محدد', 'f_email' => 'skip']]);
+
+    Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->set('selectedResponseIds', [$pick1->id, $pick2->id])
+        ->call('openBulkModal', true)
+        ->call('analyzeBulk')
+        ->call('createReadyStudents')
+        ->assertHasNoErrors();
+
+    expect(Student::where('name', 'محدد أول')->exists())->toBeTrue();
+    expect(Student::where('name', 'محدد ثاني')->exists())->toBeTrue();
+    expect(Student::where('name', 'غير محدد')->exists())->toBeFalse();
+
+    // The unselected response stays unprocessed.
+    expect($skip->fresh()->student_id)->toBeNull();
+});
+
+it('toggles select-all across unprocessed responses', function () {
+    $r1 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'أ', 'f_email' => 'a']]);
+    $r2 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'ب', 'f_email' => 'b']]);
+
+    $component = Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->call('toggleSelectAllUnprocessed');
+
+    expect($component->get('selectedResponseIds'))->toHaveCount(2);
+
+    $component->call('toggleSelectAllUnprocessed');
+    expect($component->get('selectedResponseIds'))->toHaveCount(0);
+});
+
 it('shows circle-less stage-assigned students in the supervisor students list', function () {
     $student = Student::create([
         'name' => 'طالب مرحلة فقط',
@@ -185,4 +218,46 @@ it('shows circle-less stage-assigned students in the supervisor students list', 
     $listed = Livewire::test(SupervisorStudents::class)->get('students');
 
     expect($listed->pluck('id'))->toContain($student->id);
+});
+
+it('bulk deletes circle-less stage-assigned students', function () {
+    $student = Student::create([
+        'name' => 'طالب للحذف',
+        'email' => 'todelete@altag-student.com',
+        'password' => bcrypt('password'),
+        'circle_id' => null,
+        'stage_id' => $this->stage->id,
+        'status' => 'registering',
+        'is_approved' => false,
+    ]);
+
+    Livewire::test(SupervisorStudents::class)
+        ->set('selectedStudentIds', [(string) $student->id])
+        ->set('deleteConfirmationInput', 'تأكيد الحذف')
+        ->call('confirmBulkDelete');
+
+    expect(Student::find($student->id))->toBeNull();
+});
+
+it('releases a linked form response back to the pool when its student is deleted', function () {
+    $response = FormResponse::create([
+        'form_id' => $this->form->id,
+        'answers' => ['f_name' => 'طالب مرتبط', 'f_email' => 'linked'],
+    ]);
+
+    Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->call('openCreateModal', $response->id)
+        ->set('targetStageId', $this->stage->id)
+        ->call('createStudentAccount')
+        ->assertHasNoErrors();
+
+    $student = Student::where('name', 'طالب مرتبط')->first();
+    expect($response->fresh()->student_id)->toBe($student->id);
+    expect($response->fresh()->is_processed)->toBeTrue();
+
+    // Deleting the student must release the response (both fields reset).
+    $student->delete();
+
+    expect($response->fresh()->student_id)->toBeNull();
+    expect($response->fresh()->is_processed)->toBeFalse();
 });

@@ -68,21 +68,34 @@ class Students extends Component
         return Circle::whereIn('stage_id', $this->getSupervisorStageIds())->pluck('id')->toArray();
     }
 
-    public function loadData(): void
+    /**
+     * Constrain a student query to the supervisor's scope: students in their
+     * circles, plus circle-less students assigned directly to one of their stages.
+     *
+     * @template TQuery of \Illuminate\Database\Eloquent\Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
+     */
+    private function scopeToSupervisor($query)
     {
         $circleIds = $this->getSupervisorCircleIds();
         $stageIds = $this->getSupervisorStageIds();
+
+        return $query->where(function ($q) use ($circleIds, $stageIds) {
+            $q->whereIn('circle_id', $circleIds)
+                ->orWhere(function ($sub) use ($stageIds) {
+                    $sub->whereNull('circle_id')->whereIn('stage_id', $stageIds);
+                });
+        });
+    }
+
+    public function loadData(): void
+    {
+        $circleIds = $this->getSupervisorCircleIds();
         $this->circles = Circle::with('stage')->whereIn('id', $circleIds)->get();
 
-        // Students in the supervisor's circles, plus circle-less students assigned
-        // directly to one of the supervisor's stages (still registering).
-        $query = Student::with(['circle.stage', 'stage', 'guardian'])
-            ->where(function ($q) use ($circleIds, $stageIds) {
-                $q->whereIn('circle_id', $circleIds)
-                    ->orWhere(function ($sub) use ($stageIds) {
-                        $sub->whereNull('circle_id')->whereIn('stage_id', $stageIds);
-                    });
-            });
+        $query = $this->scopeToSupervisor(Student::with(['circle.stage', 'stage', 'guardian']));
 
         if ($this->search) {
             $query->where(function ($q) {
@@ -133,8 +146,7 @@ class Students extends Component
     public function updatedSelectAll(bool $value): void
     {
         if ($value) {
-            $circleIds = $this->getSupervisorCircleIds();
-            $query = Student::whereIn('circle_id', $circleIds);
+            $query = $this->scopeToSupervisor(Student::query());
 
             if ($this->search) {
                 $query->where(function ($q) {
@@ -161,9 +173,7 @@ class Students extends Component
 
     private function getSupervisorStudentsQuery()
     {
-        $circleIds = $this->getSupervisorCircleIds();
-
-        return Student::whereIn('circle_id', $circleIds)->whereIn('id', $this->selectedStudentIds);
+        return $this->scopeToSupervisor(Student::query())->whereIn('id', $this->selectedStudentIds);
     }
 
     public function applyBulkCircle(): void
@@ -269,8 +279,7 @@ class Students extends Component
 
     public function approve($id): void
     {
-        $circleIds = $this->getSupervisorCircleIds();
-        $student = Student::whereIn('circle_id', $circleIds)->find($id);
+        $student = $this->scopeToSupervisor(Student::query())->find($id);
 
         if (! $student) {
             Flux::toast(__('الطالب غير موجود أو ليس ضمن صلاحياتك'), variant: 'danger');
@@ -289,9 +298,7 @@ class Students extends Component
 
     public function edit($id): void
     {
-        $circleIds = $this->getSupervisorCircleIds();
-
-        $this->viewingStudent = Student::with([
+        $this->viewingStudent = $this->scopeToSupervisor(Student::with([
             'circle.stage',
             'guardian',
             'plans' => fn ($q) => $q->latest(),
@@ -300,9 +307,7 @@ class Students extends Component
             'odePlans.path.days',
             'attendances',
             'statusHistories',
-        ])
-            ->whereIn('circle_id', $circleIds)
-            ->find($id);
+        ]))->find($id);
 
         if (! $this->viewingStudent) {
             Flux::toast(__('الطالب غير موجود أو ليس ضمن صلاحياتك'), variant: 'danger');
@@ -364,8 +369,7 @@ class Students extends Component
 
     public function resetToken($id): void
     {
-        $circleIds = $this->getSupervisorCircleIds();
-        $student = Student::whereIn('circle_id', $circleIds)->find($id);
+        $student = $this->scopeToSupervisor(Student::query())->find($id);
 
         if ($student) {
             $student->update(['access_token' => Str::random(32)]);

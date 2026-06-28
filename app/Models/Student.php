@@ -18,6 +18,16 @@ class Student extends Authenticatable
     /** @use HasFactory<StudentFactory> */
     use HasFactory, HasProfile, Notifiable, TwoFactorAuthenticatable;
 
+    protected static function booted(): void
+    {
+        // When a student is deleted, release any form responses linked to them so
+        // they return to the unprocessed pool (and can be re-created or re-linked).
+        static::deleting(function (Student $student) {
+            FormResponse::where('student_id', $student->id)
+                ->update(['student_id' => null, 'is_processed' => false]);
+        });
+    }
+
     /** @return BelongsTo<Circle, $this> */
     public function circle(): BelongsTo
     {
