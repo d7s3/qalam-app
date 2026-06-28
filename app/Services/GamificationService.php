@@ -168,13 +168,19 @@ class GamificationService
     public static function syncStudentPlanDayXP(StudentPlanDay $day): void
     {
         $student = $day->plan->student;
-        // Gate the competition on the memorization day itself, not when the teacher
-        // happened to grade it. Using the grading time made points vanish whenever a
-        // day was graded outside the competition window (e.g. before it started),
-        // and it was inconsistent with the multiplier/team-score paths that already
-        // resolve by $day->date.
-        $date = $day->date;
+        // Gate the competition on the grading date: grading during a competition
+        // earns its points regardless of which scheduled plan day it is. Falls back
+        // to the day's own date only when it has not been graded yet.
+        $date = $day->hifz_graded_at ?? $day->review_graded_at ?? $day->date;
         $leaderboards = self::getActiveLeaderboards($student, $date);
+
+        // No competition covers this grading date — drop any stale points for the
+        // day so a re-sync (e.g. after dates change) reconciles correctly.
+        if ($leaderboards->isEmpty()) {
+            self::clearTransactionsForReference(StudentPlanDay::class, $day->id);
+
+            return;
+        }
 
         foreach ($leaderboards as $leaderboard) {
             $settings = $leaderboard->settings ?? [];
@@ -276,6 +282,32 @@ class GamificationService
     }
 
     /**
+     * Remove every gamification transaction tied to a graded reference (plan day,
+     * ode/hadith achievement…) and refresh the affected students' state. Used both
+     * when a grading date leaves all competitions and when the reference row itself
+     * is deleted, so no orphaned points linger.
+     */
+    public static function clearTransactionsForReference(string $referenceType, int $referenceId): void
+    {
+        $stale = GamificationTransaction::where('reference_type', $referenceType)
+            ->where('reference_id', $referenceId)
+            ->get();
+
+        if ($stale->isEmpty()) {
+            return;
+        }
+
+        $pairs = $stale->map(fn ($t) => ['student' => $t->student_id, 'leaderboard' => $t->leaderboard_id])
+            ->unique(fn ($p) => $p['student'].'-'.$p['leaderboard']);
+
+        GamificationTransaction::whereIn('id', $stale->pluck('id'))->delete();
+
+        foreach ($pairs as $pair) {
+            self::recalculateStudentState($pair['student'], $pair['leaderboard']);
+        }
+    }
+
+    /**
      * Sync XP/coins transaction for Ode achievement grading.
      */
     public static function syncStudentOdeAchievementXP(StudentOdeAchievement $achievement): void
@@ -286,6 +318,12 @@ class GamificationService
             return;
         }
         $leaderboards = self::getActiveLeaderboards($student, $date);
+
+        if ($leaderboards->isEmpty()) {
+            self::clearTransactionsForReference(StudentOdeAchievement::class, $achievement->id);
+
+            return;
+        }
 
         foreach ($leaderboards as $leaderboard) {
             $settings = $leaderboard->settings ?? [];
@@ -376,6 +414,12 @@ class GamificationService
             return;
         }
         $leaderboards = self::getActiveLeaderboards($student, $date);
+
+        if ($leaderboards->isEmpty()) {
+            self::clearTransactionsForReference(StudentHadithAchievement::class, $achievement->id);
+
+            return;
+        }
 
         foreach ($leaderboards as $leaderboard) {
             $settings = $leaderboard->settings ?? [];

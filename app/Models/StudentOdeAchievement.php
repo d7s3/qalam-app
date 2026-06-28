@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\GamificationService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,15 @@ class StudentOdeAchievement extends Model
         'hifz_graded_at',
         'review_graded_at',
     ];
+
+    protected static function booted(): void
+    {
+        // Drop any gamification points tied to this achievement when it is deleted,
+        // so no orphaned transactions inflate student/team scores.
+        static::deleting(function (StudentOdeAchievement $achievement) {
+            GamificationService::clearTransactionsForReference(self::class, $achievement->id);
+        });
+    }
 
     protected $casts = [
         'hifz_graded_at' => 'datetime',

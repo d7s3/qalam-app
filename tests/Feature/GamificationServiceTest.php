@@ -123,7 +123,7 @@ it('syncs student hifz and review points', function () {
     expect($state->coins)->toBe(13);
 });
 
-it('awards points based on the memorization day, even when graded outside the competition window', function () {
+it('gates points on the grading date, not the plan day date', function () {
     $plan = StudentPlan::create([
         'student_id' => $this->student->id,
         'plan_type' => 'hifz_review',
@@ -133,23 +133,61 @@ it('awards points based on the memorization day, even when graded outside the co
         'active_days' => [0, 1, 2, 3, 4, 5, 6],
     ]);
 
-    // The day is inside the competition window (today), but the teacher graded it
-    // long before the competition started. Points must still be awarded.
+    // Plan day scheduled far outside the competition window, but graded *today*
+    // (inside it) → points are awarded because the grading date counts.
+    $insideGrade = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->addDays(40)->format('Y-m-d'),
+        'day_name' => 'الجمعة',
+        'hifz_achievement' => 3,
+        'review_achievement' => 2,
+        'hifz_graded_at' => now(),
+        'review_graded_at' => now(),
+    ]);
+    GamificationService::syncStudentPlanDayXP($insideGrade);
+
+    expect(GamificationTransaction::where('reference_id', $insideGrade->id)->count())->toBe(1);
+
+    // Plan day inside the window, but graded long before the competition started →
+    // no points, because the grading date is outside the competition.
+    $outsideGrade = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->format('Y-m-d'),
+        'day_name' => 'السبت',
+        'hifz_achievement' => 3,
+        'hifz_graded_at' => now()->subDays(30),
+    ]);
+    GamificationService::syncStudentPlanDayXP($outsideGrade);
+
+    expect(GamificationTransaction::where('reference_id', $outsideGrade->id)->count())->toBe(0);
+});
+
+it('removes stale plan-day points when a re-sync finds no covering competition', function () {
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+
+    // Graded today → earns points.
     $day = StudentPlanDay::create([
         'student_plan_id' => $plan->id,
         'date' => now()->format('Y-m-d'),
         'day_name' => 'الجمعة',
         'hifz_achievement' => 3,
-        'review_achievement' => 2,
-        'hifz_graded_at' => now()->subDays(20),
-        'review_graded_at' => now()->subDays(20),
+        'hifz_graded_at' => now(),
     ]);
-
     GamificationService::syncStudentPlanDayXP($day);
+    expect(GamificationTransaction::where('reference_id', $day->id)->count())->toBe(1);
 
-    $transactions = GamificationTransaction::where('student_id', $this->student->id)->get();
-    expect($transactions)->toHaveCount(1);
-    expect($transactions->first()->amount)->toBe(13);
+    // The grading date is moved outside the competition; re-syncing clears the points.
+    $day->update(['hifz_graded_at' => now()->subDays(30)]);
+    GamificationService::syncStudentPlanDayXP($day->fresh());
+
+    expect(GamificationTransaction::where('reference_id', $day->id)->count())->toBe(0);
 });
 
 it('backfills points for already-graded days via the recompute command', function () {
@@ -176,6 +214,47 @@ it('backfills points for already-graded days via the recompute command', functio
     $this->artisan('gamification:recompute-plan-day-points')->assertSuccessful();
 
     expect(GamificationTransaction::where('student_id', $this->student->id)->count())->toBe(1);
+});
+
+it('diagnoses a circle-less student as ineligible for points', function () {
+    $orphan = Student::create([
+        'name' => 'طالب بلا حلقة',
+        'email' => 'orphan@example.com',
+        'password' => bcrypt('password'),
+        'circle_id' => null,
+        'is_approved' => true,
+        'status' => 'registering',
+    ]);
+
+    $this->artisan('gamification:diagnose-student-points', ['student' => $orphan->id])
+        ->expectsOutputToContain('الطالب بلا حلقة')
+        ->assertSuccessful();
+});
+
+it('diagnoses pending rewards when manual claim is enabled', function () {
+    $settings = $this->leaderboard->settings;
+    $settings['manual_claim_enabled'] = true;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    $day = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->format('Y-m-d'),
+        'day_name' => 'الجمعة',
+        'hifz_achievement' => 3,
+    ]);
+    GamificationService::syncStudentPlanDayXP($day);
+
+    $this->artisan('gamification:diagnose-student-points', ['student' => $this->student->id])
+        ->expectsOutputToContain('بانتظار المطالبة')
+        ->assertSuccessful();
 });
 
 it('holds rewards as pending until claimed when manual claim is enabled', function () {
@@ -807,6 +886,134 @@ it('applies the team multiplier to ode and hadith memorization points', function
 
     // Team score IS doubled: 10 * 2 = 20
     expect(GamificationService::getTeamScore($team, $this->leaderboard))->toBe(20);
+});
+
+it('awards ode hifz and review points, gated on the grading date', function () {
+    $settings = $this->leaderboard->settings;
+    $settings['ode_hifz_enabled'] = true;
+    $settings['ode_hifz_excellent_xp'] = 10;
+    $settings['ode_hifz_excellent_coins'] = 10;
+    $settings['ode_review_enabled'] = true;
+    $settings['ode_review_excellent_xp'] = 5;
+    $settings['ode_review_excellent_coins'] = 5;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    $ode = Ode::create(['name' => 'تحفة الأطفال']);
+    $odePath = OdePath::create(['ode_id' => $ode->id, 'name' => 'مسار', 'start_date' => now()->subDays(5)]);
+    $odeDay = OdePathDay::create(['ode_path_id' => $odePath->id, 'day_number' => 1, 'date' => now()->format('Y-m-d')]);
+    $odePlan = StudentOdePlan::create([
+        'student_id' => $this->student->id,
+        'ode_path_id' => $odePath->id,
+        'start_date' => now()->subDays(5),
+        'status' => 'active',
+        'created_by_role' => 'teacher',
+    ]);
+    $ach = StudentOdeAchievement::create([
+        'student_ode_plan_id' => $odePlan->id,
+        'ode_path_day_id' => $odeDay->id,
+        'hifz_achievement' => 3,
+        'review_achievement' => 3,
+        'hifz_graded_at' => now(),
+        'review_graded_at' => now(),
+    ]);
+
+    GamificationService::syncStudentOdeAchievementXP($ach->fresh(['plan.student', 'pathDay']));
+
+    $tx = GamificationTransaction::where('reference_type', StudentOdeAchievement::class)
+        ->where('reference_id', $ach->id)->first();
+    expect($tx)->not->toBeNull();
+    // ode hifz excellent 10 + ode review excellent 5 = 15
+    expect($tx->xp_amount)->toBe(15);
+    expect($tx->amount)->toBe(15);
+});
+
+it('does not award ode points when graded outside the competition window, and clears stale ones on re-sync', function () {
+    $settings = $this->leaderboard->settings;
+    $settings['ode_hifz_enabled'] = true;
+    $settings['ode_hifz_excellent_xp'] = 10;
+    $settings['ode_hifz_excellent_coins'] = 10;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    $ode = Ode::create(['name' => 'متن الآجرومية']);
+    $odePath = OdePath::create(['ode_id' => $ode->id, 'name' => 'مسار', 'start_date' => now()->subDays(5)]);
+    $odeDay = OdePathDay::create(['ode_path_id' => $odePath->id, 'day_number' => 1, 'date' => now()->format('Y-m-d')]);
+    $odePlan = StudentOdePlan::create([
+        'student_id' => $this->student->id,
+        'ode_path_id' => $odePath->id,
+        'start_date' => now()->subDays(5),
+        'status' => 'active',
+        'created_by_role' => 'teacher',
+    ]);
+
+    // Graded today (inside the window) → earns points.
+    $ach = StudentOdeAchievement::create([
+        'student_ode_plan_id' => $odePlan->id,
+        'ode_path_day_id' => $odeDay->id,
+        'hifz_achievement' => 3,
+        'hifz_graded_at' => now(),
+    ]);
+    GamificationService::syncStudentOdeAchievementXP($ach->fresh(['plan.student', 'pathDay']));
+    expect(GamificationTransaction::where('reference_type', StudentOdeAchievement::class)->where('reference_id', $ach->id)->count())->toBe(1);
+
+    // Re-graded before the competition started → points removed on re-sync.
+    $ach->update(['hifz_graded_at' => now()->subDays(30)]);
+    GamificationService::syncStudentOdeAchievementXP($ach->fresh(['plan.student', 'pathDay']));
+    expect(GamificationTransaction::where('reference_type', StudentOdeAchievement::class)->where('reference_id', $ach->id)->count())->toBe(0);
+});
+
+it('removes ode points when the achievement is deleted', function () {
+    $settings = $this->leaderboard->settings;
+    $settings['ode_hifz_enabled'] = true;
+    $settings['ode_hifz_excellent_xp'] = 10;
+    $settings['ode_hifz_excellent_coins'] = 10;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    $ode = Ode::create(['name' => 'البيقونية']);
+    $odePath = OdePath::create(['ode_id' => $ode->id, 'name' => 'مسار', 'start_date' => now()->subDays(5)]);
+    $odeDay = OdePathDay::create(['ode_path_id' => $odePath->id, 'day_number' => 1, 'date' => now()->format('Y-m-d')]);
+    $odePlan = StudentOdePlan::create([
+        'student_id' => $this->student->id,
+        'ode_path_id' => $odePath->id,
+        'start_date' => now()->subDays(5),
+        'status' => 'active',
+        'created_by_role' => 'teacher',
+    ]);
+    $ach = StudentOdeAchievement::create([
+        'student_ode_plan_id' => $odePlan->id,
+        'ode_path_day_id' => $odeDay->id,
+        'hifz_achievement' => 3,
+        'hifz_graded_at' => now(),
+    ]);
+    GamificationService::syncStudentOdeAchievementXP($ach->fresh(['plan.student', 'pathDay']));
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(10);
+
+    $ach->delete();
+
+    expect(GamificationTransaction::where('reference_type', StudentOdeAchievement::class)->where('reference_id', $ach->id)->count())->toBe(0);
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(0);
+});
+
+it('purges orphaned transactions whose referenced record was deleted', function () {
+    // A transaction pointing at a non-existent ode achievement (e.g. it was deleted
+    // before the cleanup hook existed).
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 99,
+        'xp_amount' => 10,
+        'description' => 'يتيمة',
+        'reference_type' => StudentOdeAchievement::class,
+        'reference_id' => 999999,
+        'claimed_at' => now(),
+    ]);
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+    expect(GamificationStudentState::where('student_id', $this->student->id)->first()->coins)->toBe(99);
+
+    $this->artisan('gamification:recompute-plan-day-points')->assertSuccessful();
+
+    expect(GamificationTransaction::where('reference_id', 999999)->count())->toBe(0);
+    expect(GamificationStudentState::where('student_id', $this->student->id)->first()->coins)->toBe(0);
 });
 
 it('applies the team multiplier to team tasks, activity wins, and manual adjustments', function () {

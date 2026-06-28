@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\GamificationService;
 use Illuminate\Database\Eloquent\Model;
 
 class StudentPlanDay extends Model
@@ -19,6 +20,15 @@ class StudentPlanDay extends Model
         'hifz_graded_at',
         'review_graded_at',
     ];
+
+    protected static function booted(): void
+    {
+        // Drop any gamification points tied to this day when it is deleted, so no
+        // orphaned transactions inflate student/team scores.
+        static::deleting(function (StudentPlanDay $day) {
+            GamificationService::clearTransactionsForReference(self::class, $day->id);
+        });
+    }
 
     protected $casts = [
         'date' => 'date',
