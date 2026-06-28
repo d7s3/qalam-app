@@ -1246,7 +1246,7 @@ class ManageGamification extends Component
             'item_name' => 'required|string|max:255',
             'item_description' => 'nullable|string',
             'item_price' => 'required|integer|min:0',
-            'item_type' => 'required|in:freeze,team_attack,multiplier,shield,team_points',
+            'item_type' => 'required|in:freeze,team_attack,shield,team_points',
         ];
 
         $isPermanent = $this->isEditingPermanentItem();
@@ -1268,7 +1268,7 @@ class ManageGamification extends Component
             }
         }
 
-        if (in_array($this->item_type, ['team_attack', 'team_points', 'multiplier'])) {
+        if (in_array($this->item_type, ['team_attack', 'team_points'])) {
             $rules['item_value'] = 'required|integer|min:1';
         } else {
             $rules['item_value'] = 'nullable|integer|min:0';
@@ -1300,8 +1300,8 @@ class ManageGamification extends Component
                 'description' => $this->item_description ?: null,
                 'price' => $this->item_price,
                 'item_type' => $this->item_type,
-                'value' => in_array($this->item_type, ['team_attack', 'team_points', 'multiplier']) ? (int) $this->item_value : 0,
-                'target_date' => in_array($this->item_type, ['multiplier', 'shield']) ? ($this->item_target_date ?: null) : null,
+                'value' => in_array($this->item_type, ['team_attack', 'team_points']) ? (int) $this->item_value : 0,
+                'target_date' => $this->item_type === 'shield' ? ($this->item_target_date ?: null) : null,
                 'is_team_product' => $this->item_is_team_product,
                 'is_streak_freeze' => $this->item_is_streak_freeze,
                 'require_assistant_approval' => $this->item_require_assistant_approval,
@@ -1323,9 +1323,7 @@ class ManageGamification extends Component
 
     public function updatedItemType($value): void
     {
-        if ($value === 'multiplier') {
-            $this->item_value = 2;
-        } elseif ($value === 'freeze' || $value === 'shield') {
+        if ($value === 'freeze' || $value === 'shield') {
             $this->item_value = 0;
             $this->item_target_date = null;
         } elseif ($value === 'team_attack' || $value === 'team_points') {

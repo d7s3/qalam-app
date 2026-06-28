@@ -239,6 +239,180 @@ it('supports student actions (buying, voting, donating) from the dashboard', fun
     expect($team->coins)->toBe(40); // 80 - 40
 });
 
+it('shows the real student level in the compact stats bar, not a hardcoded 1', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة مستوى الشريط',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    foreach ([[1, 0], [2, 50], [3, 100]] as [$number, $required]) {
+        GamificationLevel::create([
+            'leaderboard_id' => $leaderboard->id,
+            'level_number' => $number,
+            'name' => 'مستوى '.$number,
+            'xp_required' => $required,
+            'icon' => 'sparkles',
+            'settings' => [],
+        ]);
+    }
+
+    // 120 XP earned puts the student at level 3 (xp_required 100). The bar must show
+    // the computed XP (120) — not 0, which the removed `state->score` lookup produced
+    // since that column does not exist.
+    GamificationTransaction::create([
+        'leaderboard_id' => $leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 120,
+        'xp_amount' => 120,
+        'description' => 'كسب',
+        'claimed_at' => now(),
+    ]);
+
+    // The compact stats bar's level span is the only element with this exact markup,
+    // and the points figure must reflect the real earned XP (120).
+    Livewire::test('student.gamification-dashboard')
+        ->assertSeeHtml('text-team-primary">3')
+        ->assertSee('120');
+});
+
+it('shows today earned xp and coins as deltas in the compact stats bar', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة دلتا اليوم',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    // Earned today (claimed) — should surface as "+45 اليوم" / "+20 اليوم".
+    GamificationTransaction::create([
+        'leaderboard_id' => $leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 20,
+        'xp_amount' => 45,
+        'description' => 'كسب اليوم',
+        'claimed_at' => now(),
+    ]);
+
+    // Earned earlier (yesterday) — must NOT count toward today's delta.
+    GamificationTransaction::create([
+        'leaderboard_id' => $leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 99,
+        'xp_amount' => 99,
+        'description' => 'كسب الأمس',
+        'claimed_at' => now()->subDay(),
+        'created_at' => now()->subDay(),
+        'updated_at' => now()->subDay(),
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertSee('+45 '.__('اليوم'))
+        ->assertSee('+20 '.__('اليوم'));
+});
+
+it('shows and lets a team leader buy the team multiplier even with no pending missions', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة مضاعفة الفريق',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    GamificationStudentState::create([
+        'leaderboard_id' => $leaderboard->id,
+        'student_id' => $this->student->id,
+        'coins' => 0,
+    ]);
+
+    // Level that enables the team multiplier and prices it at 150.
+    GamificationLevel::create([
+        'leaderboard_id' => $leaderboard->id,
+        'level_number' => 1,
+        'name' => 'مبتدئ',
+        'xp_required' => 0,
+        'icon' => 'sparkles',
+        'settings' => ['has_team_multiplier' => true, 'team_multiplier_price' => 150],
+    ]);
+
+    // Single-member team (leader only) with enough treasury, no voting required.
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'فريق المضاعفة',
+        'coins' => 200,
+    ]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    // No StudentPlan/StudentPlanDay exists, so there are no pending missions.
+    $component = Livewire::test('student.gamification-dashboard')
+        ->assertSee('مضاعفة نقاط الفريق');
+
+    // Buying works through the modal flow even without a mission for tomorrow.
+    $tomorrow = now()->addDay()->format('Y-m-d');
+    $component->call('openDoublePointsModal', $tomorrow, 'team')
+        ->assertSet('showDoublePointsModal', true)
+        ->assertSet('doublePointsDate', $tomorrow)
+        ->call('purchaseDoublePoints')
+        ->assertHasNoErrors();
+
+    $purchase = GamificationStorePurchase::where('team_id', $team->id)
+        ->whereHas('item', fn ($q) => $q->where('item_type', 'multiplier')->where('is_team_product', true))
+        ->first();
+
+    expect($purchase)->not->toBeNull();
+    expect($purchase->status)->toBe('approved');
+    expect(Carbon\Carbon::parse($purchase->target_date)->format('Y-m-d'))->toBe($tomorrow);
+    expect($team->fresh()->coins)->toBe(50); // 200 - 150
+});
+
+it('hides the team multiplier button from non-leader team members', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة مضاعفة الفريق',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    GamificationLevel::create([
+        'leaderboard_id' => $leaderboard->id,
+        'level_number' => 1,
+        'name' => 'مبتدئ',
+        'xp_required' => 0,
+        'icon' => 'sparkles',
+        'settings' => ['has_team_multiplier' => true, 'team_multiplier_price' => 150],
+    ]);
+
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'فريق المضاعفة',
+        'coins' => 200,
+    ]);
+    $team->students()->attach($this->student->id, ['role' => 'member']);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertDontSee('مضاعفة نقاط الفريق');
+});
+
 it('allows teachers to approve badges and students to claim them', function () {
     $leaderboard = Leaderboard::create([
         'circle_id' => $this->circle->id,

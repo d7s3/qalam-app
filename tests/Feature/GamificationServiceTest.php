@@ -3,6 +3,7 @@
 use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance;
 use App\Models\Circle;
+use App\Models\GamificationActivityWinner;
 use App\Models\GamificationBadge;
 use App\Models\GamificationLevel;
 use App\Models\GamificationNews;
@@ -10,6 +11,7 @@ use App\Models\GamificationStoreItem;
 use App\Models\GamificationStorePurchase;
 use App\Models\GamificationStudentState;
 use App\Models\GamificationTeam;
+use App\Models\GamificationTeamTaskAssignment;
 use App\Models\GamificationTrack;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
@@ -750,6 +752,108 @@ it('applies the team multiplier to ode and hadith memorization points', function
 
     // Team score IS doubled: 10 * 2 = 20
     expect(GamificationService::getTeamScore($team, $this->leaderboard))->toBe(20);
+});
+
+it('applies the team multiplier to team tasks, activity wins, and manual adjustments', function () {
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'كتيبة النصر',
+        'coins' => 100,
+    ]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $multiplierItem = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'مضاعف ثنائي',
+        'price' => 50,
+        'item_type' => 'multiplier',
+        'value' => 2,
+        'is_team_product' => true,
+    ]);
+    $tomorrow = now()->addDay();
+    GamificationService::requestStorePurchase($this->student->id, $multiplierItem->id, null, $tomorrow->format('Y-m-d'));
+
+    // Team task grading reward (no business date field, dated by when it was recorded).
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'team_id' => $team->id,
+        'type' => 'earn',
+        'amount' => 0,
+        'xp_amount' => 15,
+        'description' => 'تقييم مهمة: مهمة تجريبية',
+        'reference_type' => GamificationTeamTaskAssignment::class,
+        'reference_id' => 9999,
+        'created_at' => $tomorrow,
+        'updated_at' => $tomorrow,
+    ]);
+
+    // Activity round win, explicitly dated to the round day (mirrors applyWinnerRewards()).
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'team_id' => $team->id,
+        'type' => 'earn',
+        'amount' => 0,
+        'xp_amount' => 20,
+        'description' => 'فوز المجموعة بالمركز الأول',
+        'reference_type' => GamificationActivityWinner::class,
+        'reference_id' => 8888,
+        'created_at' => $tomorrow,
+        'updated_at' => $tomorrow,
+    ]);
+
+    // Manual supervisor adjustment for the team, no reference at all.
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'team_id' => $team->id,
+        'type' => 'earn',
+        'amount' => 0,
+        'xp_amount' => 5,
+        'description' => 'تسوية يدوية للأسرة (من المشرف): مكافأة',
+        'created_at' => $tomorrow,
+        'updated_at' => $tomorrow,
+    ]);
+
+    // 15 + 20 + 5 = 40 base, doubled to 80 by the active team multiplier.
+    expect(GamificationService::getTeamScore($team, $this->leaderboard))->toBe(80);
+});
+
+it('applies the team multiplier to teacher extra points using the extra points own date, not the sync time', function () {
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'كتيبة النصر',
+        'coins' => 100,
+    ]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $multiplierItem = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'مضاعف ثنائي',
+        'price' => 50,
+        'item_type' => 'multiplier',
+        'value' => 2,
+        'is_team_product' => true,
+    ]);
+    $tomorrow = now()->addDay()->format('Y-m-d');
+    GamificationService::requestStorePurchase($this->student->id, $multiplierItem->id, null, $tomorrow);
+
+    // Extra points entered/synced "now", but dated for tomorrow (the multiplier day).
+    $extraPointId = DB::table('leaderboard_extra_points')->insertGetId([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'points' => 12,
+        'notes' => 'نشاط متميز',
+        'date' => $tomorrow,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    GamificationService::syncStudentExtraPointsXP($extraPointId);
+
+    // Individual XP is NOT doubled (team multiplier only).
+    expect(GamificationService::getStudentXP($this->student->id, $this->leaderboard->id))->toBe(12);
+
+    // Team score IS doubled using the extra point's own date: 12 * 2 = 24.
+    expect(GamificationService::getTeamScore($team, $this->leaderboard))->toBe(24);
 });
 
 it('groups standings into tracks with independent ranking and a general bucket', function () {

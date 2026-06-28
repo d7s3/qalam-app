@@ -1,0 +1,248 @@
+<?php
+
+use App\Models\Attendance;
+use App\Models\StudentPlanDay;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Computed;
+use Livewire\Component;
+
+new class extends Component
+{
+    /**
+     * The guardian's children with all their dashboard stats pre-computed in a
+     * handful of batched queries (instead of a query-per-child inside the view).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    #[Computed]
+    public function children(): array
+    {
+        $guardian = Auth::guard('guardian')->user();
+        $students = $guardian->students()->with('circle')->get();
+        $studentIds = $students->pluck('id')->all();
+
+        if (empty($studentIds)) {
+            return [];
+        }
+
+        // Batched: today's hifz plan day for every child in one query.
+        $todayPlanDays = StudentPlanDay::whereDate('date', today())
+            ->whereHas('plan', fn ($q) => $q->whereIn('student_id', $studentIds)->whereIn('plan_type', ['hifz', 'hifz_review']))
+            ->with(['plan:id,student_id', 'fromAyah.surah', 'toAyah.surah'])
+            ->get()
+            ->keyBy(fn ($day) => $day->plan->student_id);
+
+        // Batched: latest scored day per child. Ordered newest-first then reduced
+        // to the first row per student, so each child keeps only their last score.
+        $lastScored = StudentPlanDay::query()
+            ->select('student_plan_days.*', 'student_plans.student_id as guardian_sid')
+            ->join('student_plans', 'student_plan_days.student_plan_id', '=', 'student_plans.id')
+            ->whereIn('student_plans.student_id', $studentIds)
+            ->whereNotNull('student_plan_days.hifz_achievement')
+            ->orderByDesc('student_plan_days.date')
+            ->orderByDesc('student_plan_days.id')
+            ->get()
+            ->unique('guardian_sid')
+            ->keyBy('guardian_sid');
+
+        // Batched: this week's attendance for every child in one query.
+        $weekStart = now()->startOfWeek(\Carbon\Carbon::SATURDAY);
+        $attendance = Attendance::whereIn('student_id', $studentIds)
+            ->whereBetween('date', [$weekStart, now()])
+            ->get()
+            ->groupBy('student_id');
+
+        return $students->map(function ($student) use ($todayPlanDays, $lastScored, $attendance) {
+            // Compute the memorized pages once and derive the percentage from it,
+            // instead of calling memorizationPercentage() which recomputes the range.
+            $memorizedPages = $student->memorizedPagesCount();
+            $weekAttend = $attendance->get($student->id) ?? collect();
+
+            return [
+                'model' => $student,
+                'today' => $todayPlanDays->get($student->id),
+                'lastScored' => $lastScored->get($student->id),
+                'presentCount' => $weekAttend->whereIn('status', ['present', 'late'])->count(),
+                'totalCount' => $weekAttend->count(),
+                'memorizedPages' => $memorizedPages,
+                'percentage' => round($memorizedPages / 604 * 100, 1),
+            ];
+        })->all();
+    }
+}; ?>
+
+<div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
+    @php
+        $guardian = auth()->guard('guardian')->user();
+    @endphp
+
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold">لوحة تحكم ولي الأمر</h1>
+    </div>
+
+    <div class="grid auto-rows-min gap-4 md:grid-cols-3">
+        <div class="relative overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6">
+            <div class="flex items-center gap-4">
+                <div class="p-3 bg-blue-100 text-blue-600 rounded-lg dark:bg-blue-900/30 dark:text-blue-400">
+                    <flux:icon icon="users" class="size-6" />
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-neutral-500 dark:text-neutral-400">عدد الأبناء</p>
+                    <h3 class="text-2xl font-bold text-neutral-900 dark:text-white">{{ count($this->children) }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="relative overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6">
+            <div class="flex items-center gap-4">
+                <div class="p-3 bg-green-100 text-green-600 rounded-lg dark:bg-green-900/30 dark:text-green-400">
+                    <flux:icon icon="check-circle" class="size-6" />
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-neutral-500 dark:text-neutral-400">حالة الاعتماد</p>
+                    <h3 class="text-xl font-bold text-neutral-900 dark:text-white">
+                        {{ $guardian->is_approved ? 'معتمد' : 'قيد الانتظار' }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="relative h-full flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6">
+        <h2 class="text-lg font-bold mb-4">بيانات الأبناء</h2>
+
+        <div class="space-y-4">
+            @forelse($this->children as $child)
+                @php
+                    $student = $child['model'];
+                    $todayPlanDay = $child['today'];
+                    $lastScored = $child['lastScored'];
+                    $presentCount = $child['presentCount'];
+                    $totalCount = $child['totalCount'];
+                    $memorizedPages = $child['memorizedPages'];
+                    $percentage = $child['percentage'];
+                @endphp
+
+                <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800">
+
+                    {{-- Header row --}}
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg">
+                                <flux:icon icon="academic-cap" class="size-5 text-neutral-600 dark:text-neutral-300" />
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $student->name }}</h4>
+                                <p class="text-xs text-neutral-500">
+                                    {{ $student->circle?->name ?? 'لم تُحدَّد حلقة بعد' }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <a href="{{ route('guardian.student.challenge.create', $student->id) }}"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors">
+                                <flux:icon icon="trophy" class="size-3.5" />
+                                مكافأة جديدة
+                            </a>
+                            <a href="{{ route('guardian.student', $student->id) }}"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
+                                التفاصيل
+                                <flux:icon icon="arrow-left" class="size-3.5" />
+                            </a>
+                        </div>
+                    </div>
+
+                    {{-- Stats row --}}
+                    <div class="grid grid-cols-3 gap-3 mb-4">
+
+                        {{-- Today's task --}}
+                        <div class="rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-3">
+                            <p class="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                                <flux:icon icon="calendar-days" class="size-3.5" />
+                                مهمة اليوم
+                            </p>
+                            @if($todayPlanDay && $todayPlanDay->fromAyah)
+                                <p class="text-xs font-medium text-neutral-800 dark:text-neutral-200 leading-relaxed">
+                                    {{ $todayPlanDay->fromAyah->surah->name_arabic }}
+                                    {{ $todayPlanDay->fromAyah->verse_number }}-{{ $todayPlanDay->toAyah->verse_number }}
+                                </p>
+                            @else
+                                <p class="text-xs text-neutral-400">لا توجد مهمة</p>
+                            @endif
+                        </div>
+
+                        {{-- Last score --}}
+                        <div class="rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-3">
+                            <p class="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                                <flux:icon icon="star" class="size-3.5" />
+                                آخر تقييم
+                            </p>
+                            @if($lastScored)
+                                @php
+                                    $scoreColor = match ($lastScored->hifz_achievement) {
+                                        3 => 'text-emerald-600 dark:text-emerald-400',
+                                        2 => 'text-amber-600 dark:text-amber-400',
+                                        default => 'text-red-600 dark:text-red-400',
+                                    };
+                                    $scoreLabel = match ($lastScored->hifz_achievement) {
+                                        3 => 'ممتاز',
+                                        2 => 'جيد',
+                                        default => 'ضعيف',
+                                    };
+                                @endphp
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-xs font-bold {{ $scoreColor }}">{{ $scoreLabel }}</span>
+                                    <span class="text-xs text-neutral-400">({{ $lastScored->date->diffForHumans() }})</span>
+                                </div>
+                            @else
+                                <p class="text-xs text-neutral-400">لا يوجد بعد</p>
+                            @endif
+                        </div>
+
+                        {{-- Weekly attendance --}}
+                        <div class="rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-3">
+                            <p class="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                                <flux:icon icon="clock" class="size-3.5" />
+                                هذا الأسبوع
+                            </p>
+                            @if($totalCount > 0)
+                                <p class="text-xs font-medium text-neutral-800 dark:text-neutral-200">
+                                    {{ $presentCount }}/{{ $totalCount }} أيام
+                                </p>
+                            @else
+                                <p class="text-xs text-neutral-400">لا توجد بيانات</p>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Memorization progress --}}
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs text-neutral-500 flex items-center gap-1">
+                                <flux:icon icon="book-open" class="size-3.5" />
+                                نسبة المحفوظ من القرآن الكريم
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-neutral-500">{{ number_format($memorizedPages) }} صفحة</span>
+                                <span class="text-sm font-bold text-emerald-600 dark:text-emerald-400">{{ $percentage }}%</span>
+                            </div>
+                        </div>
+                        <div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2 overflow-hidden">
+                            <div class="h-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-500"
+                                style="width: {{ min($percentage, 100) }}%"></div>
+                        </div>
+                        @if($memorizedPages > 0)
+                            <p class="text-xs text-neutral-400 mt-1">
+                                ≈ {{ floor($memorizedPages / 20) }} جزء من 30
+                            </p>
+                        @endif
+                    </div>
+                </div>
+            @empty
+                <div class="text-center py-8 text-neutral-500">
+                    لا يوجد أبناء مسجلين حالياً
+                </div>
+            @endforelse
+        </div>
+    </div>
+</div>

@@ -2013,20 +2013,14 @@
                         <flux:select.option value="freeze">تجميد (فردي للطلاب)</flux:select.option>
                         <flux:select.option value="team_attack">خصم على مجموعة (جماعي للأسرة)</flux:select.option>
                         <flux:select.option value="shield">درع حماية لمدة يوم (جماعي للأسرة)</flux:select.option>
-                        <flux:select.option value="multiplier">مضاعفة النقاط ليوم (جماعي للأسرة)</flux:select.option>
                         <flux:select.option value="team_points">إضافة نقاط للفريق (جماعي للأسرة)</flux:select.option>
                     </flux:select>
                 </div>
 
-                @if(in_array($item_type, ['shield', 'multiplier']) && !$this->isEditingPermanentItem())
+                @if($item_type === 'shield' && !$this->isEditingPermanentItem())
                     <div>
                         <flux:input type="date" wire:model="item_target_date" label="تاريخ اليوم المحدد (اختياري - اتركه فارغاً لتحديد التاريخ عند الشراء)" />
                     </div>
-                    @if($item_type === 'multiplier')
-                        <div>
-                            <flux:input type="number" wire:model="item_value" label="قيمة المضاعفة (مثال: 2 لمضاعفة النقاط)" placeholder="مثال: 2" required />
-                        </div>
-                    @endif
                 @elseif(in_array($item_type, ['team_attack', 'team_points']) && !$this->isEditingPermanentItem())
                     <div>
                         <flux:input type="number" wire:model="item_value" label="{{ $item_type === 'team_attack' ? 'عدد النقاط المخصومة' : 'عدد النقاط المضافة' }}" placeholder="مثال: 50" required />

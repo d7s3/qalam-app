@@ -2118,68 +2118,69 @@ class GamificationService
             ->toArray();
         $hadithAchievements = empty($hadithIds) ? collect() : StudentHadithAchievement::with('pathDay')->whereIn('id', $hadithIds)->get()->keyBy('id');
 
+        // Teacher-given extra points carry their own intended date on the source row,
+        // which may differ from when the sync job created the transaction.
+        $extraPointIds = $transactions->where('reference_type', 'leaderboard_extra_points')
+            ->pluck('reference_id')
+            ->unique()
+            ->toArray();
+        $extraPoints = empty($extraPointIds) ? collect() : DB::table('leaderboard_extra_points')->whereIn('id', $extraPointIds)->get()->keyBy('id');
+
         $totalTeamScore = 0;
+
+        // Only these sources bake an individual multiplier into xp_amount at creation time,
+        // so only they need the base XP recovered before the team multiplier is reapplied.
+        $individualMultiplierEligibleTypes = [
+            Attendance::class,
+            StudentPlanDay::class,
+            LeaderboardScore::class,
+            StudentOdeAchievement::class,
+            StudentHadithAchievement::class,
+        ];
 
         foreach ($transactions as $tx) {
             $date = null;
-            $hasMultiplier = false;
 
             if ($tx->reference_type === Attendance::class) {
-                $att = $attendances->get($tx->reference_id);
-                if ($att) {
-                    $date = $att->date;
-                    $hasMultiplier = true;
-                }
+                $date = $attendances->get($tx->reference_id)?->date;
             } elseif ($tx->reference_type === StudentPlanDay::class) {
-                $day = $planDays->get($tx->reference_id);
-                if ($day) {
-                    $date = $day->date;
-                    $hasMultiplier = true;
-                }
+                $date = $planDays->get($tx->reference_id)?->date;
             } elseif ($tx->reference_type === LeaderboardScore::class) {
-                $sc = $scores->get($tx->reference_id);
-                if ($sc) {
-                    $date = $sc->date;
-                    $hasMultiplier = true;
-                }
+                $date = $scores->get($tx->reference_id)?->date;
             } elseif ($tx->reference_type === StudentOdeAchievement::class) {
                 $ach = $odeAchievements->get($tx->reference_id);
-                if ($ach) {
-                    $date = $ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date;
-                    $hasMultiplier = (bool) $date;
-                }
+                $date = $ach ? ($ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date) : null;
             } elseif ($tx->reference_type === StudentHadithAchievement::class) {
                 $ach = $hadithAchievements->get($tx->reference_id);
-                if ($ach) {
-                    $date = $ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date;
-                    $hasMultiplier = (bool) $date;
-                }
+                $date = $ach ? ($ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date) : null;
+            } elseif ($tx->reference_type === 'leaderboard_extra_points') {
+                $date = $extraPoints->get($tx->reference_id)?->date;
             }
 
-            if ($hasMultiplier && $date) {
-                // Determine the student's individual multiplier on this date
+            // Every other XP source (team tasks, activity wins, manual adjustments, streak
+            // milestones, ...) is dated by when it was credited, so the team multiplier
+            // still applies to every source of XP, not just the ones with a business date.
+            $date ??= $tx->created_at;
+
+            $individualMultiplier = 1;
+            if (in_array($tx->reference_type, $individualMultiplierEligibleTypes, true)) {
                 $student = $teamStudents->firstWhere('id', $tx->student_id);
-                $individualMultiplier = 1;
                 if ($student) {
                     $individualMultiplier = self::getMultiplierForStudent($student, $leaderboard->id, $date);
                 }
-
-                // Determine the team multiplier on this date
-                $teamMultiplier = self::getMultiplierForTeam($team, $date);
-
-                // Effective multiplier is max of individual and team multiplier, up to 2
-                $effectiveMultiplier = max($individualMultiplier, $teamMultiplier);
-                $effectiveMultiplier = min(2, $effectiveMultiplier);
-
-                // Since $tx->xp_amount has individual multiplier applied, the base XP was:
-                $baseXp = (int) round($tx->xp_amount / $individualMultiplier);
-
-                // Team receives base XP multiplied by the effective multiplier
-                $totalTeamScore += ($baseXp * $effectiveMultiplier);
-            } else {
-                // Other transactions (like extra points or milestones) do not receive team multiplier
-                $totalTeamScore += $tx->xp_amount;
             }
+
+            // Determine the team multiplier on this date
+            $teamMultiplier = self::getMultiplierForTeam($team, $date);
+
+            // Effective multiplier is max of individual and team multiplier, up to 2
+            $effectiveMultiplier = min(2, max($individualMultiplier, $teamMultiplier));
+
+            // Since $tx->xp_amount may have an individual multiplier already applied, recover the base XP.
+            $baseXp = $individualMultiplier > 1 ? (int) round($tx->xp_amount / $individualMultiplier) : $tx->xp_amount;
+
+            // Team receives base XP multiplied by the effective multiplier
+            $totalTeamScore += ($baseXp * $effectiveMultiplier);
         }
 
         return $totalTeamScore;

@@ -541,18 +541,17 @@ it('manages individual store items and streak freezes', function () {
     expect($item->is_streak_freeze)->toBeTrue();
     expect($item->item_type)->toBe('freeze');
 
-    // Create Team item
+    // Create Team Shield item (a team product carrying a target date)
     $component->call('createItem')
-        ->set('item_name', 'مضاعف نقاط الأسرة')
+        ->set('item_name', 'درع حماية الأسرة')
         ->set('item_price', 300)
-        ->set('item_type', 'multiplier')
-        ->set('item_value', 2)
+        ->set('item_type', 'shield')
         ->set('item_target_date', now()->addDay()->format('Y-m-d'))
         ->call('saveItem')
         ->assertHasNoErrors();
 
     $teamItem = GamificationStoreItem::where('leaderboard_id', $this->leaderboard->id)
-        ->where('item_type', 'multiplier')
+        ->where('item_type', 'shield')
         ->where('is_team_product', true)
         ->first();
 
@@ -577,6 +576,28 @@ it('manages individual store items and streak freezes', function () {
     expect($pointsItem)->not->toBeNull();
     expect($pointsItem->is_team_product)->toBeTrue();
     expect($pointsItem->value)->toBe(150);
+});
+
+it('does not allow the supervisor to create a multiplier store product', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    // The team multiplier is governed solely by level settings; it must not be
+    // creatable as a duplicate store product through the supervisor store form.
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->call('createItem')
+        ->set('item_name', 'مضاعف مكرر')
+        ->set('item_price', 300)
+        ->set('item_type', 'multiplier')
+        ->set('item_value', 2)
+        ->call('saveItem')
+        ->assertHasErrors('item_type');
+
+    expect(
+        GamificationStoreItem::where('leaderboard_id', $this->leaderboard->id)
+            ->where('item_type', 'multiplier')
+            ->where('is_team_product', true)
+            ->exists()
+    )->toBeFalse();
 });
 
 it('allows supervisor to upload custom images for custom theme settings and compresses them to webp', function () {

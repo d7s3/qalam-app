@@ -49,7 +49,7 @@
 
                 @foreach($navItems as $item)
                     <button
-                        x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: '{{ $item['tab'] }}' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                        x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: '{{ $item['tab'] }}' } })); @if($item['tab'] === 'news') window.dispatchEvent(new CustomEvent('news-opened')); @endif window.scrollTo({ top: 0, behavior: 'instant' });"
                         :class="activeTab === '{{ $item['tab'] }}' ? 'text-white' : 'text-white/60 hover:text-white'"
                         class="relative flex flex-col items-center justify-center duration-300 ease-out h-full flex-1 py-2 cursor-pointer">
 
@@ -58,6 +58,10 @@
                             <flux:icon icon="{{ $item['icon'] }}" class="size-7 shrink-0"
                                 x-bind:variant="activeTab === '{{ $item['tab'] }}' ? 'solid' : 'outline'" />
                             <span x-show="activeTab === '{{ $item['tab'] }}'" x-cloak class="ms-2 font-bold text-sm truncate block">{{ $item['name'] }}</span>
+
+                            @if($item['tab'] === 'news')
+                                <livewire:student.gamification-news-badge :leaderboard-id="$activeGamification->id" wire:key="gam-news-badge-{{ $activeGamification->id }}" />
+                            @endif
                         </div>
                     </button>
                 @endforeach

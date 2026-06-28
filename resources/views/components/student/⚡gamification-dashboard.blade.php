@@ -171,7 +171,7 @@ new class extends Component {
             'is_team_product' => $isTeam,
         ], [
             'name' => $isTeam ? 'مضاعف النقاط للكل' : 'مضاعف النقاط الفردي',
-            'description' => $isTeam ? 'مضاعفة نقاط الحفظ والمراجعة والحضور للفريق بأكمله ليوم واحد.' : 'مضاعفة نقاط الحفظ والمراجعة والحضور الخاصة بك ليوم واحد.',
+            'description' => $isTeam ? 'مضاعفة جميع نقاط الخبرة التي يحصّلها الفريق من كل المصادر (الحفظ، المراجعة، الحضور، المهام، الفعاليات، والتسويات اليدوية) ليوم واحد.' : 'مضاعفة نقاط الحفظ والمراجعة والحضور الخاصة بك ليوم واحد.',
             'price' => 150,
             'value' => 2,
             'is_active' => true,
@@ -423,6 +423,8 @@ new class extends Component {
         $teamShieldActiveToday = false;
         $studentVotes = [];        $teamColor = '#4f46e5';
         $workingDays = [];
+        $xpToday = 0;
+        $coinsToday = 0;
 
         if ($activeGamification) {
             \App\Services\GamificationService::recalculateStudentStreak($student, $activeGamification);
@@ -432,6 +434,19 @@ new class extends Component {
                 'leaderboard_id' => $activeGamification->id,
             ]);
             $gamificationLevelInfo = \App\Services\GamificationService::getStudentLevel($student->id, $activeGamification->id);
+
+            // XP and coins the student has earned today, shown as live "today" deltas
+            // in the compact stats bar.
+            $earnedToday = \App\Models\GamificationTransaction::where('leaderboard_id', $activeGamification->id)
+                ->where('student_id', $student->id)
+                ->where('type', 'earn')
+                ->claimed()
+                ->where('created_at', '>=', \Carbon\Carbon::now('Asia/Riyadh')->startOfDay())
+                ->selectRaw('COALESCE(SUM(xp_amount), 0) as xp_sum, COALESCE(SUM(amount), 0) as coin_sum')
+                ->first();
+            $xpToday = (int) ($earnedToday->xp_sum ?? 0);
+            $coinsToday = (int) ($earnedToday->coin_sum ?? 0);
+
             $freezeableDates = \App\Services\GamificationService::getFreezeableDates($student, $activeGamification);
             $nextFreezeUpgrade = \App\Services\GamificationService::getNextFreezeUpgrade($student, $activeGamification);
             $studentTeam = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('students.id', $student->id))
@@ -809,7 +824,9 @@ new class extends Component {
             'activeGamification' => $activeGamification,
             'gamificationState' => $gamificationState,
             'gamificationLevelInfo' => $gamificationLevelInfo,
-            'studentLevel' => $gamificationLevelInfo['level'] ?? 1,
+            'studentLevel' => $gamificationLevelInfo['current']?->level_number ?? 1,
+            'xpToday' => $xpToday,
+            'coinsToday' => $coinsToday,
             'studentTeam' => $studentTeam,
             'teamRole' => $teamRole,
             'theme' => $theme,
@@ -1842,28 +1859,75 @@ new class extends Component {
     <div class="relative z-10 space-y-6 p-3 md:p-8 min-h-[calc(100svh-4rem)]">
 
         <!-- Compact Stats Bar (always visible on non-home tabs) -->
-        <div x-show="currentTab !== 'leaderboard'" x-cloak
-            class="flex items-center justify-around gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
-            <div class="flex flex-col items-center gap-0.5">
-                <span class="text-xs text-slate-400 font-medium">{{ __('المستوى') }}</span>
-                <span class="text-base font-black text-team-primary">{{ $studentLevel }}</span>
-            </div>
-            <div class="w-px h-8 bg-slate-200"></div>
-            <div class="flex flex-col items-center gap-0.5">
-                <span class="text-xs text-slate-400 font-medium">{{ __('النقاط') }}</span>
-                <span class="text-base font-black text-slate-900">{{ number_format($gamificationState?->score ?? 0) }} XP</span>
-            </div>
-            <div class="w-px h-8 bg-slate-200"></div>
-            <div class="flex flex-col items-center gap-0.5">
-                <span class="text-xs text-slate-400 font-medium">{{ __('العملات') }}</span>
-                <span class="text-base font-black text-amber-600">{{ $gamificationState?->coins ?? 0 }} {!! $this->renderEmoji($style['coin_emoji'], 'size-5 inline-block align-middle') !!}</span>
-            </div>
+        @php
+            $lvlCur = $gamificationLevelInfo['current'] ?? null;
+            $lvlNxt = $gamificationLevelInfo['next'] ?? null;
+            $lvlXp = (int) ($gamificationLevelInfo['xp'] ?? 0);
+            $lvlBase = (int) ($lvlCur->xp_required ?? 0);
+            $lvlTarget = $lvlNxt->xp_required ?? null;
+            $lvlPct = ($lvlTarget !== null && $lvlTarget > $lvlBase)
+                ? min(100, max(0, (int) round((($lvlXp - $lvlBase) / ($lvlTarget - $lvlBase)) * 100)))
+                : 100;
+        @endphp
+        <div x-show="currentTab !== 'leaderboard'" x-cloak x-transition.opacity
+            class="sticky top-2 z-30 flex items-stretch justify-around gap-1 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl px-2 py-2 shadow-sm">
+
+            {{-- Level (tap → home) with progress to next level --}}
+            <button type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer">
+                <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none">
+                    <flux:icon icon="trophy" class="size-3 shrink-0" />{{ __('المستوى') }}
+                </span>
+                <span class="text-base font-black leading-none text-team-primary">{{ $studentLevel }}</span>
+                <span class="w-full max-w-14 h-1 rounded-full bg-slate-100 overflow-hidden" title="{{ $lvlPct }}% {{ __('نحو المستوى التالي') }}">
+                    <span class="block h-full rounded-full bg-team-primary transition-all duration-700" style="width: {{ $lvlPct }}%"></span>
+                </span>
+            </button>
+
+            <div class="w-px self-center h-9 bg-slate-200"></div>
+
+            {{-- XP (tap → home) with today's delta --}}
+            <button type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer">
+                <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none">
+                    <flux:icon icon="sparkles" class="size-3 shrink-0" />{{ __('النقاط') }}
+                </span>
+                <span class="text-base font-black text-slate-900 leading-none">{{ number_format($lvlXp) }}</span>
+                <span class="text-[9px] font-black leading-none {{ $xpToday > 0 ? 'text-emerald-600' : 'text-transparent' }}">
+                    {{ $xpToday > 0 ? '+'.number_format($xpToday).' '.__('اليوم') : '.' }}
+                </span>
+            </button>
+
+            <div class="w-px self-center h-9 bg-slate-200"></div>
+
+            {{-- Coins (tap → store) with today's delta + context highlight --}}
+            <button type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'store' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                :class="currentTab === 'store' ? 'bg-amber-50 ring-1 ring-amber-200' : 'hover:bg-slate-50'"
+                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 transition-colors cursor-pointer">
+                <span class="text-[10px] text-slate-400 font-bold leading-none">{{ __('العملات') }}</span>
+                <span class="text-base font-black text-amber-600 leading-none flex items-center gap-1">{{ $gamificationState?->coins ?? 0 }} {!! $this->renderEmoji($style['coin_emoji'], 'size-4 inline-block align-middle') !!}</span>
+                <span class="text-[9px] font-black leading-none {{ $coinsToday > 0 ? 'text-emerald-600' : 'text-transparent' }}">
+                    {{ $coinsToday > 0 ? '+'.number_format($coinsToday).' '.__('اليوم') : '.' }}
+                </span>
+            </button>
+
             @if($studentTeam)
-            <div class="w-px h-8 bg-slate-200"></div>
-            <div class="flex flex-col items-center gap-0.5">
-                <span class="text-xs text-slate-400 font-medium">{{ $theme['team_possessive_my'] }}</span>
-                <span class="text-base font-black" style="color: {{ $teamColor }}">{!! $this->renderEmoji($style['team_emoji'], 'size-5 inline-block align-middle') !!} {{ $studentTeam->name }}</span>
-            </div>
+                <div class="w-px self-center h-9 bg-slate-200"></div>
+
+                {{-- Team (tap → team) with truncated name + context highlight --}}
+                <button type="button"
+                    x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'team' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                    :class="currentTab === 'team' ? 'bg-team-10 ring-1 ring-team-20' : 'hover:bg-slate-50'"
+                    class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 transition-colors cursor-pointer min-w-0">
+                    <span class="text-[10px] text-slate-400 font-bold leading-none truncate max-w-full">{{ $theme['team_possessive_my'] }}</span>
+                    <span class="text-sm font-black leading-none flex items-center gap-1 max-w-[5.5rem]" style="color: {{ $teamColor }}">
+                        {!! $this->renderEmoji($style['team_emoji'], 'size-4 inline-block align-middle shrink-0') !!}
+                        <span class="truncate">{{ $studentTeam->name }}</span>
+                    </span>
+                </button>
             @endif
         </div>
 
@@ -2040,6 +2104,13 @@ new class extends Component {
         <div x-show="currentTab === 'leaderboard'" class="space-y-6">
             <!-- Quranic Missions Section inside Main Tab -->
             <div class="space-y-4">
+                @php
+                    $showTeamMultiplier = false;
+                    if ($activeGamification && isset($gamificationLevelInfo['current']) && $studentTeam && $teamRole === 'leader') {
+                        $lvlSettings = $gamificationLevelInfo['current']->settings ?? [];
+                        $showTeamMultiplier = (bool) ($lvlSettings['has_team_multiplier'] ?? true);
+                    }
+                @endphp
                 <flux:heading size="lg" class="text-slate-900 flex items-center gap-2 font-black">
                     <svg class="size-6 text-slate-600 dark:text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
@@ -2051,13 +2122,6 @@ new class extends Component {
                         <p class="text-sm text-slate-500">{{ __('لا توجد مهام قرآنية معلقة حالياً') }}</p>
                     </div>
                 @else
-                    @php
-                        $showTeamMultiplier = false;
-                        if ($activeGamification && isset($gamificationLevelInfo['current']) && $studentTeam && $teamRole === 'leader') {
-                            $lvlSettings = $gamificationLevelInfo['current']->settings ?? [];
-                            $showTeamMultiplier = (bool) ($lvlSettings['has_team_multiplier'] ?? true);
-                        }
-                    @endphp
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         @foreach($pendingMissions as $m)
                             <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
@@ -2559,6 +2623,23 @@ new class extends Component {
                         </div>
                     </div>
                 </div>
+
+                <!-- Team points multiplier (leader only) inside team tab -->
+                @if($showTeamMultiplier)
+                    <div class="mt-6 border-t border-slate-100 pt-6">
+                        <div class="flex items-center justify-between gap-3 flex-wrap">
+                            <div class="flex items-center gap-2">
+                                <svg class="size-5 text-yellow-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd" />
+                                </svg>
+                                <span class="text-sm text-slate-700 font-bold">مضاعفة جميع نقاط الفريق ليوم واحد</span>
+                            </div>
+                            <flux:button variant="primary" wire:click="openDoublePointsModal('{{ \Carbon\Carbon::now('Asia/Riyadh')->addDay()->format('Y-m-d') }}', 'team')" size="sm" class="bg-team-primary hover:bg-team-primary-hover border-none font-bold !text-white shadow-sm" style="color: white !important;" icon="bolt">
+                                {{ __('مضاعفة نقاط الفريق') }}
+                            </flux:button>
+                        </div>
+                    </div>
+                @endif
 
                 <!-- Donation inside team tab -->
                 @php
@@ -3206,7 +3287,7 @@ new class extends Component {
                     {{ $doublePointsType === 'team' ? 'شراء مضاعف النقاط للفريق ⚡' : 'شراء مضاعف النقاط الفردي ⚡' }}
                 </flux:heading>
                 <flux:subheading>
-                    {{ $doublePointsType === 'team' ? 'ضاعف جميع نقاط الحفظ والمراجعة والحضور لفريقك في اليوم المختار.' : 'ضاعف جميع نقاط الحفظ والمراجعة والحضور الخاصة بك في اليوم المختار.' }}
+                    {{ $doublePointsType === 'team' ? 'ضاعف جميع نقاط الخبرة التي يحصّلها فريقك من كل المصادر (الحفظ، المراجعة، الحضور، المهام، الفعاليات، والتسويات اليدوية) في اليوم المختار.' : 'ضاعف جميع نقاط الحفظ والمراجعة والحضور الخاصة بك في اليوم المختار.' }}
                 </flux:subheading>
             </div>
 
