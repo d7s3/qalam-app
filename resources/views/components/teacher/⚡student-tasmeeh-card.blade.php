@@ -853,6 +853,11 @@ new class extends Component {
                                     <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
                                         {{ $odeDay->formatOdeRange('hifz') }}
                                     </p>
+                                    @if ($odeDay->hifz_achievement !== null && $odeDay->hifz_graded_at)
+                                        <div class="text-xs text-indigo-600/70 dark:text-indigo-400/70 font-semibold mt-1">
+                                            {{ __('تاريخ الإنجاز') }}: {{ \Carbon\Carbon::parse($odeDay->hifz_graded_at)->format('Y-m-d') }}
+                                        </div>
+                                    @endif
                                 </div>
 
                                 <flux:separator class="opacity-50 shrink-0" />
@@ -921,6 +926,11 @@ new class extends Component {
                                     <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
                                         {{ $odeDay->formatOdeRange('review') }}
                                     </p>
+                                    @if ($odeDay->review_achievement !== null && $odeDay->review_graded_at)
+                                        <div class="text-xs text-emerald-600/70 dark:text-emerald-400/70 font-semibold mt-1">
+                                            {{ __('تاريخ الإنجاز') }}: {{ \Carbon\Carbon::parse($odeDay->review_graded_at)->format('Y-m-d') }}
+                                        </div>
+                                    @endif
                                 </div>
 
                                 <flux:separator class="opacity-50 shrink-0" />
