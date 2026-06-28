@@ -195,6 +195,23 @@ it('lets the supervisor place a new student into a stage and circle outside thei
     expect(Student::where('name', 'طالب مرحلة بعيدة')->first()->stage_id)->toBe($foreignStage->id);
 });
 
+it('searches responses across all fields, not just the name', function () {
+    FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محمد', 'f_nat' => 'مصري', 'f_phone' => '0551112233']]);
+    FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'علي', 'f_nat' => 'سعودي', 'f_phone' => '0509998877']]);
+
+    // Match by nationality (Arabic, non-name field).
+    Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->set('search', 'مصري')
+        ->assertSee('محمد')
+        ->assertDontSee('علي');
+
+    // Match by phone (a different non-name field).
+    Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->set('search', '9998877')
+        ->assertSee('علي')
+        ->assertDontSee('محمد');
+});
+
 it('creates accounts only for the selected responses', function () {
     $pick1 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد أول', 'f_email' => 'pick1']]);
     $pick2 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد ثاني', 'f_email' => 'pick2']]);

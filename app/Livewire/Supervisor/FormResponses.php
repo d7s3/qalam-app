@@ -588,17 +588,27 @@ class FormResponses extends Component
 
     public function render()
     {
-        $responsesQuery = FormResponse::where('form_id', $this->form->id)
+        $responses = FormResponse::where('form_id', $this->form->id)
             ->with('student')
-            ->latest();
+            ->latest()
+            ->get();
 
-        if ($this->search) {
-            $responsesQuery->where(function ($q) {
-                $q->where('answers', 'like', '%'.$this->search.'%');
-            });
+        // Search every answer value across all fields. Filtering in PHP (on the
+        // decoded answers) is reliable for Arabic, unlike a LIKE on the JSON column
+        // whose unicode is escaped (\uXXXX) at rest.
+        $term = trim($this->search);
+        if ($term !== '') {
+            $responses = $responses->filter(function (FormResponse $response) use ($term) {
+                foreach ((array) $response->answers as $value) {
+                    $value = is_array($value) ? implode(' ', $value) : (string) $value;
+                    if (mb_stripos($value, $term) !== false) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })->values();
         }
-
-        $responses = $responsesQuery->get();
 
         $supervisor = auth()->guard('supervisor')->user();
         $scopedCircleIds = Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id');
