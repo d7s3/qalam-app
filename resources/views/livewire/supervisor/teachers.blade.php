@@ -74,6 +74,7 @@
             </div>
             <div class="w-full md:w-1/3">
                 <flux:select wire:model="quickCircleId" label="{{ __('اختر الحلقة') }}" required placeholder="اختر حلقة">
+                    <flux:select.option value="">اختر حلقة</flux:select.option>
                     @foreach($circles as $circle)
                         <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
                     @endforeach
