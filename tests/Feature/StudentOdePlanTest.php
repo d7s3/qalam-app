@@ -197,6 +197,20 @@ it('allows teacher to grade student recitation of ode path days', function () {
     $achievement = $achievement->fresh();
     expect($achievement->review_achievement)->toBe(2);
     expect($achievement->review_graded_at)->not->toBeNull();
+
+    // Grading "لم يسمع" must clear the hifz value and its timestamp (null, not 0).
+    Livewire::test('teacher.student-tasmeeh-card', [
+        'student' => $this->student,
+        'sPlans' => collect(),
+        'activePlanId' => null,
+        'gradedAtDate' => '2026-06-18',
+    ])
+        ->call('saveOdeAchievement', $day->id, 'hifz', null)
+        ->assertHasNoErrors();
+
+    $achievement = $achievement->fresh();
+    expect($achievement->hifz_achievement)->toBeNull();
+    expect($achievement->hifz_graded_at)->toBeNull();
 });
 
 it('renders odes plans list page for supervisor', function () {

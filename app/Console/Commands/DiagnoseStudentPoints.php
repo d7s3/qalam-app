@@ -4,9 +4,10 @@ namespace App\Console\Commands;
 
 use App\Models\GamificationTransaction;
 use App\Models\Student;
+use App\Models\StudentHadithAchievement;
+use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
 use App\Services\GamificationService;
-use Carbon\Carbon;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -58,45 +59,39 @@ class DiagnoseStudentPoints extends Command
             }
         }
 
-        $gradedDayRows = StudentPlanDay::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
-            ->where(fn ($q) => $q->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'))
-            ->get(['id', 'date', 'hifz_graded_at', 'review_graded_at']);
-        $gradedDays = $gradedDayRows->count();
+        // Break down every memorization source: hifz/review, odes, and hadith.
+        $graded = fn ($q) => $q->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement');
+        $sources = [
+            ['label' => 'الحفظ/المراجعة', 'class' => StudentPlanDay::class,
+                'graded' => StudentPlanDay::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))->where($graded)->count()],
+            ['label' => 'المنظومات', 'class' => StudentOdeAchievement::class,
+                'graded' => StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))->where($graded)->count()],
+            ['label' => 'الأحاديث', 'class' => StudentHadithAchievement::class,
+                'graded' => StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))->where($graded)->count()],
+        ];
 
-        // Count graded days whose grading date actually falls inside an active
-        // competition (the gating rule).
-        $inWindow = 0;
-        $dateCovered = [];
-        foreach ($gradedDayRows as $row) {
-            $gradeDate = $row->hifz_graded_at ?? $row->review_graded_at ?? $row->date;
-            $key = Carbon::parse($gradeDate)->format('Y-m-d');
-            if (! array_key_exists($key, $dateCovered)) {
-                $dateCovered[$key] = GamificationService::getActiveLeaderboards($student, $key)->isNotEmpty();
-            }
-            if ($dateCovered[$key]) {
-                $inWindow++;
-            }
+        $totalGraded = 0;
+        $totalTx = 0;
+        $totalPending = 0;
+        foreach ($sources as $source) {
+            $tx = GamificationTransaction::where('student_id', $student->id)->where('reference_type', $source['class']);
+            $cnt = (clone $tx)->count();
+            $pending = (clone $tx)->whereNull('claimed_at')->count();
+            $totalGraded += $source['graded'];
+            $totalTx += $cnt;
+            $totalPending += $pending;
+            $this->line("- {$source['label']}: مُقيَّم {$source['graded']} | معاملات نقاط {$cnt} (بانتظار المطالبة {$pending})");
         }
-        $this->line("أيام مُقيَّمة (حفظ/مراجعة): {$gradedDays} — منها {$inWindow} تاريخ تقييمها ضمن مسابقة نشطة");
-
-        $base = GamificationTransaction::where('student_id', $student->id)
-            ->where('reference_type', StudentPlanDay::class);
-        $total = (clone $base)->count();
-        $pending = (clone $base)->whereNull('claimed_at')->count();
-        $claimed = (clone $base)->whereNotNull('claimed_at')->count();
-        $this->line("معاملات تسميع: {$total} (مُطالَب بها: {$claimed} | بانتظار المطالبة: {$pending})");
 
         $this->newLine();
-        if ($gradedDays > 0 && $inWindow === 0) {
-            $this->warn('الخلاصة: كل تواريخ التقييم خارج نطاق المسابقة → لا نقاط (هذا صحيح). قيّم خلال فترة المسابقة لتُحتسب النقاط.');
-        } elseif ($total === 0 && $inWindow > 0) {
-            $this->warn('الخلاصة: توجد تقييمات ضمن المسابقة بلا معاملات. شغّل: php artisan gamification:recompute-plan-day-points');
-        } elseif ($pending > 0 && $claimed === 0) {
-            $this->warn('الخلاصة: النقاط موجودة لكنها «بانتظار المطالبة» (المطالبة اليدوية مفعّلة) — على الطالب الضغط على «مطالبة» لتُضاف لرصيده.');
-        } elseif ($total > 0) {
-            $this->info('الخلاصة: النقاط محتسبة بشكل صحيح لهذا الطالب.');
+        if ($totalGraded > 0 && $totalTx === 0) {
+            $this->warn('الخلاصة: توجد تقييمات بلا معاملات — تواريخ التقييم خارج نطاق المسابقة، أو لم يُعَد الاحتساب. شغّل: php artisan gamification:recompute-plan-day-points');
+        } elseif ($totalPending > 0) {
+            $this->warn("الخلاصة: {$totalPending} معاملة «بانتظار المطالبة» (المطالبة اليدوية مفعّلة) — على الطالب الضغط على «مطالبة» لتُضاف لرصيده، أو عطّل المطالبة اليدوية من إعدادات المسار.");
+        } elseif ($totalTx > 0) {
+            $this->info('الخلاصة: النقاط محتسبة ومُطالَب بها بشكل صحيح لهذا الطالب.');
         } else {
-            $this->warn('الخلاصة: لا توجد تقييمات حفظ/مراجعة لهذا الطالب بعد.');
+            $this->warn('الخلاصة: لا توجد تقييمات لهذا الطالب بعد.');
         }
 
         return self::SUCCESS;
