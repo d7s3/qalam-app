@@ -37,10 +37,13 @@ class GamificationService
 
         return Leaderboard::where('is_active', true)
             ->where('competition_type', 'gamification')
-            ->where('start_date', '<=', $date)
+            // Compare on the date part only. start_date/end_date are stored with a
+            // "00:00:00" time, so a plain string `where` would exclude the very first
+            // day of the competition ("...00:00:00" > "Y-m-d").
+            ->whereDate('start_date', '<=', $date)
             ->where(function ($query) use ($date) {
                 $query->whereNull('end_date')
-                    ->orWhere('end_date', '>=', $date);
+                    ->orWhereDate('end_date', '>=', $date);
             })
             ->where(function ($query) use ($student) {
                 $query->where('circle_id', $student->circle_id)

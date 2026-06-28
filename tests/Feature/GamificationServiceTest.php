@@ -123,6 +123,36 @@ it('syncs student hifz and review points', function () {
     expect($state->coins)->toBe(13);
 });
 
+it('awards points on the competition start day despite the stored 00:00:00 time', function () {
+    // Competition starts today, stored with a midnight time component. A plain
+    // string `where('start_date','<=',today)` would wrongly exclude this day.
+    $this->leaderboard->update([
+        'start_date' => now()->startOfDay(),
+        'end_date' => now()->addDays(30)->startOfDay(),
+    ]);
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    $day = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->format('Y-m-d'),
+        'day_name' => 'الجمعة',
+        'hifz_achievement' => 3,
+        'hifz_graded_at' => now(),
+    ]);
+
+    GamificationService::syncStudentPlanDayXP($day);
+
+    expect(GamificationTransaction::where('reference_id', $day->id)
+        ->where('reference_type', StudentPlanDay::class)->count())->toBe(1);
+});
+
 it('gates points on the grading date, not the plan day date', function () {
     $plan = StudentPlan::create([
         'student_id' => $this->student->id,
