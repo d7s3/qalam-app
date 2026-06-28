@@ -95,7 +95,7 @@ class Stages extends Component
         $stage = Stage::findOrFail($id);
         $this->editingStageId = $stage->id;
         $this->name = $stage->name;
-        $this->description = $stage->description;
+        $this->description = $stage->description ?? '';
         $this->selectedSupervisors = $stage->supervisors->pluck('id')->toArray();
         Flux::modal('stage-modal')->show();
     }
