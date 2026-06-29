@@ -256,6 +256,64 @@ it('only displays and filters by stages filled in the responses', function () {
         ->assertDontSee('طالب ابتدائي');
 });
 
+it('can filter responses by custom form fields', function () {
+    // Create form with custom fields including select/multiselect and text
+    $customForm = Form::create([
+        'supervisor_id' => $this->supervisor->id,
+        'title' => 'استمارة مخصصة',
+        'slug' => 'custom-form',
+        'color' => '#14b8a6',
+        'fields' => [
+            ['id' => 'q_city', 'type' => 'select', 'label' => 'المدينة', 'options' => ['الرياض', 'جدة', 'الدمام']],
+            ['id' => 'q_hobbies', 'type' => 'multiselect', 'label' => 'الهوايات', 'options' => ['القراءة', 'الرياضة', 'الرسم']],
+            ['id' => 'q_notes', 'type' => 'text', 'label' => 'ملاحظات'],
+        ],
+    ]);
+
+    // Create some responses
+    FormResponse::create([
+        'form_id' => $customForm->id,
+        'answers' => ['q_city' => 'الرياض', 'q_hobbies' => ['القراءة', 'الرسم'], 'q_notes' => 'طالب متميز'],
+    ]);
+
+    FormResponse::create([
+        'form_id' => $customForm->id,
+        'answers' => ['q_city' => 'جدة', 'q_hobbies' => ['الرياضة'], 'q_notes' => 'مهتم جداً'],
+    ]);
+
+    // Test with select question
+    Livewire::test(FormResponses::class, ['formId' => $customForm->id])
+        ->set('filterFieldId', 'q_city')
+        ->set('filterFieldValue', 'الرياض')
+        ->assertViewHas('responses', function ($responses) {
+            return $responses->count() === 1 && $responses->first()->answers['q_city'] === 'الرياض';
+        })
+        ->set('filterFieldValue', 'جدة')
+        ->assertViewHas('responses', function ($responses) {
+            return $responses->count() === 1 && $responses->first()->answers['q_city'] === 'جدة';
+        });
+
+    // Test with multiselect question
+    Livewire::test(FormResponses::class, ['formId' => $customForm->id])
+        ->set('filterFieldId', 'q_hobbies')
+        ->set('filterFieldValue', 'الرياضة')
+        ->assertViewHas('responses', function ($responses) {
+            return $responses->count() === 1 && $responses->first()->answers['q_city'] === 'جدة'; // Jeddah has الرياضة
+        })
+        ->set('filterFieldValue', 'الرسم')
+        ->assertViewHas('responses', function ($responses) {
+            return $responses->count() === 1 && $responses->first()->answers['q_city'] === 'الرياض'; // Riyadh has الرسم
+        });
+
+    // Test with text question
+    Livewire::test(FormResponses::class, ['formId' => $customForm->id])
+        ->set('filterFieldId', 'q_notes')
+        ->set('filterFieldValue', 'متميز')
+        ->assertViewHas('responses', function ($responses) {
+            return $responses->count() === 1 && str_contains($responses->first()->answers['q_notes'], 'متميز');
+        });
+});
+
 it('creates accounts only for the selected responses', function () {
     $pick1 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد أول', 'f_email' => 'pick1']]);
     $pick2 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد ثاني', 'f_email' => 'pick2']]);

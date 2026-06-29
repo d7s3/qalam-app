@@ -94,6 +94,10 @@ class FormResponses extends Component
 
     public array $filterAges = [];
 
+    public ?string $filterFieldId = null;
+
+    public string $filterFieldValue = '';
+
     public string $sortBy = 'created_at';
 
     public string $sortDirection = 'desc';
@@ -111,6 +115,11 @@ class FormResponses extends Component
     public function toggleSortDirection(): void
     {
         $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+    }
+
+    public function updatedFilterFieldId(): void
+    {
+        $this->filterFieldValue = '';
     }
 
     public function mount(int $formId): void
@@ -788,6 +797,19 @@ class FormResponses extends Component
                 return false;
             });
         }
+
+        // 5b. Filter by Custom Form Field
+        if ($this->filterFieldId && $this->filterFieldValue !== '') {
+            $responses = $responses->filter(function (FormResponse $response) {
+                $answer = $response->answers[$this->filterFieldId] ?? null;
+                if (is_array($answer)) {
+                    return in_array($this->filterFieldValue, $answer) ||
+                           collect($answer)->contains(fn ($val) => mb_stripos((string)$val, (string)$this->filterFieldValue) !== false);
+                }
+                return mb_stripos((string)$answer, (string)$this->filterFieldValue) !== false;
+            });
+        }
+
         // Helper functions for Sorting
         $getName = function (FormResponse $response) {
             if ($response->student_id && $response->student) {

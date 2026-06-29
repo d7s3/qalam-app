@@ -46,12 +46,12 @@
     <!-- Responses Tab -->
     <div x-show="activeTab === 'responses'" class="space-y-4">
         <!-- Search and Filters bar -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <div class="md:col-span-2">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
+            <div class="md:col-span-4">
                 <flux:input wire:model.live.debounce.300ms="search" placeholder="البحث في الردود والإجابات..." icon="magnifying-glass" />
             </div>
             <!-- Stage Filter -->
-            <div x-data="{ open: false }" class="relative" @click.away="open = false">
+            <div x-data="{ open: false }" class="relative md:col-span-2" @click.away="open = false">
                 <button type="button" @click="open = !open" class="flex items-center justify-between w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors">
                     <span class="truncate">
                         @if(count($filterStageIds) === 0)
@@ -75,7 +75,7 @@
             </div>
 
             <!-- Age Filter -->
-            <div x-data="{ open: false }" class="relative" @click.away="open = false">
+            <div x-data="{ open: false }" class="relative md:col-span-2" @click.away="open = false">
                 <button type="button" @click="open = !open" class="flex items-center justify-between w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors">
                     <span class="truncate">
                         @if(count($filterAges) === 0)
@@ -97,6 +97,35 @@
                     @endforeach
                 </div>
             </div>
+
+            <!-- Custom Field Filter Select -->
+            <div class="{{ $filterFieldId ? 'md:col-span-2' : 'md:col-span-4' }}">
+                <select wire:model.live="filterFieldId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors focus:ring-2 focus:ring-accent focus:outline-hidden">
+                    <option value="">-- تصفية حسب سؤال معين --</option>
+                    @foreach($form->fields as $field)
+                        <option value="{{ $field['id'] }}">{{ $field['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <!-- Custom Field Filter Value -->
+            @if($filterFieldId)
+                @php
+                    $selectedField = collect($form->fields)->firstWhere('id', $filterFieldId);
+                @endphp
+                <div class="md:col-span-2">
+                    @if($selectedField && !empty($selectedField['options']))
+                        <select wire:model.live="filterFieldValue" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors focus:ring-2 focus:ring-accent focus:outline-hidden">
+                            <option value="">-- كل القيم --</option>
+                            @foreach($selectedField['options'] as $option)
+                                <option value="{{ $option }}">{{ $option }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        <flux:input wire:model.live.debounce.300ms="filterFieldValue" placeholder="اكتب قيمة التصفية..." />
+                    @endif
+                </div>
+            @endif
         </div>
 
         <!-- Sorting Control bar -->
