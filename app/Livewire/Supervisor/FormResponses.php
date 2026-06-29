@@ -90,6 +90,29 @@ class FormResponses extends Component
     // Search and filters
     public string $search = '';
 
+    public array $filterStageIds = [];
+
+    public array $filterAges = [];
+
+    public string $sortBy = 'created_at';
+
+    public string $sortDirection = 'desc';
+
+    public function setSort(string $field): void
+    {
+        if ($this->sortBy === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortBy = $field;
+            $this->sortDirection = 'asc';
+        }
+    }
+
+    public function toggleSortDirection(): void
+    {
+        $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+    }
+
     public function mount(int $formId): void
     {
         $this->formId = $formId;
@@ -622,14 +645,39 @@ class FormResponses extends Component
 
     public function render()
     {
-        $responses = FormResponse::where('form_id', $this->form->id)
+        $birthDateFieldId = $this->guessFieldMap()['birth_date'] ?? null;
+
+        // 1. Get all original responses for this form
+        $allOriginalResponses = FormResponse::where('form_id', $this->form->id)
             ->with('student')
-            ->latest()
             ->get();
 
-        // Search every answer value across all fields. Filtering in PHP (on the
-        // decoded answers) is reliable for Arabic, unlike a LIKE on the JSON column
-        // whose unicode is escaped (\uXXXX) at rest.
+        // 2. Extract unique available ages dynamically
+        $availableAges = $allOriginalResponses->map(function (FormResponse $response) use ($birthDateFieldId) {
+            $birthDate = null;
+            if ($response->student_id && $response->student) {
+                $birthDate = $response->student->birth_date;
+            } else {
+                $birthDate = $this->parseBirthDate($this->extractAnswer($response, $birthDateFieldId));
+            }
+            if ($birthDate) {
+                try {
+                    return Carbon::parse($birthDate)->age;
+                } catch (\Throwable) {
+                    return null;
+                }
+            }
+            return null;
+        })
+        ->filter()
+        ->unique()
+        ->sort()
+        ->values()
+        ->all();
+
+        $responses = $allOriginalResponses;
+
+        // 3. Search every answer value across all fields (general search)
         $term = trim($this->search);
         if ($term !== '') {
             $responses = $responses->filter(function (FormResponse $response) use ($term) {
@@ -639,13 +687,108 @@ class FormResponses extends Component
                         return true;
                     }
                 }
-
                 return false;
-            })->values();
+            });
         }
 
-        // Each supervisor places students only into their own stages and circles,
-        // even for a form shared by another supervisor.
+
+        // 4. Filter by Stages (Multiple Selection)
+        if (!empty($this->filterStageIds)) {
+            $responses = $responses->filter(function (FormResponse $response) {
+                if ($response->student_id && $response->student) {
+                    return in_array((string)$response->student->effective_stage_id, array_map('strval', $this->filterStageIds));
+                }
+                
+                // Get all selected stage names
+                $stageNames = Stage::whereIn('id', $this->filterStageIds)->pluck('name')->all();
+                foreach ($stageNames as $stageName) {
+                    foreach ((array) $response->answers as $value) {
+                        $value = is_array($value) ? implode(' ', $value) : (string) $value;
+                        if (mb_stripos($value, $stageName) !== false) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+        }
+
+        // 5. Filter by Ages (Multiple Selection)
+        if (!empty($this->filterAges)) {
+            $responses = $responses->filter(function (FormResponse $response) use ($birthDateFieldId) {
+                $birthDate = null;
+                if ($response->student_id && $response->student) {
+                    $birthDate = $response->student->birth_date;
+                } else {
+                    $birthDate = $this->parseBirthDate($this->extractAnswer($response, $birthDateFieldId));
+                }
+                if ($birthDate) {
+                    try {
+                        $age = Carbon::parse($birthDate)->age;
+                        return in_array((string)$age, array_map('strval', $this->filterAges));
+                    } catch (\Throwable) {
+                        return false;
+                    }
+                }
+                return false;
+            });
+        }
+        // Helper functions for Sorting
+        $getName = function (FormResponse $response) {
+            if ($response->student_id && $response->student) {
+                return $response->student->name;
+            }
+            $nameFieldId = $this->guessFieldMap()['name'] ?? null;
+            return $this->extractAnswer($response, $nameFieldId) ?? '';
+        };
+
+        $getStageName = function (FormResponse $response) {
+            if ($response->student_id && $response->student) {
+                return $response->student->stage?->name ?? $response->student->circle?->stage?->name ?? '';
+            }
+            foreach ($this->form->fields as $field) {
+                if (str_contains($field['label'], 'مرحلة') || str_contains($field['label'], 'المرحلة')) {
+                    $answer = $response->answers[$field['id']] ?? '';
+                    return is_array($answer) ? implode(' ', $answer) : (string) $answer;
+                }
+            }
+            return '';
+        };
+
+        $getAge = function (FormResponse $response) use ($birthDateFieldId) {
+            $birthDate = null;
+            if ($response->student_id && $response->student) {
+                $birthDate = $response->student->birth_date;
+            } else {
+                $birthDate = $this->parseBirthDate($this->extractAnswer($response, $birthDateFieldId));
+            }
+            if ($birthDate) {
+                try {
+                    return Carbon::parse($birthDate)->age;
+                } catch (\Throwable) {
+                    return 0;
+                }
+            }
+            return 0;
+        };
+
+        // 6. Apply Sorting
+        if ($this->sortBy === 'name') {
+            $responses = $responses->sortBy($getName, SORT_NATURAL | SORT_FLAG_CASE);
+        } elseif ($this->sortBy === 'stage') {
+            $responses = $responses->sortBy($getStageName, SORT_NATURAL | SORT_FLAG_CASE);
+        } elseif ($this->sortBy === 'age') {
+            $responses = $responses->sortBy($getAge);
+        } elseif ($this->sortBy === 'created_at') {
+            $responses = $responses->sortBy('created_at');
+        }
+
+        if ($this->sortDirection === 'desc') {
+            $responses = $responses->reverse();
+        }
+        $responses = $responses->values();
+
+        // Standard dropdown data
         $stageIds = $this->supervisorStageIds();
         $circles = Circle::with('stage')->whereIn('stage_id', $stageIds)->orderBy('name')->get();
         $stages = Stage::whereIn('id', $stageIds)->orderBy('name')->get();
@@ -661,6 +804,7 @@ class FormResponses extends Component
             'students' => $students,
             'reportsData' => $reportsData,
             'unprocessedCount' => $responses->whereNull('student_id')->count(),
+            'availableAges' => $availableAges,
         ]);
     }
 }

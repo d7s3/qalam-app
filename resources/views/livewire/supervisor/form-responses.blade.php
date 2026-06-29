@@ -40,12 +40,76 @@
             التقرير البياني والتحليلي
         </button>
     </div>
-
     <!-- Responses Tab -->
     <div x-show="activeTab === 'responses'" class="space-y-4">
-        <!-- Search bar -->
-        <div class="flex gap-4 bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <flux:input wire:model.live.debounce.300ms="search" placeholder="البحث في الردود والإجابات..." class="flex-1" icon="magnifying-glass" />
+        <!-- Search and Filters bar -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
+            <div class="md:col-span-2">
+                <flux:input wire:model.live.debounce.300ms="search" placeholder="البحث في الردود والإجابات..." icon="magnifying-glass" />
+            </div>
+            <!-- Stage Filter -->
+            <div x-data="{ open: false }" class="relative" @click.away="open = false">
+                <button type="button" @click="open = !open" class="flex items-center justify-between w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors">
+                    <span class="truncate">
+                        @if(count($filterStageIds) === 0)
+                            كل المراحل الدراسية
+                        @elseif(count($filterStageIds) === 1)
+                            المرحلة: {{ $stages->firstWhere('id', $filterStageIds[0])?->name }}
+                        @else
+                            المراحل: {{ count($filterStageIds) }} محددة
+                        @endif
+                    </span>
+                    <flux:icon name="chevron-down" class="size-3.5 text-zinc-400 shrink-0 ms-2" />
+                </button>
+                <div x-show="open" class="absolute z-50 mt-1 w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2 shadow-lg space-y-1 max-h-48 overflow-y-auto" style="display: none;">
+                    @foreach($stages as $stage)
+                        <label class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-950 cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
+                            <input type="checkbox" value="{{ $stage->id }}" wire:model.live="filterStageIds" class="rounded text-accent focus:ring-accent" />
+                            <span>{{ $stage->name }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Age Filter -->
+            <div x-data="{ open: false }" class="relative" @click.away="open = false">
+                <button type="button" @click="open = !open" class="flex items-center justify-between w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors">
+                    <span class="truncate">
+                        @if(count($filterAges) === 0)
+                            كل الأعمار
+                        @elseif(count($filterAges) === 1)
+                            العمر: {{ $filterAges[0] }} سنة
+                        @else
+                            الأعمار: {{ count($filterAges) }} محددة
+                        @endif
+                    </span>
+                    <flux:icon name="chevron-down" class="size-3.5 text-zinc-400 shrink-0 ms-2" />
+                </button>
+                <div x-show="open" class="absolute z-50 mt-1 w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2 shadow-lg space-y-1 max-h-48 overflow-y-auto" style="display: none;">
+                    @foreach($availableAges as $age)
+                        <label class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-950 cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
+                            <input type="checkbox" value="{{ $age }}" wire:model.live="filterAges" class="rounded text-accent focus:ring-accent" />
+                            <span>{{ $age }} سنة</span>
+                        </label>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        <!-- Sorting Control bar -->
+        <div class="flex flex-wrap items-center justify-between gap-4 bg-zinc-50 dark:bg-zinc-950 px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-650 dark:text-zinc-400">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-semibold text-zinc-500">ترتيب النتائج حسب:</span>
+                <button type="button" wire:click="setSort('created_at')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'created_at' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">تاريخ الرد</button>
+                <button type="button" wire:click="setSort('name')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'name' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">الاسم</button>
+                <button type="button" wire:click="setSort('stage')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'stage' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">المرحلة</button>
+                <button type="button" wire:click="setSort('age')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'age' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">العمر</button>
+            </div>
+            <button type="button" wire:click="toggleSortDirection" class="flex items-center gap-1.5 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                <span>اتجاه الترتيب:</span>
+                <span class="font-bold text-accent">{{ $sortDirection === 'asc' ? 'تصاعدي (أصغر/أقدم)' : 'تنازلي (أكبر/أحدث)' }}</span>
+                <flux:icon name="{{ $sortDirection === 'asc' ? 'arrow-up' : 'arrow-down' }}" class="size-3.5" />
+            </button>
         </div>
 
         <!-- Selection action bar -->
@@ -64,28 +128,28 @@
         @endif
 
         <!-- Responses Table -->
-        <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto shadow-xs">
+        <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-auto max-h-[70vh] shadow-xs relative">
             @if($responses->isEmpty())
                 <div class="p-12 text-center text-zinc-500 dark:text-zinc-400">
                     لا توجد ردود مطابقة للبحث حالياً.
                 </div>
             @else
                 <table class="w-full text-start border-collapse text-sm">
-                    <thead>
-                        <tr class="bg-zinc-50 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
-                            <th class="p-4 text-start w-10">
+                    <thead class="sticky top-0 bg-zinc-50 dark:bg-zinc-950 z-10 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.1)]">
+                        <tr class="text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
+                            <th class="p-4 text-start w-10 bg-inherit">
                                 @if($unprocessedCount > 0)
                                     <input type="checkbox" wire:click="toggleSelectAllUnprocessed"
                                         @checked(count($selectedResponseIds) >= $unprocessedCount)
                                         class="rounded text-accent focus:ring-accent" title="تحديد كل غير المعالَج" />
                                 @endif
                             </th>
-                            <th class="p-4 text-start">تاريخ الرد</th>
+                            <th class="p-4 text-start bg-inherit">تاريخ الرد</th>
                             @foreach($form->fields as $field)
-                                <th class="p-4 text-start min-w-[120px]">{{ $field['label'] }}</th>
+                                <th class="p-4 text-start min-w-[120px] bg-inherit">{{ $field['label'] }}</th>
                             @endforeach
-                            <th class="p-4 text-start">الحالة / الربط</th>
-                            <th class="p-4 text-start">الإجراءات</th>
+                            <th class="p-4 text-start bg-inherit">الحالة / الربط</th>
+                            <th class="p-4 text-start bg-inherit">الإجراءات</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-150 dark:divide-zinc-850">
