@@ -25,6 +25,9 @@
                     رابط التقرير العام
                 </flux:button>
             @endif
+            <flux:button wire:click="exportExcel" variant="ghost" icon="arrow-down-tray" class="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border border-zinc-200 dark:border-zinc-800">
+                تحميل Excel
+            </flux:button>
             <flux:button wire:click="openBulkModal(false)" variant="primary" icon="users" class="bg-accent hover:bg-accent/90 text-white border-0">
                 إضافة كافة الردود كطلاب
             </flux:button>

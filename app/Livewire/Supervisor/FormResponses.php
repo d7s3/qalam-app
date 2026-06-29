@@ -643,6 +643,61 @@ class FormResponses extends Component
         return $stats;
     }
 
+    /**
+     * Build the export grid (header + one row per response) for the CSV download.
+     *
+     * @return array<int, array<int, string>>
+     */
+    public function responsesExportRows(): array
+    {
+        $fields = collect($this->form->fields);
+
+        $responses = FormResponse::where('form_id', $this->form->id)
+            ->with('student')
+            ->latest()
+            ->get();
+
+        $header = ['تاريخ الرد'];
+        foreach ($fields as $field) {
+            $header[] = $field['label'];
+        }
+        $header[] = 'الحالة';
+        $header[] = 'الطالب المرتبط';
+
+        $rows = [$header];
+
+        foreach ($responses as $response) {
+            $row = [$response->created_at->format('Y-m-d H:i')];
+            foreach ($fields as $field) {
+                $answer = $response->answers[$field['id']] ?? '';
+                $row[] = is_array($answer) ? implode('، ', $answer) : (string) $answer;
+            }
+            $row[] = $response->student_id ? 'مرتبط' : 'غير معالج';
+            $row[] = $response->student?->name ?? '';
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    public function exportExcel()
+    {
+        $rows = $this->responsesExportRows();
+        $filename = 'responses-'.$this->form->slug.'-'.now()->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($rows) {
+            $out = fopen('php://output', 'w');
+            // UTF-8 BOM so Excel renders Arabic correctly.
+            fwrite($out, "\xEF\xBB\xBF");
+            foreach ($rows as $row) {
+                fputcsv($out, $row);
+            }
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
     public function render()
     {
         $birthDateFieldId = $this->guessFieldMap()['birth_date'] ?? null;

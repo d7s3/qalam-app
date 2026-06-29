@@ -323,6 +323,39 @@ it('allows supervisor to bulk create students from all unlinked responses', func
     expect($response2->fresh()->is_processed)->toBeTrue();
 });
 
+it('exports the form responses as an Excel-compatible CSV', function () {
+    $form = Form::create([
+        'supervisor_id' => $this->supervisor->id,
+        'title' => 'نموذج التصدير',
+        'slug' => 'export-form',
+        'color' => '#14b8a6',
+        'fields' => [
+            ['id' => 'f_name', 'type' => 'text', 'label' => 'الاسم', 'is_student_name' => true],
+            ['id' => 'f_hobbies', 'type' => 'multiselect', 'label' => 'الهوايات', 'options' => ['قراءة', 'رياضة']],
+        ],
+    ]);
+
+    FormResponse::create([
+        'form_id' => $form->id,
+        'answers' => ['f_name' => 'سعيد الزهراني', 'f_hobbies' => ['قراءة', 'رياضة']],
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    // The export grid: header carries the field labels + status columns.
+    $rows = Livewire::test(FormResponses::class, ['formId' => $form->id])
+        ->instance()
+        ->responsesExportRows();
+
+    expect($rows[0])->toContain('الاسم', 'الهوايات', 'الطالب المرتبط');
+    expect($rows[1])->toContain('سعيد الزهراني', 'قراءة، رياضة', 'غير معالج');
+
+    // The action returns a file download.
+    Livewire::test(FormResponses::class, ['formId' => $form->id])
+        ->call('exportExcel')
+        ->assertFileDownloaded();
+});
+
 it('allows supervisor to save a form with policy_text and success_text', function () {
     $this->actingAs($this->supervisor, 'supervisor');
 
