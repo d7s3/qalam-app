@@ -704,7 +704,7 @@ class FormResponses extends Component
 
         // 1. Get all original responses for this form
         $allOriginalResponses = FormResponse::where('form_id', $this->form->id)
-            ->with('student')
+            ->with(['student.circle.stage', 'student.stage'])
             ->get();
 
         // 2. Extract unique available ages dynamically
@@ -848,6 +848,24 @@ class FormResponses extends Component
         $circles = Circle::with('stage')->whereIn('stage_id', $stageIds)->orderBy('name')->get();
         $stages = Stage::whereIn('id', $stageIds)->orderBy('name')->get();
 
+        $filterStages = $stages->filter(function ($stage) use ($allOriginalResponses) {
+            foreach ($allOriginalResponses as $response) {
+                if ($response->student_id && $response->student) {
+                    if ((int)$response->student->effective_stage_id === (int)$stage->id) {
+                        return true;
+                    }
+                } else {
+                    foreach ((array) $response->answers as $value) {
+                        $value = is_array($value) ? implode(' ', $value) : (string) $value;
+                        if (mb_stripos($value, $stage->name) !== false) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        })->values();
+
         $students = Student::whereIn('circle_id', $circles->pluck('id'))->orderBy('name')->get();
 
         $reportsData = $this->getReportsData();
@@ -856,6 +874,7 @@ class FormResponses extends Component
             'responses' => $responses,
             'circles' => $circles,
             'stages' => $stages,
+            'filterStages' => $filterStages,
             'students' => $students,
             'reportsData' => $reportsData,
             'unprocessedCount' => $responses->whereNull('student_id')->count(),

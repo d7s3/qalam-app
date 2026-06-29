@@ -210,6 +210,52 @@ it('searches responses across all fields, not just the name', function () {
         ->assertDontSee('محمد');
 });
 
+it('only displays and filters by stages filled in the responses', function () {
+    // Add a third stage that the supervisor manages but has no responses
+    $unfilledStage = Stage::create(['name' => 'المرحلة الثانوية']);
+    $this->supervisor->stages()->attach($unfilledStage->id);
+
+    // Create a response with $this->stage (linked to student)
+    $student = Student::create([
+        'name' => 'طالب ابتدائي',
+        'email' => 'pri@altag-student.com',
+        'password' => bcrypt('password'),
+        'stage_id' => $this->stage->id,
+        'status' => 'registering',
+        'is_approved' => false,
+    ]);
+    FormResponse::create([
+        'form_id' => $this->form->id,
+        'student_id' => $student->id,
+        'answers' => ['f_name' => 'طالب ابتدائي'],
+    ]);
+
+    // Create a response with $this->otherStage (not linked, but has stage name in answers)
+    FormResponse::create([
+        'form_id' => $this->form->id,
+        'answers' => ['f_name' => 'طالب متوسط', 'f_nat' => 'المرحلة المتوسطة'],
+    ]);
+
+    $component = Livewire::test(FormResponses::class, ['formId' => $this->form->id]);
+    
+    $component->assertViewHas('filterStages', function ($filterStages) {
+        $filterStageNames = collect($filterStages)->pluck('name')->all();
+        return in_array('المرحلة الابتدائية', $filterStageNames) &&
+               in_array('المرحلة المتوسطة', $filterStageNames) &&
+               !in_array('المرحلة الثانوية', $filterStageNames);
+    });
+
+    // Filter by $this->stage
+    $component->set('filterStageIds', [$this->stage->id])
+        ->assertSee('طالب ابتدائي')
+        ->assertDontSee('طالب متوسط');
+
+    // Filter by $this->otherStage
+    $component->set('filterStageIds', [$this->otherStage->id])
+        ->assertSee('طالب متوسط')
+        ->assertDontSee('طالب ابتدائي');
+});
+
 it('creates accounts only for the selected responses', function () {
     $pick1 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد أول', 'f_email' => 'pick1']]);
     $pick2 = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'محدد ثاني', 'f_email' => 'pick2']]);

@@ -65,7 +65,7 @@
                     <flux:icon name="chevron-down" class="size-3.5 text-zinc-400 shrink-0 ms-2" />
                 </button>
                 <div x-show="open" class="absolute z-50 mt-1 w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2 shadow-lg space-y-1 max-h-48 overflow-y-auto" style="display: none;">
-                    @foreach($stages as $stage)
+                    @foreach($filterStages as $stage)
                         <label class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-950 cursor-pointer text-sm text-zinc-700 dark:text-zinc-300">
                             <input type="checkbox" value="{{ $stage->id }}" wire:model.live="filterStageIds" class="rounded text-accent focus:ring-accent" />
                             <span>{{ $stage->name }}</span>
