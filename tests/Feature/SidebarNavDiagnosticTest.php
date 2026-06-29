@@ -21,6 +21,7 @@ it('counts sidebar/backdrop instances per role page', function () {
 
     $supervisor = Supervisor::factory()->create();
     countSidebarBits('supervisor/dashboard', $this->actingAs($supervisor, 'supervisor')->get('/supervisor/dashboard')->getContent());
+    countSidebarBits('supervisor/forms', $this->actingAs($supervisor, 'supervisor')->get('/supervisor/forms')->getContent());
 
     $teacher = Teacher::factory()->create(['is_approved' => true]);
     countSidebarBits('teacher/dashboard', $this->actingAs($teacher, 'teacher')->get('/teacher/dashboard')->getContent());

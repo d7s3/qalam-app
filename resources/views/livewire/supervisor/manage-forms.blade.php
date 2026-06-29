@@ -63,9 +63,9 @@
                             </p>
                             
                             <!-- Slug Link -->
-                            <div class="mt-3 flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                            <div class="mt-3 flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 min-w-0">
                                 <flux:icon name="link" class="size-3.5 shrink-0" />
-                                <span class="truncate dir-ltr text-left select-all" id="link-text-{{ $form->id }}">
+                                <span class="truncate dir-ltr text-left select-all min-w-0 flex-1" id="link-text-{{ $form->id }}">
                                     {{ route('forms.submit', $form->slug) }}
                                 </span>
                             </div>
