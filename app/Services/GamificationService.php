@@ -726,6 +726,43 @@ class GamificationService
      * @param  mixed  $date
      */
     /**
+     * An enthusiasm day requires EVERY enabled condition (attendance, achievement,
+     * custom criteria) to be met that day — full AND. At least one condition must
+     * be enabled, otherwise there is no enthusiasm day at all.
+     */
+    private static function enthusiasmAllConditionsMet(
+        bool $attendanceEnabled,
+        bool $attendanceMet,
+        bool $achievementEnabled,
+        bool $achievementMet,
+        bool $customEnabled,
+        bool $customMet,
+    ): bool {
+        $enabled = 0;
+
+        if ($attendanceEnabled) {
+            $enabled++;
+            if (! $attendanceMet) {
+                return false;
+            }
+        }
+        if ($achievementEnabled) {
+            $enabled++;
+            if (! $achievementMet) {
+                return false;
+            }
+        }
+        if ($customEnabled) {
+            $enabled++;
+            if (! $customMet) {
+                return false;
+            }
+        }
+
+        return $enabled > 0;
+    }
+
+    /**
      * Check if the student achieved the enthusiasm criteria on a specific date.
      */
     public static function checkEnthusiasmForDate(Student $student, string $dateStr, Leaderboard $leaderboard): bool
@@ -848,7 +885,13 @@ class GamificationService
             $customMet = $scoredCriteriaCount === count($customCriteriaIds);
         }
 
-        return $attendanceMet || $achievementMet || $customMet;
+        $achievementEnabled = $hifzTrigger || $reviewTrigger || $odeHifzTrigger || $odeReviewTrigger || $hadithHifzTrigger || $hadithReviewTrigger;
+
+        return self::enthusiasmAllConditionsMet(
+            $attendanceTrigger, $attendanceMet,
+            $achievementEnabled, $achievementMet,
+            ! empty($customCriteriaIds), $customMet,
+        );
     }
 
     /**
@@ -1062,8 +1105,13 @@ class GamificationService
             // 3. Custom Met (all enthusiasm criteria scored that day)
             $customMet = isset($customMetDates[$dateStr]);
 
-            // Evaluate
-            $triggered = $attendanceMet || $achievementMet || $customMet;
+            // Evaluate: every enabled condition must be met (full AND).
+            $achievementEnabled = $hifzTrigger || $reviewTrigger || $odeHifzTrigger || $odeReviewTrigger || $hadithHifzTrigger || $hadithReviewTrigger;
+            $triggered = self::enthusiasmAllConditionsMet(
+                $attendanceTrigger, $attendanceMet,
+                $achievementEnabled, $achievementMet,
+                ! empty($customCriteriaIds), $customMet,
+            );
 
             $map[$dateStr] = $triggered;
 

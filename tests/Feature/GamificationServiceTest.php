@@ -1341,6 +1341,14 @@ it('requires ALL enthusiasm criteria to be met for an enthusiasm day (AND, not O
 });
 
 it('ranks teams with today points and today enthusiasm counts', function () {
+    // Enthusiasm here depends only on attendance (other triggers disabled) so a
+    // present student earns the day under the full-AND rule.
+    $settings = $this->leaderboard->settings;
+    $settings['attendance_enthusiasm_trigger'] = true;
+    $settings['hifz_enthusiasm_trigger'] = false;
+    $settings['review_enthusiasm_trigger'] = false;
+    $this->leaderboard->update(['settings' => $settings]);
+
     $teamA = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق أ', 'coins' => 0]);
     $teamB = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق ب', 'coins' => 0]);
 
@@ -1386,4 +1394,49 @@ it('ranks teams with today points and today enthusiasm counts', function () {
     expect($standings[1]['rank'])->toBe(2);
     expect($standings[1]['points_today'])->toBe(10);
     expect($standings[1]['enthusiasm_today'])->toBe(0);
+});
+
+it('requires every enabled enthusiasm category together (attendance AND all criteria)', function () {
+    $settings = $this->leaderboard->settings;
+    $settings['enthusiasm_enabled'] = true;
+    $settings['attendance_enthusiasm_trigger'] = true;
+    $settings['hifz_enthusiasm_trigger'] = false;
+    $settings['review_enthusiasm_trigger'] = false;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    $c1 = LeaderboardCriterion::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'بند ١', 'points' => 5, 'coins' => 5, 'is_enthusiasm_trigger' => true]);
+    $c2 = LeaderboardCriterion::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'بند ٢', 'points' => 5, 'coins' => 5, 'is_enthusiasm_trigger' => true]);
+
+    $date = now()->format('Y-m-d');
+
+    // Attendance + only one of two criteria → not an enthusiasm day.
+    Attendance::create([
+        'student_id' => $this->student->id, 'circle_id' => $this->circle->id, 'teacher_id' => $this->teacher->id,
+        'date' => $date, 'status' => 'present',
+    ]);
+    LeaderboardScore::create(['leaderboard_id' => $this->leaderboard->id, 'student_id' => $this->student->id, 'leaderboard_criterion_id' => $c1->id, 'date' => $date]);
+
+    expect(GamificationService::checkEnthusiasmForDate($this->student, $date, $this->leaderboard))->toBeFalse();
+
+    // Add the second criterion → attendance + all criteria → enthusiasm day.
+    LeaderboardScore::create(['leaderboard_id' => $this->leaderboard->id, 'student_id' => $this->student->id, 'leaderboard_criterion_id' => $c2->id, 'date' => $date]);
+
+    expect(GamificationService::checkEnthusiasmForDate($this->student, $date, $this->leaderboard))->toBeTrue();
+});
+
+it('denies the enthusiasm day when an enabled category is unmet even if criteria are complete', function () {
+    $settings = $this->leaderboard->settings;
+    $settings['enthusiasm_enabled'] = true;
+    $settings['attendance_enthusiasm_trigger'] = true; // enabled but will be unmet
+    $settings['hifz_enthusiasm_trigger'] = false;
+    $settings['review_enthusiasm_trigger'] = false;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    $c1 = LeaderboardCriterion::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'بند', 'points' => 5, 'coins' => 5, 'is_enthusiasm_trigger' => true]);
+    $date = now()->format('Y-m-d');
+
+    // All criteria met, but no attendance → the (enabled) attendance category blocks it.
+    LeaderboardScore::create(['leaderboard_id' => $this->leaderboard->id, 'student_id' => $this->student->id, 'leaderboard_criterion_id' => $c1->id, 'date' => $date]);
+
+    expect(GamificationService::checkEnthusiasmForDate($this->student, $date, $this->leaderboard))->toBeFalse();
 });

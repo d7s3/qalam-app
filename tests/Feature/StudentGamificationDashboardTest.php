@@ -867,6 +867,9 @@ it('calculates competition working days and their enthusiasm status correctly', 
         'settings' => [
             'enthusiasm_enabled' => true,
             'enthusiasm_type' => 'attendance',
+            // Attendance is the only enabled condition here.
+            'hifz_enthusiasm_trigger' => false,
+            'review_enthusiasm_trigger' => false,
         ],
     ]);
     $leaderboard->circles()->attach($this->circle->id);
@@ -913,8 +916,8 @@ it('calculates competition working days and their enthusiasm status correctly', 
         });
 });
 
-it('falls back to attendance only when no plan days are scheduled in both trigger mode', function () {
-    // 1. Create active leaderboard with 'both' trigger mode
+it('requires every enabled condition for an enthusiasm day (attendance alone is not enough)', function () {
+    // Both attendance and achievement enthusiasm triggers are enabled.
     $leaderboard = Leaderboard::create([
         'circle_id' => $this->circle->id,
         'title' => 'مسابقة الحماسة للطلاب - كلا الشرطين',
@@ -924,12 +927,13 @@ it('falls back to attendance only when no plan days are scheduled in both trigge
         'is_active' => true,
         'settings' => [
             'enthusiasm_enabled' => true,
-            'enthusiasm_type' => 'both',
+            'attendance_enthusiasm_trigger' => true,
+            'hifz_enthusiasm_trigger' => true,
+            'review_enthusiasm_trigger' => true,
         ],
     ]);
     $leaderboard->circles()->attach($this->circle->id);
 
-    // Create a teacher
     $teacher = Teacher::create([
         'name' => 'المعلم التجريبي 2',
         'email' => 'temp-teacher-both@example.com',
@@ -938,21 +942,46 @@ it('falls back to attendance only when no plan days are scheduled in both trigge
         'is_approved' => true,
     ]);
 
-    // Present attendance on 2 days ago
+    $twoDaysAgo = now()->subDays(2)->format('Y-m-d');
+
+    // Attendance only → NOT an enthusiasm day (achievement is also required).
     Attendance::create([
         'student_id' => $this->student->id,
         'teacher_id' => $teacher->id,
         'circle_id' => $this->circle->id,
-        'date' => now()->subDays(2)->format('Y-m-d'),
+        'date' => $twoDaysAgo,
         'status' => 'present',
     ]);
 
     Livewire::test('student.gamification-dashboard')
-        ->assertViewHas('workingDays', function ($workingDays) {
-            $twoDaysAgoStr = now()->subDays(2)->format('Y-m-d');
-            $day1 = collect($workingDays)->firstWhere('date', $twoDaysAgoStr);
-
+        ->assertViewHas('workingDays', function ($workingDays) use ($twoDaysAgo) {
+            $day1 = collect($workingDays)->firstWhere('date', $twoDaysAgo);
             expect($day1)->not->toBeNull();
+            expect($day1['status'])->toBe('orange'); // worked but not fiery
+
+            return true;
+        });
+
+    // Add the missing achievement on the same day → now it IS an enthusiasm day.
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => $twoDaysAgo,
+        'day_name' => 'يوم',
+        'hifz_achievement' => 3,
+        'hifz_graded_at' => $twoDaysAgo,
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertViewHas('workingDays', function ($workingDays) use ($twoDaysAgo) {
+            $day1 = collect($workingDays)->firstWhere('date', $twoDaysAgo);
             expect($day1['status'])->toBe('fiery');
 
             return true;
@@ -970,6 +999,9 @@ it('requires students to manually claim milestone rewards from the dashboard', f
         'settings' => [
             'enthusiasm_enabled' => true,
             'enthusiasm_type' => 'attendance',
+            // Streak is driven by attendance only here.
+            'hifz_enthusiasm_trigger' => false,
+            'review_enthusiasm_trigger' => false,
         ],
     ]);
     $leaderboard->circles()->attach($this->circle->id);
