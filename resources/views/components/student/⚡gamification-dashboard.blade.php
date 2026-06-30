@@ -1360,6 +1360,82 @@ new class extends Component {
         <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-team-primary rounded-full blur-3xl"></div>
     </div>
 
+    <!-- Top stats bar: pinned at the top of every tab, including home -->
+    <div class="p-3 md:p-8 pb-0">
+        <!-- Compact Stats Bar (always visible, pinned at the top of every tab) -->
+        @php
+            $lvlCur = $gamificationLevelInfo['current'] ?? null;
+            $lvlNxt = $gamificationLevelInfo['next'] ?? null;
+            $lvlXp = (int) ($gamificationLevelInfo['xp'] ?? 0);
+            $lvlBase = (int) ($lvlCur->xp_required ?? 0);
+            $lvlTarget = $lvlNxt->xp_required ?? null;
+            $lvlPct = ($lvlTarget !== null && $lvlTarget > $lvlBase)
+                ? min(100, max(0, (int) round((($lvlXp - $lvlBase) / ($lvlTarget - $lvlBase)) * 100)))
+                : 100;
+        @endphp
+        <div id="gam-stats-bar"
+            class="sticky top-2 z-30 flex items-stretch justify-around gap-1 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl px-2 py-2 shadow-sm">
+
+            {{-- Level (tap → home) with progress to next level --}}
+            <button type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer">
+                <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none">
+                    <flux:icon icon="trophy" class="size-3 shrink-0" />{{ __('المستوى') }}
+                </span>
+                <span id="gam-level-value" class="text-base font-black leading-none text-team-primary">{{ $studentLevel }}</span>
+                <span id="gam-level-meter" class="w-full max-w-14 h-1 rounded-full bg-slate-100 overflow-hidden" title="{{ $lvlPct }}% {{ __('نحو المستوى التالي') }}">
+                    <span id="gam-level-fill" class="block h-full rounded-full bg-team-primary transition-all duration-700" style="width: {{ $lvlPct }}%"></span>
+                </span>
+            </button>
+
+            <div class="w-px self-center h-9 bg-slate-200"></div>
+
+            {{-- XP (tap → home) with today's delta --}}
+            <button type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer">
+                <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none">
+                    <flux:icon icon="sparkles" class="size-3 shrink-0" />{{ __('النقاط') }}
+                </span>
+                <span id="gam-xp-value" class="text-base font-black text-slate-900 leading-none">{{ number_format($lvlXp) }}</span>
+                <span class="text-[9px] font-black leading-none {{ $xpToday > 0 ? 'text-emerald-600' : 'text-transparent' }}">
+                    {{ $xpToday > 0 ? '+'.number_format($xpToday).' '.__('اليوم') : '.' }}
+                </span>
+            </button>
+
+            <div class="w-px self-center h-9 bg-slate-200"></div>
+
+            {{-- Coins (tap → store) with today's delta + context highlight --}}
+            <button type="button"
+                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'store' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                :class="currentTab === 'store' ? 'bg-amber-50 ring-1 ring-amber-200' : 'hover:bg-slate-50'"
+                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 transition-colors cursor-pointer">
+                <span class="text-[10px] text-slate-400 font-bold leading-none">{{ __('العملات') }}</span>
+                <span class="text-base font-black text-amber-600 leading-none flex items-center gap-1">{{ $gamificationState?->coins ?? 0 }} {!! $this->renderEmoji($style['coin_emoji'], 'size-4 inline-block align-middle') !!}</span>
+                <span class="text-[9px] font-black leading-none {{ $coinsToday > 0 ? 'text-emerald-600' : 'text-transparent' }}">
+                    {{ $coinsToday > 0 ? '+'.number_format($coinsToday).' '.__('اليوم') : '.' }}
+                </span>
+            </button>
+
+            @if($studentRank)
+                <div class="w-px self-center h-9 bg-slate-200"></div>
+
+                {{-- Rank (tap → standings on the home tab) --}}
+                <button type="button"
+                    x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                    class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer min-w-0">
+                    <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none truncate max-w-full">
+                        <flux:icon icon="chart-bar" class="size-3 shrink-0" />{{ $studentRankScope === 'track' ? __('مركزك في مسارك') : __('مركزك') }}
+                    </span>
+                    <span id="gam-rank-value" class="text-base font-black leading-none text-team-primary">
+                        {{ $studentRank }}<span class="text-[10px] text-slate-400 font-bold"> / {{ $studentRankTotal }}</span>
+                    </span>
+                </button>
+            @endif
+        </div>
+    </div>
+
     <!-- Home Tab View: Show header and top cards only when on the home dashboard -->
     <div x-show="currentTab === 'leaderboard'" class="space-y-8 p-3 md:p-8">
         <!-- Header Section -->
@@ -1929,78 +2005,6 @@ new class extends Component {
     <!-- Main Store & Badges & Leaderboard & Missions tabs -->
     <div class="relative z-10 space-y-6 p-3 md:p-8 min-h-[calc(100svh-4rem)]">
 
-        <!-- Compact Stats Bar (always visible on non-home tabs) -->
-        @php
-            $lvlCur = $gamificationLevelInfo['current'] ?? null;
-            $lvlNxt = $gamificationLevelInfo['next'] ?? null;
-            $lvlXp = (int) ($gamificationLevelInfo['xp'] ?? 0);
-            $lvlBase = (int) ($lvlCur->xp_required ?? 0);
-            $lvlTarget = $lvlNxt->xp_required ?? null;
-            $lvlPct = ($lvlTarget !== null && $lvlTarget > $lvlBase)
-                ? min(100, max(0, (int) round((($lvlXp - $lvlBase) / ($lvlTarget - $lvlBase)) * 100)))
-                : 100;
-        @endphp
-        <div id="gam-stats-bar"
-            class="sticky top-2 z-30 flex items-stretch justify-around gap-1 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl px-2 py-2 shadow-sm">
-
-            {{-- Level (tap → home) with progress to next level --}}
-            <button type="button"
-                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
-                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer">
-                <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none">
-                    <flux:icon icon="trophy" class="size-3 shrink-0" />{{ __('المستوى') }}
-                </span>
-                <span id="gam-level-value" class="text-base font-black leading-none text-team-primary">{{ $studentLevel }}</span>
-                <span id="gam-level-meter" class="w-full max-w-14 h-1 rounded-full bg-slate-100 overflow-hidden" title="{{ $lvlPct }}% {{ __('نحو المستوى التالي') }}">
-                    <span id="gam-level-fill" class="block h-full rounded-full bg-team-primary transition-all duration-700" style="width: {{ $lvlPct }}%"></span>
-                </span>
-            </button>
-
-            <div class="w-px self-center h-9 bg-slate-200"></div>
-
-            {{-- XP (tap → home) with today's delta --}}
-            <button type="button"
-                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
-                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer">
-                <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none">
-                    <flux:icon icon="sparkles" class="size-3 shrink-0" />{{ __('النقاط') }}
-                </span>
-                <span id="gam-xp-value" class="text-base font-black text-slate-900 leading-none">{{ number_format($lvlXp) }}</span>
-                <span class="text-[9px] font-black leading-none {{ $xpToday > 0 ? 'text-emerald-600' : 'text-transparent' }}">
-                    {{ $xpToday > 0 ? '+'.number_format($xpToday).' '.__('اليوم') : '.' }}
-                </span>
-            </button>
-
-            <div class="w-px self-center h-9 bg-slate-200"></div>
-
-            {{-- Coins (tap → store) with today's delta + context highlight --}}
-            <button type="button"
-                x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'store' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
-                :class="currentTab === 'store' ? 'bg-amber-50 ring-1 ring-amber-200' : 'hover:bg-slate-50'"
-                class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 transition-colors cursor-pointer">
-                <span class="text-[10px] text-slate-400 font-bold leading-none">{{ __('العملات') }}</span>
-                <span class="text-base font-black text-amber-600 leading-none flex items-center gap-1">{{ $gamificationState?->coins ?? 0 }} {!! $this->renderEmoji($style['coin_emoji'], 'size-4 inline-block align-middle') !!}</span>
-                <span class="text-[9px] font-black leading-none {{ $coinsToday > 0 ? 'text-emerald-600' : 'text-transparent' }}">
-                    {{ $coinsToday > 0 ? '+'.number_format($coinsToday).' '.__('اليوم') : '.' }}
-                </span>
-            </button>
-
-            @if($studentRank)
-                <div class="w-px self-center h-9 bg-slate-200"></div>
-
-                {{-- Rank (tap → standings on the home tab) --}}
-                <button type="button"
-                    x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
-                    class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer min-w-0">
-                    <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none truncate max-w-full">
-                        <flux:icon icon="chart-bar" class="size-3 shrink-0" />{{ $studentRankScope === 'track' ? __('مركزك في مسارك') : __('مركزك') }}
-                    </span>
-                    <span id="gam-rank-value" class="text-base font-black leading-none text-team-primary">
-                        {{ $studentRank }}<span class="text-[10px] text-slate-400 font-bold"> / {{ $studentRankTotal }}</span>
-                    </span>
-                </button>
-            @endif
-        </div>
 
         <!-- Store Content -->
         <div x-show="currentTab === 'store'" class="space-y-4">
