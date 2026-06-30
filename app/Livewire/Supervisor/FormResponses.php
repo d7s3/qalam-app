@@ -7,11 +7,13 @@ use App\Models\Form;
 use App\Models\FormResponse;
 use App\Models\Stage;
 use App\Models\Student;
+use App\Services\FormResponsesExporter;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FormResponses extends Component
 {
@@ -654,57 +656,25 @@ class FormResponses extends Component
 
     /**
      * Build the export grid (header + one row per response) for the CSV download.
+     * Includes the student linkage columns (supervisor-only view).
      *
      * @return array<int, array<int, string>>
      */
     public function responsesExportRows(): array
     {
-        $fields = collect($this->form->fields);
-
         $responses = FormResponse::where('form_id', $this->form->id)
             ->with('student')
             ->latest()
             ->get();
 
-        $header = ['تاريخ الرد'];
-        foreach ($fields as $field) {
-            $header[] = $field['label'];
-        }
-        $header[] = 'الحالة';
-        $header[] = 'الطالب المرتبط';
-
-        $rows = [$header];
-
-        foreach ($responses as $response) {
-            $row = [$response->created_at->format('Y-m-d H:i')];
-            foreach ($fields as $field) {
-                $answer = $response->answers[$field['id']] ?? '';
-                $row[] = is_array($answer) ? implode('، ', $answer) : (string) $answer;
-            }
-            $row[] = $response->student_id ? 'مرتبط' : 'غير معالج';
-            $row[] = $response->student?->name ?? '';
-            $rows[] = $row;
-        }
-
-        return $rows;
+        return FormResponsesExporter::rows($this->form, $responses, includeStudent: true);
     }
 
-    public function exportExcel()
+    public function exportExcel(): StreamedResponse
     {
-        $rows = $this->responsesExportRows();
         $filename = 'responses-'.$this->form->slug.'-'.now()->format('Y-m-d').'.csv';
 
-        return response()->streamDownload(function () use ($rows) {
-            $out = fopen('php://output', 'w');
-            // UTF-8 BOM so Excel renders Arabic correctly.
-            fwrite($out, "\xEF\xBB\xBF");
-            foreach ($rows as $row) {
-                fputcsv($out, $row);
-            }
-            fclose($out);
-        }, $filename, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-        ]);
+        return FormResponsesExporter::stream($filename, $this->responsesExportRows());
     }
 
     public function render()
@@ -731,13 +701,14 @@ class FormResponses extends Component
                     return null;
                 }
             }
+
             return null;
         })
-        ->filter()
-        ->unique()
-        ->sort()
-        ->values()
-        ->all();
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
 
         $responses = $allOriginalResponses;
 
@@ -751,18 +722,18 @@ class FormResponses extends Component
                         return true;
                     }
                 }
+
                 return false;
             });
         }
 
-
         // 4. Filter by Stages (Multiple Selection)
-        if (!empty($this->filterStageIds)) {
+        if (! empty($this->filterStageIds)) {
             $responses = $responses->filter(function (FormResponse $response) {
                 if ($response->student_id && $response->student) {
-                    return in_array((string)$response->student->effective_stage_id, array_map('strval', $this->filterStageIds));
+                    return in_array((string) $response->student->effective_stage_id, array_map('strval', $this->filterStageIds));
                 }
-                
+
                 // Get all selected stage names
                 $stageNames = Stage::whereIn('id', $this->filterStageIds)->pluck('name')->all();
                 foreach ($stageNames as $stageName) {
@@ -773,12 +744,13 @@ class FormResponses extends Component
                         }
                     }
                 }
+
                 return false;
             });
         }
 
         // 5. Filter by Ages (Multiple Selection)
-        if (!empty($this->filterAges)) {
+        if (! empty($this->filterAges)) {
             $responses = $responses->filter(function (FormResponse $response) use ($birthDateFieldId) {
                 $birthDate = null;
                 if ($response->student_id && $response->student) {
@@ -789,11 +761,13 @@ class FormResponses extends Component
                 if ($birthDate) {
                     try {
                         $age = Carbon::parse($birthDate)->age;
-                        return in_array((string)$age, array_map('strval', $this->filterAges));
+
+                        return in_array((string) $age, array_map('strval', $this->filterAges));
                     } catch (\Throwable) {
                         return false;
                     }
                 }
+
                 return false;
             });
         }
@@ -816,6 +790,7 @@ class FormResponses extends Component
                 return $response->student->name;
             }
             $nameFieldId = $this->guessFieldMap()['name'] ?? null;
+
             return $this->extractAnswer($response, $nameFieldId) ?? '';
         };
 
@@ -826,9 +801,11 @@ class FormResponses extends Component
             foreach ($this->form->fields as $field) {
                 if (str_contains($field['label'], 'مرحلة') || str_contains($field['label'], 'المرحلة')) {
                     $answer = $response->answers[$field['id']] ?? '';
+
                     return is_array($answer) ? implode(' ', $answer) : (string) $answer;
                 }
             }
+
             return '';
         };
 
@@ -846,6 +823,7 @@ class FormResponses extends Component
                     return 0;
                 }
             }
+
             return 0;
         };
 
@@ -873,7 +851,7 @@ class FormResponses extends Component
         $filterStages = $stages->filter(function ($stage) use ($allOriginalResponses) {
             foreach ($allOriginalResponses as $response) {
                 if ($response->student_id && $response->student) {
-                    if ((int)$response->student->effective_stage_id === (int)$stage->id) {
+                    if ((int) $response->student->effective_stage_id === (int) $stage->id) {
                         return true;
                     }
                 } else {
@@ -885,6 +863,7 @@ class FormResponses extends Component
                     }
                 }
             }
+
             return false;
         })->values();
 

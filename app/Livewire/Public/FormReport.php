@@ -4,8 +4,11 @@ namespace App\Livewire\Public;
 
 use App\Models\Form;
 use App\Models\FormResponse;
+use App\Services\FormResponsesExporter;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FormReport extends Component
 {
@@ -56,14 +59,18 @@ class FormReport extends Component
         }
     }
 
-    public function render()
+    /**
+     * The responses for this form after applying the active filters.
+     *
+     * @return Collection<int, FormResponse>
+     */
+    private function filteredResponses(): Collection
     {
         $responses = FormResponse::where('form_id', $this->form->id)
             ->latest()
             ->get();
 
-        // Apply filters
-        $filteredResponses = $responses->filter(function ($response) {
+        return $responses->filter(function ($response) {
             foreach ($this->form->fields as $field) {
                 $fieldId = $field['id'];
                 $fieldType = $field['type'];
@@ -111,6 +118,29 @@ class FormReport extends Component
 
             return true;
         });
+    }
+
+    /**
+     * Export rows for the current (filtered) view. Public export excludes the
+     * student linkage columns.
+     *
+     * @return array<int, array<int, string>>
+     */
+    public function exportRows(): array
+    {
+        return FormResponsesExporter::rows($this->form, $this->filteredResponses(), includeStudent: false);
+    }
+
+    public function exportCsv(): StreamedResponse
+    {
+        $filename = 'report-'.$this->form->slug.'-'.now()->format('Y-m-d').'.csv';
+
+        return FormResponsesExporter::stream($filename, $this->exportRows());
+    }
+
+    public function render()
+    {
+        $filteredResponses = $this->filteredResponses();
 
         // Group helper function
         $getGroupKey = function ($response, $fieldId) {

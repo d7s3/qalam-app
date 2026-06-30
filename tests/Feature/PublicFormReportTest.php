@@ -129,3 +129,36 @@ it('groups responses by nested primary and secondary fields', function () {
         ->assertSee('الاسم')
         ->assertSee('أحمد علي');
 });
+
+it('exports the public report as CSV without the student linkage columns', function () {
+    $this->form->update(['is_public_report' => true]);
+
+    $rows = Livewire::test(FormReport::class, ['slug' => $this->form->slug, 'token' => $this->form->public_report_token])
+        ->instance()
+        ->exportRows();
+
+    // Header carries the field labels but never the supervisor-only student columns.
+    expect($rows[0])->toContain('الاسم', 'اللون المفضل');
+    expect($rows[0])->not->toContain('الطالب المرتبط', 'الحالة');
+    expect($rows)->toHaveCount(3); // header + 2 responses
+});
+
+it('respects active filters in the public CSV export', function () {
+    $this->form->update(['is_public_report' => true]);
+
+    $rows = Livewire::test(FormReport::class, ['slug' => $this->form->slug, 'token' => $this->form->public_report_token])
+        ->set('filters.f_color', 'أزرق')
+        ->instance()
+        ->exportRows();
+
+    expect($rows)->toHaveCount(2); // header + only the matching response
+    expect(collect($rows[1]))->toContain('عمر فاروق');
+});
+
+it('returns a downloadable CSV from the public report', function () {
+    $this->form->update(['is_public_report' => true]);
+
+    Livewire::test(FormReport::class, ['slug' => $this->form->slug, 'token' => $this->form->public_report_token])
+        ->call('exportCsv')
+        ->assertFileDownloaded();
+});
