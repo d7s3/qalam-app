@@ -15,6 +15,8 @@ use App\Models\GamificationTeamTaskAssignment;
 use App\Models\GamificationTrack;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
+use App\Models\LeaderboardCriterion;
+use App\Models\LeaderboardScore;
 use App\Models\Ode;
 use App\Models\OdePath;
 use App\Models\OdePathDay;
@@ -1299,4 +1301,89 @@ it('records team attacks anonymously and notes shield blocks', function () {
     expect($blocked)->not->toBeNull();
     expect($blocked->data['target_team_name'])->toBe('فريق الهدف');
     expect(json_encode($blocked->data))->not->toContain('المهاجم');
+});
+
+it('requires ALL enthusiasm criteria to be met for an enthusiasm day (AND, not OR)', function () {
+    // Isolate custom criteria by turning off the built-in triggers.
+    $settings = $this->leaderboard->settings;
+    $settings['enthusiasm_enabled'] = true;
+    $settings['hifz_enthusiasm_trigger'] = false;
+    $settings['review_enthusiasm_trigger'] = false;
+    $settings['attendance_enthusiasm_trigger'] = false;
+    $this->leaderboard->update(['settings' => $settings]);
+
+    $c1 = LeaderboardCriterion::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'بند ١', 'points' => 5, 'coins' => 5, 'is_enthusiasm_trigger' => true]);
+    $c2 = LeaderboardCriterion::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'بند ٢', 'points' => 5, 'coins' => 5, 'is_enthusiasm_trigger' => true]);
+
+    $date = now()->format('Y-m-d');
+
+    // Only one of the two criteria scored → NOT an enthusiasm day.
+    LeaderboardScore::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'leaderboard_criterion_id' => $c1->id,
+        'date' => $date,
+    ]);
+
+    expect(GamificationService::checkEnthusiasmForDate($this->student, $date, $this->leaderboard))->toBeFalse();
+    expect(GamificationService::getEnthusiasmMapForRange($this->student, $date, $date, $this->leaderboard)[$date] ?? false)->toBeFalse();
+
+    // Both criteria scored → now it IS an enthusiasm day.
+    LeaderboardScore::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'leaderboard_criterion_id' => $c2->id,
+        'date' => $date,
+    ]);
+
+    expect(GamificationService::checkEnthusiasmForDate($this->student, $date, $this->leaderboard))->toBeTrue();
+    expect(GamificationService::getEnthusiasmMapForRange($this->student, $date, $date, $this->leaderboard)[$date] ?? false)->toBeTrue();
+});
+
+it('ranks teams with today points and today enthusiasm counts', function () {
+    $teamA = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق أ', 'coins' => 0]);
+    $teamB = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق ب', 'coins' => 0]);
+
+    $sA = $this->student;
+    $teamA->students()->attach($sA->id, ['role' => 'leader']);
+
+    $sB = Student::create([
+        'name' => 'عضو الفريق ب',
+        'email' => 'teamb@example.com',
+        'password' => bcrypt('password'),
+        'circle_id' => $this->circle->id,
+        'is_approved' => true,
+        'status' => 'active',
+    ]);
+    $teamB->students()->attach($sB->id, ['role' => 'leader']);
+
+    // Team A earns 30 XP today, Team B earns 10 XP today.
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id, 'student_id' => $sA->id, 'type' => 'earn',
+        'amount' => 30, 'xp_amount' => 30, 'description' => 'اليوم', 'claimed_at' => now(),
+    ]);
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id, 'student_id' => $sB->id, 'type' => 'earn',
+        'amount' => 10, 'xp_amount' => 10, 'description' => 'اليوم', 'claimed_at' => now(),
+    ]);
+
+    // Team A's student reaches an enthusiasm day today (present attendance).
+    Attendance::create([
+        'student_id' => $sA->id, 'circle_id' => $this->circle->id, 'teacher_id' => $this->teacher->id,
+        'date' => now()->format('Y-m-d'), 'status' => 'present',
+    ]);
+
+    $standings = GamificationService::getTeamStandings($this->leaderboard, now()->format('Y-m-d'));
+
+    expect($standings)->toHaveCount(2);
+    // Team A ranks first (higher score).
+    expect($standings[0]['team']->id)->toBe($teamA->id);
+    expect($standings[0]['rank'])->toBe(1);
+    expect($standings[0]['points_today'])->toBe(30);
+    expect($standings[0]['enthusiasm_today'])->toBe(1);
+    // Team B second, no enthusiasm today.
+    expect($standings[1]['team']->id)->toBe($teamB->id);
+    expect($standings[1]['rank'])->toBe(2);
+    expect($standings[1]['points_today'])->toBe(10);
+    expect($standings[1]['enthusiasm_today'])->toBe(0);
 });

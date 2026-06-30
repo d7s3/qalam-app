@@ -703,6 +703,36 @@ new class extends Component {
             $standingsByTrack = $service->getStandingsByTrack($activeGamification);
         }
 
+        // The student's own rank: within their track when tracks exist, otherwise
+        // across the whole standings list.
+        $studentRank = null;
+        $studentRankTotal = 0;
+        $studentRankScope = 'all'; // 'all' | 'track'
+        if ($activeGamification) {
+            if ($standingsByTrack->isNotEmpty()) {
+                foreach ($standingsByTrack as $group) {
+                    foreach ($group['standings'] as $s) {
+                        if ($s['student']->id === $student->id) {
+                            $studentRank = $s['track_rank'];
+                            $studentRankTotal = count($group['standings']);
+                            $studentRankScope = 'track';
+                            break 2;
+                        }
+                    }
+                }
+            }
+            if ($studentRank === null && ! empty($leaderboardStandings)) {
+                $studentRankScope = 'all';
+                $studentRankTotal = count($leaderboardStandings);
+                foreach ($leaderboardStandings as $index => $s) {
+                    if ($s['student']->id === $student->id) {
+                        $studentRank = $index + 1;
+                        break;
+                    }
+                }
+            }
+        }
+
         // News / daily digest
         $newsDate = $this->newsDate ?: \Carbon\Carbon::today()->toDateString();
         $dailyDigest = $activeGamification ? \App\Services\GamificationNewsService::getDailyDigest($activeGamification->id, $newsDate) : [];
@@ -794,6 +824,12 @@ new class extends Component {
             $teamScore = \App\Services\GamificationService::getTeamScore($studentTeam, $activeGamification);
         }
 
+        // Ranked team standings (with today's points + today's enthusiasm-day count).
+        $teamStandings = [];
+        if ($activeGamification) {
+            $teamStandings = \App\Services\GamificationService::getTeamStandings($activeGamification);
+        }
+
         $teamTasks = collect();
         if ($activeGamification && $studentTeam) {
             $teamTasks = \App\Models\GamificationTeamTaskAssignment::with(['task.criteria', 'scores.criterion'])
@@ -847,6 +883,9 @@ new class extends Component {
             'teamColor' => $teamColor,
             'leaderboardStandings' => $leaderboardStandings,
             'standingsByTrack' => $standingsByTrack,
+            'studentRank' => $studentRank,
+            'studentRankTotal' => $studentRankTotal,
+            'studentRankScope' => $studentRankScope,
             'dailyDigest' => $dailyDigest,
             'availableNewsDates' => $availableNewsDates,
             'newsDate' => $newsDate,
@@ -854,6 +893,7 @@ new class extends Component {
             'pendingRewards' => $activeGamification ? \App\Services\GamificationService::getPendingRewards($student->id, $activeGamification->id) : collect(),
             'pendingMissions' => $pendingMissions,
             'pendingHadithMissions' => $pendingHadithMissions,
+            'teamStandings' => $teamStandings,
             'teamStudents' => $teamStudents,
             'teamStudentStates' => $teamStudentStates,
             'teamScore' => $teamScore,
@@ -1007,8 +1047,14 @@ new class extends Component {
     public function claimReward($transactionId)
     {
         $student = Auth::guard('student')->user();
+        $tx = \App\Models\GamificationTransaction::where('id', (int) $transactionId)
+            ->where('student_id', $student->id)
+            ->first();
+        $xp = (int) ($tx->xp_amount ?? 0);
+
         if (\App\Services\GamificationService::claimReward((int) $transactionId, $student->id)) {
             Flux::toast('تم استلام المكافأة!', variant: 'success');
+            $this->dispatch('reward-claimed', xp: $xp);
         }
     }
 
@@ -1019,9 +1065,11 @@ new class extends Component {
         if (! $leaderboard) {
             return;
         }
+        $pendingXp = (int) \App\Services\GamificationService::getPendingRewards($student->id, $leaderboard->id)->sum('xp_amount');
         $count = \App\Services\GamificationService::claimAllRewards($student->id, $leaderboard->id);
         if ($count > 0) {
             Flux::toast("تم استلام {$count} مكافأة!", variant: 'success');
+            $this->dispatch('reward-claimed', xp: $pendingXp);
         }
     }
 
@@ -1160,6 +1208,29 @@ new class extends Component {
     .scrollbar-thin::-webkit-scrollbar { height: 4px; }
     .scrollbar-thin::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--team-color); border-radius: 4px; opacity: 0.3; }
+
+    /* Reward-claim animations: particle flash + value pop */
+    @keyframes gam-flash {
+        0% { box-shadow: 0 0 0 0 var(--team-color-30); transform: scaleY(1); }
+        40% { box-shadow: 0 0 10px 3px var(--team-color); transform: scaleY(2.2); }
+        100% { box-shadow: 0 0 0 0 transparent; transform: scaleY(1); }
+    }
+    .gam-flash { animation: gam-flash 0.6s ease-out; }
+
+    @keyframes gam-pop {
+        0% { transform: scale(1); }
+        45% { transform: scale(1.45); color: #059669; }
+        100% { transform: scale(1); }
+    }
+    .gam-pop { animation: gam-pop 0.5s ease-out; display: inline-block; }
+
+    .gam-xp-particle {
+        position: fixed; z-index: 9999; pointer-events: none;
+        width: 12px; height: 12px; border-radius: 9999px;
+        background: radial-gradient(circle at 30% 30%, #fff, var(--team-color));
+        box-shadow: 0 0 8px 1px var(--team-color);
+        will-change: transform, opacity;
+    }
 </style>
     @if($pendingClaims->isNotEmpty())
         @php
@@ -1361,14 +1432,14 @@ new class extends Component {
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600">+{{ $reward->xp_amount }} {{ __('خبرة') }}</span>
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600">+{{ $reward->amount }} {{ __('عملة') }}</span>
                         </div>
-                        <button wire:click="claimReward({{ $reward->id }})" wire:loading.attr="disabled" class="shrink-0 text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-colors">{{ __('استلام') }}</button>
+                        <button wire:click="claimReward({{ $reward->id }})" onclick="window.gamLaunchXp && window.gamLaunchXp(this)" wire:loading.attr="disabled" class="shrink-0 text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-colors">{{ __('استلام') }}</button>
                     </div>
                 @endforeach
             </div>
 
             <div class="flex items-center justify-between gap-3 p-4 bg-slate-50/70 border-t border-slate-100">
                 <span class="text-xs text-slate-500">{{ __('الإجمالي') }}: +{{ $pendingRewards->sum('xp_amount') }} {{ __('خبرة') }} · +{{ $pendingRewards->sum('amount') }} {{ __('عملة') }}</span>
-                <button wire:click="claimAllRewards" wire:loading.attr="disabled" class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm transition-colors"><flux:icon icon="check" class="size-4" /> {{ __('استلام الكل') }}</button>
+                <button wire:click="claimAllRewards" onclick="window.gamLaunchXp && window.gamLaunchXp(this, 16)" wire:loading.attr="disabled" class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm transition-colors"><flux:icon icon="check" class="size-4" /> {{ __('استلام الكل') }}</button>
             </div>
         </div>
     @endif
@@ -1869,7 +1940,7 @@ new class extends Component {
                 ? min(100, max(0, (int) round((($lvlXp - $lvlBase) / ($lvlTarget - $lvlBase)) * 100)))
                 : 100;
         @endphp
-        <div x-show="currentTab !== 'leaderboard'" x-cloak x-transition.opacity
+        <div id="gam-stats-bar"
             class="sticky top-2 z-30 flex items-stretch justify-around gap-1 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl px-2 py-2 shadow-sm">
 
             {{-- Level (tap → home) with progress to next level --}}
@@ -1879,9 +1950,9 @@ new class extends Component {
                 <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none">
                     <flux:icon icon="trophy" class="size-3 shrink-0" />{{ __('المستوى') }}
                 </span>
-                <span class="text-base font-black leading-none text-team-primary">{{ $studentLevel }}</span>
-                <span class="w-full max-w-14 h-1 rounded-full bg-slate-100 overflow-hidden" title="{{ $lvlPct }}% {{ __('نحو المستوى التالي') }}">
-                    <span class="block h-full rounded-full bg-team-primary transition-all duration-700" style="width: {{ $lvlPct }}%"></span>
+                <span id="gam-level-value" class="text-base font-black leading-none text-team-primary">{{ $studentLevel }}</span>
+                <span id="gam-level-meter" class="w-full max-w-14 h-1 rounded-full bg-slate-100 overflow-hidden" title="{{ $lvlPct }}% {{ __('نحو المستوى التالي') }}">
+                    <span id="gam-level-fill" class="block h-full rounded-full bg-team-primary transition-all duration-700" style="width: {{ $lvlPct }}%"></span>
                 </span>
             </button>
 
@@ -1894,7 +1965,7 @@ new class extends Component {
                 <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none">
                     <flux:icon icon="sparkles" class="size-3 shrink-0" />{{ __('النقاط') }}
                 </span>
-                <span class="text-base font-black text-slate-900 leading-none">{{ number_format($lvlXp) }}</span>
+                <span id="gam-xp-value" class="text-base font-black text-slate-900 leading-none">{{ number_format($lvlXp) }}</span>
                 <span class="text-[9px] font-black leading-none {{ $xpToday > 0 ? 'text-emerald-600' : 'text-transparent' }}">
                     {{ $xpToday > 0 ? '+'.number_format($xpToday).' '.__('اليوم') : '.' }}
                 </span>
@@ -1914,18 +1985,18 @@ new class extends Component {
                 </span>
             </button>
 
-            @if($studentTeam)
+            @if($studentRank)
                 <div class="w-px self-center h-9 bg-slate-200"></div>
 
-                {{-- Team (tap → team) with truncated name + context highlight --}}
+                {{-- Rank (tap → standings on the home tab) --}}
                 <button type="button"
-                    x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'team' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
-                    :class="currentTab === 'team' ? 'bg-team-10 ring-1 ring-team-20' : 'hover:bg-slate-50'"
-                    class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 transition-colors cursor-pointer min-w-0">
-                    <span class="text-[10px] text-slate-400 font-bold leading-none truncate max-w-full">{{ $theme['team_possessive_my'] }}</span>
-                    <span class="text-sm font-black leading-none flex items-center gap-1 max-w-[5.5rem]" style="color: {{ $teamColor }}">
-                        {!! $this->renderEmoji($style['team_emoji'], 'size-4 inline-block align-middle shrink-0') !!}
-                        <span class="truncate">{{ $studentTeam->name }}</span>
+                    x-on:click="window.dispatchEvent(new CustomEvent('gamnav-changed', { detail: { tab: 'leaderboard' } })); window.scrollTo({ top: 0, behavior: 'instant' });"
+                    class="flex-1 flex flex-col items-center gap-1 rounded-xl px-2 py-1 hover:bg-slate-50 transition-colors cursor-pointer min-w-0">
+                    <span class="flex items-center gap-1 text-[10px] text-slate-400 font-bold leading-none truncate max-w-full">
+                        <flux:icon icon="chart-bar" class="size-3 shrink-0" />{{ $studentRankScope === 'track' ? __('مركزك في مسارك') : __('مركزك') }}
+                    </span>
+                    <span id="gam-rank-value" class="text-base font-black leading-none text-team-primary">
+                        {{ $studentRank }}<span class="text-[10px] text-slate-400 font-bold"> / {{ $studentRankTotal }}</span>
                     </span>
                 </button>
             @endif
@@ -2565,6 +2636,47 @@ new class extends Component {
         <!-- Team Content -->
         @if($studentTeam)
         <div x-show="currentTab === 'team'" class="space-y-6">
+            <!-- Team Standings: rank, today's points, today's enthusiasm-day count -->
+            @if(!empty($teamStandings))
+                <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+                    <div class="flex items-center gap-2 mb-4">
+                        <flux:icon icon="trophy" class="size-5 text-amber-500" />
+                        <h3 class="font-black text-slate-900">{{ __('مراكز') }} {{ $theme['team_plural'] }}</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right text-sm">
+                            <thead>
+                                <tr class="text-[11px] text-slate-400 font-bold border-b border-slate-100">
+                                    <th class="p-2 text-center w-8">#</th>
+                                    <th class="p-2">{{ $theme['team_name'] }}</th>
+                                    <th class="p-2 text-center">{{ __('النقاط') }}</th>
+                                    <th class="p-2 text-center whitespace-nowrap">{{ __('نقاط اليوم') }}</th>
+                                    <th class="p-2 text-center whitespace-nowrap">{{ __('حماسة اليوم') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">
+                                @foreach($teamStandings as $row)
+                                    @php $isMyTeam = $studentTeam && $row['team']->id === $studentTeam->id; @endphp
+                                    <tr @class(['rounded-xl', 'bg-team-10' => $isMyTeam])>
+                                        <td class="p-2 text-center font-black {{ $row['rank'] <= 3 ? 'text-amber-500' : 'text-slate-400' }}">{{ $row['rank'] }}</td>
+                                        <td class="p-2">
+                                            <div class="flex items-center gap-2 min-w-0">
+                                                <span class="size-2.5 rounded-full shrink-0" style="background-color: {{ $row['team']->color ?? '#4f46e5' }}"></span>
+                                                <span class="font-bold text-slate-800 truncate">{{ $row['team']->name }}</span>
+                                                @if($isMyTeam)<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-team-10 text-team-primary shrink-0">{{ __('فريقك') }}</span>@endif
+                                            </div>
+                                        </td>
+                                        <td class="p-2 text-center font-black text-slate-900">{{ number_format($row['score']) }}</td>
+                                        <td class="p-2 text-center font-bold {{ $row['points_today'] > 0 ? 'text-emerald-600' : 'text-slate-300' }}">+{{ number_format($row['points_today']) }}</td>
+                                        <td class="p-2 text-center font-bold {{ $row['enthusiasm_today'] > 0 ? 'text-orange-500' : 'text-slate-300' }}">🔥 {{ $row['enthusiasm_today'] }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
             <!-- Team Info Header Card -->
             <div @class([
                 'bg-white border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden',
@@ -3400,4 +3512,69 @@ new class extends Component {
     </flux:modal>
 </div>
 @endif
+
+@script
+<script>
+    // Fly XP particles from the claim button to the level meter in the top bar.
+    window.gamLaunchXp = function (fromEl, count = 10) {
+        const target = document.getElementById('gam-level-meter');
+        if (! fromEl || ! target) return;
+        const f = fromEl.getBoundingClientRect();
+        const t = target.getBoundingClientRect();
+        const sx = f.left + f.width / 2, sy = f.top + f.height / 2;
+        const ex = t.left + t.width / 2, ey = t.top + t.height / 2;
+
+        for (let i = 0; i < count; i++) {
+            const p = document.createElement('div');
+            p.className = 'gam-xp-particle';
+            p.style.left = sx + 'px';
+            p.style.top = sy + 'px';
+            document.body.appendChild(p);
+
+            const dx = ex - sx, dy = ey - sy;
+            const mx = dx * 0.5 + (Math.random() - 0.5) * 140;
+            const my = dy * 0.5 - (70 + Math.random() * 90);
+
+            const anim = p.animate([
+                { transform: 'translate(0,0) scale(' + (0.5 + Math.random() * 0.7) + ')', opacity: 1, offset: 0 },
+                { transform: 'translate(' + mx + 'px,' + my + 'px) scale(1)', opacity: 1, offset: 0.6 },
+                { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.25)', opacity: 0.15, offset: 1 },
+            ], { duration: 750 + Math.random() * 250, delay: i * 45, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+            anim.onfinish = function () { p.remove(); };
+        }
+
+        // Flash the meter roughly when the particles land.
+        setTimeout(window.gamPulseMeter, count * 45 + 780);
+    };
+
+    window.gamPulseMeter = function () {
+        const fill = document.getElementById('gam-level-fill');
+        if (! fill) return;
+        fill.classList.remove('gam-flash');
+        void fill.offsetWidth;
+        fill.classList.add('gam-flash');
+        setTimeout(function () { fill.classList.remove('gam-flash'); }, 650);
+    };
+
+    window.gamPulseValue = function (id) {
+        const el = document.getElementById(id);
+        if (! el) return;
+        el.classList.remove('gam-pop');
+        void el.offsetWidth;
+        el.classList.add('gam-pop');
+        setTimeout(function () { el.classList.remove('gam-pop'); }, 550);
+    };
+
+    // After the server confirms the claim (XP/level/rank already re-rendered), the
+    // meter fill width transitions to its new value; pop the numbers to match.
+    $wire.on('reward-claimed', function () {
+        requestAnimationFrame(function () {
+            window.gamPulseMeter();
+            window.gamPulseValue('gam-xp-value');
+            window.gamPulseValue('gam-level-value');
+            window.gamPulseValue('gam-rank-value');
+        });
+    });
+</script>
+@endscript
 </div>

@@ -1829,3 +1829,34 @@ it('displays gamification activities and recorded winners on the student dashboa
         ->assertSee('أسرة الهمة العالية')
         ->assertSee('الجولة الأولى');
 });
+
+it('shows the student rank in the always-visible compact stats bar', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة المركز',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(2),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    // Give the student XP so they appear in the standings with a rank.
+    GamificationTransaction::create([
+        'leaderboard_id' => $leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 10,
+        'xp_amount' => 10,
+        'description' => 'تجربة',
+        'claimed_at' => now(),
+    ]);
+    GamificationService::recalculateStudentState($this->student->id, $leaderboard->id);
+
+    $this->get(route('student.dashboard'))
+        ->assertSuccessful()
+        ->assertSee('gam-stats-bar', false) // the top bar is rendered (now always-visible)
+        ->assertSee('gam-level-meter', false) // animation target for the claim effect
+        ->assertSee('مركزك'); // rank segment replaced the team segment
+});

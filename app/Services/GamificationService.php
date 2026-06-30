@@ -836,14 +836,16 @@ class GamificationService
             ->toArray();
 
         if (! empty($customCriteriaIds)) {
-            $hasCustomScore = LeaderboardScore::where('leaderboard_id', $leaderboard->id)
+            // Every criterion marked as an enthusiasm trigger is a required condition:
+            // the student must have scored ALL of them on this date (AND), not just one.
+            $scoredCriteriaCount = LeaderboardScore::where('leaderboard_id', $leaderboard->id)
                 ->where('student_id', $student->id)
                 ->whereIn('leaderboard_criterion_id', $customCriteriaIds)
                 ->whereDate('date', $dateStr)
-                ->exists();
-            if ($hasCustomScore) {
-                $customMet = true;
-            }
+                ->pluck('leaderboard_criterion_id')
+                ->unique()
+                ->count();
+            $customMet = $scoredCriteriaCount === count($customCriteriaIds);
         }
 
         return $attendanceMet || $achievementMet || $customMet;
@@ -965,15 +967,27 @@ class GamificationService
             ->pluck('id')
             ->toArray();
 
-        $customScoreDates = [];
+        // A date counts only when the student scored EVERY enthusiasm criterion that
+        // day (AND), not merely one of them.
+        $customMetDates = [];
         if (! empty($customCriteriaIds)) {
-            $customScoreDates = LeaderboardScore::where('leaderboard_id', $leaderboard->id)
+            $requiredCount = count($customCriteriaIds);
+            $scoredByDate = [];
+            LeaderboardScore::where('leaderboard_id', $leaderboard->id)
                 ->where('student_id', $student->id)
                 ->whereIn('leaderboard_criterion_id', $customCriteriaIds)
                 ->whereBetween('date', [$startDate, $endDate])
-                ->pluck('date')
-                ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
-                ->toArray();
+                ->get(['leaderboard_criterion_id', 'date'])
+                ->each(function ($score) use (&$scoredByDate) {
+                    $d = Carbon::parse($score->date)->format('Y-m-d');
+                    $scoredByDate[$d][$score->leaderboard_criterion_id] = true;
+                });
+
+            foreach ($scoredByDate as $d => $criteria) {
+                if (count($criteria) === $requiredCount) {
+                    $customMetDates[$d] = true;
+                }
+            }
         }
 
         // Loop through each day in the range and evaluate from memory
@@ -1045,8 +1059,8 @@ class GamificationService
                 }
             }
 
-            // 3. Custom Met
-            $customMet = in_array($dateStr, $customScoreDates);
+            // 3. Custom Met (all enthusiasm criteria scored that day)
+            $customMet = isset($customMetDates[$dateStr]);
 
             // Evaluate
             $triggered = $attendanceMet || $achievementMet || $customMet;
@@ -2124,7 +2138,7 @@ class GamificationService
      * Get the total team score for a team in a leaderboard,
      * applying the team multiplier only to the team score.
      */
-    public static function getTeamScore(GamificationTeam $team, Leaderboard $leaderboard): int
+    public static function getTeamScore(GamificationTeam $team, Leaderboard $leaderboard, ?string $onlyDate = null): int
     {
         $teamStudents = $team->students()->get();
         $teamStudentIds = $teamStudents->pluck('id')->toArray();
@@ -2214,6 +2228,12 @@ class GamificationService
             // still applies to every source of XP, not just the ones with a business date.
             $date ??= $tx->created_at;
 
+            // When scoped to a single day (e.g. "points earned today"), skip rows
+            // whose business date is not that day.
+            if ($onlyDate !== null && Carbon::parse($date)->format('Y-m-d') !== $onlyDate) {
+                continue;
+            }
+
             $individualMultiplier = 1;
             if (in_array($tx->reference_type, $individualMultiplierEligibleTypes, true)) {
                 $student = $teamStudents->firstWhere('id', $tx->student_id);
@@ -2236,6 +2256,49 @@ class GamificationService
         }
 
         return $totalTeamScore;
+    }
+
+    /**
+     * Ranked standings for every team in the leaderboard, including the points
+     * earned on a given day and the number of the team's students who reached an
+     * enthusiasm day on that same day.
+     *
+     * @return array<int, array{team: GamificationTeam, score: int, rank: int, points_today: int, enthusiasm_today: int}>
+     */
+    public static function getTeamStandings(Leaderboard $leaderboard, ?string $date = null): array
+    {
+        $date = $date ? Carbon::parse($date)->format('Y-m-d') : now()->format('Y-m-d');
+
+        $teams = GamificationTeam::where('leaderboard_id', $leaderboard->id)
+            ->with('students')
+            ->get();
+
+        $rows = [];
+        foreach ($teams as $team) {
+            $enthusiasmToday = 0;
+            foreach ($team->students as $student) {
+                if (self::checkEnthusiasmForDate($student, $date, $leaderboard)) {
+                    $enthusiasmToday++;
+                }
+            }
+
+            $rows[] = [
+                'team' => $team,
+                'score' => self::getTeamScore($team, $leaderboard),
+                'points_today' => self::getTeamScore($team, $leaderboard, $date),
+                'enthusiasm_today' => $enthusiasmToday,
+            ];
+        }
+
+        // Rank by total score (highest first); stable order for ties by team id.
+        usort($rows, fn ($a, $b) => $b['score'] <=> $a['score'] ?: $a['team']->id <=> $b['team']->id);
+
+        foreach ($rows as $i => &$row) {
+            $row['rank'] = $i + 1;
+        }
+        unset($row);
+
+        return $rows;
     }
 
     /**
