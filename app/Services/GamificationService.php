@@ -2350,6 +2350,89 @@ class GamificationService
     }
 
     /**
+     * Every earned achievement for the leaderboard's students, resolved to the
+     * business date it belongs to (the day the work was actually done, not when
+     * the reward happened to be credited) and grouped by student then date.
+     * Team-level transactions (with no owning student) are excluded, and each
+     * student's days are ordered most-recent first.
+     *
+     * @return array<int, array<string, array<int, array{description: string, xp: int, coins: int, pending: bool}>>>
+     */
+    public static function getAchievementsByStudentAndDay(Leaderboard $leaderboard): array
+    {
+        $transactions = GamificationTransaction::where('leaderboard_id', $leaderboard->id)
+            ->where('type', 'earn')
+            ->whereNotNull('student_id')
+            ->orderBy('id')
+            ->get();
+
+        if ($transactions->isEmpty()) {
+            return [];
+        }
+
+        // Pre-fetch referenced models so each transaction can be dated by the day
+        // its underlying work belongs to rather than when the reward was credited.
+        $attendanceIds = $transactions->where('reference_type', Attendance::class)->pluck('reference_id')->unique()->toArray();
+        $attendances = empty($attendanceIds) ? collect() : Attendance::whereIn('id', $attendanceIds)->get()->keyBy('id');
+
+        $planDayIds = $transactions->where('reference_type', StudentPlanDay::class)->pluck('reference_id')->unique()->toArray();
+        $planDays = empty($planDayIds) ? collect() : StudentPlanDay::whereIn('id', $planDayIds)->get()->keyBy('id');
+
+        $scoreIds = $transactions->where('reference_type', LeaderboardScore::class)->pluck('reference_id')->unique()->toArray();
+        $scores = empty($scoreIds) ? collect() : LeaderboardScore::whereIn('id', $scoreIds)->get()->keyBy('id');
+
+        $odeIds = $transactions->where('reference_type', StudentOdeAchievement::class)->pluck('reference_id')->unique()->toArray();
+        $odeAchievements = empty($odeIds) ? collect() : StudentOdeAchievement::with('pathDay')->whereIn('id', $odeIds)->get()->keyBy('id');
+
+        $hadithIds = $transactions->where('reference_type', StudentHadithAchievement::class)->pluck('reference_id')->unique()->toArray();
+        $hadithAchievements = empty($hadithIds) ? collect() : StudentHadithAchievement::with('pathDay')->whereIn('id', $hadithIds)->get()->keyBy('id');
+
+        $extraPointIds = $transactions->where('reference_type', 'leaderboard_extra_points')->pluck('reference_id')->unique()->toArray();
+        $extraPoints = empty($extraPointIds) ? collect() : DB::table('leaderboard_extra_points')->whereIn('id', $extraPointIds)->get()->keyBy('id');
+
+        $byStudent = [];
+
+        foreach ($transactions as $tx) {
+            $date = null;
+
+            if ($tx->reference_type === Attendance::class) {
+                $date = $attendances->get($tx->reference_id)?->date;
+            } elseif ($tx->reference_type === StudentPlanDay::class) {
+                $date = $planDays->get($tx->reference_id)?->date;
+            } elseif ($tx->reference_type === LeaderboardScore::class) {
+                $date = $scores->get($tx->reference_id)?->date;
+            } elseif ($tx->reference_type === StudentOdeAchievement::class) {
+                $ach = $odeAchievements->get($tx->reference_id);
+                $date = $ach ? ($ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date) : null;
+            } elseif ($tx->reference_type === StudentHadithAchievement::class) {
+                $ach = $hadithAchievements->get($tx->reference_id);
+                $date = $ach ? ($ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date) : null;
+            } elseif ($tx->reference_type === 'leaderboard_extra_points') {
+                $date = $extraPoints->get($tx->reference_id)?->date;
+            }
+
+            // Everything else (team tasks, activity wins, streak milestones, manual
+            // adjustments, ...) is dated by when it was credited.
+            $date ??= $tx->created_at;
+            $day = Carbon::parse($date)->format('Y-m-d');
+
+            $byStudent[$tx->student_id][$day][] = [
+                'description' => $tx->description,
+                'xp' => (int) $tx->xp_amount,
+                'coins' => (int) $tx->amount,
+                'pending' => $tx->claimed_at === null,
+            ];
+        }
+
+        foreach ($byStudent as &$days) {
+            krsort($days);
+        }
+        unset($days);
+
+        return $byStudent;
+    }
+
+    /**
      * Get student level and next level details.
      *
      * @return array<string, mixed>

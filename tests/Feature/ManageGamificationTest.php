@@ -1367,6 +1367,92 @@ it('creates a track, assigns students, and enforces one track per student', func
     expect(GamificationTrack::find($trackB->id))->toBeNull();
 });
 
+it('groups a student earned achievements by the real achievement date, not when credited', function () {
+    $this->leaderboard->settings = array_merge($this->leaderboard->settings ?? [], [
+        'hifz_enabled' => true,
+        'hifz_excellent_xp' => 10,
+        'hifz_excellent_coins' => 10,
+    ]);
+    $this->leaderboard->save();
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+
+    $achievementDate = now()->subDays(2)->format('Y-m-d');
+    $day = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => $achievementDate,
+        'day_name' => 'يوم',
+        'hifz_achievement' => 3, // Excellent
+    ]);
+    GamificationService::syncStudentPlanDayXP($day);
+
+    $achievements = GamificationService::getAchievementsByStudentAndDay($this->leaderboard);
+
+    expect($achievements)->toHaveKey($this->student->id);
+    // The achievement is filed under the plan day's date, even though the transaction
+    // row was created "today".
+    expect($achievements[$this->student->id])->toHaveKey($achievementDate);
+    expect($achievements[$this->student->id][$achievementDate][0]['xp'])->toBe(10);
+    expect($achievements[$this->student->id][$achievementDate][0]['description'])->toContain('لليوم '.$achievementDate);
+});
+
+it('renders the student standings tab for the selected day and opens the per-day achievements modal', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $this->leaderboard->settings = array_merge($this->leaderboard->settings ?? [], [
+        'hifz_enabled' => true,
+        'hifz_excellent_xp' => 10,
+        'hifz_excellent_coins' => 10,
+    ]);
+    $this->leaderboard->save();
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+
+    $achievementDate = now()->subDays(2)->format('Y-m-d');
+    $day = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => $achievementDate,
+        'day_name' => 'يوم',
+        'hifz_achievement' => 3,
+    ]);
+    GamificationService::syncStudentPlanDayXP($day);
+
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->set('activeTab', 'standings')
+        ->set('standingsDate', $achievementDate)
+        ->assertSee('مراكز الطلاب')
+        ->assertSee($this->student->name)
+        ->assertSee('لليوم '.$achievementDate) // today-achievement chip for the selected day
+        ->call('viewStudentAchievements', $this->student->id)
+        ->assertSet('showAchievementsModal', true)
+        ->assertSet('achievementsStudentId', $this->student->id)
+        ->assertSee('إنجازات '.$this->student->name);
+});
+
+it('shows no achievement for a day the student did nothing', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->set('activeTab', 'standings')
+        ->set('standingsDate', now()->format('Y-m-d'))
+        ->assertSee($this->student->name)
+        ->assertSee('لا يوجد إنجاز في هذا اليوم');
+});
+
 it('records adjustments in the news only when the supervisor opts in', function () {
     $this->actingAs($this->supervisor, 'supervisor');
     $c = Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id]);

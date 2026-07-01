@@ -20,6 +20,7 @@ use App\Models\Teacher;
 use App\Services\GamificationNewsService;
 use App\Services\GamificationService;
 use App\Services\GamificationThemeService;
+use App\Services\LeaderboardService;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -78,6 +79,13 @@ class ManageGamification extends Component
     public $theme;
 
     public string $activeTab = 'levels';
+
+    // Student standings ("مراكز الطلاب") State
+    public string $standingsDate = '';
+
+    public ?int $achievementsStudentId = null;
+
+    public bool $showAchievementsModal = false;
 
     // Levels State
     public array $levels = [];
@@ -349,10 +357,20 @@ class ManageGamification extends Component
     public function mount($competitionId): void
     {
         $this->competitionId = $competitionId;
+        $this->standingsDate = now()->format('Y-m-d');
         $this->loadCompetition();
         $this->initializeLevels();
         $this->initializeCriteria();
         $this->initializeAutomaticSettings();
+    }
+
+    /**
+     * Open the achievements-by-day breakdown for a single student.
+     */
+    public function viewStudentAchievements(int $studentId): void
+    {
+        $this->achievementsStudentId = $studentId;
+        $this->showAchievementsModal = true;
     }
 
     public function initializeAutomaticSettings(): void
@@ -2275,6 +2293,53 @@ class ManageGamification extends Component
             ->latest()
             ->get();
 
+        // Student standings ("مراكز الطلاب") — only computed when the tab is open.
+        $standingsGroups = [];
+        $achievementsByDay = [];
+        $achievementsStudentName = null;
+
+        if ($this->activeTab === 'standings') {
+            $service = new LeaderboardService;
+            $groups = $service->getStandingsByTrack($this->competition);
+
+            // No tracks defined → fall back to a single, flat overall ranking.
+            if ($groups->isEmpty()) {
+                $flat = $service->getDetailedStandings($this->competition)
+                    ->map(function ($row) {
+                        $row['track_rank'] = $row['rank'];
+
+                        return $row;
+                    })->all();
+
+                $groups = collect([[
+                    'id' => null,
+                    'name' => 'الترتيب العام',
+                    'description' => null,
+                    'standings' => $flat,
+                ]]);
+            }
+
+            $achievements = GamificationService::getAchievementsByStudentAndDay($this->competition);
+
+            $standingsGroups = $groups->map(function ($group) use ($achievements) {
+                $group['standings'] = collect($group['standings'])->map(function ($row) use ($achievements) {
+                    $studentId = $row['student']->id;
+                    $today = $achievements[$studentId][$this->standingsDate] ?? [];
+                    $row['today_achievements'] = $today;
+                    $row['today_points'] = collect($today)->sum('xp');
+
+                    return $row;
+                })->all();
+
+                return $group;
+            })->all();
+
+            if ($this->achievementsStudentId) {
+                $achievementsByDay = $achievements[$this->achievementsStudentId] ?? [];
+                $achievementsStudentName = Student::find($this->achievementsStudentId)?->name;
+            }
+        }
+
         return view('livewire.supervisor.manage-gamification', [
             'milestones' => $milestones,
             'dbBadges' => $dbBadges,
@@ -2290,6 +2355,9 @@ class ManageGamification extends Component
             'dbRounds' => $dbRounds,
             'studentsGrouped' => $studentsGrouped,
             'dbAdjustments' => $dbAdjustments,
+            'standingsGroups' => $standingsGroups,
+            'achievementsByDay' => $achievementsByDay,
+            'achievementsStudentName' => $achievementsStudentName,
         ])->layout('layouts.role-shell');
     }
 }

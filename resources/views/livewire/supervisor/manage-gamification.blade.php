@@ -48,6 +48,9 @@
         <button wire:click="$set('activeTab', 'tracks')" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 {{ $activeTab === 'tracks' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
            المسارات
         </button>
+        <button wire:click="$set('activeTab', 'standings')" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 {{ $activeTab === 'standings' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+           مراكز الطلاب
+        </button>
         <button wire:click="$set('activeTab', 'store')" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 {{ $activeTab === 'store' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
             المتجر
         </button>
@@ -872,6 +875,137 @@
                     <div class="flex justify-end gap-2">
                         <flux:button wire:click="$set('showTrackModal', false)" variant="ghost">إلغاء</flux:button>
                         <flux:button wire:click="saveTrack" variant="primary" class="bg-purple-600 hover:bg-purple-700 border-none text-white">حفظ المسار</flux:button>
+                    </div>
+                </div>
+            </flux:modal>
+        @endif
+
+        {{-- TAB: STUDENT STANDINGS --}}
+        @if($activeTab === 'standings')
+            <div class="space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <flux:heading size="lg">مراكز الطلاب</flux:heading>
+                        <flux:subheading>ترتيب الطلاب ضمن كل مسار (إن وُجدت المسارات)، مع ما أنجزه كل طالب في اليوم المحدد. اضغط على أي طالب لعرض إنجازاته حسب الأيام.</flux:subheading>
+                    </div>
+                    <flux:input type="date" wire:model.live="standingsDate" label="اليوم" class="sm:w-56 shrink-0" />
+                </div>
+
+                @forelse($standingsGroups as $group)
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2">
+                            <div class="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 shrink-0"><flux:icon icon="flag" class="size-5" /></div>
+                            <div class="min-w-0">
+                                <span class="font-bold text-zinc-900 dark:text-white">{{ $group['name'] }}</span>
+                                @if(!empty($group['description']))
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">{{ $group['description'] }}</p>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-xl">
+                            <table class="w-full text-sm">
+                                <thead class="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400">
+                                    <tr>
+                                        <th class="py-2.5 px-3 text-center font-medium w-16">المركز</th>
+                                        <th class="py-2.5 px-3 text-right font-medium">الطالب</th>
+                                        <th class="py-2.5 px-3 text-center font-medium w-28">إجمالي النقاط</th>
+                                        <th class="py-2.5 px-3 text-right font-medium">إنجاز اليوم</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                    @forelse($group['standings'] as $row)
+                                        <tr wire:click="viewStudentAchievements({{ $row['student']->id }})" class="hover:bg-purple-50/40 dark:hover:bg-purple-900/10 cursor-pointer transition-colors">
+                                            <td class="py-2.5 px-3 text-center">
+                                                @php $rank = $row['track_rank']; @endphp
+                                                <span @class([
+                                                    'inline-flex items-center justify-center size-7 rounded-full text-xs font-bold',
+                                                    'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' => $rank === 1,
+                                                    'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200' => $rank === 2,
+                                                    'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' => $rank === 3,
+                                                    'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400' => $rank > 3,
+                                                ])>{{ $rank }}</span>
+                                            </td>
+                                            <td class="py-2.5 px-3">
+                                                <span class="font-medium text-zinc-800 dark:text-zinc-100">{{ $row['student']->name }}</span>
+                                                @if($row['student']->circle?->name)
+                                                    <span class="block text-xs text-zinc-400">{{ $row['student']->circle->name }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="py-2.5 px-3 text-center">
+                                                <flux:badge size="sm" color="purple">{{ $row['score'] }}</flux:badge>
+                                            </td>
+                                            <td class="py-2.5 px-3">
+                                                @if(!empty($row['today_achievements']))
+                                                    <div class="flex flex-wrap items-center gap-1.5">
+                                                        @foreach($row['today_achievements'] as $ach)
+                                                            <span class="inline-flex items-center gap-1 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-700 dark:text-zinc-300">
+                                                                {{ $ach['description'] }}
+                                                                @if($ach['xp'] > 0)<span class="font-bold text-purple-600 dark:text-purple-400">+{{ $ach['xp'] }}</span>@endif
+                                                            </span>
+                                                        @endforeach
+                                                        @if($row['today_points'] > 0)
+                                                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">= {{ $row['today_points'] }} نقطة</span>
+                                                        @endif
+                                                    </div>
+                                                @else
+                                                    <span class="text-xs text-zinc-400">لا يوجد إنجاز في هذا اليوم</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr><td colspan="4" class="py-6 text-center text-zinc-400">لا يوجد طلاب في هذا المسار.</td></tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-center py-12 text-zinc-500 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
+                        لا يوجد طلاب في هذه المسابقة بعد.
+                    </div>
+                @endforelse
+            </div>
+
+            {{-- Achievements-by-day modal --}}
+            <flux:modal wire:model="showAchievementsModal" class="md:w-[640px] w-full">
+                <div class="space-y-5">
+                    <flux:heading size="lg">إنجازات {{ $achievementsStudentName ?? 'الطالب' }}</flux:heading>
+
+                    <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                        @forelse($achievementsByDay as $day => $items)
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-bold text-zinc-800 dark:text-zinc-100">{{ \Carbon\Carbon::parse($day)->translatedFormat('l، j F Y') }}</span>
+                                    <flux:badge size="sm" color="emerald">{{ collect($items)->sum('xp') }} نقطة</flux:badge>
+                                </div>
+                                <ul class="space-y-1.5">
+                                    @foreach($items as $ach)
+                                        <li class="flex items-center justify-between gap-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 text-sm">
+                                            <span class="text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                                                {{ $ach['description'] }}
+                                                @if($ach['pending'])<flux:badge size="sm" color="amber">قيد الاستلام</flux:badge>@endif
+                                            </span>
+                                            <span class="shrink-0 font-bold {{ $ach['xp'] > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-zinc-400' }}">
+                                                @if($ach['xp'] > 0)
+                                                    +{{ $ach['xp'] }} XP
+                                                @elseif($ach['coins'] > 0)
+                                                    +{{ $ach['coins'] }} عملة
+                                                @else
+                                                    —
+                                                @endif
+                                            </span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @empty
+                            <p class="text-center text-zinc-400 py-6">لا توجد إنجازات مسجلة لهذا الطالب.</p>
+                        @endforelse
+                    </div>
+
+                    <div class="flex justify-end">
+                        <flux:button wire:click="$set('showAchievementsModal', false)" variant="ghost">إغلاق</flux:button>
                     </div>
                 </div>
             </flux:modal>
