@@ -27,6 +27,7 @@ use App\Models\StudentPlanDay;
 use App\Models\Supervisor;
 use App\Models\Teacher;
 use App\Services\GamificationService;
+use App\Services\LeaderboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -1441,6 +1442,63 @@ it('renders the student standings tab for the selected day and opens the per-day
         ->assertSet('showAchievementsModal', true)
         ->assertSet('achievementsStudentId', $this->student->id)
         ->assertSee('إنجازات '.$this->student->name);
+});
+
+it('excludes points from work graded outside the competition window from standings and the daily view', function () {
+    // Competition window is now()->subDays(5) .. now()->addDays(5) (from beforeEach).
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(50),
+        'is_approved' => 1,
+        'days_count' => 60,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+
+    // In-window: an old scheduled day, but graded today (inside the window).
+    $inDay = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->subDays(30)->format('Y-m-d'),
+        'day_name' => 'يوم',
+        'hifz_achievement' => 3,
+        'hifz_graded_at' => now(),
+    ]);
+
+    // Out-of-window: graded before the competition even started.
+    $outDay = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->subDays(40)->format('Y-m-d'),
+        'day_name' => 'يوم',
+        'hifz_achievement' => 3,
+        'hifz_graded_at' => now()->subDays(8),
+    ]);
+
+    foreach ([$inDay, $outDay] as $d) {
+        GamificationTransaction::create([
+            'leaderboard_id' => $this->leaderboard->id,
+            'student_id' => $this->student->id,
+            'type' => 'earn',
+            'amount' => 10,
+            'xp_amount' => 10,
+            'description' => 'حفظ ممتاز لليوم '.$d->date->format('Y-m-d'),
+            'reference_type' => StudentPlanDay::class,
+            'reference_id' => $d->id,
+            'claimed_at' => now(),
+        ]);
+    }
+
+    // Standings total counts only the in-window earning (10), not both (20).
+    $standings = (new LeaderboardService)->getDetailedStandings($this->leaderboard->fresh());
+    $row = $standings->first(fn ($r) => $r['student']->id === $this->student->id);
+    expect($row['score'])->toBe(10);
+
+    // The daily view files the in-window earning under its grading date (today) and
+    // drops the out-of-window one entirely.
+    $achievements = GamificationService::getAchievementsByStudentAndDay($this->leaderboard->fresh());
+    $days = array_keys($achievements[$this->student->id] ?? []);
+    expect($days)->toContain(now()->format('Y-m-d'));
+    expect($days)->not->toContain(now()->subDays(8)->format('Y-m-d'));
+    expect($days)->not->toContain(now()->subDays(30)->format('Y-m-d')); // scheduled date is not used
 });
 
 it('shows no achievement for a day the student did nothing', function () {

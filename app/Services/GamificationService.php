@@ -2350,11 +2350,111 @@ class GamificationService
     }
 
     /**
-     * Every earned achievement for the leaderboard's students, resolved to the
-     * business date it belongs to (the day the work was actually done, not when
-     * the reward happened to be credited) and grouped by student then date.
-     * Team-level transactions (with no owning student) are excluded, and each
-     * student's days are ordered most-recent first.
+     * Resolve each earn transaction to the calendar day the underlying work belongs
+     * to: the date it was graded / attended / scored, matching how earnings are
+     * gated at creation time. Sources with no business date (team tasks, activity
+     * wins, streak milestones, manual adjustments, ...) fall back to created_at.
+     * Handles both Eloquent models and raw DB rows — both expose id / reference_type
+     * / reference_id / created_at.
+     *
+     * @param  \Illuminate\Support\Collection<int, mixed>  $transactions
+     * @return array<int, string> Keyed by transaction id → 'Y-m-d'.
+     */
+    private static function resolveTransactionDates($transactions): array
+    {
+        $idsFor = fn (string $type) => $transactions->where('reference_type', $type)->pluck('reference_id')->filter()->unique()->all();
+
+        $attendanceIds = $idsFor(Attendance::class);
+        $attendances = empty($attendanceIds) ? collect() : Attendance::whereIn('id', $attendanceIds)->get()->keyBy('id');
+
+        $planDayIds = $idsFor(StudentPlanDay::class);
+        $planDays = empty($planDayIds) ? collect() : StudentPlanDay::whereIn('id', $planDayIds)->get()->keyBy('id');
+
+        $scoreIds = $idsFor(LeaderboardScore::class);
+        $scores = empty($scoreIds) ? collect() : LeaderboardScore::whereIn('id', $scoreIds)->get()->keyBy('id');
+
+        $odeIds = $idsFor(StudentOdeAchievement::class);
+        $odeAchievements = empty($odeIds) ? collect() : StudentOdeAchievement::with('pathDay')->whereIn('id', $odeIds)->get()->keyBy('id');
+
+        $hadithIds = $idsFor(StudentHadithAchievement::class);
+        $hadithAchievements = empty($hadithIds) ? collect() : StudentHadithAchievement::with('pathDay')->whereIn('id', $hadithIds)->get()->keyBy('id');
+
+        $extraPointIds = $idsFor('leaderboard_extra_points');
+        $extraPoints = empty($extraPointIds) ? collect() : DB::table('leaderboard_extra_points')->whereIn('id', $extraPointIds)->get()->keyBy('id');
+
+        $dates = [];
+
+        foreach ($transactions as $tx) {
+            $date = null;
+
+            if ($tx->reference_type === Attendance::class) {
+                $date = $attendances->get($tx->reference_id)?->date;
+            } elseif ($tx->reference_type === StudentPlanDay::class) {
+                $day = $planDays->get($tx->reference_id);
+                $date = $day ? ($day->hifz_graded_at ?? $day->review_graded_at ?? $day->date) : null;
+            } elseif ($tx->reference_type === LeaderboardScore::class) {
+                $date = $scores->get($tx->reference_id)?->date;
+            } elseif ($tx->reference_type === StudentOdeAchievement::class) {
+                $ach = $odeAchievements->get($tx->reference_id);
+                $date = $ach ? ($ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date) : null;
+            } elseif ($tx->reference_type === StudentHadithAchievement::class) {
+                $ach = $hadithAchievements->get($tx->reference_id);
+                $date = $ach ? ($ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date) : null;
+            } elseif ($tx->reference_type === 'leaderboard_extra_points') {
+                $date = $extraPoints->get($tx->reference_id)?->date;
+            }
+
+            $date ??= $tx->created_at;
+            $dates[$tx->id] = Carbon::parse($date)->format('Y-m-d');
+        }
+
+        return $dates;
+    }
+
+    /**
+     * Whether a resolved 'Y-m-d' date falls inside the competition's active window.
+     * end_date is inclusive; a null end_date leaves the competition open-ended.
+     */
+    private static function dateWithinWindow(string $date, Leaderboard $leaderboard): bool
+    {
+        if ($date < $leaderboard->start_date->format('Y-m-d')) {
+            return false;
+        }
+
+        if ($leaderboard->end_date !== null && $date > $leaderboard->end_date->format('Y-m-d')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Keep only the earn transactions whose underlying work falls inside the
+     * competition's date window, so points from days graded before the competition
+     * started (or after it ended) never count toward it.
+     *
+     * @param  \Illuminate\Support\Collection<int, mixed>  $transactions
+     * @return \Illuminate\Support\Collection<int, mixed>
+     */
+    public static function filterTransactionsWithinWindow($transactions, Leaderboard $leaderboard)
+    {
+        if ($transactions->isEmpty()) {
+            return $transactions;
+        }
+
+        $dates = self::resolveTransactionDates($transactions);
+
+        return $transactions->filter(
+            fn ($tx) => self::dateWithinWindow($dates[$tx->id], $leaderboard)
+        )->values();
+    }
+
+    /**
+     * Every earned achievement for the leaderboard's students, resolved to the day
+     * its work was graded (matching how points are earned) and grouped by student
+     * then date. Earnings whose work falls outside the competition window are
+     * dropped, team-level transactions (with no owning student) are excluded, and
+     * each student's days are ordered most-recent first.
      *
      * @return array<int, array<string, array<int, array{description: string, xp: int, coins: int, pending: bool}>>>
      */
@@ -2370,51 +2470,18 @@ class GamificationService
             return [];
         }
 
-        // Pre-fetch referenced models so each transaction can be dated by the day
-        // its underlying work belongs to rather than when the reward was credited.
-        $attendanceIds = $transactions->where('reference_type', Attendance::class)->pluck('reference_id')->unique()->toArray();
-        $attendances = empty($attendanceIds) ? collect() : Attendance::whereIn('id', $attendanceIds)->get()->keyBy('id');
-
-        $planDayIds = $transactions->where('reference_type', StudentPlanDay::class)->pluck('reference_id')->unique()->toArray();
-        $planDays = empty($planDayIds) ? collect() : StudentPlanDay::whereIn('id', $planDayIds)->get()->keyBy('id');
-
-        $scoreIds = $transactions->where('reference_type', LeaderboardScore::class)->pluck('reference_id')->unique()->toArray();
-        $scores = empty($scoreIds) ? collect() : LeaderboardScore::whereIn('id', $scoreIds)->get()->keyBy('id');
-
-        $odeIds = $transactions->where('reference_type', StudentOdeAchievement::class)->pluck('reference_id')->unique()->toArray();
-        $odeAchievements = empty($odeIds) ? collect() : StudentOdeAchievement::with('pathDay')->whereIn('id', $odeIds)->get()->keyBy('id');
-
-        $hadithIds = $transactions->where('reference_type', StudentHadithAchievement::class)->pluck('reference_id')->unique()->toArray();
-        $hadithAchievements = empty($hadithIds) ? collect() : StudentHadithAchievement::with('pathDay')->whereIn('id', $hadithIds)->get()->keyBy('id');
-
-        $extraPointIds = $transactions->where('reference_type', 'leaderboard_extra_points')->pluck('reference_id')->unique()->toArray();
-        $extraPoints = empty($extraPointIds) ? collect() : DB::table('leaderboard_extra_points')->whereIn('id', $extraPointIds)->get()->keyBy('id');
+        $txDates = self::resolveTransactionDates($transactions);
 
         $byStudent = [];
 
         foreach ($transactions as $tx) {
-            $date = null;
+            $day = $txDates[$tx->id];
 
-            if ($tx->reference_type === Attendance::class) {
-                $date = $attendances->get($tx->reference_id)?->date;
-            } elseif ($tx->reference_type === StudentPlanDay::class) {
-                $date = $planDays->get($tx->reference_id)?->date;
-            } elseif ($tx->reference_type === LeaderboardScore::class) {
-                $date = $scores->get($tx->reference_id)?->date;
-            } elseif ($tx->reference_type === StudentOdeAchievement::class) {
-                $ach = $odeAchievements->get($tx->reference_id);
-                $date = $ach ? ($ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date) : null;
-            } elseif ($tx->reference_type === StudentHadithAchievement::class) {
-                $ach = $hadithAchievements->get($tx->reference_id);
-                $date = $ach ? ($ach->hifz_graded_at ?? $ach->review_graded_at ?? $ach->pathDay?->date) : null;
-            } elseif ($tx->reference_type === 'leaderboard_extra_points') {
-                $date = $extraPoints->get($tx->reference_id)?->date;
+            // Points from work graded outside the competition window (e.g. a teacher
+            // back-grading pre-competition days) do not belong to this competition.
+            if (! self::dateWithinWindow($day, $leaderboard)) {
+                continue;
             }
-
-            // Everything else (team tasks, activity wins, streak milestones, manual
-            // adjustments, ...) is dated by when it was credited.
-            $date ??= $tx->created_at;
-            $day = Carbon::parse($date)->format('Y-m-d');
 
             $byStudent[$tx->student_id][$day][] = [
                 'description' => $tx->description,

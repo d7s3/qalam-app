@@ -53,6 +53,10 @@ class LeaderboardService
                 ->where('type', 'earn')
                 ->get();
 
+            // Points from work graded outside the competition window (e.g. a teacher
+            // back-grading pre-competition days) do not belong to this competition.
+            $transactions = GamificationService::filterTransactionsWithinWindow($transactions, $leaderboard);
+
             // Pre-fetch related models to avoid N+1 queries
             $planDayIds = $transactions->where('reference_type', 'App\Models\StudentPlanDay')
                 ->pluck('reference_id')
