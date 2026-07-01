@@ -119,15 +119,41 @@ class SeedSanabilHadithText extends Command
                 'sanad' => $entry['sanad'],
             ]);
 
-            HadithLine::create([
-                'hadith_id' => $hadith->id,
-                'line_number' => 1,
-                'text' => $entry['matn'],
-            ]);
+            foreach ($this->splitIntoLines($entry['matn']) as $lineNumber => $lineText) {
+                HadithLine::create([
+                    'hadith_id' => $hadith->id,
+                    'line_number' => $lineNumber + 1,
+                    'text' => $lineText,
+                ]);
+            }
         }
 
         $this->info('تم إنشاء المتن "'.$textName.'" وإضافة '.count(self::HADITHS).' حديثًا بنجاح.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Split the hadith matn into lines of 20 words each when it exceeds 30 words,
+     * merging a trailing chunk of fewer than 10 words into the previous one.
+     *
+     * @return array<int, string>
+     */
+    private function splitIntoLines(string $matn): array
+    {
+        $words = preg_split('/\s+/u', trim($matn), -1, PREG_SPLIT_NO_EMPTY);
+
+        if (count($words) <= 30) {
+            return [trim($matn)];
+        }
+
+        $chunks = array_chunk($words, 20);
+
+        if (count($chunks) > 1 && count(end($chunks)) < 10) {
+            $lastChunk = array_pop($chunks);
+            $chunks[array_key_last($chunks)] = array_merge($chunks[array_key_last($chunks)], $lastChunk);
+        }
+
+        return array_map(fn (array $chunk) => implode(' ', $chunk), $chunks);
     }
 }
