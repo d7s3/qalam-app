@@ -27,6 +27,10 @@ class Teachers extends Component
     public array $permissions = [
         'can_manage_students' => false,
         'can_change_student_status' => false,
+        'can_create_students' => false,
+        'can_manage_hadith_paths' => false,
+        'can_manage_ode_paths' => false,
+        'can_manage_gamification_tracks' => false,
     ];
 
     /** Whether the editing teacher uses custom permissions (override) instead of global defaults */
@@ -37,6 +41,9 @@ class Teachers extends Component
         'can_manage_students' => true,
         'can_change_student_status' => true,
         'can_create_students' => true,
+        'can_manage_hadith_paths' => true,
+        'can_manage_ode_paths' => true,
+        'can_manage_gamification_tracks' => true,
     ];
 
     public $editingTeacherId = null;
@@ -59,21 +66,20 @@ class Teachers extends Component
         if (is_string($global)) {
             $global = json_decode($global, true);
         }
-        $this->globalPermissions = $global ?? [
-            'can_manage_students' => true,
-            'can_change_student_status' => true,
-            'can_create_students' => true,
-        ];
+        // Merge over canonical defaults so any newly-introduced permission key is
+        // present (and enabled) even if the stored settings row predates it.
+        $this->globalPermissions = array_merge(
+            Teacher::defaultPermissions(),
+            is_array($global) ? $global : []
+        );
         $this->loadData();
     }
 
     public function saveGlobalPermissions()
     {
-        Setting::setVal('default_teacher_permissions', json_encode([
-            'can_manage_students' => (bool) $this->globalPermissions['can_manage_students'],
-            'can_change_student_status' => (bool) $this->globalPermissions['can_change_student_status'],
-            'can_create_students' => (bool) $this->globalPermissions['can_create_students'],
-        ]));
+        Setting::setVal('default_teacher_permissions', json_encode(
+            $this->normalizePermissions($this->globalPermissions)
+        ));
         Flux::toast(__('تم حفظ الصلاحيات الافتراضية بنجاح'), variant: 'success');
     }
 
@@ -82,6 +88,19 @@ class Teachers extends Component
         $supervisor = auth()->guard('supervisor')->user();
 
         return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
+    }
+
+    /**
+     * Coerce a permissions form array into the canonical set of boolean keys.
+     *
+     * @param  array<string, mixed>  $permissions
+     * @return array<string, bool>
+     */
+    private function normalizePermissions(array $permissions): array
+    {
+        return collect(Teacher::defaultPermissions())
+            ->map(fn ($default, $key) => (bool) ($permissions[$key] ?? false))
+            ->all();
     }
 
     public function loadData()
@@ -266,11 +285,9 @@ class Teachers extends Component
             'email' => $this->email,
             'phone' => $this->phone,
             // null = inherit global defaults; array = custom override
-            'permissions' => $this->useCustomPermissions ? [
-                'can_manage_students' => (bool) $this->permissions['can_manage_students'],
-                'can_change_student_status' => (bool) $this->permissions['can_change_student_status'],
-                'can_create_students' => (bool) $this->permissions['can_create_students'],
-            ] : null,
+            'permissions' => $this->useCustomPermissions
+                ? $this->normalizePermissions($this->permissions)
+                : null,
         ]);
 
         $teacher->circles()->sync($validSelectedCircles);

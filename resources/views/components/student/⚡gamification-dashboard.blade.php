@@ -2341,7 +2341,7 @@ new class extends Component {
                                      x-transition:leave="transition ease-in duration-200"
                                      x-transition:leave-start="opacity-100 translate-y-0"
                                      x-transition:leave-end="opacity-0 translate-y-4"
-                                     class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full text-zinc-900 dark:text-white"
+                                     class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full text-zinc-900 dark:text-white"
                                      x-cloak>
                                      
                                      {{-- Modal Header --}}
@@ -2360,7 +2360,7 @@ new class extends Component {
                                      </div>
 
                                      {{-- Modal Content (Scrollable) --}}
-                                     <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-zinc-50/30 dark:bg-zinc-955/30 text-right">
+                                     <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-zinc-50/30 dark:bg-zinc-900/30 text-right">
                                          <div class="w-full space-y-8">
                                              {{-- Previous Hadiths Button --}}
                                              @if($previousHifzHadiths->isNotEmpty())

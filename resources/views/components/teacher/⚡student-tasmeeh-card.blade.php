@@ -6,10 +6,14 @@ use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\StudentOdePlan;
 use App\Models\StudentOdeAchievement;
+use App\Models\OdePath;
 use App\Models\OdePathDay;
 use App\Models\StudentHadithPlan;
 use App\Models\StudentHadithAchievement;
+use App\Models\HadithPath;
 use App\Models\HadithPathDay;
+use App\Models\GamificationTrack;
+use App\Services\GamificationService;
 use Flux\Flux;
 use Livewire\Attributes\Reactive;
 
@@ -75,7 +79,7 @@ new class extends Component {
             ->where('status', 'active')
             ->first();
 
-        if (! $activeOdePlan) {
+        if (!$activeOdePlan) {
             Flux::toast('لا توجد خطة منظومة نشطة لهذا الطالب', variant: 'danger');
             return;
         }
@@ -118,7 +122,7 @@ new class extends Component {
             ->where('status', 'active')
             ->first();
 
-        if (! $activeHadithPlan) {
+        if (!$activeHadithPlan) {
             Flux::toast('لا توجد خطة حديث نشطة لهذا الطالب', variant: 'danger');
             return;
         }
@@ -152,6 +156,185 @@ new class extends Component {
         \App\Services\GamificationService::syncStudentHadithAchievementXP($achievement->fresh(['plan.student', 'pathDay']));
 
         Flux::toast('تم حفظ تقييم الحديث بنجاح', variant: 'success');
+    }
+
+    // --- Path & track enrollment (teacher, permission-gated) -------------------
+
+    /** @var 'hadith'|'ode'|'' */
+    public string $pathModalType = '';
+
+    public bool $showPathModal = false;
+
+    /** @var array<int, array{id:int, name:string, text:?string}> */
+    public array $availablePaths = [];
+
+    public ?int $selectedPathId = null;
+
+    public bool $showTrackModal = false;
+
+    /** @var array<int, array{id:int, title:string, tracks:array<int, array{id:int, name:string}>}> */
+    public array $availableCompetitions = [];
+
+    /** @var array<int, ?int> map of leaderboard_id => selected track_id (or null) */
+    public array $trackSelections = [];
+
+    /**
+     * The effective permissions of the acting teacher (empty when not a teacher).
+     *
+     * @return array<string, bool>
+     */
+    private function teacherPermissions(): array
+    {
+        return auth('teacher')->user()?->effectivePermissions() ?? [];
+    }
+
+    public function openPathModal(string $type): void
+    {
+        $permKey = $type === 'ode' ? 'can_manage_ode_paths' : 'can_manage_hadith_paths';
+        if (empty($this->teacherPermissions()[$permKey])) {
+            Flux::toast('لا تملك صلاحية إدارة هذا النوع من المسارات', variant: 'danger');
+            return;
+        }
+
+        $this->pathModalType = $type;
+
+        if ($type === 'ode') {
+            $this->availablePaths = OdePath::with('ode')->orderBy('name')->get()
+                ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'text' => $p->ode?->name])
+                ->all();
+            $this->selectedPathId = StudentOdePlan::where('student_id', $this->student->id)
+                ->where('status', 'active')->value('ode_path_id');
+        } else {
+            $this->availablePaths = HadithPath::with('text')->orderBy('name')->get()
+                ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'text' => $p->text?->name])
+                ->all();
+            $this->selectedPathId = StudentHadithPlan::where('student_id', $this->student->id)
+                ->where('status', 'active')->value('hadith_path_id');
+        }
+
+        $this->showPathModal = true;
+    }
+
+    public function enrollInPath(): void
+    {
+        $type = $this->pathModalType;
+        $permKey = $type === 'ode' ? 'can_manage_ode_paths' : 'can_manage_hadith_paths';
+        if (empty($this->teacherPermissions()[$permKey])) {
+            Flux::toast('لا تملك صلاحية إدارة هذا النوع من المسارات', variant: 'danger');
+            return;
+        }
+
+        if ($type === 'ode') {
+            $current = StudentOdePlan::where('student_id', $this->student->id)->where('status', 'active')->first();
+            if ($current && $current->ode_path_id === (int) $this->selectedPathId) {
+                $this->showPathModal = false;
+                return;
+            }
+            // Suspend any current active ode plan, then enroll in the chosen path.
+            StudentOdePlan::where('student_id', $this->student->id)->where('status', 'active')
+                ->update(['status' => 'suspended']);
+            if ($this->selectedPathId) {
+                $path = OdePath::findOrFail($this->selectedPathId);
+                StudentOdePlan::create([
+                    'student_id' => $this->student->id,
+                    'ode_path_id' => $path->id,
+                    'start_date' => $path->start_date,
+                    'status' => 'active',
+                    'created_by_role' => 'teacher',
+                ]);
+                Flux::toast('تم تسكين الطالب في مسار المنظومة', variant: 'success');
+            } else {
+                Flux::toast('تم إلغاء تسكين الطالب من مسار المنظومة', variant: 'success');
+            }
+        } else {
+            $current = StudentHadithPlan::where('student_id', $this->student->id)->where('status', 'active')->first();
+            if ($current && $current->hadith_path_id === (int) $this->selectedPathId) {
+                $this->showPathModal = false;
+                return;
+            }
+            StudentHadithPlan::where('student_id', $this->student->id)->where('status', 'active')
+                ->update(['status' => 'suspended']);
+            if ($this->selectedPathId) {
+                $path = HadithPath::findOrFail($this->selectedPathId);
+                StudentHadithPlan::create([
+                    'student_id' => $this->student->id,
+                    'hadith_path_id' => $path->id,
+                    'start_date' => $path->start_date,
+                    'status' => 'active',
+                    'created_by_role' => 'teacher',
+                ]);
+                Flux::toast('تم تسكين الطالب في مسار الحديث', variant: 'success');
+            } else {
+                Flux::toast('تم إلغاء تسكين الطالب من مسار الحديث', variant: 'success');
+            }
+        }
+
+        $this->showPathModal = false;
+    }
+
+    public function openTrackModal(): void
+    {
+        if (empty($this->teacherPermissions()['can_manage_gamification_tracks'])) {
+            Flux::toast('لا تملك صلاحية تسكين الطلاب في مسارات التلعيب', variant: 'danger');
+            return;
+        }
+
+        $leaderboards = GamificationService::getActiveLeaderboards($this->student);
+
+        $currentByLeaderboard = GamificationTrack::query()
+            ->whereIn('leaderboard_id', $leaderboards->pluck('id'))
+            ->whereHas('students', fn ($q) => $q->where('students.id', $this->student->id))
+            ->get(['id', 'leaderboard_id'])
+            ->keyBy('leaderboard_id');
+
+        $this->availableCompetitions = [];
+        $this->trackSelections = [];
+
+        foreach ($leaderboards as $leaderboard) {
+            $tracks = GamificationTrack::where('leaderboard_id', $leaderboard->id)
+                ->orderBy('sort_order')->orderBy('id')
+                ->get(['id', 'name']);
+
+            if ($tracks->isEmpty()) {
+                continue;
+            }
+
+            $this->availableCompetitions[] = [
+                'id' => $leaderboard->id,
+                'title' => $leaderboard->title,
+                'tracks' => $tracks->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])->all(),
+            ];
+            $this->trackSelections[$leaderboard->id] = $currentByLeaderboard->get($leaderboard->id)?->id;
+        }
+
+        $this->showTrackModal = true;
+    }
+
+    public function saveTrackEnrollment(): void
+    {
+        if (empty($this->teacherPermissions()['can_manage_gamification_tracks'])) {
+            Flux::toast('لا تملك صلاحية تسكين الطلاب في مسارات التلعيب', variant: 'danger');
+            return;
+        }
+
+        foreach ($this->availableCompetitions as $competition) {
+            $trackIds = collect($competition['tracks'])->pluck('id')->all();
+            $selectedTrackId = $this->trackSelections[$competition['id']] ?? null;
+
+            // Enforce one track per competition: detach from all this competition's
+            // tracks, then attach the chosen one (if any).
+            \Illuminate\Support\Facades\DB::table('gamification_track_student')
+                ->where('student_id', $this->student->id)
+                ->whereIn('track_id', $trackIds)
+                ->delete();
+
+            if ($selectedTrackId && in_array((int) $selectedTrackId, $trackIds, true)) {
+                GamificationTrack::find($selectedTrackId)?->students()->syncWithoutDetaching([$this->student->id]);
+            }
+        }
+
+        $this->showTrackModal = false;
+        Flux::toast('تم تحديث تسكين الطالب في مسارات التلعيب', variant: 'success');
     }
 
     public function with()
@@ -322,7 +505,7 @@ new class extends Component {
                 $oldestIncompleteOde = $odeDays->first(function ($day) {
                     $hasHifz = $day->from_verse_number && $day->to_verse_number;
                     $hasReview = $day->review_from_verse_number && $day->review_to_verse_number;
-                    
+
                     if ($hasHifz && $hasReview) {
                         return is_null($day->hifz_achievement) || is_null($day->review_achievement);
                     } elseif ($hasHifz) {
@@ -332,7 +515,7 @@ new class extends Component {
                     }
                     return false;
                 });
-                
+
                 if ($oldestIncompleteOde) {
                     $defaultOdeDayId = $oldestIncompleteOde->id;
                 } else {
@@ -356,7 +539,7 @@ new class extends Component {
                 $oldestIncompleteHadith = $hadithDays->first(function ($day) {
                     $hasHifz = $day->from_line_number && $day->to_line_number;
                     $hasReview = $day->review_from_line_number && $day->review_to_line_number;
-                    
+
                     if ($hasHifz && $hasReview) {
                         return is_null($day->hifz_achievement) || is_null($day->review_achievement);
                     } elseif ($hasHifz) {
@@ -366,7 +549,7 @@ new class extends Component {
                     }
                     return false;
                 });
-                
+
                 if ($oldestIncompleteHadith) {
                     $defaultHadithDayId = $oldestIncompleteHadith->id;
                 } else {
@@ -423,6 +606,18 @@ new class extends Component {
             }
         }
 
+        $perms = $this->teacherPermissions();
+
+        // Lightweight summary of the tracks this student currently belongs to,
+        // only when the teacher may manage tracks (keeps the default render lean).
+        $currentTracks = collect();
+        if (! empty($perms['can_manage_gamification_tracks'])) {
+            $currentTracks = GamificationTrack::query()
+                ->whereHas('students', fn ($q) => $q->where('students.id', $this->student->id))
+                ->with('leaderboard:id,title')
+                ->get(['id', 'name', 'leaderboard_id']);
+        }
+
         return [
             'student' => $this->student,
             'sPlans' => $this->sPlans,
@@ -447,6 +642,8 @@ new class extends Component {
             'hadithDateToDayIdMap' => $hadithDateToDayIdMap,
             'hadithLines' => $hadithLines,
             'allHadiths' => $allHadiths,
+            'perms' => $perms,
+            'currentTracks' => $currentTracks,
         ];
     }
 
@@ -596,15 +793,15 @@ new class extends Component {
                                 @php
                                     $hLinks = [];
                                     $hFrom = $currentDay->fromAyah;
-                                    $hTo   = $currentDay->toAyah;
+                                    $hTo = $currentDay->toAyah;
                                     if ($hFrom && $hTo) {
                                         if ($hFrom->surah_id === $hTo->surah_id) {
                                             $hLinks[] = [
                                                 'name' => $hFrom->surah->name_arabic,
-                                                'url'  => 'https://quran.com/ar/' . $hFrom->surah->number . '/' . $hFrom->verse_number . '-' . $hTo->verse_number,
+                                                'url' => 'https://quran.com/ar/' . $hFrom->surah->number . '/' . $hFrom->verse_number . '-' . $hTo->verse_number,
                                             ];
                                         } else {
-                                            $low  = min($hFrom->surah_id, $hTo->surah_id);
+                                            $low = min($hFrom->surah_id, $hTo->surah_id);
                                             $high = max($hFrom->surah_id, $hTo->surah_id);
                                             $direction = $hFrom->surah_id <= $hTo->surah_id ? 'asc' : 'desc';
                                             $surahs = $allSurahs->filter(fn($s) => $s->id >= $low && $s->id <= $high);
@@ -615,17 +812,17 @@ new class extends Component {
                                             }
                                             foreach ($surahs as $s) {
                                                 $from = $s->id === $hFrom->surah_id ? $hFrom->verse_number : 1;
-                                                $to   = $s->id === $hTo->surah_id   ? $hTo->verse_number   : $s->verses_count;
+                                                $to = $s->id === $hTo->surah_id ? $hTo->verse_number : $s->verses_count;
                                                 $hLinks[] = [
                                                     'name' => $s->name_arabic,
-                                                    'url'  => 'https://quran.com/ar/' . $s->number . '/' . $from . '-' . $to,
+                                                    'url' => 'https://quran.com/ar/' . $s->number . '/' . $from . '-' . $to,
                                                 ];
                                             }
                                         }
                                     } elseif ($hFrom) {
                                         $hLinks[] = [
                                             'name' => $hFrom->surah->name_arabic,
-                                            'url'  => 'https://quran.com/ar/' . $hFrom->surah->number . '/' . $hFrom->verse_number . '-' . $hFrom->surah->verses_count,
+                                            'url' => 'https://quran.com/ar/' . $hFrom->surah->number . '/' . $hFrom->verse_number . '-' . $hFrom->surah->verses_count,
                                         ];
                                     }
                                 @endphp
@@ -696,15 +893,15 @@ new class extends Component {
                                 @php
                                     $rLinks = [];
                                     $rFrom = $currentDay->reviewFromAyah;
-                                    $rTo   = $currentDay->reviewToAyah;
+                                    $rTo = $currentDay->reviewToAyah;
                                     if ($rFrom && $rTo) {
                                         if ($rFrom->surah_id === $rTo->surah_id) {
                                             $rLinks[] = [
                                                 'name' => $rFrom->surah->name_arabic,
-                                                'url'  => 'https://quran.com/ar/' . $rFrom->surah->number . '/' . $rFrom->verse_number . '-' . $rTo->verse_number,
+                                                'url' => 'https://quran.com/ar/' . $rFrom->surah->number . '/' . $rFrom->verse_number . '-' . $rTo->verse_number,
                                             ];
                                         } else {
-                                            $low  = min($rFrom->surah_id, $rTo->surah_id);
+                                            $low = min($rFrom->surah_id, $rTo->surah_id);
                                             $high = max($rFrom->surah_id, $rTo->surah_id);
                                             $direction = $rFrom->surah_id <= $rTo->surah_id ? 'asc' : 'desc';
                                             $surahs = $allSurahs->filter(fn($s) => $s->id >= $low && $s->id <= $high);
@@ -715,17 +912,17 @@ new class extends Component {
                                             }
                                             foreach ($surahs as $s) {
                                                 $from = $s->id === $rFrom->surah_id ? $rFrom->verse_number : 1;
-                                                $to   = $s->id === $rTo->surah_id   ? $rTo->verse_number   : $s->verses_count;
+                                                $to = $s->id === $rTo->surah_id ? $rTo->verse_number : $s->verses_count;
                                                 $rLinks[] = [
                                                     'name' => $s->name_arabic,
-                                                    'url'  => 'https://quran.com/ar/' . $s->number . '/' . $from . '-' . $to,
+                                                    'url' => 'https://quran.com/ar/' . $s->number . '/' . $from . '-' . $to,
                                                 ];
                                             }
                                         }
                                     } elseif ($rFrom) {
                                         $rLinks[] = [
                                             'name' => $rFrom->surah->name_arabic,
-                                            'url'  => 'https://quran.com/ar/' . $rFrom->surah->number . '/' . $rFrom->verse_number . '-' . $rFrom->surah->verses_count,
+                                            'url' => 'https://quran.com/ar/' . $rFrom->surah->number . '/' . $rFrom->verse_number . '-' . $rFrom->surah->verses_count,
                                         ];
                                     }
                                 @endphp
@@ -789,6 +986,28 @@ new class extends Component {
         @endforeach
     @endif
 
+    {{-- Ode path enrollment bar (visible when teacher may manage ode paths, or a plan exists) --}}
+    @if(($perms['can_manage_ode_paths'] ?? false) || $activeOdePlan)
+        <div class="mt-4 flex items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 shrink-0">
+                    <flux:icon icon="book-open" class="size-5" />
+                </div>
+                <div class="min-w-0">
+                    <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('مسار المنظومة') }}</div>
+                    <div class="text-sm font-bold text-zinc-900 dark:text-white truncate">
+                        {{ $activeOdePlan?->path?->name ?? __('غير مُسكَّن في مسار منظومة') }}
+                    </div>
+                </div>
+            </div>
+            @if($perms['can_manage_ode_paths'] ?? false)
+                <flux:button size="sm" variant="{{ $activeOdePlan ? 'ghost' : 'primary' }}" icon="{{ $activeOdePlan ? 'arrow-path' : 'plus' }}" wire:click="openPathModal('ode')">
+                    {{ $activeOdePlan ? __('تغيير المسار') : __('تسكين في مسار') }}
+                </flux:button>
+            @endif
+        </div>
+    @endif
+
     @if($activeOdePlan && $odeDays->isNotEmpty())
         @foreach($odeDays as $odeDay)
             @php
@@ -821,10 +1040,10 @@ new class extends Component {
                 }
             @endphp
             <div wire:key="ode-day-card-container-{{ $odeDay->id }}" x-show="activeOdeDayId == {{ $odeDay->id }}" class="mt-4" x-data="{ showHifzModal: false, showReviewModal: false, prevHifzCount: 0, prevReviewCount: 0 }">
-                
+
                 {{-- Unified Card --}}
                 <flux:card x-data="{ syncingTask: null }" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveOdeAchievement">
-                    
+
                     {{-- Day navigation --}}
                     <div class="flex items-center justify-between mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-4 shrink-0">
                         <flux:button type="button" @click="prevOdeDay()" x-bind:disabled="!hasPrevOdeDay()" icon="chevron-right" variant="subtle" size="sm">
@@ -874,44 +1093,44 @@ new class extends Component {
                                     <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم الحفظ') }}</flux:label>
                                     <div class="grid grid-cols-2 gap-1.5">
                                         @foreach([
-                                            [
-                                                'val' => 3,
-                                                'lbl' => 'ممتاز',
-                                                'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => 2,
-                                                'lbl' => 'جيد',
-                                                'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => 1,
-                                                'lbl' => 'مقبول',
-                                                'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => null,
-                                                'lbl' => 'لم يسمع',
-                                                'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ]
-                                        ] as $item)
-                                            @php
-                                                $val = $item['val'];
-                                                $lbl = $item['lbl'];
-                                                $activeClass = $item['activeClass'];
-                                                $inactiveClass = $item['inactiveClass'];
-                                            @endphp
-                                            <button type="button" 
-                                                @click="syncingTask = 'ode-hifz-{{ $val ?? 'null' }}'; await $wire.saveOdeAchievement({{ $odeDay->id }}, 'hifz', {{ $val ?? 'null' }}); syncingTask = null"
-                                                :disabled="syncingTask !== null"
-                                                class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
-                                                :class="syncingTask === 'ode-hifz-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $odeDay->hifz_achievement === $val ? $activeClass : $inactiveClass }}'">
-                                                {{ $lbl }}
-                                            </button>
+                                                [
+                                                    'val' => 3,
+                                                    'lbl' => 'ممتاز',
+                                                    'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => 2,
+                                                    'lbl' => 'جيد',
+                                                    'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => 1,
+                                                    'lbl' => 'مقبول',
+                                                    'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => null,
+                                                    'lbl' => 'لم يسمع',
+                                                    'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ]
+                                            ] as $item)
+                                                @php
+                                                    $val = $item['val'];
+                                                    $lbl = $item['lbl'];
+                                                    $activeClass = $item['activeClass'];
+                                                    $inactiveClass = $item['inactiveClass'];
+                                                @endphp
+                                                <button type="button" 
+                                                    @click="syncingTask = 'ode-hifz-{{ $val ?? 'null' }}'; await $wire.saveOdeAchievement({{ $odeDay->id }}, 'hifz', {{ $val ?? 'null' }}); syncingTask = null"
+                                                    :disabled="syncingTask !== null"
+                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
+                                                    :class="syncingTask === 'ode-hifz-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $odeDay->hifz_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                    {{ $lbl }}
+                                                </button>
                                         @endforeach
                                     </div>
                                 </div>
@@ -947,44 +1166,44 @@ new class extends Component {
                                     <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم المراجعة') }}</flux:label>
                                     <div class="grid grid-cols-2 gap-1.5">
                                         @foreach([
-                                            [
-                                                'val' => 3,
-                                                'lbl' => 'ممتاز',
-                                                'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => 2,
-                                                'lbl' => 'جيد',
-                                                'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => 1,
-                                                'lbl' => 'مقبول',
-                                                'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => null,
-                                                'lbl' => 'لم يسمع',
-                                                'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ]
-                                        ] as $item)
-                                            @php
-                                                $val = $item['val'];
-                                                $lbl = $item['lbl'];
-                                                $activeClass = $item['activeClass'];
-                                                $inactiveClass = $item['inactiveClass'];
-                                            @endphp
-                                            <button type="button" 
-                                                @click="syncingTask = 'ode-review-{{ $val ?? 'null' }}'; await $wire.saveOdeAchievement({{ $odeDay->id }}, 'review', {{ $val ?? 'null' }}); syncingTask = null"
-                                                :disabled="syncingTask !== null"
-                                                class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
-                                                :class="syncingTask === 'ode-review-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $odeDay->review_achievement === $val ? $activeClass : $inactiveClass }}'">
-                                                {{ $lbl }}
-                                            </button>
+                                                [
+                                                    'val' => 3,
+                                                    'lbl' => 'ممتاز',
+                                                    'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => 2,
+                                                    'lbl' => 'جيد',
+                                                    'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => 1,
+                                                    'lbl' => 'مقبول',
+                                                    'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => null,
+                                                    'lbl' => 'لم يسمع',
+                                                    'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ]
+                                            ] as $item)
+                                                @php
+                                                    $val = $item['val'];
+                                                    $lbl = $item['lbl'];
+                                                    $activeClass = $item['activeClass'];
+                                                    $inactiveClass = $item['inactiveClass'];
+                                                @endphp
+                                                <button type="button" 
+                                                    @click="syncingTask = 'ode-review-{{ $val ?? 'null' }}'; await $wire.saveOdeAchievement({{ $odeDay->id }}, 'review', {{ $val ?? 'null' }}); syncingTask = null"
+                                                    :disabled="syncingTask !== null"
+                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
+                                                    :class="syncingTask === 'ode-review-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $odeDay->review_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                    {{ $lbl }}
+                                                </button>
                                         @endforeach
                                     </div>
                                 </div>
@@ -1003,7 +1222,7 @@ new class extends Component {
                              x-transition:leave-end="opacity-0 translate-y-4"
                              class="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col w-full h-full"
                              x-cloak>
-                            
+
                             {{-- Modal Header --}}
                             <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
                                 <div>
@@ -1088,9 +1307,9 @@ new class extends Component {
                              x-transition:leave="transition ease-in duration-200"
                              x-transition:leave-start="opacity-100 translate-y-0"
                              x-transition:leave-end="opacity-0 translate-y-4"
-                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full"
+                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full"
                              x-cloak>
-                            
+
                             {{-- Modal Header --}}
                             <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
                                 <div>
@@ -1187,6 +1406,28 @@ new class extends Component {
         </flux:card>
     @endif
 
+    {{-- Hadith path enrollment bar (visible when teacher may manage hadith paths, or a plan exists) --}}
+    @if(($perms['can_manage_hadith_paths'] ?? false) || $activeHadithPlan)
+        <div class="mt-4 flex items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 shrink-0">
+                    <flux:icon icon="document-text" class="size-5" />
+                </div>
+                <div class="min-w-0">
+                    <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('مسار الحديث') }}</div>
+                    <div class="text-sm font-bold text-zinc-900 dark:text-white truncate">
+                        {{ $activeHadithPlan?->path?->name ?? __('غير مُسكَّن في مسار حديث') }}
+                    </div>
+                </div>
+            </div>
+            @if($perms['can_manage_hadith_paths'] ?? false)
+                <flux:button size="sm" variant="{{ $activeHadithPlan ? 'ghost' : 'primary' }}" icon="{{ $activeHadithPlan ? 'arrow-path' : 'plus' }}" wire:click="openPathModal('hadith')">
+                    {{ $activeHadithPlan ? __('تغيير المسار') : __('تسكين في مسار') }}
+                </flux:button>
+            @endif
+        </div>
+    @endif
+
     {{-- Hadith plans daily rendering --}}
     @if($activeHadithPlan && $hadithDays->isNotEmpty())
         @foreach($hadithDays as $hadithDay)
@@ -1232,10 +1473,10 @@ new class extends Component {
                     : collect();
             @endphp
             <div wire:key="hadith-day-card-container-{{ $hadithDay->id }}" x-show="activeHadithDayId == {{ $hadithDay->id }}" class="mt-4" x-data="{ showHadithHifzModal: false, showHadithReviewModal: false, hifzPrevCount: 0, reviewPrevCount: 0 }">
-                
+
                 {{-- Unified Card --}}
                 <flux:card x-data="{ syncingTask: null }" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveHadithAchievement">
-                    
+
                     {{-- Day navigation --}}
                     <div class="flex items-center justify-between mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-4 shrink-0">
                         <flux:button type="button" @click="prevHadithDay()" x-bind:disabled="!hasPrevHadithDay()" icon="chevron-right" variant="subtle" size="sm">
@@ -1280,44 +1521,44 @@ new class extends Component {
                                     <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم الحفظ') }}</flux:label>
                                     <div class="grid grid-cols-2 gap-1.5">
                                         @foreach([
-                                            [
-                                                'val' => 3,
-                                                'lbl' => 'ممتاز',
-                                                'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => 2,
-                                                'lbl' => 'جيد',
-                                                'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => 1,
-                                                'lbl' => 'مقبول',
-                                                'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => null,
-                                                'lbl' => 'لم يسمع',
-                                                'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ]
-                                        ] as $item)
-                                            @php
-                                                $val = $item['val'];
-                                                $lbl = $item['lbl'];
-                                                $activeClass = $item['activeClass'];
-                                                $inactiveClass = $item['inactiveClass'];
-                                            @endphp
-                                            <button type="button" 
-                                                @click="syncingTask = 'hadith-hifz-{{ $val ?? 'null' }}'; await $wire.saveHadithAchievement({{ $hadithDay->id }}, 'hifz', {{ $val ?? 'null' }}); syncingTask = null"
-                                                :disabled="syncingTask !== null"
-                                                class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
-                                                :class="syncingTask === 'hadith-hifz-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $hadithDay->hifz_achievement === $val ? $activeClass : $inactiveClass }}'">
-                                                {{ $lbl }}
-                                            </button>
+                                                [
+                                                    'val' => 3,
+                                                    'lbl' => 'ممتاز',
+                                                    'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => 2,
+                                                    'lbl' => 'جيد',
+                                                    'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => 1,
+                                                    'lbl' => 'مقبول',
+                                                    'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => null,
+                                                    'lbl' => 'لم يسمع',
+                                                    'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ]
+                                            ] as $item)
+                                                @php
+                                                    $val = $item['val'];
+                                                    $lbl = $item['lbl'];
+                                                    $activeClass = $item['activeClass'];
+                                                    $inactiveClass = $item['inactiveClass'];
+                                                @endphp
+                                                <button type="button" 
+                                                    @click="syncingTask = 'hadith-hifz-{{ $val ?? 'null' }}'; await $wire.saveHadithAchievement({{ $hadithDay->id }}, 'hifz', {{ $val ?? 'null' }}); syncingTask = null"
+                                                    :disabled="syncingTask !== null"
+                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
+                                                    :class="syncingTask === 'hadith-hifz-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $hadithDay->hifz_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                    {{ $lbl }}
+                                                </button>
                                         @endforeach
                                     </div>
                                 </div>
@@ -1348,44 +1589,44 @@ new class extends Component {
                                     <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم المراجعة') }}</flux:label>
                                     <div class="grid grid-cols-2 gap-1.5">
                                         @foreach([
-                                            [
-                                                'val' => 3,
-                                                'lbl' => 'ممتاز',
-                                                'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => 2,
-                                                'lbl' => 'جيد',
-                                                'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => 1,
-                                                'lbl' => 'مقبول',
-                                                'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ],
-                                            [
-                                                'val' => null,
-                                                'lbl' => 'لم يسمع',
-                                                'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
-                                                'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                            ]
-                                        ] as $item)
-                                            @php
-                                                $val = $item['val'];
-                                                $lbl = $item['lbl'];
-                                                $activeClass = $item['activeClass'];
-                                                $inactiveClass = $item['inactiveClass'];
-                                            @endphp
-                                            <button type="button" 
-                                                @click="syncingTask = 'hadith-review-{{ $val ?? 'null' }}'; await $wire.saveHadithAchievement({{ $hadithDay->id }}, 'review', {{ $val ?? 'null' }}); syncingTask = null"
-                                                :disabled="syncingTask !== null"
-                                                class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
-                                                :class="syncingTask === 'hadith-review-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $hadithDay->review_achievement === $val ? $activeClass : $inactiveClass }}'">
-                                                {{ $lbl }}
-                                            </button>
+                                                [
+                                                    'val' => 3,
+                                                    'lbl' => 'ممتاز',
+                                                    'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => 2,
+                                                    'lbl' => 'جيد',
+                                                    'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => 1,
+                                                    'lbl' => 'مقبول',
+                                                    'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ],
+                                                [
+                                                    'val' => null,
+                                                    'lbl' => 'لم يسمع',
+                                                    'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
+                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+                                                ]
+                                            ] as $item)
+                                                @php
+                                                    $val = $item['val'];
+                                                    $lbl = $item['lbl'];
+                                                    $activeClass = $item['activeClass'];
+                                                    $inactiveClass = $item['inactiveClass'];
+                                                @endphp
+                                                <button type="button" 
+                                                    @click="syncingTask = 'hadith-review-{{ $val ?? 'null' }}'; await $wire.saveHadithAchievement({{ $hadithDay->id }}, 'review', {{ $val ?? 'null' }}); syncingTask = null"
+                                                    :disabled="syncingTask !== null"
+                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
+                                                    :class="syncingTask === 'hadith-review-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $hadithDay->review_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                    {{ $lbl }}
+                                                </button>
                                         @endforeach
                                     </div>
                                 </div>
@@ -1402,9 +1643,9 @@ new class extends Component {
                              x-transition:leave="transition ease-in duration-200"
                              x-transition:leave-start="opacity-100 translate-y-0"
                              x-transition:leave-end="opacity-0 translate-y-4"
-                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full"
+                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full"
                              x-cloak>
-                             
+
                              {{-- Modal Header --}}
                              <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
                                  <div>
@@ -1435,77 +1676,85 @@ new class extends Component {
                                       {{-- Previous Hadiths (Dimmed) --}}
                                       @foreach($previousHifzHadiths as $index => $hadith)
                                           @php
-                                              $currentHadithLines = $hadith->lines;
+                                            $currentHadithLines = $hadith->lines;
                                           @endphp
-                                          <div x-show="hifzPrevCount >= {{ $previousHifzHadiths->count() - $index }}" 
-                                               x-cloak 
-                                               class="space-y-4 opacity-50 hover:opacity-100 transition-opacity duration-200">
-                                               {{-- Hadith Header (Name) --}}
-                                               <div class="text-lg font-bold text-zinc-500 dark:text-zinc-400 pb-2 border-b border-zinc-200 dark:border-zinc-800 font-serif">
-                                                   {{ $hadith->name }} <span class="text-xs font-sans text-zinc-400">({{ __('سابق') }})</span>
-                                               </div>
-                                               
-                                               @if ($hadith->sanad)
-                                                   <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-semibold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300 font-serif">
-                                                       <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                          <div x-show="hifzPrevCount >= {{ $previousHifzHadiths->count() - $index }}"
+                                               x-cloak
+                                               class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-zinc-400 dark:border-r-zinc-500 shadow-sm p-5 md:p-7 space-y-4 opacity-60 hover:opacity-100 transition-opacity duration-200">
+                                               {{-- Hadith Header (Name), only needed when several hadiths share this day --}}
+                                               @if ($previousHifzHadiths->count() > 1)
+                                                   <div class="flex items-center gap-2 text-base font-bold text-zinc-600 dark:text-zinc-300">
+                                                       <span class="truncate">{{ $hadith->name }}</span>
+                                                       <span class="shrink-0 px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400">{{ __('سابق') }}</span>
                                                    </div>
                                                @endif
 
-                                               @foreach($currentHadithLines as $line)
-                                                   <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800/60 shadow-sm hover:shadow-md transition-shadow">
-                                                       <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
-                                                           {{ $line->line_number }}
-                                                       </span>
-                                                       <div class="flex-1 text-base md:text-xl font-semibold text-zinc-500 dark:text-zinc-400 leading-relaxed text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
-                                                           {{ $line->text }}
+                                               @if ($hadith->sanad)
+                                                   <p class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                                       <span class="font-bold text-zinc-500 dark:text-zinc-400">{{ __('السند') }}: </span>{{ $hadith->sanad }}
+                                                   </p>
+                                                   <div class="border-t border-zinc-100 dark:border-zinc-800"></div>
+                                               @endif
+
+                                               @php $showLineNumbers = $currentHadithLines->count() > 1; @endphp
+                                               <div class="space-y-3">
+                                                   @foreach($currentHadithLines as $line)
+                                                       <div class="flex items-start gap-3">
+                                                           @if ($showLineNumbers)
+                                                               <span class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold text-xs">{{ $line->line_number }}</span>
+                                                           @endif
+                                                           <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-700 dark:text-zinc-200 leading-loose font-serif">{{ $line->text }}</p>
                                                        </div>
-                                                   </div>
-                                               @endforeach
+                                                   @endforeach
+                                               </div>
 
                                                @if ($hadith->ruling)
-                                                   <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-bold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300">
-                                                       <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
+                                                   <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                                       <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-zinc-600 dark:text-zinc-300">{{ __('حكم الحديث') }}: </span>{{ $hadith->ruling }}</p>
                                                    </div>
                                                @endif
                                           </div>
                                       @endforeach
 
                                      @foreach($hifzHadiths as $hadith)
-                                         <div class="space-y-4">
-                                             {{-- Hadith Header (Name) if multiple --}}
-                                             <div class="text-lg font-bold text-indigo-600 dark:text-indigo-400 pb-2 border-b border-indigo-100 dark:border-indigo-900/50 font-serif">
-                                                 {{ $hadith->name }}
-                                             </div>
-                                             
-                                             @if ($hadith->sanad)
-                                                 <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-600 dark:text-zinc-400 pr-4 border-r-4 border-zinc-400 font-serif">
-                                                     <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                         @php
+                                            $currentHadithLines = $hadith->lines;
+                                            if ($hadithDay->memorize_type === 'lines') {
+                                                $currentHadithLines = $currentHadithLines->filter(function ($l) use ($hadithDay) {
+                                                    return $l->line_number >= $hadithDay->from_line_number && $l->line_number <= $hadithDay->to_line_number;
+                                                });
+                                            }
+                                            $showLineNumbers = $currentHadithLines->count() > 1;
+                                         @endphp
+                                         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 shadow-sm p-5 md:p-7 space-y-4">
+                                             {{-- Hadith Header (Name), only needed when several hadiths share this day --}}
+                                             @if ($hifzHadiths->count() > 1)
+                                                 <div class="text-base font-bold text-indigo-600 dark:text-indigo-400 truncate">
+                                                     {{ $hadith->name }}
                                                  </div>
                                              @endif
 
-                                             @php
-                                                 $currentHadithLines = $hadith->lines;
-                                                 if ($hadithDay->memorize_type === 'lines') {
-                                                     $currentHadithLines = $currentHadithLines->filter(function ($l) use ($hadithDay) {
-                                                         return $l->line_number >= $hadithDay->from_line_number && $l->line_number <= $hadithDay->to_line_number;
-                                                     });
-                                                 }
-                                             @endphp
+                                             @if ($hadith->sanad)
+                                                 <p class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                                     <span class="font-bold text-indigo-600 dark:text-indigo-400">{{ __('السند') }}: </span>{{ $hadith->sanad }}
+                                                 </p>
+                                                 <div class="border-t border-zinc-100 dark:border-zinc-800"></div>
+                                             @endif
 
-                                             @foreach($currentHadithLines as $line)
-                                                 <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                                     <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-extrabold text-sm shadow-sm">
-                                                         {{ $line->line_number }}
-                                                     </span>
-                                                     <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 leading-relaxed text-right pr-4 border-r-4 border-indigo-500 dark:border-indigo-400 font-serif">
-                                                         {{ $line->text }}
+                                             <div class="space-y-3">
+                                                 @foreach($currentHadithLines as $line)
+                                                     <div class="flex items-start gap-3">
+                                                         @if ($showLineNumbers)
+                                                             <span class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 font-bold text-xs">{{ $line->line_number }}</span>
+                                                         @endif
+                                                         <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-loose font-serif">{{ $line->text }}</p>
                                                      </div>
-                                                 </div>
-                                             @endforeach
+                                                 @endforeach
+                                             </div>
 
                                              @if ($hadith->ruling)
-                                                 <div class="p-4 bg-indigo-50 dark:bg-indigo-955/30 rounded-xl text-sm font-bold text-indigo-700 dark:text-indigo-300 pr-4 border-r-4 border-indigo-500">
-                                                     <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
+                                                 <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                                     <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-indigo-600 dark:text-indigo-400">{{ __('حكم الحديث') }}: </span>{{ $hadith->ruling }}</p>
                                                  </div>
                                              @endif
                                          </div>
@@ -1531,9 +1780,9 @@ new class extends Component {
                              x-transition:leave="transition ease-in duration-200"
                              x-transition:leave-start="opacity-100 translate-y-0"
                              x-transition:leave-end="opacity-0 translate-y-4"
-                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full"
+                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full"
                              x-cloak>
-                             
+
                              {{-- Modal Header --}}
                              <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
                                  <div>
@@ -1550,7 +1799,7 @@ new class extends Component {
                              </div>
 
                              {{-- Modal Content (Scrollable) --}}
-                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-955/30">
+                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-900/30">
                                  <div class="max-w-4xl mx-auto space-y-8 text-right">
                                      {{-- Previous Hadiths Button --}}
                                      @if($previousReviewHadiths->isNotEmpty())
@@ -1564,77 +1813,85 @@ new class extends Component {
                                      {{-- Previous Hadiths (Dimmed) --}}
                                      @foreach($previousReviewHadiths as $index => $hadith)
                                          @php
-                                             $currentHadithLines = $hadith->lines;
+                                            $currentHadithLines = $hadith->lines;
                                          @endphp
                                          <div x-show="reviewPrevCount >= {{ $previousReviewHadiths->count() - $index }}"
                                               x-cloak
-                                              class="space-y-4 opacity-50 hover:opacity-100 transition-opacity duration-200">
-                                              {{-- Hadith Header (Name) --}}
-                                              <div class="text-lg font-bold text-zinc-500 dark:text-zinc-400 pb-2 border-b border-zinc-200 dark:border-zinc-800 font-serif">
-                                                  {{ $hadith->name }} <span class="text-xs font-sans text-zinc-400">({{ __('سابق') }})</span>
-                                              </div>
-                                              
-                                              @if ($hadith->sanad)
-                                                  <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-semibold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300 font-serif">
-                                                      <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                              class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-zinc-400 dark:border-r-zinc-500 shadow-sm p-5 md:p-7 space-y-4 opacity-60 hover:opacity-100 transition-opacity duration-200">
+                                              {{-- Hadith Header (Name), only needed when several hadiths share this day --}}
+                                              @if ($previousReviewHadiths->count() > 1)
+                                                  <div class="flex items-center gap-2 text-base font-bold text-zinc-600 dark:text-zinc-300">
+                                                      <span class="truncate">{{ $hadith->name }}</span>
+                                                      <span class="shrink-0 px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400">{{ __('سابق') }}</span>
                                                   </div>
                                               @endif
 
-                                              @foreach($currentHadithLines as $line)
-                                                  <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800/60 shadow-sm hover:shadow-md transition-shadow">
-                                                      <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
-                                                          {{ $line->line_number }}
-                                                      </span>
-                                                      <div class="flex-1 text-base md:text-xl font-semibold text-zinc-500 dark:text-zinc-400 leading-relaxed text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
-                                                          {{ $line->text }}
+                                              @if ($hadith->sanad)
+                                                  <p class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                                      <span class="font-bold text-zinc-500 dark:text-zinc-400">{{ __('السند') }}: </span>{{ $hadith->sanad }}
+                                                  </p>
+                                                  <div class="border-t border-zinc-100 dark:border-zinc-800"></div>
+                                              @endif
+
+                                              @php $showLineNumbers = $currentHadithLines->count() > 1; @endphp
+                                              <div class="space-y-3">
+                                                  @foreach($currentHadithLines as $line)
+                                                      <div class="flex items-start gap-3">
+                                                          @if ($showLineNumbers)
+                                                              <span class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold text-xs">{{ $line->line_number }}</span>
+                                                          @endif
+                                                          <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-700 dark:text-zinc-200 leading-loose font-serif">{{ $line->text }}</p>
                                                       </div>
-                                                  </div>
-                                              @endforeach
+                                                  @endforeach
+                                              </div>
 
                                               @if ($hadith->ruling)
-                                                  <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-bold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300">
-                                                      <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
+                                                  <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                                      <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-zinc-600 dark:text-zinc-300">{{ __('حكم الحديث') }}: </span>{{ $hadith->ruling }}</p>
                                                   </div>
                                               @endif
                                          </div>
                                      @endforeach
 
                                      @foreach($reviewHadiths as $hadith)
-                                         <div class="space-y-4">
-                                             {{-- Hadith Header (Name) if multiple --}}
-                                             <div class="text-lg font-bold text-emerald-600 dark:text-emerald-400 pb-2 border-b border-emerald-100 dark:border-emerald-900/50 font-serif">
-                                                 {{ $hadith->name }}
-                                             </div>
-                                             
-                                             @if ($hadith->sanad)
-                                                 <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-600 dark:text-zinc-400 pr-4 border-r-4 border-zinc-400 font-serif">
-                                                     <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                         @php
+                                            $currentHadithLines = $hadith->lines;
+                                            if ($hadithDay->memorize_type === 'lines') {
+                                                $currentHadithLines = $currentHadithLines->filter(function ($l) use ($hadithDay) {
+                                                    return $l->line_number >= $hadithDay->review_from_line_number && $l->line_number <= $hadithDay->review_to_line_number;
+                                                });
+                                            }
+                                            $showLineNumbers = $currentHadithLines->count() > 1;
+                                         @endphp
+                                         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-emerald-500 dark:border-r-emerald-400 shadow-sm p-5 md:p-7 space-y-4">
+                                             {{-- Hadith Header (Name), only needed when several hadiths share this day --}}
+                                             @if ($reviewHadiths->count() > 1)
+                                                 <div class="text-base font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                                                     {{ $hadith->name }}
                                                  </div>
                                              @endif
 
-                                             @php
-                                                 $currentHadithLines = $hadith->lines;
-                                                 if ($hadithDay->memorize_type === 'lines') {
-                                                     $currentHadithLines = $currentHadithLines->filter(function ($l) use ($hadithDay) {
-                                                         return $l->line_number >= $hadithDay->review_from_line_number && $l->line_number <= $hadithDay->review_to_line_number;
-                                                     });
-                                                 }
-                                             @endphp
+                                             @if ($hadith->sanad)
+                                                 <p class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                                     <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ __('السند') }}: </span>{{ $hadith->sanad }}
+                                                 </p>
+                                                 <div class="border-t border-zinc-100 dark:border-zinc-800"></div>
+                                             @endif
 
-                                             @foreach($currentHadithLines as $line)
-                                                 <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-emerald-100/60 dark:border-emerald-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                                     <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-sm shadow-sm">
-                                                         {{ $line->line_number }}
-                                                     </span>
-                                                     <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 leading-relaxed text-right pr-4 border-r-4 border-emerald-500 dark:border-emerald-400 font-serif">
-                                                         {{ $line->text }}
+                                             <div class="space-y-3">
+                                                 @foreach($currentHadithLines as $line)
+                                                     <div class="flex items-start gap-3">
+                                                         @if ($showLineNumbers)
+                                                             <span class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-200 font-bold text-xs">{{ $line->line_number }}</span>
+                                                         @endif
+                                                         <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-loose font-serif">{{ $line->text }}</p>
                                                      </div>
-                                                 </div>
-                                             @endforeach
+                                                 @endforeach
+                                             </div>
 
                                              @if ($hadith->ruling)
-                                                 <div class="p-4 bg-indigo-50 dark:bg-indigo-955/30 rounded-xl text-sm font-bold text-indigo-700 dark:text-indigo-300 pr-4 border-r-4 border-indigo-500">
-                                                     <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
+                                                 <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                                     <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-emerald-600 dark:text-emerald-400">{{ __('حكم الحديث') }}: </span>{{ $hadith->ruling }}</p>
                                                  </div>
                                              @endif
                                          </div>
@@ -1672,14 +1929,99 @@ new class extends Component {
         </flux:card>
     @endif
 
-    @if($sPlans->isEmpty() && !$activeOdePlan && !$activeHadithPlan)
-        <div class="flex flex-col items-center justify-center p-12 bg-zinc-50/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl text-center h-full min-h-[400px]">
-            <flux:icon icon="document-text" class="size-16 text-zinc-300 dark:text-zinc-600 mb-4" />
-            <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400 mb-2">{{ __('لا توجد خطط لهذا الطالب') }}</flux:heading>
-            <p class="text-zinc-400 dark:text-zinc-500 text-sm max-w-sm mb-6">{{ __('قم بإنشاء خطة قرآنية للطالب، أو اطلب من المشرف تسكينه في مسار منظومة، للبدء بتقييم التسميع والمراجعة.') }}</p>
-            <div class="flex flex-wrap gap-2 justify-center">
-                <flux:button href="{{ route('teacher.plan-creator', ['studentId' => $student->id]) }}" variant="primary" icon="plus">{{ __('خطة قرآنية جديدة') }}</flux:button>
+    {{-- Gamification track enrollment bar (visible when teacher may manage tracks) --}}
+    @if($perms['can_manage_gamification_tracks'] ?? false)
+        <div class="mt-4 flex items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 shrink-0">
+                    <flux:icon icon="trophy" class="size-5" />
+                </div>
+                <div class="min-w-0">
+                    <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('مسارات التلعيب') }}</div>
+                    @if($currentTracks->isNotEmpty())
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            @foreach($currentTracks as $t)
+                                <flux:badge size="sm" color="amber">{{ $t->leaderboard?->title }} — {{ $t->name }}</flux:badge>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-sm font-bold text-zinc-900 dark:text-white">{{ __('غير مُسكَّن في أي مسار تلعيب') }}</div>
+                    @endif
+                </div>
             </div>
+            <flux:button size="sm" variant="{{ $currentTracks->isNotEmpty() ? 'ghost' : 'primary' }}" icon="{{ $currentTracks->isNotEmpty() ? 'arrow-path' : 'plus' }}" wire:click="openTrackModal">
+                {{ $currentTracks->isNotEmpty() ? __('تعديل') : __('تسكين في مسار') }}
+            </flux:button>
         </div>
     @endif
+
+    @if($sPlans->isEmpty())
+        <div class="mt-4 flex flex-col items-center justify-center p-8 bg-zinc-50/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl text-center">
+            <flux:icon icon="document-text" class="size-12 text-zinc-300 dark:text-zinc-600 mb-3" />
+            <flux:heading size="md" class="text-zinc-500 dark:text-zinc-400 mb-1">{{ __('لا توجد خطة قرآنية لهذا الطالب') }}</flux:heading>
+            <p class="text-zinc-400 dark:text-zinc-500 text-sm max-w-sm mb-4">{{ __('أنشئ خطة قرآنية للطالب للبدء بتقييم التسميع والمراجعة القرآنية.') }}</p>
+            <flux:button href="{{ route('teacher.plan-creator', ['studentId' => $student->id]) }}" variant="primary" icon="plus">{{ __('خطة قرآنية جديدة') }}</flux:button>
+        </div>
+    @endif
+
+    {{-- Path enrollment modal (hadith / ode) --}}
+    <flux:modal wire:model="showPathModal" class="md:w-[500px]">
+        <div class="space-y-5">
+            <div>
+                <flux:heading size="lg">
+                    {{ $pathModalType === 'ode' ? __('تسكين في مسار منظومة') : __('تسكين في مسار حديث') }}
+                </flux:heading>
+                <flux:text class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    {{ __('اختر المسار الذي تريد تسكين الطالب فيه. سيتم إيقاف المسار الحالي (إن وجد) والاحتفاظ بإنجازاته.') }}
+                </flux:text>
+            </div>
+
+            <flux:select wire:model="selectedPathId">
+                <flux:select.option value="">{{ __('بدون مسار (إلغاء التسكين)') }}</flux:select.option>
+                @foreach($availablePaths as $p)
+                    <flux:select.option value="{{ $p['id'] }}">{{ $p['name'] }}{{ $p['text'] ? ' — '.$p['text'] : '' }}</flux:select.option>
+                @endforeach
+            </flux:select>
+
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" wire:click="$set('showPathModal', false)">{{ __('إلغاء') }}</flux:button>
+                <flux:button variant="primary" wire:click="enrollInPath">{{ __('حفظ') }}</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Gamification track enrollment modal --}}
+    <flux:modal wire:model="showTrackModal" class="md:w-[550px]">
+        <div class="space-y-5">
+            <div>
+                <flux:heading size="lg">{{ __('تسكين الطالب في مسارات التلعيب') }}</flux:heading>
+                <flux:text class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    {{ __('يمكن تسكين الطالب في مسار واحد لكل مسابقة نشطة تغطي حلقته.') }}
+                </flux:text>
+            </div>
+
+            @forelse($availableCompetitions as $competition)
+                <div class="space-y-1.5">
+                    <flux:label>{{ $competition['title'] }}</flux:label>
+                    <flux:select wire:model="trackSelections.{{ $competition['id'] }}">
+                        <flux:select.option value="">{{ __('بدون مسار') }}</flux:select.option>
+                        @foreach($competition['tracks'] as $track)
+                            <flux:select.option value="{{ $track['id'] }}">{{ $track['name'] }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+            @empty
+                <flux:callout variant="secondary" icon="information-circle">
+                    {{ __('لا توجد مسابقات تلعيب نشطة فيها مسارات تغطي حلقة هذا الطالب.') }}
+                </flux:callout>
+            @endforelse
+
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" wire:click="$set('showTrackModal', false)">{{ __('إلغاء') }}</flux:button>
+                @if(count($availableCompetitions) > 0)
+                    <flux:button variant="primary" wire:click="saveTrackEnrollment">{{ __('حفظ') }}</flux:button>
+                @endif
+            </div>
+        </div>
+    </flux:modal>
 </div>

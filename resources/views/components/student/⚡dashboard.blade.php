@@ -41,19 +41,19 @@ new class extends Component {
                     $query->whereDoesntHave('achievements', function ($q) use ($plan) {
                         $q->where('student_hadith_plan_id', $plan->id);
                     })
-                    ->orWhereHas('achievements', function ($q) use ($plan) {
-                        $q->where('student_hadith_plan_id', $plan->id)
-                          ->where(function ($sub) {
-                              $sub->where(function ($h) {
-                                  $h->whereNotNull('hadith_path_days.from_hadith_id')
-                                    ->whereNull('student_hadith_achievements.hifz_achievement');
-                              })
-                              ->orWhere(function ($r) {
-                                  $r->whereNotNull('hadith_path_days.review_from_hadith_id')
-                                    ->whereNull('student_hadith_achievements.review_achievement');
-                              });
-                          });
-                    });
+                        ->orWhereHas('achievements', function ($q) use ($plan) {
+                            $q->where('student_hadith_plan_id', $plan->id)
+                                ->where(function ($sub) {
+                                    $sub->where(function ($h) {
+                                        $h->whereNotNull('hadith_path_days.from_hadith_id')
+                                            ->whereNull('student_hadith_achievements.hifz_achievement');
+                                    })
+                                        ->orWhere(function ($r) {
+                                            $r->whereNotNull('hadith_path_days.review_from_hadith_id')
+                                                ->whereNull('student_hadith_achievements.review_achievement');
+                                        });
+                                });
+                        });
                 })
                 ->orderBy('day_number', 'asc')
                 ->first();
@@ -69,7 +69,7 @@ new class extends Component {
                 $mission->review_achievement = $achievement?->review_achievement;
                 $mission->hifz_graded_at = $achievement?->hifz_graded_at;
                 $mission->review_graded_at = $achievement?->review_graded_at;
-                
+
                 // Fetch all hadiths for this plan's path to allow showing text and previous texts
                 $allHadiths = \App\Models\Hadith::with('lines')->where(function ($query) use ($plan) {
                     $query->where('hadith_text_id', $plan->path->hadith_text_id)
@@ -77,7 +77,7 @@ new class extends Component {
                             $q->where('hadith_text_id', $plan->path->hadith_text_id);
                         });
                 })->orderBy('hadith_chapter_id', 'asc')->orderBy('id', 'asc')->get();
-                
+
                 $mission->allHadiths = $allHadiths;
                 $pendingHadithMissions[] = $mission;
             }
@@ -401,1475 +401,1521 @@ new class extends Component {
         <livewire:student.gamification-dashboard />
     @else
         <div class="space-y-8" dir="rtl">
-    <div class="flex items-center justify-between gap-4 px-1">
-        <div>
-            <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                {{ __('حياك الله يا') }}
-            </p>
-            <h1 class="text-2xl md:text-3xl font-black text-zinc-900 dark:text-white">
-                {{ $student->name }}
-            </h1>
-        </div>
-        <div
-            class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 shrink-0">
-            <flux:icon icon="calendar-days" class="size-4" />
-            <span
-                class="font-medium hidden sm:inline">{{ \Carbon\Carbon::now('Asia/Riyadh')->translatedFormat('l، d F Y') }}</span>
-            <span class="font-medium sm:hidden">{{ \Carbon\Carbon::now('Asia/Riyadh')->translatedFormat('d F') }}</span>
-        </div>
-    </div>
-
-    {{-- Next Exam Banner --}}
-    @if ($nextExam)
-        @php
-            $examDaysLeft = (int) now('Asia/Riyadh')->startOfDay()->diffInDays($nextExam->date_time->startOfDay(), false);
-
-            // Calculate exam readiness percentage
-            $examReadiness = 0;
-            $examLevel = $nextExam->examLevel;
-            if ($examLevel?->start_ayah_id && $examLevel?->end_ayah_id) {
-                $examStartId = min($examLevel->start_ayah_id, $examLevel->end_ayah_id);
-                $examEndId = max($examLevel->start_ayah_id, $examLevel->end_ayah_id);
-                $examTotal = $examEndId - $examStartId + 1;
-
-                $memorizedRange = $student->getMemorizedRange();
-                if ($memorizedRange && $examTotal > 0) {
-                    $memMin = $memorizedRange['min'];
-                    $memMax = $memorizedRange['max'];
-                    // Intersect the memorized range with the exam range
-                    $overlapStart = max($examStartId, $memMin);
-                    $overlapEnd = min($examEndId, $memMax);
-                    $overlap = max(0, $overlapEnd - $overlapStart + 1);
-                    $examReadiness = min(100, round(($overlap / $examTotal) * 100));
-                }
-            }
-
-            $readinessColor = match (true) {
-                $examReadiness >= 80 => ['bar' => 'from-emerald-400 to-emerald-600', 'text' => 'text-emerald-600 dark:text-emerald-400', 'bg' => 'bg-emerald-100 dark:bg-emerald-900/30'],
-                $examReadiness >= 50 => ['bar' => 'from-blue-400 to-blue-600', 'text' => 'text-blue-600 dark:text-blue-400', 'bg' => 'bg-blue-100 dark:bg-blue-900/30'],
-                $examReadiness >= 25 => ['bar' => 'from-amber-400 to-amber-600', 'text' => 'text-amber-600 dark:text-amber-400', 'bg' => 'bg-amber-100 dark:bg-amber-900/30'],
-                default => ['bar' => 'from-rose-400 to-rose-600', 'text' => 'text-rose-600 dark:text-rose-400', 'bg' => 'bg-rose-100 dark:bg-rose-900/30'],
-            };
-        @endphp
-        <div
-            class="relative overflow-hidden rounded-2xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50 dark:bg-indigo-900/20 p-5 shadow-sm">
-            <div class="absolute top-0 right-0 w-1.5 h-full bg-indigo-500 rounded-r-2xl"></div>
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-center gap-4">
-                    <div
-                        class="p-3 bg-indigo-100 dark:bg-indigo-800/50 rounded-xl text-indigo-600 dark:text-indigo-300 shrink-0">
-                        <flux:icon icon="academic-cap" class="size-7" variant="solid" />
-                    </div>
-                    <div class="flex-1">
-                        <p class="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-1">
-                            {{ __('الاختبار القادم') }}
-                        </p>
-                        <h3 class="font-black text-zinc-900 dark:text-white text-lg leading-tight">
-                            {{ $nextExam->examLevel->name ?? __('اختبار حفظ') }}
-                        </h3>
-                        @if ($nextExam->examLevel?->startAyah && $nextExam->examLevel?->endAyah)
-                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                {{ $nextExam->examLevel->startAyah->surah->name_arabic }}
-                                ({{ $nextExam->examLevel->startAyah->verse_number }})
-                                —
-                                {{ $nextExam->examLevel->endAyah->surah->name_arabic }}
-                                ({{ $nextExam->examLevel->endAyah->verse_number }})
-                            </p>
-                        @endif
-                        @if ($nextExam->location)
-                            <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5 flex items-center gap-1">
-                                <flux:icon icon="map-pin" class="size-3.5" />
-                                {{ $nextExam->location }}
-                            </p>
-                        @endif
-
-                        {{-- Readiness Progress --}}
-                        <div class="mt-3">
-                            <div class="flex items-center justify-between mb-1">
-                                <span
-                                    class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{{ __('جاهزيتك للاختبار') }}</span>
-                                <span class="text-xs font-black {{ $readinessColor['text'] }}">{{ $examReadiness }}%</span>
-                            </div>
-                            <div class="{{ $readinessColor['bg'] }} rounded-full h-2.5 overflow-hidden w-full">
-                                <div class="h-2.5 rounded-full bg-gradient-to-l {{ $readinessColor['bar'] }}   duration-700"
-                                    style="width: {{ $examReadiness }}%"></div>
-                            </div>
-                        </div>
-                    </div>
+            <div class="flex items-center justify-between gap-4 px-1">
+                <div>
+                    <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                        {{ __('حياك الله يا') }}
+                    </p>
+                    <h1 class="text-2xl md:text-3xl font-black text-zinc-900 dark:text-white">
+                        {{ $student->name }}
+                    </h1>
                 </div>
                 <div
-                    class="shrink-0 text-center bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-indigo-700/50 rounded-2xl px-5 py-3 shadow-sm">
-                    @if ($examDaysLeft === 0)
-                        <p class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ __('اليوم!') }}</p>
-                        <p class="text-xs text-zinc-500 mt-0.5">{{ $nextExam->date_time->format('g:i A') }}</p>
-                    @elseif ($examDaysLeft > 0)
-                        <p class="text-3xl font-black text-indigo-600 dark:text-indigo-400">{{ $examDaysLeft }}</p>
-                        <p class="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">{{ __('يوم متبقي') }}</p>
-                    @else
-                        <p class="text-sm font-bold text-zinc-400">{{ __('قريباً') }}</p>
-                    @endif
+                    class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 shrink-0">
+                    <flux:icon icon="calendar-days" class="size-4" />
+                    <span
+                        class="font-medium hidden sm:inline">{{ \Carbon\Carbon::now('Asia/Riyadh')->translatedFormat('l، d F Y') }}</span>
+                    <span
+                        class="font-medium sm:hidden">{{ \Carbon\Carbon::now('Asia/Riyadh')->translatedFormat('d F') }}</span>
                 </div>
             </div>
-        </div>
-    @endif
 
-    @if ($activeSession)
-        <flux:card
-            class="border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 overflow-hidden relative">
-            <div class="absolute top-0 right-0 p-4 opacity-10">
-                <flux:icon icon="ticket" class="w-24 h-24 text-indigo-500" />
-            </div>
-            <div class="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div>
-                    <flux:heading size="lg" class="text-indigo-800 dark:text-indigo-300 flex items-center gap-2">
-                        <flux:icon icon="ticket" class="size-5" />
-                        {{ $activeSession->isActiveNow() ? __('حجز دور التسميع متاح الآن') : __('جدول التسميع لليوم') }}
-                    </flux:heading>
-                    <p class="text-indigo-600/80 dark:text-indigo-400 mt-1 text-sm">
-                        {{ __('بادر بحجز رقمك في طابور التسميع قبل انتهاء الوقت المخصص.') }}
-                        ({{ \Carbon\Carbon::parse($activeSession->start_time)->format('g:i A') }} -
-                        {{ \Carbon\Carbon::parse($activeSession->end_time)->format('g:i A') }})
-                    </p>
-                </div>
+            {{-- Next Exam Banner --}}
+            @if ($nextExam)
+                @php
+                    $examDaysLeft = (int) now('Asia/Riyadh')->startOfDay()->diffInDays($nextExam->date_time->startOfDay(), false);
 
-                <div class="shrink-0 w-full sm:w-auto">
-                    @if ($studentReservation)
-                        <div class="flex flex-col sm:flex-row items-center gap-2">
+                    // Calculate exam readiness percentage
+                    $examReadiness = 0;
+                    $examLevel = $nextExam->examLevel;
+                    if ($examLevel?->start_ayah_id && $examLevel?->end_ayah_id) {
+                        $examStartId = min($examLevel->start_ayah_id, $examLevel->end_ayah_id);
+                        $examEndId = max($examLevel->start_ayah_id, $examLevel->end_ayah_id);
+                        $examTotal = $examEndId - $examStartId + 1;
+
+                        $memorizedRange = $student->getMemorizedRange();
+                        if ($memorizedRange && $examTotal > 0) {
+                            $memMin = $memorizedRange['min'];
+                            $memMax = $memorizedRange['max'];
+                            // Intersect the memorized range with the exam range
+                            $overlapStart = max($examStartId, $memMin);
+                            $overlapEnd = min($examEndId, $memMax);
+                            $overlap = max(0, $overlapEnd - $overlapStart + 1);
+                            $examReadiness = min(100, round(($overlap / $examTotal) * 100));
+                        }
+                    }
+
+                    $readinessColor = match (true) {
+                        $examReadiness >= 80 => ['bar' => 'from-emerald-400 to-emerald-600', 'text' => 'text-emerald-600 dark:text-emerald-400', 'bg' => 'bg-emerald-100 dark:bg-emerald-900/30'],
+                        $examReadiness >= 50 => ['bar' => 'from-blue-400 to-blue-600', 'text' => 'text-blue-600 dark:text-blue-400', 'bg' => 'bg-blue-100 dark:bg-blue-900/30'],
+                        $examReadiness >= 25 => ['bar' => 'from-amber-400 to-amber-600', 'text' => 'text-amber-600 dark:text-amber-400', 'bg' => 'bg-amber-100 dark:bg-amber-900/30'],
+                        default => ['bar' => 'from-rose-400 to-rose-600', 'text' => 'text-rose-600 dark:text-rose-400', 'bg' => 'bg-rose-100 dark:bg-rose-900/30'],
+                    };
+                @endphp
+                <div
+                    class="relative overflow-hidden rounded-2xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50 dark:bg-indigo-900/20 p-5 shadow-sm">
+                    <div class="absolute top-0 right-0 w-1.5 h-full bg-indigo-500 rounded-r-2xl"></div>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center gap-4">
                             <div
-                                class="bg-indigo-600 text-white px-6 py-3 rounded-xl flex items-center gap-3 shadow-lg shadow-indigo-500/30 w-full sm:w-auto justify-center">
-                                <flux:icon icon="check-badge" class="size-6 text-indigo-200" />
-                                <div>
-                                    <div class="text-xs text-indigo-200 uppercase tracking-wider font-semibold">
-                                        {{ __('تم الحجز') }}
+                                class="p-3 bg-indigo-100 dark:bg-indigo-800/50 rounded-xl text-indigo-600 dark:text-indigo-300 shrink-0">
+                                <flux:icon icon="academic-cap" class="size-7" variant="solid" />
+                            </div>
+                            <div class="flex-1">
+                                <p
+                                    class="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-1">
+                                    {{ __('الاختبار القادم') }}
+                                </p>
+                                <h3 class="font-black text-zinc-900 dark:text-white text-lg leading-tight">
+                                    {{ $nextExam->examLevel->name ?? __('اختبار حفظ') }}
+                                </h3>
+                                @if ($nextExam->examLevel?->startAyah && $nextExam->examLevel?->endAyah)
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                        {{ $nextExam->examLevel->startAyah->surah->name_arabic }}
+                                        ({{ $nextExam->examLevel->startAyah->verse_number }})
+                                        —
+                                        {{ $nextExam->examLevel->endAyah->surah->name_arabic }}
+                                        ({{ $nextExam->examLevel->endAyah->verse_number }})
+                                    </p>
+                                @endif
+                                @if ($nextExam->location)
+                                    <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5 flex items-center gap-1">
+                                        <flux:icon icon="map-pin" class="size-3.5" />
+                                        {{ $nextExam->location }}
+                                    </p>
+                                @endif
+
+                                {{-- Readiness Progress --}}
+                                <div class="mt-3">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span
+                                            class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{{ __('جاهزيتك للاختبار') }}</span>
+                                        <span
+                                            class="text-xs font-black {{ $readinessColor['text'] }}">{{ $examReadiness }}%</span>
                                     </div>
-                                    <div class="font-bold text-xl">{{ __('رقمك: ') }}
-                                        {{ $studentReservation->turn_number }}
+                                    <div class="{{ $readinessColor['bg'] }} rounded-full h-2.5 overflow-hidden w-full">
+                                        <div class="h-2.5 rounded-full bg-gradient-to-l {{ $readinessColor['bar'] }}   duration-700"
+                                            style="width: {{ $examReadiness }}%"></div>
                                     </div>
                                 </div>
                             </div>
-                            @if ($activeSession->isActiveNow())
-                                <flux:button wire:click="cancelTurn({{ $activeSession->id }})"
-                                    wire:confirm="{{ __('هل أنت متأكد من إلغاء حجزك؟') }}" variant="danger" icon="x-mark"
-                                    class="w-full sm:w-auto h-full min-h-[52px] rounded-xl px-4">
-                                    {{ __('إلغاء') }}
-                                </flux:button>
+                        </div>
+                        <div
+                            class="shrink-0 text-center bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-indigo-700/50 rounded-2xl px-5 py-3 shadow-sm">
+                            @if ($examDaysLeft === 0)
+                                <p class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ __('اليوم!') }}</p>
+                                <p class="text-xs text-zinc-500 mt-0.5">{{ $nextExam->date_time->format('g:i A') }}</p>
+                            @elseif ($examDaysLeft > 0)
+                                <p class="text-3xl font-black text-indigo-600 dark:text-indigo-400">{{ $examDaysLeft }}</p>
+                                <p class="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">{{ __('يوم متبقي') }}</p>
+                            @else
+                                <p class="text-sm font-bold text-zinc-400">{{ __('قريباً') }}</p>
                             @endif
                         </div>
-                    @else
-                        @if ($activeSession->isActiveNow())
-                            <flux:button wire:click="reserveTurn({{ $activeSession->id }})" variant="primary" icon="ticket"
-                                class="w-full bg-indigo-600 hover:bg-indigo-700 border-none shadow-lg shadow-indigo-500/20 text-white">
-                                {{ __('احجز دوري الآن') }}
-                            </flux:button>
-                        @else
-                            <div
-                                class="text-indigo-600/60 dark:text-indigo-400 font-semibold text-sm bg-white/50 dark:bg-black/20 px-4 py-2 rounded-lg">
-                                {{ __('غير متاح الآن') }}
-                            </div>
-                        @endif
-                    @endif
-                </div>
-            </div>
-        </flux:card>
-    @endif
-
-    <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
-
-    <!-- Student Top Stats -->
-    <div class="space-y-6">
-        <flux:heading size="xl" class="flex items-center gap-3">
-            <div class="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
-                <flux:icon icon="presentation-chart-line" class="size-6 text-white" variant="solid" />
-            </div>
-            {{ __('محفوظي من القرآن الكريم') }}
-        </flux:heading>
-
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            @php
-                $memorizedPages = $student->memorizedPagesCount();
-                $percentage = $student->memorizationPercentage();
-            @endphp
-
-            {{-- Percentage & Range --}}
-            <div
-                class="rounded-2xl border border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-zinc-900 p-4 md:p-5 shadow-sm relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-1 md:w-1.5 h-full bg-emerald-500"></div>
-                <div class="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-                    <div
-                        class="p-1.5 md:p-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg md:rounded-xl">
-                        <flux:icon icon="chart-pie" class="size-5" />
                     </div>
-                    <p class="text-[15px] md:text-sm font-bold text-zinc-600 dark:text-zinc-400 leading-tight">نسبة
-                        المحفوظ
-                    </p>
                 </div>
-                <p class="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400">{{ $percentage }}%</p>
-                <div class="mt-2 w-full bg-emerald-100 dark:bg-emerald-900/30 rounded-full h-2 overflow-hidden">
-                    <div class="h-2 rounded-full bg-gradient-to-l from-emerald-400 to-emerald-600   duration-700"
-                        style="width: {{ $percentage }}%"></div>
-                </div>
-                <p class="text-[15px] md:text-sm text-zinc-500 dark:text-zinc-400 mt-2 font-medium line-clamp-1"
-                    title="{{ $student->memorizationText() }}">
-                    {{ $student->memorizationText() }}
-                </p>
-            </div>
+            @endif
 
-            {{-- Juz and Pages --}}
-            <div
-                class="rounded-2xl border border-blue-100 dark:border-blue-900/50 bg-white dark:bg-zinc-900 p-4 md:p-5 shadow-sm relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-1 md:w-1.5 h-full bg-blue-500"></div>
-                <div class="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-                    <div
-                        class="p-1.5 md:p-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg md:rounded-xl">
-                        <flux:icon icon="book-open" class="size-5" />
+            @if ($activeSession)
+                <flux:card
+                    class="border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 overflow-hidden relative">
+                    <div class="absolute top-0 right-0 p-4 opacity-10">
+                        <flux:icon icon="ticket" class="w-24 h-24 text-indigo-500" />
                     </div>
-                    <p class="text-[15px] md:text-sm font-bold text-zinc-600 dark:text-zinc-400 leading-tight">الأجزاء
-                    </p>
-                </div>
-                <p class="text-2xl md:text-3xl font-black text-blue-600 dark:text-blue-400">
-                    {{ floor($memorizedPages / 20) }} <span
-                        class="text-sm md:text-lg font-bold text-zinc-400">جزء</span>
-                </p>
-                <p class="text-[15px] md:text-sm text-zinc-500 dark:text-zinc-400 mt-1 md:mt-2 font-medium truncate">
-                    بمجموع
-                    {{ number_format($memorizedPages) }} ص
-                </p>
-            </div>
-        </div>
-
-        <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
-
-        <!-- Pending Challenges -->
-        @if (count($pendingChallenges) > 0)
-            <div class="space-y-4">
-                <flux:heading size="lg" class="flex items-center gap-2">
-                    <flux:icon icon="gift" class="size-6 text-indigo-500" variant="solid" />
-                    {{ __('دعوات تحدي جديدة') }}
-                </flux:heading>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    @foreach ($pendingChallenges as $challenge)
-                        <div
-                            class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 shadow-sm relative overflow-hidden">
-                            <div class="flex items-start justify-between mb-4">
-                                <div>
-                                    <h4 class="font-bold text-lg text-indigo-900 dark:text-indigo-100 mb-1">
-                                        {{ __('تحدي من:') }} {{ $challenge->guardian->name }}
-                                    </h4>
-                                    <p class="text-sm text-indigo-700 dark:text-indigo-400 font-medium">
-                                        {{ __('المكافأة:') }} {{ $challenge->prize_description }}
-                                    </p>
-                                </div>
-                                <div
-                                    class="bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300 p-2 rounded-lg">
-                                    <flux:icon icon="trophy" class="size-6" />
-                                </div>
-                            </div>
-
-                            <div class="flex gap-2">
-                                <flux:button wire:click="acceptChallenge({{ $challenge->id }})" variant="primary"
-                                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 border-none">
-                                    {{ __('أنا قبلت التحدي! ✅') }}
-                                </flux:button>
-                                <flux:button wire:click="rejectChallenge({{ $challenge->id }})" variant="ghost"
-                                    class="text-zinc-500 hover:text-red-500">
-                                    {{ __('لا أريد') }}
-                                </flux:button>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        @endif
-
-        <!-- Active Rewards Status -->
-        @if (count($activeChallenges) > 0)
-            <div class="space-y-6">
-                <flux:heading size="xl" class="flex items-center gap-3">
-                    <div class="p-2 bg-orange-500 rounded-lg shadow-lg shadow-orange-500/20">
-                        <flux:icon icon="trophy" class="size-6 text-white" variant="solid" />
-                    </div>
-                    {{ __('تحدياتي وجوائزي الحالية') }}
-                </flux:heading>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    @foreach ($activeChallenges as $challenge)
-                        <div
-                            class="bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-900/50 rounded-2xl p-5 shadow-sm relative overflow-hidden">
-                            <div class="absolute top-0 right-0 w-2 h-full bg-orange-500"></div>
-
-                            <div class="flex items-start justify-between mb-4">
-                                <div>
-                                    <p class="text-xs text-zinc-400 mb-0.5">المكافأة</p>
-                                    <h4 class="font-bold text-base text-orange-600 dark:text-orange-400">
-                                        @if ($challenge->prize_type === 'financial')
-                                            💰 {{ $challenge->prize_description }}
-                                        @else
-                                            🎁 {{ $challenge->prize_description }}
-                                        @endif
-                                    </h4>
-                                    @if ($challenge->end_date)
-                                        <div class="text-xs text-zinc-500 flex items-center gap-1 mt-1">
-                                            <flux:icon icon="clock" class="size-3.5" />
-                                            {{ __('ينتهي في:') }} {{ $challenge->end_date->format('Y-m-d') }}
-                                        </div>
-                                    @endif
-                                </div>
-                                <div class="bg-orange-100 dark:bg-orange-900/30 text-orange-600 p-2 rounded-lg shrink-0">
-                                    <flux:icon icon="trophy" class="size-6" />
-                                </div>
-                            </div>
-
-                            <div class="space-y-3">
-                                @foreach ($challenge->items as $item)
-                                    @php
-                                        $calculatedProgress = $item->calculateProgress();
-                                        $progressPercent =
-                                            $item->target_value > 0
-                                            ? min(100, round(($calculatedProgress / $item->target_value) * 100))
-                                            : 0;
-
-                                        $itemTitle = match ($item->type) {
-                                            'attendance' => '🗓️ مكافأة الحضور والانضباط',
-                                            'recitation_days' => '📖 إنجاز أيام محددة',
-                                            'recitation_amount' => '📖 كمية الإنجاز',
-                                            'recitation_quality' => '⭐ جودة التسميع',
-                                            'exam_passed' => '📝 اجتياز الاختبار',
-                                            default => 'بند المكافأة',
-                                        };
-
-                                        if ($item->type === 'exam_passed') {
-                                            $progressText =
-                                                $calculatedProgress >= $item->target_value
-                                                ? 'تم الاجتياز ✅'
-                                                : "الدرجة المطلوبة: {$item->target_value}%";
-                                        } else {
-                                            $progressText =
-                                                $item->target_value > 0
-                                                ? "{$calculatedProgress} / {$item->target_value}"
-                                                : 'مستمر';
-                                        }
-                                    @endphp
-                                    <div>
-                                        <div class="flex justify-between text-sm mb-1.5">
-                                            <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ $itemTitle }}</span>
-                                            <span class="font-bold text-zinc-900 dark:text-white">{{ $progressText }}</span>
-                                        </div>
-                                        @if ($item->target_value > 0)
-                                            <div class="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-2.5 overflow-hidden">
-                                                <div class="h-2.5 rounded-full bg-gradient-to-r from-orange-400 to-red-500   duration-500"
-                                                    style="width: {{ $progressPercent }}%"></div>
-                                            </div>
-                                        @else
-                                            <div
-                                                class="w-full bg-emerald-100 dark:bg-emerald-900/30 rounded-full h-2.5 overflow-hidden">
-                                                <div class="h-2.5 rounded-full bg-emerald-500 w-full animate-pulse"></div>
-                                            </div>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-            <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
-
-        @endif
-
-
-        <!-- Last Attended Day Summary -->
-        @if ($lastDayStats)
-            <div class="space-y-6">
-                <flux:heading size="xl" class="flex items-center gap-3">
-                    <div class="p-2 bg-blue-500 rounded-lg shadow-lg shadow-blue-500/20">
-                        <flux:icon icon="clipboard-document-check" class="size-6 text-white" variant="solid" />
-                    </div>
-                    {{ __('تقرير الإنجازات اليومية') }}
-                </flux:heading>
-
-                <flux:card class="{{ $lastDayStats['theme']['card'] }} relative overflow-hidden border">
-                    <div class="absolute top-0 right-0 w-2 h-full {{ $lastDayStats['theme']['strip'] }}"></div>
-                    <div class="flex flex-col md:flex-row gap-6 items-center">
-                        <div
-                            class="bg-white dark:bg-zinc-800 p-4 rounded-full shadow-sm border {{ $lastDayStats['theme']['iconWrapper'] }}">
-                            <flux:icon icon="{{ $lastDayStats['icon'] }}" class="size-8" variant="solid" />
-                        </div>
-                        <div class="flex-1">
-                            <div class="flex items-center gap-2 mb-1">
-                                <flux:heading size="lg" class="{{ $lastDayStats['theme']['heading'] }} font-bold">
-                                    {{ __('ملخص الإنجاز اليومي') }}
-                                </flux:heading>
-                                <flux:badge color="zinc" size="sm" class="text-xs">
-                                    {{ $this->getHijriLabel($lastDayStats['date']) }}
-                                </flux:badge>
-                            </div>
-                            <p class="text-sm text-zinc-600 dark:text-zinc-400 font-medium mb-4">
-                                {{ $lastDayStats['message'] }}
+                    <div class="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div>
+                            <flux:heading size="lg" class="text-indigo-800 dark:text-indigo-300 flex items-center gap-2">
+                                <flux:icon icon="ticket" class="size-5" />
+                                {{ $activeSession->isActiveNow() ? __('حجز دور التسميع متاح الآن') : __('جدول التسميع لليوم') }}
+                            </flux:heading>
+                            <p class="text-indigo-600/80 dark:text-indigo-400 mt-1 text-sm">
+                                {{ __('بادر بحجز رقمك في طابور التسميع قبل انتهاء الوقت المخصص.') }}
+                                ({{ \Carbon\Carbon::parse($activeSession->start_time)->format('g:i A') }} -
+                                {{ \Carbon\Carbon::parse($activeSession->end_time)->format('g:i A') }})
                             </p>
+                        </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-                                <!-- Hifz Checklist Item -->
-                                <div
-                                    class="flex items-center gap-3 bg-white dark:bg-zinc-800/50 p-3 rounded-xl border {{ $lastDayStats['hifz'] > 0 ? 'border-emerald-200 dark:border-emerald-900/50 shadow-sm' : 'border-zinc-200 dark:border-zinc-800/50 opacity-70' }}">
-                                    @if ($lastDayStats['hifz'] > 0)
-                                        <flux:icon icon="check-circle" variant="solid" class="size-6 text-emerald-500" />
-                                    @else
-                                        <div
-                                            class="size-6 rounded-full border-2 border-zinc-200 dark:border-zinc-700 flex items-center justify-center">
-                                            <flux:icon icon="minus" class="size-4 text-zinc-300 dark:text-zinc-600" />
-                                        </div>
-                                    @endif
-                                    <div class="flex flex-col">
-                                        <span
-                                            class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ __('تسميع الحفظ') }}</span>
-                                        <span
-                                            class="font-bold text-sm {{ $lastDayStats['hifz'] == 3 ? 'text-emerald-700 dark:text-emerald-400' : ($lastDayStats['hifz'] == 2 ? 'text-indigo-700 dark:text-indigo-400' : ($lastDayStats['hifz'] == 1 ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-400')) }}">
-                                            {{ $lastDayStats['hifz'] == 3 ? 'ممتاز' : ($lastDayStats['hifz'] == 2 ? 'جيد' : ($lastDayStats['hifz'] == 1 ? 'مقبول' : 'لم يسمع')) }}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <!-- Review Checklist Item -->
-                                <div
-                                    class="flex items-center gap-3 bg-white dark:bg-zinc-800/50 p-3 rounded-xl border {{ $lastDayStats['review'] > 0 ? 'border-emerald-200 dark:border-emerald-900/50 shadow-sm' : 'border-zinc-200 dark:border-zinc-800/50 opacity-70' }}">
-                                    @if ($lastDayStats['review'] > 0)
-                                        <flux:icon icon="check-circle" variant="solid" class="size-6 text-emerald-500" />
-                                    @else
-                                        <div
-                                            class="size-6 rounded-full border-2 border-zinc-200 dark:border-zinc-700 flex items-center justify-center">
-                                            <flux:icon icon="minus" class="size-4 text-zinc-300 dark:text-zinc-600" />
-                                        </div>
-                                    @endif
-                                    <div class="flex flex-col">
-                                        <span
-                                            class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ __('تسميع المراجعة') }}</span>
-                                        <span
-                                            class="font-bold text-sm {{ $lastDayStats['review'] == 3 ? 'text-emerald-700 dark:text-emerald-400' : ($lastDayStats['review'] == 2 ? 'text-indigo-700 dark:text-indigo-400' : ($lastDayStats['review'] == 1 ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-400')) }}">
-                                            {{ $lastDayStats['review'] == 3 ? 'ممتاز' : ($lastDayStats['review'] == 2 ? 'جيد' : ($lastDayStats['review'] == 1 ? 'مقبول' : 'لم يراجع')) }}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <!-- Attendance Checklist Item -->
-                                <div
-                                    class="flex items-center gap-3 bg-white dark:bg-zinc-800/50 p-3 rounded-xl border {{ $lastDayStats['attendance'] == 'present' ? 'border-emerald-200 dark:border-emerald-900/50 shadow-sm' : ($lastDayStats['attendance'] == 'late' ? 'border-amber-200 dark:border-amber-900/50 shadow-sm' : 'border-zinc-200 dark:border-zinc-800/50 opacity-70') }}">
-                                    @if ($lastDayStats['attendance'] == 'present')
-                                        <flux:icon icon="check-circle" variant="solid" class="size-6 text-emerald-500" />
-                                    @elseif($lastDayStats['attendance'] == 'late')
-                                        <flux:icon icon="exclamation-circle" variant="solid" class="size-6 text-amber-500" />
-                                    @else
-                                        <div
-                                            class="size-6 rounded-full border-2 border-zinc-200 dark:border-zinc-700 flex items-center justify-center">
-                                            <flux:icon icon="x-mark" class="size-4 text-zinc-300 dark:text-zinc-600" />
-                                        </div>
-                                    @endif
-                                    <div class="flex flex-col">
-                                        <span
-                                            class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ __('الحضور') }}</span>
-                                        <span
-                                            class="font-bold text-sm {{ $lastDayStats['attendance'] == 'present' ? 'text-emerald-700 dark:text-emerald-400' : ($lastDayStats['attendance'] == 'late' ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-400') }}">
-                                            {{ $lastDayStats['attendance'] == 'present' ? 'حاضر (بدون تأخير)' : ($lastDayStats['attendance'] == 'late' ? 'متأخر' : 'غياب') }}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <!-- Criteria Checklist Item (if > 0) -->
-                                @if ($lastDayStats['criteria_count'] > 0)
+                        <div class="shrink-0 w-full sm:w-auto">
+                            @if ($studentReservation)
+                                <div class="flex flex-col sm:flex-row items-center gap-2">
                                     <div
-                                        class="flex items-center gap-3 bg-white dark:bg-zinc-800/50 p-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 shadow-sm">
-                                        <flux:icon icon="check-circle" variant="solid" class="size-6 text-emerald-500" />
-                                        <div class="flex flex-col">
-                                            <span
-                                                class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ __('بنود السلوك') }}</span>
-                                            <span class="font-bold text-sm text-emerald-700 dark:text-emerald-400 truncate"
-                                                title="{{ implode('، ', $lastDayStats['criteria_names']) }}">
-                                                {{ implode('، ', $lastDayStats['criteria_names']) }}
-                                            </span>
+                                        class="bg-indigo-600 text-white px-6 py-3 rounded-xl flex items-center gap-3 shadow-lg shadow-indigo-500/30 w-full sm:w-auto justify-center">
+                                        <flux:icon icon="check-badge" class="size-6 text-indigo-200" />
+                                        <div>
+                                            <div class="text-xs text-indigo-200 uppercase tracking-wider font-semibold">
+                                                {{ __('تم الحجز') }}
+                                            </div>
+                                            <div class="font-bold text-xl">{{ __('رقمك: ') }}
+                                                {{ $studentReservation->turn_number }}
+                                            </div>
                                         </div>
+                                    </div>
+                                    @if ($activeSession->isActiveNow())
+                                        <flux:button wire:click="cancelTurn({{ $activeSession->id }})"
+                                            wire:confirm="{{ __('هل أنت متأكد من إلغاء حجزك؟') }}" variant="danger" icon="x-mark"
+                                            class="w-full sm:w-auto h-full min-h-[52px] rounded-xl px-4">
+                                            {{ __('إلغاء') }}
+                                        </flux:button>
+                                    @endif
+                                </div>
+                            @else
+                                @if ($activeSession->isActiveNow())
+                                    <flux:button wire:click="reserveTurn({{ $activeSession->id }})" variant="primary" icon="ticket"
+                                        class="w-full bg-indigo-600 hover:bg-indigo-700 border-none shadow-lg shadow-indigo-500/20 text-white">
+                                        {{ __('احجز دوري الآن') }}
+                                    </flux:button>
+                                @else
+                                    <div
+                                        class="text-indigo-600/60 dark:text-indigo-400 font-semibold text-sm bg-white/50 dark:bg-black/20 px-4 py-2 rounded-lg">
+                                        {{ __('غير متاح الآن') }}
                                     </div>
                                 @endif
-                            </div>
+                            @endif
                         </div>
                     </div>
                 </flux:card>
-        @endif
+            @endif
 
             <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
 
-            <!-- Pending Missions Widget -->
-            @if (count($pendingMissions) > 0)
-                <div class="space-y-6">
-                    <flux:heading size="xl" class="flex items-center gap-3">
-                        <div class="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
-                            <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
-                        </div>
-                        {{ __('المهام القرآنية المجدولة') }}
-                    </flux:heading>
-
-                    <flux:card
-                        class="bg-gradient-to-br from-emerald-500 to-teal-600 border-none text-white overflow-hidden relative shadow-lg shadow-emerald-600/20 p-0">
-                        <div class="absolute -top-10 -right-10 p-4 opacity-10 pointer-events-none">
-                            <flux:icon icon="book-open" class="w-48 h-48" />
-                        </div>
-
-                        <div class="relative z-10 p-6">
-                            <div class="flex items-center gap-3 mb-6 border-b border-white/20 pb-4">
-                                <div class="bg-white/20 p-2 rounded-lg">
-                                    <flux:icon icon="flag" class="size-6 text-white" />
-                                </div>
-                                <h2 class="text-xl font-bold">{{ __('المهام القادمة') }}</h2>
-                            </div>
-
-                            <div class="space-y-6">
-                                @foreach ($pendingMissions as $pendingMission)
-                                    @php
-                                        $isToday = $pendingMission->date === $todayStr;
-                                    @endphp
-                                    <div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm border border-white/20">
-                                        <div
-                                            class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-3">
-                                            <div>
-                                                <div class="font-bold text-lg text-white">
-                                                    {{ $pendingMission->plan->description ?? __('خطة بدون عنوان') }}
-                                                </div>
-                                                <div class="text-sm text-emerald-100 flex items-center gap-2 mt-1">
-                                                    <flux:icon icon="calendar" class="size-4" />
-                                                    <span>{{ $isToday ? __('مهمة اليوم') : __('مهمة فائتة أو قادمة') }} -
-                                                        {{ $pendingMission->day_name }}
-                                                        {{ $this->getHijriLabel($pendingMission->date) }}</span>
-                                                </div>
-                                            </div>
-                                            <div
-                                                class="shrink-0 bg-white/20 px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wide">
-                                                {{ $pendingMission->plan->plan_type === 'hifz' ? __('حفظ') : ($pendingMission->plan->plan_type === 'review' ? __('مراجعة') : __('حفظ ومراجعة')) }}
-                                            </div>
-                                        </div>
-
-                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            @if ($pendingMission->from_ayah_id && $pendingMission->to_ayah_id)
-                                                <div>
-                                                    <div class="flex justify-between items-center mb-1">
-                                                        <div class="text-emerald-100 text-sm">{{ __('مقرر الحفظ') }}</div>
-                                                        @if (is_null($pendingMission->hifz_achievement))
-                                                            <span
-                                                                class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
-                                                        @endif
-                                                    </div>
-                                                    <div class="text-lg font-bold">
-                                                        {{ $pendingMission->fromAyah->surah->name_arabic }}
-                                                        ({{ $pendingMission->fromAyah->verse_number }})
-                                                        -
-                                                        {{ $pendingMission->toAyah->surah->name_arabic }}
-                                                        ({{ $pendingMission->toAyah->verse_number }})
-                                                    </div>
-                                                    @php
-                                                        $hLinks = [];
-                                                        $hFrom = $pendingMission->fromAyah;
-                                                        $hTo = $pendingMission->toAyah;
-                                                        if ($hFrom->surah_id === $hTo->surah_id) {
-                                                            $hLinks[] = [
-                                                                'name' => $hFrom->surah->name_arabic,
-                                                                'url' =>
-                                                                    'https://quran.com/ar/' .
-                                                                    $hFrom->surah->number .
-                                                                    '/' .
-                                                                    $hFrom->verse_number .
-                                                                    '-' .
-                                                                    $hTo->verse_number,
-                                                            ];
-                                                        } else {
-                                                            $low = min($hFrom->surah_id, $hTo->surah_id);
-                                                            $high = max($hFrom->surah_id, $hTo->surah_id);
-                                                            $direction = $hFrom->surah_id <= $hTo->surah_id ? 'asc' : 'desc';
-                                                            $surahs = \App\Models\Surah::whereBetween('id', [$low, $high])
-                                                                ->orderBy('id', $direction)
-                                                                ->get();
-                                                            foreach ($surahs as $s) {
-                                                                $from = $s->id === $hFrom->surah_id ? $hFrom->verse_number : 1;
-                                                                $to =
-                                                                    $s->id === $hTo->surah_id
-                                                                    ? $hTo->verse_number
-                                                                    : $s->verses_count;
-                                                                $hLinks[] = [
-                                                                    'name' => $s->name_arabic,
-                                                                    'url' =>
-                                                                        'https://quran.com/ar/' .
-                                                                        $s->number .
-                                                                        '/' .
-                                                                        $from .
-                                                                        '-' .
-                                                                        $to,
-                                                                ];
-                                                            }
-                                                        }
-                                                    @endphp
-                                                    @if (count($hLinks) === 1)
-                                                        <a href="{{ $hLinks[0]['url'] }}" target="_blank"
-                                                            class="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
-                                                            <flux:icon icon="book-open" class="size-3.5" />
-                                                            {{ __('افتح') }} {{ $hLinks[0]['name'] }}
-                                                        </a>
-                                                    @elseif(count($hLinks) > 1)
-                                                        <div x-data="{ open: false }" class="mt-2">
-                                                            <button type="button" @click="open = !open"
-                                                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
-                                                                <flux:icon icon="book-open" class="size-3.5" />
-                                                                <span>{{ __('افتح الآيات في القرآن') }}
-                                                                    ({{ count($hLinks) }})</span>
-                                                                <flux:icon icon="chevron-down" class="size-3.5 transition-transform"
-                                                                    x-bind:class="open ? 'rotate-180' : ''" />
-                                                            </button>
-                                                            <div x-show="open" x-collapse class="flex flex-wrap gap-2 mt-2">
-                                                                @foreach ($hLinks as $link)
-                                                                    <a href="{{ $link['url'] }}" target="_blank"
-                                                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
-                                                                        <flux:icon icon="book-open" class="size-3.5" />
-                                                                        {{ $link['name'] }}
-                                                                    </a>
-                                                                @endforeach
-                                                            </div>
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                            @endif
-
-                                            @if ($pendingMission->review_from_ayah_id && $pendingMission->review_to_ayah_id)
-                                                <div>
-                                                    <div class="flex justify-between items-center mb-1">
-                                                        <div class="text-emerald-100 text-sm">{{ __('مقرر المراجعة') }}</div>
-                                                        @if (is_null($pendingMission->review_achievement))
-                                                            <span
-                                                                class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
-                                                        @endif
-                                                    </div>
-                                                    <div class="text-lg font-bold">
-                                                        {{ $pendingMission->reviewFromAyah->surah->name_arabic }}
-                                                        ({{ $pendingMission->reviewFromAyah->verse_number }}) -
-                                                        {{ $pendingMission->reviewToAyah->surah->name_arabic }}
-                                                        ({{ $pendingMission->reviewToAyah->verse_number }})
-                                                    </div>
-                                                    @php
-                                                        $rLinks = [];
-                                                        $rFrom = $pendingMission->reviewFromAyah;
-                                                        $rTo = $pendingMission->reviewToAyah;
-                                                        if ($rFrom->surah_id === $rTo->surah_id) {
-                                                            $rLinks[] = [
-                                                                'name' => $rFrom->surah->name_arabic,
-                                                                'url' =>
-                                                                    'https://quran.com/ar/' .
-                                                                    $rFrom->surah->number .
-                                                                    '/' .
-                                                                    $rFrom->verse_number .
-                                                                    '-' .
-                                                                    $rTo->verse_number,
-                                                            ];
-                                                        } else {
-                                                            $low = min($rFrom->surah_id, $rTo->surah_id);
-                                                            $high = max($rFrom->surah_id, $rTo->surah_id);
-                                                            $direction = $rFrom->surah_id <= $rTo->surah_id ? 'asc' : 'desc';
-                                                            $surahs = \App\Models\Surah::whereBetween('id', [$low, $high])
-                                                                ->orderBy('id', $direction)
-                                                                ->get();
-                                                            foreach ($surahs as $s) {
-                                                                $from = $s->id === $rFrom->surah_id ? $rFrom->verse_number : 1;
-                                                                $to =
-                                                                    $s->id === $rTo->surah_id
-                                                                    ? $rTo->verse_number
-                                                                    : $s->verses_count;
-                                                                $rLinks[] = [
-                                                                    'name' => $s->name_arabic,
-                                                                    'url' =>
-                                                                        'https://quran.com/ar/' .
-                                                                        $s->number .
-                                                                        '/' .
-                                                                        $from .
-                                                                        '-' .
-                                                                        $to,
-                                                                ];
-                                                            }
-                                                        }
-                                                    @endphp
-                                                    @if (count($rLinks) === 1)
-                                                        <a href="{{ $rLinks[0]['url'] }}" target="_blank"
-                                                            class="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
-                                                            <flux:icon icon="book-open" class="size-3.5" />
-                                                            {{ __('افتح') }} {{ $rLinks[0]['name'] }}
-                                                        </a>
-                                                    @elseif(count($rLinks) > 1)
-                                                        <div x-data="{ open: false }" class="mt-2">
-                                                            <button type="button" @click="open = !open"
-                                                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
-                                                                <flux:icon icon="book-open" class="size-3.5" />
-                                                                <span>{{ __('افتح الآيات في القرآن') }}
-                                                                    ({{ count($rLinks) }})</span>
-                                                                <flux:icon icon="chevron-down" class="size-3.5 transition-transform"
-                                                                    x-bind:class="open ? 'rotate-180' : ''" />
-                                                            </button>
-                                                            <div x-show="open" x-collapse class="flex flex-wrap gap-2 mt-2">
-                                                                @foreach ($rLinks as $link)
-                                                                    <a href="{{ $link['url'] }}" target="_blank"
-                                                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
-                                                                        <flux:icon icon="book-open" class="size-3.5" />
-                                                                        {{ $link['name'] }}
-                                                                    </a>
-                                                                @endforeach
-                                                            </div>
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                            @endif
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            <div class="mt-6 flex justify-end">
-                                <flux:button href="{{ route('student.plan') }}" variant="filled"
-                                    class="bg-white text-emerald-600 hover:bg-emerald-50">
-                                    {{ __('الانتقال إلى خططي') }}
-                                </flux:button>
-                            </div>
-                        </div>
-                    </flux:card>
-            @else
-                    <flux:card
-                        class="border-t-4 border-t-zinc-400 border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
-                        <div class="flex flex-col items-center justify-center py-8 text-center space-y-4">
-                            <div class="bg-zinc-200 dark:bg-zinc-800 p-4 rounded-full text-zinc-500">
-                                <flux:icon icon="sparkles" class="size-8" />
-                            </div>
-                            <div>
-                                <h3 class="text-lg font-bold text-zinc-700 dark:text-zinc-300">
-                                    {{ __('لا توجد مهام مجدولة لك اليوم') }}
-                                </h3>
-                                <p class="text-zinc-500 text-sm mt-1 max-w-sm">
-                                    {{ __('اغتنم هذا اليوم في مراجعة ما حفظته مسبقاً وثبّت جذور القرآن في قلبك.') }}
-                                </p>
-                            </div>
-                        </div>
-                    </flux:card>
-                @endif
-
-                {{-- Hadith plans daily rendering --}}
-                @if (count($pendingHadithMissions) > 0)
-                    <div class="space-y-6 mt-6">
-                        <flux:heading size="xl" class="flex items-center gap-3">
-                            <div class="p-2 bg-rose-500 rounded-lg shadow-lg shadow-rose-500/20">
-                                <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
-                            </div>
-                            {{ __('مهام حفظ الحديث المجدولة') }}
-                        </flux:heading>
-
-                        <flux:card
-                            class="bg-gradient-to-br from-rose-500 to-red-600 border-none text-white overflow-hidden relative shadow-lg shadow-rose-600/20 p-0">
-                            <div class="absolute -top-10 -right-10 p-4 opacity-10 pointer-events-none">
-                                <flux:icon icon="document-text" class="w-48 h-48" />
-                            </div>
-
-                            <div class="relative z-10 p-6">
-                                <div class="flex items-center gap-3 mb-6 border-b border-white/20 pb-4">
-                                    <div class="bg-white/20 p-2 rounded-lg">
-                                        <flux:icon icon="flag" class="size-6 text-white" />
-                                    </div>
-                                    <h2 class="text-xl font-bold">{{ __('المهام القادمة') }}</h2>
-                                </div>
-
-                                <div class="space-y-6">
-                                    @foreach ($pendingHadithMissions as $pendingHadithMission)
-                                        @php
-                                            $isToday = $pendingHadithMission->date->toDateString() === $todayStr;
-                                            $allHadiths = $pendingHadithMission->allHadiths ?? collect();
-                                            
-                                            // Calculate current and previous Hadiths
-                                            $hifzHadiths = collect();
-                                            if ($pendingHadithMission->memorize_type === 'hadiths' && $pendingHadithMission->from_hadith_id && $pendingHadithMission->to_hadith_id) {
-                                                $startIdx = $allHadiths->search(fn($h) => $h->id == $pendingHadithMission->from_hadith_id);
-                                                $endIdx = $allHadiths->search(fn($h) => $h->id == $pendingHadithMission->to_hadith_id);
-                                                if ($startIdx !== false && $endIdx !== false) {
-                                                    $hifzHadiths = $allHadiths->slice($startIdx, $endIdx - $startIdx + 1);
-                                                }
-                                            } elseif ($pendingHadithMission->memorize_type === 'lines' && $pendingHadithMission->from_hadith_id) {
-                                                $hadith = $allHadiths->first(fn($h) => $h->id == $pendingHadithMission->from_hadith_id);
-                                                if ($hadith) {
-                                                    $hifzHadiths->push($hadith);
-                                                }
-                                            }
-
-                                            $firstHifzHadith = $hifzHadiths->first();
-                                            $firstHifzIdx = $firstHifzHadith ? $allHadiths->search(fn($h) => $h->id == $firstHifzHadith->id) : false;
-                                            $previousHifzHadiths = $firstHifzIdx !== false && $firstHifzIdx > 0
-                                                ? $allHadiths->slice(0, $firstHifzIdx)->values()
-                                                : collect();
-                                        @endphp
-                                        <div x-data="{ showTextModal: false, prevCount: 0 }" class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm border border-white/20">
-                                            <div
-                                                class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-3">
-                                                <div>
-                                                    <div class="font-bold text-lg text-white">
-                                                        {{ $pendingHadithMission->plan->path->name ?? __('خطة بدون عنوان') }}
-                                                    </div>
-                                                    <div class="text-sm text-rose-100 flex items-center gap-2 mt-1">
-                                                        <flux:icon icon="calendar" class="size-4" />
-                                                        <span>{{ $isToday ? __('مهمة اليوم') : __('مهمة فائتة أو قادمة') }} -
-                                                            {{ $pendingHadithMission->day_name }}
-                                                            {{ $this->getHijriLabel($pendingHadithMission->date) }}</span>
-                                                    </div>
-                                                </div>
-                                                <div
-                                                    class="shrink-0 bg-white/20 px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wide">
-                                                    {{ ($pendingHadithMission->from_line_number && $pendingHadithMission->to_line_number) ? __('حفظ بالأسطر') : __('حفظ بالأحاديث') }}
-                                                </div>
-                                            </div>
-
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                @php
-                                                    $hasHifz = ($pendingHadithMission->from_line_number && $pendingHadithMission->to_line_number) || ($pendingHadithMission->from_hadith_id && $pendingHadithMission->to_hadith_id);
-                                                    $hasReview = ($pendingHadithMission->review_from_line_number && $pendingHadithMission->review_to_line_number) || ($pendingHadithMission->review_from_hadith_id && $pendingHadithMission->review_to_hadith_id);
-                                                @endphp
-
-                                                @if ($hasHifz)
-                                                    <div>
-                                                        <div class="flex justify-between items-center mb-1">
-                                                            <div class="text-rose-100 text-sm">{{ __('مقرر الحفظ') }}</div>
-                                                            @if (is_null($pendingHadithMission->hifz_achievement))
-                                                                <span
-                                                                    class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
-                                                            @endif
-                                                        </div>
-                                                        <div class="text-lg font-bold">
-                                                            {{ $pendingHadithMission->formatHadithRange('hifz') }}
-                                                        </div>
-                                                    </div>
-                                                @endif
-
-                                                @if ($hasReview)
-                                                    <div>
-                                                        <div class="flex justify-between items-center mb-1">
-                                                            <div class="text-rose-100 text-sm">{{ __('مقرر المراجعة') }}</div>
-                                                            @if (is_null($pendingHadithMission->review_achievement))
-                                                                <span
-                                                                    class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
-                                                            @endif
-                                                        </div>
-                                                        <div class="text-lg font-bold">
-                                                            {{ $pendingHadithMission->formatHadithRange('review') }}
-                                                        </div>
-                                                    </div>
-                                                @endif
-                                            </div>
-
-                                            <div class="mt-4 pt-3 border-t border-white/10 flex justify-end">
-                                                <button type="button" @click="showTextModal = true" class="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-bold transition-all shadow-sm">
-                                                    <flux:icon icon="book-open" class="size-4" />
-                                                    <span>{{ __('إظهار نص الحديث') }}</span>
-                                                </button>
-                                            </div>
-
-                                            {{-- Hadith Text Modal for Student --}}
-                                            <template x-teleport="body">
-                                                <div x-show="showTextModal" 
-                                                 x-transition:enter="transition ease-out duration-300"
-                                                 x-transition:enter-start="opacity-0 translate-y-4"
-                                                 x-transition:enter-end="opacity-100 translate-y-0"
-                                                 x-transition:leave="transition ease-in duration-200"
-                                                 x-transition:leave-start="opacity-100 translate-y-0"
-                                                 x-transition:leave-end="opacity-0 translate-y-4"
-                                                 class="fixed inset-0 z-50 bg-white dark:bg-zinc-955 flex flex-col w-full h-full text-zinc-900 dark:text-white"
-                                                 x-cloak>
-                                                 
-                                                 {{-- Modal Header --}}
-                                                 <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-                                                     <div>
-                                                         <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
-                                                             {{ __('نص الحديث') }}
-                                                         </h3>
-                                                         <p class="text-xs text-rose-600 dark:text-rose-400 mt-1 font-semibold">
-                                                             {{ $pendingHadithMission->plan->path->name ?? '' }} ({{ $pendingHadithMission->formatHadithRange('hifz') }})
-                                                         </p>
-                                                     </div>
-                                                     <button type="button" @click="showTextModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                                                         <flux:icon icon="x-mark" class="size-5" />
-                                                     </button>
-                                                 </div>
-
-                                                 {{-- Modal Content (Scrollable) --}}
-                                                 <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30 text-right">
-                                                     <div class="w-full space-y-8">
-                                                         {{-- Previous Hadiths Button --}}
-                                                         @if($previousHifzHadiths->isNotEmpty())
-                                                             <div x-show="prevCount < {{ $previousHifzHadiths->count() }}" class="flex justify-center mb-8 shrink-0">
-                                                                 <flux:button type="button" @click="prevCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold text-zinc-800 dark:text-white border border-zinc-200 dark:border-zinc-850">
-                                                                     {{ __('إظهار الحديث السابق') }}
-                                                                 </flux:button>
-                                                             </div>
-                                                         @endif
-
-                                                         {{-- Previous Hadiths (Dimmed) --}}
-                                                         @foreach($previousHifzHadiths as $index => $hadith)
-                                                             @php
-                                                                 $currentHadithLines = $hadith->lines;
-                                                             @endphp
-                                                             <div x-show="prevCount >= {{ $previousHifzHadiths->count() - $index }}" 
-                                                                  x-cloak 
-                                                                  class="space-y-4 opacity-50 hover:opacity-100 transition-opacity duration-200">
-                                                                  {{-- Hadith Header (Name) --}}
-                                                                  <div class="text-lg font-bold text-zinc-500 dark:text-zinc-400 pb-2 border-b border-zinc-200 dark:border-zinc-850 font-serif">
-                                                                      {{ $hadith->name }} <span class="text-xs font-sans text-zinc-400">({{ __('سابق') }})</span>
-                                                                  </div>
-                                                                  
-                                                                  @if ($hadith->sanad)
-                                                                      <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-semibold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300 font-serif">
-                                                                          <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
-                                                                      </div>
-                                                                  @endif
-
-                                                                  @foreach($currentHadithLines as $line)
-                                                                      <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800/60 shadow-sm hover:shadow-md transition-shadow">
-                                                                          <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
-                                                                              {{ $line->line_number }}
-                                                                          </span>
-                                                                          <div class="flex-1 text-base md:text-xl font-semibold text-zinc-500 dark:text-zinc-400 leading-relaxed text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
-                                                                              {{ $line->text }}
-                                                                          </div>
-                                                                      </div>
-                                                                  @endforeach
-
-                                                                  @if ($hadith->ruling)
-                                                                      <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-bold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300">
-                                                                          <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
-                                                                      </div>
-                                                                  @endif
-                                                             </div>
-                                                         @endforeach
-
-                                                         {{-- Current Hadiths --}}
-                                                         @foreach($hifzHadiths as $hadith)
-                                                             <div class="space-y-4 text-zinc-800 dark:text-zinc-100">
-                                                                 {{-- Hadith Header (Name) if multiple --}}
-                                                                 <div class="text-lg font-bold text-rose-600 dark:text-rose-400 pb-2 border-b border-rose-100 dark:border-rose-900/50 font-serif">
-                                                                     {{ $hadith->name }}
-                                                                 </div>
-                                                                 
-                                                                 @if ($hadith->sanad)
-                                                                     <div class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-650 dark:text-zinc-400 pr-4 border-r-4 border-zinc-450 font-serif">
-                                                                         <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
-                                                                     </div>
-                                                                 @endif
-
-                                                                 @php
-                                                                     $currentHadithLines = $hadith->lines;
-                                                                     if ($pendingHadithMission->memorize_type === 'lines') {
-                                                                         $currentHadithLines = $currentHadithLines->filter(function ($l) use ($pendingHadithMission) {
-                                                                             return $l->line_number <= $pendingHadithMission->to_line_number;
-                                                                         });
-                                                                     }
-                                                                 @endphp
-
-                                                                 @foreach($currentHadithLines as $line)
-                                                                     <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-rose-100/60 dark:border-rose-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                                                         <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 font-extrabold text-sm shadow-sm">
-                                                                             {{ $line->line_number }}
-                                                                         </span>
-                                                                         <div class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-150 leading-relaxed text-right pr-4 border-r-4 border-rose-500 dark:border-rose-400 font-serif">
-                                                                             {{ $line->text }}
-                                                                         </div>
-                                                                     </div>
-                                                                 @endforeach
-
-                                                                 @if ($hadith->ruling)
-                                                                     <div class="p-4 bg-rose-50 dark:bg-rose-955/30 rounded-xl text-sm font-bold text-rose-700 dark:text-rose-300 pr-4 border-r-4 border-rose-500">
-                                                                         <strong>{{ __('حكم الحديث') }}: </strong>{{ $hadith->ruling }}
-                                                                     </div>
-                                                                 @endif
-                                                             </div>
-                                                         @endforeach
-                                                     </div>
-                                                 </div>
-
-                                                 {{-- Modal Footer --}}
-                                                 <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                                                     <flux:button type="button" @click="showTextModal = false" variant="ghost" class="text-zinc-700 dark:text-zinc-300">
-                                                         {{ __('إغلاق') }}
-                                                     </flux:button>
-                                                 </div>
-                                            </div>
-                                            </template>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </flux:card>
+            <!-- Student Top Stats -->
+            <div class="space-y-6">
+                <flux:heading size="xl" class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
+                        <flux:icon icon="presentation-chart-line" class="size-6 text-white" variant="solid" />
                     </div>
-                @endif
+                    {{ __('محفوظي من القرآن الكريم') }}
+                </flux:heading>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                    @php
+                        $memorizedPages = $student->memorizedPagesCount();
+                        $percentage = $student->memorizationPercentage();
+                    @endphp
+
+                    {{-- Percentage & Range --}}
+                    <div
+                        class="rounded-2xl border border-emerald-100 dark:border-emerald-900/50 bg-white dark:bg-zinc-900 p-4 md:p-5 shadow-sm relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-1 md:w-1.5 h-full bg-emerald-500"></div>
+                        <div class="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                            <div
+                                class="p-1.5 md:p-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg md:rounded-xl">
+                                <flux:icon icon="chart-pie" class="size-5" />
+                            </div>
+                            <p class="text-[15px] md:text-sm font-bold text-zinc-600 dark:text-zinc-400 leading-tight">نسبة
+                                المحفوظ
+                            </p>
+                        </div>
+                        <p class="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400">{{ $percentage }}%
+                        </p>
+                        <div class="mt-2 w-full bg-emerald-100 dark:bg-emerald-900/30 rounded-full h-2 overflow-hidden">
+                            <div class="h-2 rounded-full bg-gradient-to-l from-emerald-400 to-emerald-600   duration-700"
+                                style="width: {{ $percentage }}%"></div>
+                        </div>
+                        <p class="text-[15px] md:text-sm text-zinc-500 dark:text-zinc-400 mt-2 font-medium line-clamp-1"
+                            title="{{ $student->memorizationText() }}">
+                            {{ $student->memorizationText() }}
+                        </p>
+                    </div>
+
+                    {{-- Juz and Pages --}}
+                    <div
+                        class="rounded-2xl border border-blue-100 dark:border-blue-900/50 bg-white dark:bg-zinc-900 p-4 md:p-5 shadow-sm relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-1 md:w-1.5 h-full bg-blue-500"></div>
+                        <div class="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                            <div
+                                class="p-1.5 md:p-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg md:rounded-xl">
+                                <flux:icon icon="book-open" class="size-5" />
+                            </div>
+                            <p class="text-[15px] md:text-sm font-bold text-zinc-600 dark:text-zinc-400 leading-tight">
+                                الأجزاء
+                            </p>
+                        </div>
+                        <p class="text-2xl md:text-3xl font-black text-blue-600 dark:text-blue-400">
+                            {{ floor($memorizedPages / 20) }} <span
+                                class="text-sm md:text-lg font-bold text-zinc-400">جزء</span>
+                        </p>
+                        <p
+                            class="text-[15px] md:text-sm text-zinc-500 dark:text-zinc-400 mt-1 md:mt-2 font-medium truncate">
+                            بمجموع
+                            {{ number_format($memorizedPages) }} ص
+                        </p>
+                    </div>
+                </div>
 
                 <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
 
-                <!-- 🏆 Leaderboard Section -->
-                @if ($leaderboard)
-                    <div class="space-y-6">
-                        <div class="flex items-center justify-between">
-                            <flux:heading size="xl" class="flex items-center gap-3">
-                                <div class="p-2 bg-amber-500 rounded-lg shadow-lg shadow-amber-500/20">
-                                    <flux:icon icon="trophy" variant="solid" class="size-6 text-white" />
-                                </div>
-                                {{$leaderboard->title }}
-                            </flux:heading>
-                            <div
-                                class="flex items-center gap-2 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-3 py-1.5 rounded-full border border-amber-200 dark:border-amber-800/50">
-                                <flux:icon icon="clock" class="size-3.5" />
-                                @php
-                                    $daysRemaining = now('Asia/Riyadh')->startOfDay()->diffInDays($leaderboard->end_date->startOfDay(), false);
-                                @endphp
-                                @if($daysRemaining > 0)
-                                    {{ __('متبقي :days يوم', ['days' => $daysRemaining]) }}
-                                @elseif($daysRemaining == 0)
-                                    {{ __('اليوم الأخير!') }}
-                                @else
-                                    {{ __('انتهت المنافسة') }}
-                                @endif
-                            </div>
-                        </div>
+                <!-- Pending Challenges -->
+                @if (count($pendingChallenges) > 0)
+                    <div class="space-y-4">
+                        <flux:heading size="lg" class="flex items-center gap-2">
+                            <flux:icon icon="gift" class="size-6 text-indigo-500" variant="solid" />
+                            {{ __('دعوات تحدي جديدة') }}
+                        </flux:heading>
 
-                        @php
-                            $top3 = $leaderboardStandings->take(3)->values();
-                            $rest = $leaderboardStandings->skip(3)->values();
-                            $currentStudentId = auth('student')->id();
-                            $myRank = $leaderboardStandings->search(fn($s) => $s['student']->id === $currentStudentId);
-                            $myRank = $myRank !== false ? $myRank + 1 : 0;
-                            $myScore =
-                                $myRank > 0 ? $leaderboardStandings->firstWhere('student.id', $currentStudentId)['score'] : 0;
-                        @endphp
-
-                        @if ($top3->isNotEmpty())
-                            <!-- Podium -->
-                            <div
-                                class="bg-gradient-to-t from-zinc-100/50 to-white dark:from-zinc-900 dark:to-zinc-800/80 p-4 md:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm relative overflow-hidden mb-6">
-                                <div class="flex justify-center items-end gap-2 md:gap-8 pt-6">
-                                    <!-- Second Place -->
-                                    @if (isset($top3[1]))
-                                        <div class="flex flex-col items-center w-24 md:w-32 z-10">
-                                            <div class="relative mb-2 shrink-0">
-                                                <div
-                                                    class="w-14 h-14 md:w-16 md:h-16 rounded-full bg-slate-100 dark:bg-slate-800 border-[3px] border-slate-300 dark:border-slate-600 flex items-center justify-center text-xl font-bold shadow-lg text-slate-600 dark:text-slate-300">
-                                                    {{ mb_substr($top3[1]['student']->name, 0, 1) }}
-                                                </div>
-                                                <div
-                                                    class="absolute -top-2 -right-2 bg-slate-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-zinc-800 shadow">
-                                                    2</div>
-                                            </div>
-                                            <div
-                                                class="text-xs md:text-sm font-bold truncate w-full text-center text-zinc-700 dark:text-zinc-300 mb-1">
-                                                {{ explode(' ', $top3[1]['student']->name)[0] }}
-                                            </div>
-                                            <div
-                                                class="bg-white dark:bg-zinc-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] md:text-xs px-2 py-0.5 rounded shadow-sm border border-zinc-100 dark:border-zinc-700">
-                                                {{ $top3[1]['score'] }} {{ __('نقطة') }}
-                                            </div>
-                                            <div
-                                                class="w-16 md:w-20 h-16 md:h-20 bg-gradient-to-t from-slate-200 to-slate-100 dark:from-slate-700/50 dark:to-slate-800/50 mt-3 rounded-t-lg border-t-2 border-slate-300 dark:border-slate-600 shadow-inner">
-                                            </div>
-                                        </div>
-                                    @endif
-
-                                    <!-- First Place -->
-                                    <div class="flex flex-col items-center w-28 md:w-36 z-20 relative">
-                                        <flux:icon icon="star" variant="solid"
-                                            class="size-6 md:size-8 text-amber-400 absolute -top-8 animate-pulse drop-shadow-md" />
-                                        <div class="relative mb-2 shrink-0">
-                                            <div
-                                                class="w-16 h-16 md:w-20 md:h-20 rounded-full bg-amber-50 dark:bg-amber-900/30 border-[4px] border-amber-400 flex items-center justify-center text-2xl font-bold shadow-xl text-amber-600 dark:text-amber-400 z-10 relative">
-                                                {{ mb_substr($top3[0]['student']->name, 0, 1) }}
-                                            </div>
-                                            <div
-                                                class="absolute -top-3 -right-3 bg-amber-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold border-2 border-white dark:border-zinc-800 z-20 shadow-md">
-                                                1</div>
-                                        </div>
-                                        <div
-                                            class="text-sm md:text-base font-extrabold truncate w-full text-center text-zinc-900 dark:text-zinc-100 mb-1">
-                                            {{ explode(' ', $top3[0]['student']->name)[0] }}
-                                        </div>
-                                        <div
-                                            class="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 font-black text-xs md:text-sm px-3 py-1 rounded shadow-sm">
-                                            {{ $top3[0]['score'] }} {{ __('نقطة') }}
-                                        </div>
-                                        <div
-                                            class="w-20 md:w-24 h-20 md:h-28 bg-gradient-to-t from-amber-200/50 to-amber-100/50 dark:from-amber-900/30 dark:to-amber-900/10 mt-3 rounded-t-lg border-t-2 border-amber-400 shadow-[inset_0_4px_6px_-1px_rgba(251,191,36,0.3)]">
-                                        </div>
-                                    </div>
-
-                                    <!-- Third Place -->
-                                    @if (isset($top3[2]))
-                                        <div class="flex flex-col items-center w-24 md:w-32 z-10">
-                                            <div class="relative mb-2 shrink-0">
-                                                <div
-                                                    class="w-14 h-14 md:w-16 md:h-16 rounded-full bg-orange-50 dark:bg-orange-900/20 border-[3px] border-orange-300 dark:border-orange-700/80 flex items-center justify-center text-xl font-bold shadow-lg text-orange-600 dark:text-orange-500">
-                                                    {{ mb_substr($top3[2]['student']->name, 0, 1) }}
-                                                </div>
-                                                <div
-                                                    class="absolute -top-2 -right-2 bg-orange-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-zinc-800 shadow">
-                                                    3</div>
-                                            </div>
-                                            <div
-                                                class="text-xs md:text-sm font-bold truncate w-full text-center text-zinc-700 dark:text-zinc-300 mb-1">
-                                                {{ explode(' ', $top3[2]['student']->name)[0] }}
-                                            </div>
-                                            <div
-                                                class="bg-white dark:bg-zinc-800 text-orange-600 dark:text-orange-500 font-bold text-[10px] md:text-xs px-2 py-0.5 rounded shadow-sm border border-zinc-100 dark:border-zinc-700">
-                                                {{ $top3[2]['score'] }} {{ __('نقطة') }}
-                                            </div>
-                                            <div
-                                                class="w-16 md:w-20 h-10 md:h-16 bg-gradient-to-t from-orange-100 to-orange-50 dark:from-orange-900/40 dark:to-orange-900/10 mt-3 rounded-t-lg border-t-2 border-orange-300 dark:border-orange-700 shadow-inner">
-                                            </div>
-                                        </div>
-                                    @endif
-                                </div>
-
-                                <!-- My Rank Banner -->
-                                @if ($myRank > 3)
-                                    <div
-                                        class="mt-6 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 p-4 rounded-xl flex items-center justify-between shadow-sm">
-                                        <div class="flex items-center gap-4">
-                                            <div
-                                                class="bg-indigo-600 dark:bg-indigo-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-black text-lg shadow-inner">
-                                                {{ $myRank }}
-                                            </div>
-                                            <div>
-                                                <div class="font-bold text-sm">{{ __('ترتيبك الحالي بين المتنافسين') }}</div>
-                                                <div class="text-xs opacity-90 mt-0.5">{{ __('مجموع نقاطك:') }} <span
-                                                        class="font-bold">{{ $myScore }}</span> {{ __('شد الهمة!') }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <flux:icon icon="arrow-trending-up" class="size-6 opacity-50" />
-                                    </div>
-                                @endif
-                            </div>
-
-                            @if ($rest->isNotEmpty())
-                                <!-- Students List -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            @foreach ($pendingChallenges as $challenge)
                                 <div
-                                    class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-                                    <div class="divide-y divide-zinc-100 dark:divide-zinc-800/60">
-                                        @foreach ($rest as $index => $standing)
-                                            @php $rank = $index + 4; @endphp
-                                            <div
-                                                class="flex items-center justify-between p-3 md:p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/30   s {{ $standing['student']->id === $student->id ? 'bg-indigo-50/40 dark:bg-indigo-900/10' : '' }}">
-                                                <div class="flex items-center gap-3 md:gap-4">
-                                                    <div
-                                                        class="w-6 h-6 md:w-8 md:h-8 flex items-center justify-center text-zinc-400 font-black text-sm md:text-base">
-                                                        {{ $rank }}
-                                                    </div>
-                                                    <div
-                                                        class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-600 dark:text-zinc-400 border border-zinc-200/50 dark:border-zinc-700/50">
-                                                        {{ mb_substr($standing['student']->name, 0, 1) }}
-                                                    </div>
-                                                    <div>
-                                                        <div
-                                                            class="font-semibold text-sm md:text-base {{ $standing['student']->id === $student->id ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-800 dark:text-zinc-200' }}">
-                                                            {{ $standing['student']->name }}
-                                                            @if ($standing['student']->id === $student->id)
-                                                                <span
-                                                                    class="text-[10px] font-bold ms-2 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">{{ __('أنت') }}</span>
-                                                            @endif
-                                                        </div>
-                                                    </div>
+                                    class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+                                    <div class="flex items-start justify-between mb-4">
+                                        <div>
+                                            <h4 class="font-bold text-lg text-indigo-900 dark:text-indigo-100 mb-1">
+                                                {{ __('تحدي من:') }} {{ $challenge->guardian->name }}
+                                            </h4>
+                                            <p class="text-sm text-indigo-700 dark:text-indigo-400 font-medium">
+                                                {{ __('المكافأة:') }} {{ $challenge->prize_description }}
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300 p-2 rounded-lg">
+                                            <flux:icon icon="trophy" class="size-6" />
+                                        </div>
+                                    </div>
+
+                                    <div class="flex gap-2">
+                                        <flux:button wire:click="acceptChallenge({{ $challenge->id }})" variant="primary"
+                                            class="flex-1 bg-indigo-600 hover:bg-indigo-700 border-none">
+                                            {{ __('أنا قبلت التحدي! ✅') }}
+                                        </flux:button>
+                                        <flux:button wire:click="rejectChallenge({{ $challenge->id }})" variant="ghost"
+                                            class="text-zinc-500 hover:text-red-500">
+                                            {{ __('لا أريد') }}
+                                        </flux:button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                <!-- Active Rewards Status -->
+                @if (count($activeChallenges) > 0)
+                    <div class="space-y-6">
+                        <flux:heading size="xl" class="flex items-center gap-3">
+                            <div class="p-2 bg-orange-500 rounded-lg shadow-lg shadow-orange-500/20">
+                                <flux:icon icon="trophy" class="size-6 text-white" variant="solid" />
+                            </div>
+                            {{ __('تحدياتي وجوائزي الحالية') }}
+                        </flux:heading>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            @foreach ($activeChallenges as $challenge)
+                                <div
+                                    class="bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-900/50 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+                                    <div class="absolute top-0 right-0 w-2 h-full bg-orange-500"></div>
+
+                                    <div class="flex items-start justify-between mb-4">
+                                        <div>
+                                            <p class="text-xs text-zinc-400 mb-0.5">المكافأة</p>
+                                            <h4 class="font-bold text-base text-orange-600 dark:text-orange-400">
+                                                @if ($challenge->prize_type === 'financial')
+                                                    💰 {{ $challenge->prize_description }}
+                                                @else
+                                                    🎁 {{ $challenge->prize_description }}
+                                                @endif
+                                            </h4>
+                                            @if ($challenge->end_date)
+                                                <div class="text-xs text-zinc-500 flex items-center gap-1 mt-1">
+                                                    <flux:icon icon="clock" class="size-3.5" />
+                                                    {{ __('ينتهي في:') }} {{ $challenge->end_date->format('Y-m-d') }}
                                                 </div>
-                                                <div
-                                                    class="font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/50 px-3 py-1 rounded-full text-xs md:text-sm">
-                                                    {{ $standing['score'] }} <span
-                                                        class="font-normal text-[10px] mx-1 opacity-70">{{ __('نقطة') }}</span>
+                                            @endif
+                                        </div>
+                                        <div class="bg-orange-100 dark:bg-orange-900/30 text-orange-600 p-2 rounded-lg shrink-0">
+                                            <flux:icon icon="trophy" class="size-6" />
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-3">
+                                        @foreach ($challenge->items as $item)
+                                            @php
+                                                $calculatedProgress = $item->calculateProgress();
+                                                $progressPercent =
+                                                    $item->target_value > 0
+                                                    ? min(100, round(($calculatedProgress / $item->target_value) * 100))
+                                                    : 0;
+
+                                                $itemTitle = match ($item->type) {
+                                                    'attendance' => '🗓️ مكافأة الحضور والانضباط',
+                                                    'recitation_days' => '📖 إنجاز أيام محددة',
+                                                    'recitation_amount' => '📖 كمية الإنجاز',
+                                                    'recitation_quality' => '⭐ جودة التسميع',
+                                                    'exam_passed' => '📝 اجتياز الاختبار',
+                                                    default => 'بند المكافأة',
+                                                };
+
+                                                if ($item->type === 'exam_passed') {
+                                                    $progressText =
+                                                        $calculatedProgress >= $item->target_value
+                                                        ? 'تم الاجتياز ✅'
+                                                        : "الدرجة المطلوبة: {$item->target_value}%";
+                                                } else {
+                                                    $progressText =
+                                                        $item->target_value > 0
+                                                        ? "{$calculatedProgress} / {$item->target_value}"
+                                                        : 'مستمر';
+                                                }
+                                            @endphp
+                                            <div>
+                                                <div class="flex justify-between text-sm mb-1.5">
+                                                    <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ $itemTitle }}</span>
+                                                    <span class="font-bold text-zinc-900 dark:text-white">{{ $progressText }}</span>
                                                 </div>
+                                                @if ($item->target_value > 0)
+                                                    <div class="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-2.5 overflow-hidden">
+                                                        <div class="h-2.5 rounded-full bg-gradient-to-r from-orange-400 to-red-500   duration-500"
+                                                            style="width: {{ $progressPercent }}%"></div>
+                                                    </div>
+                                                @else
+                                                    <div
+                                                        class="w-full bg-emerald-100 dark:bg-emerald-900/30 rounded-full h-2.5 overflow-hidden">
+                                                        <div class="h-2.5 rounded-full bg-emerald-500 w-full animate-pulse"></div>
+                                                    </div>
+                                                @endif
                                             </div>
                                         @endforeach
                                     </div>
                                 </div>
-                            @endif
-                        @else
-                            <div
-                                class="text-center py-10 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
-                                <div
-                                    class="bg-amber-100 dark:bg-amber-900/30 text-amber-500 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                                    <flux:icon icon="bolt" class="size-6" />
-                                </div>
-                                <div class="font-bold text-zinc-700 dark:text-zinc-300">{{ __('المسابقة بدأت للتو!') }}</div>
-                                <p class="text-sm text-zinc-500 mt-1">{{ __('كن أول من يحصد النقاط و يتصدر القائمة.') }}</p>
-                            </div>
-                        @endif
+                            @endforeach
+                        </div>
                     </div>
+                    <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
+
                 @endif
 
-                <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
 
-                <!-- My Plans Section -->
-                <div class="space-y-10">
-                    <div class="flex items-center justify-between">
+                <!-- Last Attended Day Summary -->
+                @if ($lastDayStats)
+                    <div class="space-y-6">
                         <flux:heading size="xl" class="flex items-center gap-3">
-                            <div class="p-2 bg-indigo-500 rounded-lg shadow-lg shadow-indigo-500/20">
-                                <flux:icon icon="map-pin" class="size-6 text-white" variant="solid" />
+                            <div class="p-2 bg-blue-500 rounded-lg shadow-lg shadow-blue-500/20">
+                                <flux:icon icon="clipboard-document-check" class="size-6 text-white" variant="solid" />
                             </div>
-                            {{ __('مساراتي وخططي الدراسية') }}
+                            {{ __('تقرير الإنجازات اليومية') }}
                         </flux:heading>
-                        <flux:button variant="primary" size="sm" icon="plus" href="{{ route('student.plan-creator') }}"
-                            class="bg-indigo-600 hover:bg-indigo-500 text-white border-none shadow-md">
-                            {{ __('إضافة خطة جديدة') }}
-                        </flux:button>
-                    </div>
 
-                    @php
-                        $approvedPlans = $student->plans()->where('is_approved', true)->latest()->get();
-                        $privatePlans = $student->plans()->where('is_approved', false)->latest()->get();
-                    @endphp
-
-                    @if ($approvedPlans->count() > 0 || $privatePlans->count() > 0)
-
-                        {{-- Approved Plans --}}
-                        @if ($approvedPlans->count() > 0)
-                            <div class="space-y-4">
-                                <div class="flex items-center gap-2 px-1">
-                                    <div class="w-1.5 h-6 bg-emerald-500 rounded-full"></div>
-                                    <flux:heading size="lg">{{ __('الخطط المعتمدة') }}</flux:heading>
+                        <flux:card class="{{ $lastDayStats['theme']['card'] }} relative overflow-hidden border">
+                            <div class="absolute top-0 right-0 w-2 h-full {{ $lastDayStats['theme']['strip'] }}"></div>
+                            <div class="flex flex-col md:flex-row gap-6 items-center">
+                                <div
+                                    class="bg-white dark:bg-zinc-800 p-4 rounded-full shadow-sm border {{ $lastDayStats['theme']['iconWrapper'] }}">
+                                    <flux:icon icon="{{ $lastDayStats['icon'] }}" class="size-8" variant="solid" />
                                 </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                                    @foreach ($approvedPlans as $plan)
-                                                        <div
-                                                            class="group relative rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm hover:shadow-xl hover:border-emerald-500/30   duration-300">
-                                                            <div class="flex items-start justify-between mb-5">
-                                                                <div class="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl text-emerald-600">
-                                                                    <flux:icon icon="academic-cap" class="size-7" />
-                                                                </div>
-                                                                <flux:badge color="emerald" size="sm" class="font-bold px-3 py-1 rounded-full">
-                                                                    {{ __('نشطة') }}
-                                                                </flux:badge>
-                                                            </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <flux:heading size="lg" class="{{ $lastDayStats['theme']['heading'] }} font-bold">
+                                            {{ __('ملخص الإنجاز اليومي') }}
+                                        </flux:heading>
+                                        <flux:badge color="zinc" size="sm" class="text-xs">
+                                            {{ $this->getHijriLabel($lastDayStats['date']) }}
+                                        </flux:badge>
+                                    </div>
+                                    <p class="text-sm text-zinc-600 dark:text-zinc-400 font-medium mb-4">
+                                        {{ $lastDayStats['message'] }}
+                                    </p>
 
-                                                            <div class="mb-6">
-                                                                <div class="flex items-center gap-2 mb-2">
-                                                                    <span
-                                                                        class="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-lg">
-                                                                        {{ match ($plan->plan_type) {
-                                            'hifz' => __('حفظ'),
-                                            'review' => __('مراجعة'),
-                                            'hifz_review' => __('حفظ ومراجعة'),
-                                            default => __('مسار تعليمي'),
-                                        } }}
-                                                                    </span>
-                                                                </div>
-                                                                <h4 class="font-black text-zinc-900 dark:text-white text-xl line-clamp-1 mb-2">
-                                                                    {{ $plan->description }}
-                                                                </h4>
-                                                                <div class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
-                                                                    <flux:icon icon="calendar" class="size-4" />
-                                                                    <span class="text-sm font-medium">{{ __('بدأت في:') }}
-                                                                        {{ $plan->start_date->format('Y-m-d') }}</span>
-                                                                </div>
-                                                            </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                                        <!-- Hifz Checklist Item -->
+                                        <div
+                                            class="flex items-center gap-3 bg-white dark:bg-zinc-800/50 p-3 rounded-xl border {{ $lastDayStats['hifz'] > 0 ? 'border-emerald-200 dark:border-emerald-900/50 shadow-sm' : 'border-zinc-200 dark:border-zinc-800/50 opacity-70' }}">
+                                            @if ($lastDayStats['hifz'] > 0)
+                                                <flux:icon icon="check-circle" variant="solid" class="size-6 text-emerald-500" />
+                                            @else
+                                                <div
+                                                    class="size-6 rounded-full border-2 border-zinc-200 dark:border-zinc-700 flex items-center justify-center">
+                                                    <flux:icon icon="minus" class="size-4 text-zinc-300 dark:text-zinc-600" />
+                                                </div>
+                                            @endif
+                                            <div class="flex flex-col">
+                                                <span
+                                                    class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ __('تسميع الحفظ') }}</span>
+                                                <span
+                                                    class="font-bold text-sm {{ $lastDayStats['hifz'] == 3 ? 'text-emerald-700 dark:text-emerald-400' : ($lastDayStats['hifz'] == 2 ? 'text-indigo-700 dark:text-indigo-400' : ($lastDayStats['hifz'] == 1 ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-400')) }}">
+                                                    {{ $lastDayStats['hifz'] == 3 ? 'ممتاز' : ($lastDayStats['hifz'] == 2 ? 'جيد' : ($lastDayStats['hifz'] == 1 ? 'مقبول' : 'لم يسمع')) }}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                                            <div class="pt-5 border-t border-zinc-100 dark:border-zinc-800">
-                                                                <flux:button variant="filled"
-                                                                    class="w-full bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white text-lg font-bold py-3 rounded-2xl border-none   duration-300"
-                                                                    icon="eye" href="{{ route('student.show-plan', $plan->id) }}">
-                                                                    {{ __('عرض التقدم') }}
-                                                                </flux:button>
-                                                            </div>
-                                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
+                                        <!-- Review Checklist Item -->
+                                        <div
+                                            class="flex items-center gap-3 bg-white dark:bg-zinc-800/50 p-3 rounded-xl border {{ $lastDayStats['review'] > 0 ? 'border-emerald-200 dark:border-emerald-900/50 shadow-sm' : 'border-zinc-200 dark:border-zinc-800/50 opacity-70' }}">
+                                            @if ($lastDayStats['review'] > 0)
+                                                <flux:icon icon="check-circle" variant="solid" class="size-6 text-emerald-500" />
+                                            @else
+                                                <div
+                                                    class="size-6 rounded-full border-2 border-zinc-200 dark:border-zinc-700 flex items-center justify-center">
+                                                    <flux:icon icon="minus" class="size-4 text-zinc-300 dark:text-zinc-600" />
+                                                </div>
+                                            @endif
+                                            <div class="flex flex-col">
+                                                <span
+                                                    class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ __('تسميع المراجعة') }}</span>
+                                                <span
+                                                    class="font-bold text-sm {{ $lastDayStats['review'] == 3 ? 'text-emerald-700 dark:text-emerald-400' : ($lastDayStats['review'] == 2 ? 'text-indigo-700 dark:text-indigo-400' : ($lastDayStats['review'] == 1 ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-400')) }}">
+                                                    {{ $lastDayStats['review'] == 3 ? 'ممتاز' : ($lastDayStats['review'] == 2 ? 'جيد' : ($lastDayStats['review'] == 1 ? 'مقبول' : 'لم يراجع')) }}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                        {{-- Private Plans (Pending) --}}
-                        @if ($privatePlans->count() > 0)
-                            <div class="space-y-4 mt-10">
-                                <div class="flex items-center gap-2 px-1">
-                                    <div class="w-1.5 h-6 bg-amber-500 rounded-full"></div>
-                                    <flux:heading size="lg">{{ __('خططي الخاصة') }}</flux:heading>
-                                    <flux:badge color="amber" size="sm" variant="outline" class="ms-2 font-bold">
-                                        {{ __('قيد المراجعة') }}
-                                    </flux:badge>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                                    @foreach ($privatePlans as $plan)
-                                                        <div
-                                                            class="group relative rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50/30 dark:bg-zinc-900/30 p-6 hover:bg-white dark:hover:bg-zinc-900 hover:border-amber-500/50   duration-300">
-                                                            <div class="flex items-start justify-between mb-5 opacity-70">
-                                                                <div class="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl text-zinc-500">
-                                                                    <flux:icon icon="lock-closed" class="size-7" />
-                                                                </div>
-                                                                <flux:badge color="amber" size="sm" variant="solid"
-                                                                    class="font-bold px-3 py-1 rounded-full">{{ __('بانتظار المعلم') }}
-                                                                </flux:badge>
-                                                            </div>
+                                        <!-- Attendance Checklist Item -->
+                                        <div
+                                            class="flex items-center gap-3 bg-white dark:bg-zinc-800/50 p-3 rounded-xl border {{ $lastDayStats['attendance'] == 'present' ? 'border-emerald-200 dark:border-emerald-900/50 shadow-sm' : ($lastDayStats['attendance'] == 'late' ? 'border-amber-200 dark:border-amber-900/50 shadow-sm' : 'border-zinc-200 dark:border-zinc-800/50 opacity-70') }}">
+                                            @if ($lastDayStats['attendance'] == 'present')
+                                                <flux:icon icon="check-circle" variant="solid" class="size-6 text-emerald-500" />
+                                            @elseif($lastDayStats['attendance'] == 'late')
+                                                <flux:icon icon="exclamation-circle" variant="solid"
+                                                    class="size-6 text-amber-500" />
+                                            @else
+                                                <div
+                                                    class="size-6 rounded-full border-2 border-zinc-200 dark:border-zinc-700 flex items-center justify-center">
+                                                    <flux:icon icon="x-mark" class="size-4 text-zinc-300 dark:text-zinc-600" />
+                                                </div>
+                                            @endif
+                                            <div class="flex flex-col">
+                                                <span
+                                                    class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ __('الحضور') }}</span>
+                                                <span
+                                                    class="font-bold text-sm {{ $lastDayStats['attendance'] == 'present' ? 'text-emerald-700 dark:text-emerald-400' : ($lastDayStats['attendance'] == 'late' ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-400') }}">
+                                                    {{ $lastDayStats['attendance'] == 'present' ? 'حاضر (بدون تأخير)' : ($lastDayStats['attendance'] == 'late' ? 'متأخر' : 'غياب') }}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                                            <div class="mb-6">
-                                                                <div class="flex items-center gap-2 mb-2">
-                                                                    <span
-                                                                        class="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-lg">
-                                                                        {{ match ($plan->plan_type) {
-                                            'hifz' => __('حفظ'),
-                                            'review' => __('مراجعة'),
-                                            'hifz_review' => __('حفظ ومراجعة'),
-                                            default => __('مسار تعليمي'),
-                                        } }}
-                                                                    </span>
-                                                                </div>
-                                                                <h4 class="font-bold text-zinc-700 dark:text-zinc-300 text-lg line-clamp-1 mb-2">
-                                                                    {{ $plan->description }}
-                                                                </h4>
-                                                                <div class="flex items-center gap-2 text-zinc-400">
-                                                                    <flux:icon icon="clock" class="size-4" />
-                                                                    <span class="text-xs font-medium">{{ __('تم إنشاؤها:') }}
-                                                                        {{ $plan->created_at->diffForHumans() }}</span>
-                                                                </div>
-                                                            </div>
-
-                                                            <div class="pt-5 border-t border-zinc-100 dark:border-zinc-800">
-                                                                <flux:button variant="ghost"
-                                                                    class="w-full text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-lg font-bold py-3 rounded-2xl border border-dashed border-amber-200 dark:border-amber-800/50   duration-300"
-                                                                    icon="eye" href="{{ route('student.show-plan', $plan->id) }}">
-                                                                    {{ __('معاينة الخطة') }}
-                                                                </flux:button>
-                                                            </div>
-                                                        </div>
-                                    @endforeach
+                                        <!-- Criteria Checklist Item (if > 0) -->
+                                        @if ($lastDayStats['criteria_count'] > 0)
+                                            <div
+                                                class="flex items-center gap-3 bg-white dark:bg-zinc-800/50 p-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 shadow-sm">
+                                                <flux:icon icon="check-circle" variant="solid" class="size-6 text-emerald-500" />
+                                                <div class="flex flex-col">
+                                                    <span
+                                                        class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ __('بنود السلوك') }}</span>
+                                                    <span class="font-bold text-sm text-emerald-700 dark:text-emerald-400 truncate"
+                                                        title="{{ implode('، ', $lastDayStats['criteria_names']) }}">
+                                                        {{ implode('، ', $lastDayStats['criteria_names']) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
-                        @endif
-                    @else
-                        {{-- Empty State --}}
-                        <div
-                            class="flex flex-col items-center justify-center p-12 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl bg-zinc-50/50 dark:bg-zinc-900/20 text-center">
-                            <div
-                                class="p-5 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-100 dark:border-zinc-800 mb-4 text-zinc-300 dark:text-zinc-700">
-                                <flux:icon icon="map" class="size-12" />
-                            </div>
-                            <h3 class="font-bold text-zinc-800 dark:text-zinc-200 text-lg">
-                                {{ __('لا توجد خطط دراسية حتى الآن') }}
-                            </h3>
-                            <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-2 mb-8 max-w-xs mx-auto">
-                                {{ __('ابدأ رحلتك التعليمية بإنشاء خطة دراسية مخصصة تناسب أهدافك في الحفظ والمراجعة.') }}
-                            </p>
-                            <flux:button variant="primary" icon="plus" href="{{ route('student.plan-creator') }}"
-                                class="bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-500/30">
-                                {{ __('إنشاء خطتي الأولى') }}
-                            </flux:button>
-                        </div>
-                    @endif
-                </div>
-                <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
+                        </flux:card>
+                @endif
 
-                <!-- Achievements & Discipline Section -->
-                <div class="space-y-10">
-                    <flux:heading size="xl" class="flex items-center gap-3">
-                        <div class="p-2 bg-rose-500 rounded-lg shadow-lg shadow-rose-500/20">
-                            <flux:icon icon="chart-bar" class="size-6 text-white" variant="solid" />
-                        </div>
-                        {{ __('مؤشرات الأداء والانضباط') }}
-                    </flux:heading>
+                    <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <!-- Achievement Widgets -->
-                        <div class="space-y-4">
-                            <flux:heading size="lg" class="px-1 text-zinc-500 flex items-center gap-2">
-                                <flux:icon icon="star" class="size-5" />
-                                {{ __('مستوى الإنجاز (30 يوماً)') }}
+                    <!-- Pending Missions Widget -->
+                    @if (count($pendingMissions) > 0)
+                        <div class="space-y-6">
+                            <flux:heading size="xl" class="flex items-center gap-3">
+                                <div class="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
+                                    <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
+                                </div>
+                                {{ __('المهام القرآنية المجدولة') }}
                             </flux:heading>
-                            <div class="grid grid-cols-3 gap-3">
 
-                                <div
-                                    class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center text-center">
-                                    <div class="text-blue-500 mb-2">
-                                        <flux:icon icon="star" variant="solid" class="size-8" />
-                                    </div>
-                                    <div class="text-3xl font-bold text-zinc-800 dark:text-zinc-100">{{ $excellent }}
-                                    </div>
-                                    <div class="text-xs text-zinc-500 mt-1">{{ __('ممتاز') }}</div>
+                            <flux:card
+                                class="bg-gradient-to-br from-emerald-500 to-teal-600 border-none text-white overflow-hidden relative shadow-lg shadow-emerald-600/20 p-0">
+                                <div class="absolute -top-10 -right-10 p-4 opacity-10 pointer-events-none">
+                                    <flux:icon icon="book-open" class="w-48 h-48" />
                                 </div>
 
-                                <div
-                                    class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center text-center">
-                                    <div class="text-green-500 mb-2">
-                                        <flux:icon icon="check-badge" variant="solid" class="size-8" />
+                                <div class="relative z-10 p-6">
+                                    <div class="flex items-center gap-3 mb-6 border-b border-white/20 pb-4">
+                                        <div class="bg-white/20 p-2 rounded-lg">
+                                            <flux:icon icon="flag" class="size-6 text-white" />
+                                        </div>
+                                        <h2 class="text-xl font-bold">{{ __('المهام القادمة') }}</h2>
                                     </div>
-                                    <div class="text-3xl font-bold text-zinc-800 dark:text-zinc-100">{{ $good }}</div>
-                                    <div class="text-xs text-zinc-500 mt-1">{{ __('جيد جداً') }}</div>
+
+                                    <div class="space-y-6">
+                                        @foreach ($pendingMissions as $pendingMission)
+                                            @php
+                                                $isToday = $pendingMission->date === $todayStr;
+                                            @endphp
+                                            <div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm border border-white/20">
+                                                <div
+                                                    class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-3">
+                                                    <div>
+                                                        <div class="font-bold text-lg text-white">
+                                                            {{ $pendingMission->plan->description ?? __('خطة بدون عنوان') }}
+                                                        </div>
+                                                        <div class="text-sm text-emerald-100 flex items-center gap-2 mt-1">
+                                                            <flux:icon icon="calendar" class="size-4" />
+                                                            <span>{{ $isToday ? __('مهمة اليوم') : __('مهمة فائتة أو قادمة') }} -
+                                                                {{ $pendingMission->day_name }}
+                                                                {{ $this->getHijriLabel($pendingMission->date) }}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        class="shrink-0 bg-white/20 px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wide">
+                                                        {{ $pendingMission->plan->plan_type === 'hifz' ? __('حفظ') : ($pendingMission->plan->plan_type === 'review' ? __('مراجعة') : __('حفظ ومراجعة')) }}
+                                                    </div>
+                                                </div>
+
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    @if ($pendingMission->from_ayah_id && $pendingMission->to_ayah_id)
+                                                        <div>
+                                                            <div class="flex justify-between items-center mb-1">
+                                                                <div class="text-emerald-100 text-sm">{{ __('مقرر الحفظ') }}</div>
+                                                                @if (is_null($pendingMission->hifz_achievement))
+                                                                    <span
+                                                                        class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
+                                                                @endif
+                                                            </div>
+                                                            <div class="text-lg font-bold">
+                                                                {{ $pendingMission->fromAyah->surah->name_arabic }}
+                                                                ({{ $pendingMission->fromAyah->verse_number }})
+                                                                -
+                                                                {{ $pendingMission->toAyah->surah->name_arabic }}
+                                                                ({{ $pendingMission->toAyah->verse_number }})
+                                                            </div>
+                                                            @php
+                                                                $hLinks = [];
+                                                                $hFrom = $pendingMission->fromAyah;
+                                                                $hTo = $pendingMission->toAyah;
+                                                                if ($hFrom->surah_id === $hTo->surah_id) {
+                                                                    $hLinks[] = [
+                                                                        'name' => $hFrom->surah->name_arabic,
+                                                                        'url' =>
+                                                                            'https://quran.com/ar/' .
+                                                                            $hFrom->surah->number .
+                                                                            '/' .
+                                                                            $hFrom->verse_number .
+                                                                            '-' .
+                                                                            $hTo->verse_number,
+                                                                    ];
+                                                                } else {
+                                                                    $low = min($hFrom->surah_id, $hTo->surah_id);
+                                                                    $high = max($hFrom->surah_id, $hTo->surah_id);
+                                                                    $direction = $hFrom->surah_id <= $hTo->surah_id ? 'asc' : 'desc';
+                                                                    $surahs = \App\Models\Surah::whereBetween('id', [$low, $high])
+                                                                        ->orderBy('id', $direction)
+                                                                        ->get();
+                                                                    foreach ($surahs as $s) {
+                                                                        $from = $s->id === $hFrom->surah_id ? $hFrom->verse_number : 1;
+                                                                        $to =
+                                                                            $s->id === $hTo->surah_id
+                                                                            ? $hTo->verse_number
+                                                                            : $s->verses_count;
+                                                                        $hLinks[] = [
+                                                                            'name' => $s->name_arabic,
+                                                                            'url' =>
+                                                                                'https://quran.com/ar/' .
+                                                                                $s->number .
+                                                                                '/' .
+                                                                                $from .
+                                                                                '-' .
+                                                                                $to,
+                                                                        ];
+                                                                    }
+                                                                }
+                                                            @endphp
+                                                            @if (count($hLinks) === 1)
+                                                                <a href="{{ $hLinks[0]['url'] }}" target="_blank"
+                                                                    class="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
+                                                                    <flux:icon icon="book-open" class="size-3.5" />
+                                                                    {{ __('افتح') }} {{ $hLinks[0]['name'] }}
+                                                                </a>
+                                                            @elseif(count($hLinks) > 1)
+                                                                <div x-data="{ open: false }" class="mt-2">
+                                                                    <button type="button" @click="open = !open"
+                                                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
+                                                                        <flux:icon icon="book-open" class="size-3.5" />
+                                                                        <span>{{ __('افتح الآيات في القرآن') }}
+                                                                            ({{ count($hLinks) }})</span>
+                                                                        <flux:icon icon="chevron-down" class="size-3.5 transition-transform"
+                                                                            x-bind:class="open ? 'rotate-180' : ''" />
+                                                                    </button>
+                                                                    <div x-show="open" x-collapse class="flex flex-wrap gap-2 mt-2">
+                                                                        @foreach ($hLinks as $link)
+                                                                            <a href="{{ $link['url'] }}" target="_blank"
+                                                                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
+                                                                                <flux:icon icon="book-open" class="size-3.5" />
+                                                                                {{ $link['name'] }}
+                                                                            </a>
+                                                                        @endforeach
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+
+                                                    @if ($pendingMission->review_from_ayah_id && $pendingMission->review_to_ayah_id)
+                                                        <div>
+                                                            <div class="flex justify-between items-center mb-1">
+                                                                <div class="text-emerald-100 text-sm">{{ __('مقرر المراجعة') }}</div>
+                                                                @if (is_null($pendingMission->review_achievement))
+                                                                    <span
+                                                                        class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
+                                                                @endif
+                                                            </div>
+                                                            <div class="text-lg font-bold">
+                                                                {{ $pendingMission->reviewFromAyah->surah->name_arabic }}
+                                                                ({{ $pendingMission->reviewFromAyah->verse_number }}) -
+                                                                {{ $pendingMission->reviewToAyah->surah->name_arabic }}
+                                                                ({{ $pendingMission->reviewToAyah->verse_number }})
+                                                            </div>
+                                                            @php
+                                                                $rLinks = [];
+                                                                $rFrom = $pendingMission->reviewFromAyah;
+                                                                $rTo = $pendingMission->reviewToAyah;
+                                                                if ($rFrom->surah_id === $rTo->surah_id) {
+                                                                    $rLinks[] = [
+                                                                        'name' => $rFrom->surah->name_arabic,
+                                                                        'url' =>
+                                                                            'https://quran.com/ar/' .
+                                                                            $rFrom->surah->number .
+                                                                            '/' .
+                                                                            $rFrom->verse_number .
+                                                                            '-' .
+                                                                            $rTo->verse_number,
+                                                                    ];
+                                                                } else {
+                                                                    $low = min($rFrom->surah_id, $rTo->surah_id);
+                                                                    $high = max($rFrom->surah_id, $rTo->surah_id);
+                                                                    $direction = $rFrom->surah_id <= $rTo->surah_id ? 'asc' : 'desc';
+                                                                    $surahs = \App\Models\Surah::whereBetween('id', [$low, $high])
+                                                                        ->orderBy('id', $direction)
+                                                                        ->get();
+                                                                    foreach ($surahs as $s) {
+                                                                        $from = $s->id === $rFrom->surah_id ? $rFrom->verse_number : 1;
+                                                                        $to =
+                                                                            $s->id === $rTo->surah_id
+                                                                            ? $rTo->verse_number
+                                                                            : $s->verses_count;
+                                                                        $rLinks[] = [
+                                                                            'name' => $s->name_arabic,
+                                                                            'url' =>
+                                                                                'https://quran.com/ar/' .
+                                                                                $s->number .
+                                                                                '/' .
+                                                                                $from .
+                                                                                '-' .
+                                                                                $to,
+                                                                        ];
+                                                                    }
+                                                                }
+                                                            @endphp
+                                                            @if (count($rLinks) === 1)
+                                                                <a href="{{ $rLinks[0]['url'] }}" target="_blank"
+                                                                    class="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
+                                                                    <flux:icon icon="book-open" class="size-3.5" />
+                                                                    {{ __('افتح') }} {{ $rLinks[0]['name'] }}
+                                                                </a>
+                                                            @elseif(count($rLinks) > 1)
+                                                                <div x-data="{ open: false }" class="mt-2">
+                                                                    <button type="button" @click="open = !open"
+                                                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
+                                                                        <flux:icon icon="book-open" class="size-3.5" />
+                                                                        <span>{{ __('افتح الآيات في القرآن') }}
+                                                                            ({{ count($rLinks) }})</span>
+                                                                        <flux:icon icon="chevron-down" class="size-3.5 transition-transform"
+                                                                            x-bind:class="open ? 'rotate-180' : ''" />
+                                                                    </button>
+                                                                    <div x-show="open" x-collapse class="flex flex-wrap gap-2 mt-2">
+                                                                        @foreach ($rLinks as $link)
+                                                                            <a href="{{ $link['url'] }}" target="_blank"
+                                                                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-xs font-medium text-white   s">
+                                                                                <flux:icon icon="book-open" class="size-3.5" />
+                                                                                {{ $link['name'] }}
+                                                                            </a>
+                                                                        @endforeach
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+
+                                    <div class="mt-6 flex justify-end">
+                                        <flux:button href="{{ route('student.plan') }}" variant="filled"
+                                            class="bg-white text-emerald-600 hover:bg-emerald-50">
+                                            {{ __('الانتقال إلى خططي') }}
+                                        </flux:button>
+                                    </div>
                                 </div>
-
-                                <div
-                                    class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center text-center">
-                                    <div class="text-amber-500 mb-2">
-                                        <flux:icon icon="hand-thumb-up" variant="solid" class="size-8" />
-                                    </div>
-                                    <div class="text-3xl font-bold text-zinc-800 dark:text-zinc-100">{{ $acceptable }}
-                                    </div>
-                                    <div class="text-xs text-zinc-500 mt-1">{{ __('مقبول') }}</div>
-                                </div>
-
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <!-- Discipline Widget -->
-                    <div class="space-y-4">
-                        <flux:heading size="lg" class="px-1 text-zinc-500 flex items-center gap-2">
-                            <flux:icon icon="check-badge" class="size-5" />
-                            {{ __('سجل الحضور والانضباط') }}
-                        </flux:heading>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                            <div
-                                class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                                <div class="flex items-center gap-3">
-                                    <div class="text-red-500 bg-red-50 dark:bg-red-900/40 p-3 rounded-xl">
-                                        <flux:icon icon="x-circle" variant="solid" class="size-6" />
+                            </flux:card>
+                    @else
+                            <flux:card
+                                class="border-t-4 border-t-zinc-400 border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
+                                <div class="flex flex-col items-center justify-center py-8 text-center space-y-4">
+                                    <div class="bg-zinc-200 dark:bg-zinc-800 p-4 rounded-full text-zinc-500">
+                                        <flux:icon icon="sparkles" class="size-8" />
                                     </div>
                                     <div>
-                                        <div class="font-bold text-zinc-800 dark:text-zinc-100">{{ __('الغيابات') }}
-                                        </div>
-                                        <div class="text-xs text-zinc-500">{{ __('الحد الأقصى:') }} {{ $absenceLimit }}
-                                        </div>
+                                        <h3 class="text-lg font-bold text-zinc-700 dark:text-zinc-300">
+                                            {{ __('لا توجد مهام مجدولة لك اليوم') }}
+                                        </h3>
+                                        <p class="text-zinc-500 text-sm mt-1 max-w-sm">
+                                            {{ __('اغتنم هذا اليوم في مراجعة ما حفظته مسبقاً وثبّت جذور القرآن في قلبك.') }}
+                                        </p>
                                     </div>
                                 </div>
-                                <div
-                                    class="text-3xl font-black {{ $absences >= $absenceLimit ? 'text-red-600' : 'text-zinc-700 dark:text-zinc-300' }}">
-                                    {{ $absences }}<span
-                                        class="text-lg text-zinc-400 font-normal">/{{ $absenceLimit }}</span>
-                                </div>
-                            </div>
+                            </flux:card>
+                        @endif
 
-                            <div
-                                class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                                <div class="flex items-center gap-3">
-                                    <div class="text-amber-500 bg-amber-50 dark:bg-amber-900/40 p-3 rounded-xl">
-                                        <flux:icon icon="clock" variant="solid" class="size-6" />
+                        {{-- Hadith plans daily rendering --}}
+                        @if (count($pendingHadithMissions) > 0)
+                            <div class="space-y-6 mt-6">
+                                <flux:heading size="xl" class="flex items-center gap-3">
+                                    <div class="p-2 bg-rose-500 rounded-lg shadow-lg shadow-rose-500/20">
+                                        <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
                                     </div>
-                                    <div>
-                                        <div class="font-bold text-zinc-800 dark:text-zinc-100">{{ __('التأخر') }}</div>
-                                        <div class="text-xs text-zinc-500">{{ __('الحد الأقصى:') }} {{ $latenessLimit }}
+                                    {{ __('مهام حفظ الحديث المجدولة') }}
+                                </flux:heading>
+
+                                <flux:card
+                                    class="bg-gradient-to-br from-rose-500 to-red-600 border-none text-white overflow-hidden relative shadow-lg shadow-rose-600/20 p-0">
+                                    <div class="absolute -top-10 -right-10 p-4 opacity-10 pointer-events-none">
+                                        <flux:icon icon="document-text" class="w-48 h-48" />
+                                    </div>
+
+                                    <div class="relative z-10 p-6">
+                                        <div class="flex items-center gap-3 mb-6 border-b border-white/20 pb-4">
+                                            <div class="bg-white/20 p-2 rounded-lg">
+                                                <flux:icon icon="flag" class="size-6 text-white" />
+                                            </div>
+                                            <h2 class="text-xl font-bold">{{ __('المهام القادمة') }}</h2>
+                                        </div>
+
+                                        <div class="space-y-6">
+                                            @foreach ($pendingHadithMissions as $pendingHadithMission)
+                                                @php
+                                                    $isToday = $pendingHadithMission->date->toDateString() === $todayStr;
+                                                    $allHadiths = $pendingHadithMission->allHadiths ?? collect();
+
+                                                    // Calculate current and previous Hadiths
+                                                    $hifzHadiths = collect();
+                                                    if ($pendingHadithMission->memorize_type === 'hadiths' && $pendingHadithMission->from_hadith_id && $pendingHadithMission->to_hadith_id) {
+                                                        $startIdx = $allHadiths->search(fn($h) => $h->id == $pendingHadithMission->from_hadith_id);
+                                                        $endIdx = $allHadiths->search(fn($h) => $h->id == $pendingHadithMission->to_hadith_id);
+                                                        if ($startIdx !== false && $endIdx !== false) {
+                                                            $hifzHadiths = $allHadiths->slice($startIdx, $endIdx - $startIdx + 1);
+                                                        }
+                                                    } elseif ($pendingHadithMission->memorize_type === 'lines' && $pendingHadithMission->from_hadith_id) {
+                                                        $hadith = $allHadiths->first(fn($h) => $h->id == $pendingHadithMission->from_hadith_id);
+                                                        if ($hadith) {
+                                                            $hifzHadiths->push($hadith);
+                                                        }
+                                                    }
+
+                                                    $firstHifzHadith = $hifzHadiths->first();
+                                                    $firstHifzIdx = $firstHifzHadith ? $allHadiths->search(fn($h) => $h->id == $firstHifzHadith->id) : false;
+                                                    $previousHifzHadiths = $firstHifzIdx !== false && $firstHifzIdx > 0
+                                                        ? $allHadiths->slice(0, $firstHifzIdx)->values()
+                                                        : collect();
+                                                @endphp
+                                                <div x-data="{ showTextModal: false, prevCount: 0 }"
+                                                    class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm border border-white/20">
+                                                    <div
+                                                        class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-3">
+                                                        <div>
+                                                            <div class="font-bold text-lg text-white">
+                                                                {{ $pendingHadithMission->plan->path->name ?? __('خطة بدون عنوان') }}
+                                                            </div>
+                                                            <div class="text-sm text-rose-100 flex items-center gap-2 mt-1">
+                                                                <flux:icon icon="calendar" class="size-4" />
+                                                                <span>{{ $isToday ? __('مهمة اليوم') : __('مهمة فائتة أو قادمة') }}
+                                                                    -
+                                                                    {{ $pendingHadithMission->day_name }}
+                                                                    {{ $this->getHijriLabel($pendingHadithMission->date) }}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div
+                                                            class="shrink-0 bg-white/20 px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wide">
+                                                            {{ ($pendingHadithMission->from_line_number && $pendingHadithMission->to_line_number) ? __('حفظ بالأسطر') : __('حفظ بالأحاديث') }}
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        @php
+                                                            $hasHifz = ($pendingHadithMission->from_line_number && $pendingHadithMission->to_line_number) || ($pendingHadithMission->from_hadith_id && $pendingHadithMission->to_hadith_id);
+                                                            $hasReview = ($pendingHadithMission->review_from_line_number && $pendingHadithMission->review_to_line_number) || ($pendingHadithMission->review_from_hadith_id && $pendingHadithMission->review_to_hadith_id);
+                                                        @endphp
+
+                                                        @if ($hasHifz)
+                                                            <div>
+                                                                <div class="flex justify-between items-center mb-1">
+                                                                    <div class="text-rose-100 text-sm">{{ __('مقرر الحفظ') }}</div>
+                                                                    @if (is_null($pendingHadithMission->hifz_achievement))
+                                                                        <span
+                                                                            class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
+                                                                    @endif
+                                                                </div>
+                                                                <div class="text-lg font-bold">
+                                                                    {{ $pendingHadithMission->formatHadithRange('hifz') }}
+                                                                </div>
+                                                            </div>
+                                                        @endif
+
+                                                        @if ($hasReview)
+                                                            <div>
+                                                                <div class="flex justify-between items-center mb-1">
+                                                                    <div class="text-rose-100 text-sm">{{ __('مقرر المراجعة') }}</div>
+                                                                    @if (is_null($pendingHadithMission->review_achievement))
+                                                                        <span
+                                                                            class="bg-white/20 text-[10px] px-2 py-0.5 rounded text-white">{{ __('بانتظار التسميع') }}</span>
+                                                                    @endif
+                                                                </div>
+                                                                <div class="text-lg font-bold">
+                                                                    {{ $pendingHadithMission->formatHadithRange('review') }}
+                                                                </div>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+
+                                                    <div class="mt-4 pt-3 border-t border-white/10 flex justify-end">
+                                                        <button type="button" @click="showTextModal = true"
+                                                            class="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-bold transition-all shadow-sm">
+                                                            <flux:icon icon="book-open" class="size-4" />
+                                                            <span>{{ __('إظهار نص الحديث') }}</span>
+                                                        </button>
+                                                    </div>
+
+                                                    {{-- Hadith Text Modal for Student --}}
+                                                    <template x-teleport="body">
+                                                        <div x-show="showTextModal"
+                                                            x-transition:enter="transition ease-out duration-300"
+                                                            x-transition:enter-start="opacity-0 translate-y-4"
+                                                            x-transition:enter-end="opacity-100 translate-y-0"
+                                                            x-transition:leave="transition ease-in duration-200"
+                                                            x-transition:leave-start="opacity-100 translate-y-0"
+                                                            x-transition:leave-end="opacity-0 translate-y-4"
+                                                            class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full text-zinc-900 dark:text-white"
+                                                            x-cloak>
+
+                                                            {{-- Modal Header --}}
+                                                            <div
+                                                                class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                                                                <div>
+                                                                    <h3
+                                                                        class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
+                                                                        {{ __('نص الحديث') }}
+                                                                    </h3>
+                                                                    <p
+                                                                        class="text-xs text-rose-600 dark:text-rose-400 mt-1 font-semibold">
+                                                                        {{ $pendingHadithMission->plan->path->name ?? '' }}
+                                                                        ({{ $pendingHadithMission->formatHadithRange('hifz') }})
+                                                                    </p>
+                                                                </div>
+                                                                <button type="button" @click="showTextModal = false"
+                                                                    class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                                                                    <flux:icon icon="x-mark" class="size-5" />
+                                                                </button>
+                                                            </div>
+
+                                                            {{-- Modal Content (Scrollable) --}}
+                                                            <div
+                                                                class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30 text-right">
+                                                                <div class="w-full space-y-8">
+                                                                    {{-- Previous Hadiths Button --}}
+                                                                    @if($previousHifzHadiths->isNotEmpty())
+                                                                        <div x-show="prevCount < {{ $previousHifzHadiths->count() }}"
+                                                                            class="flex justify-center mb-8 shrink-0">
+                                                                            <flux:button type="button" @click="prevCount++"
+                                                                                icon="arrow-up" variant="subtle"
+                                                                                class="w-full sm:w-auto font-bold text-zinc-800 dark:text-white border border-zinc-200 dark:border-zinc-850">
+                                                                                {{ __('إظهار الحديث السابق') }}
+                                                                            </flux:button>
+                                                                        </div>
+                                                                    @endif
+
+                                                                    {{-- Previous Hadiths (Dimmed) --}}
+                                                                    @foreach($previousHifzHadiths as $index => $hadith)
+                                                                        @php
+                                                                            $currentHadithLines = $hadith->lines;
+                                                                         @endphp
+                                                                        <div x-show="prevCount >= {{ $previousHifzHadiths->count() - $index }}"
+                                                                            x-cloak
+                                                                            class="space-y-4 opacity-50 hover:opacity-100 transition-opacity duration-200">
+                                                                            {{-- Hadith Header (Name) --}}
+                                                                            <div
+                                                                                class="text-lg font-bold text-zinc-500 dark:text-zinc-400 pb-2 border-b border-zinc-200 dark:border-zinc-850 font-serif">
+                                                                                {{ $hadith->name }} <span
+                                                                                    class="text-xs font-sans text-zinc-400">({{ __('سابق') }})</span>
+                                                                            </div>
+
+                                                                            @if ($hadith->sanad)
+                                                                                <div
+                                                                                    class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-semibold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300 font-serif">
+                                                                                    <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                                                                </div>
+                                                                            @endif
+
+                                                                            @foreach($currentHadithLines as $line)
+                                                                                <div
+                                                                                    class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800/60 shadow-sm hover:shadow-md transition-shadow">
+                                                                                    <span
+                                                                                        class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
+                                                                                        {{ $line->line_number }}
+                                                                                    </span>
+                                                                                    <div
+                                                                                        class="flex-1 text-base md:text-xl font-semibold text-zinc-500 dark:text-zinc-400 leading-relaxed text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
+                                                                                        {{ $line->text }}
+                                                                                    </div>
+                                                                                </div>
+                                                                            @endforeach
+
+                                                                            @if ($hadith->ruling)
+                                                                                <div
+                                                                                    class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-sm font-bold text-zinc-400 dark:text-zinc-500 pr-4 border-r-4 border-zinc-300">
+                                                                                    <strong>{{ __('حكم الحديث') }}:
+                                                                                    </strong>{{ $hadith->ruling }}
+                                                                                </div>
+                                                                            @endif
+                                                                        </div>
+                                                                    @endforeach
+
+                                                                    {{-- Current Hadiths --}}
+                                                                    @foreach($hifzHadiths as $hadith)
+                                                                        <div class="space-y-4 text-zinc-800 dark:text-zinc-100">
+                                                                            {{-- Hadith Header (Name) if multiple --}}
+                                                                            <div
+                                                                                class="text-lg font-bold text-rose-600 dark:text-rose-400 pb-2 border-b border-rose-100 dark:border-rose-900/50 font-serif">
+                                                                                {{ $hadith->name }}
+                                                                            </div>
+
+                                                                            @if ($hadith->sanad)
+                                                                                <div
+                                                                                    class="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-sm font-semibold text-zinc-650 dark:text-zinc-400 pr-4 border-r-4 border-zinc-450 font-serif">
+                                                                                    <strong>{{ __('السند') }}: </strong>{{ $hadith->sanad }}
+                                                                                </div>
+                                                                            @endif
+
+                                                                            @php
+                                                                                $currentHadithLines = $hadith->lines;
+                                                                                if ($pendingHadithMission->memorize_type === 'lines') {
+                                                                                    $currentHadithLines = $currentHadithLines->filter(function ($l) use ($pendingHadithMission) {
+                                                                                        return $l->line_number <= $pendingHadithMission->to_line_number;
+                                                                                    });
+                                                                                }
+                                                                             @endphp
+
+                                                                            @foreach($currentHadithLines as $line)
+                                                                                <div
+                                                                                    class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-rose-100/60 dark:border-rose-950/40 shadow-sm hover:shadow-md transition-shadow">
+                                                                                    <span
+                                                                                        class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 font-extrabold text-sm shadow-sm">
+                                                                                        {{ $line->line_number }}
+                                                                                    </span>
+                                                                                    <div
+                                                                                        class="flex-1 text-base md:text-xl font-semibold text-zinc-800 dark:text-zinc-150 leading-relaxed text-right pr-4 border-r-4 border-rose-500 dark:border-rose-400 font-serif">
+                                                                                        {{ $line->text }}
+                                                                                    </div>
+                                                                                </div>
+                                                                            @endforeach
+
+                                                                            @if ($hadith->ruling)
+                                                                                <div
+                                                                                    class="p-4 bg-rose-50 dark:bg-rose-955/30 rounded-xl text-sm font-bold text-rose-700 dark:text-rose-300 pr-4 border-r-4 border-rose-500">
+                                                                                    <strong>{{ __('حكم الحديث') }}:
+                                                                                    </strong>{{ $hadith->ruling }}
+                                                                                </div>
+                                                                            @endif
+                                                                        </div>
+                                                                    @endforeach
+                                                                </div>
+                                                            </div>
+
+                                                            {{-- Modal Footer --}}
+                                                            <div
+                                                                class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
+                                                                <flux:button type="button" @click="showTextModal = false"
+                                                                    variant="ghost" class="text-zinc-700 dark:text-zinc-300">
+                                                                    {{ __('إغلاق') }}
+                                                                </flux:button>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            @endforeach
                                         </div>
                                     </div>
-                                </div>
-                                <div
-                                    class="text-3xl font-black {{ $lateness >= $latenessLimit ? 'text-amber-600' : 'text-zinc-700 dark:text-zinc-300' }}">
-                                    {{ $lateness }}<span
-                                        class="text-lg text-zinc-400 font-normal">/{{ $latenessLimit }}</span>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        @if ($absences >= $absenceLimit || $lateness >= $latenessLimit)
-                            <div
-                                class="mt-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-xl border border-red-200 dark:border-red-800/50 flex items-start gap-3">
-                                <flux:icon icon="exclamation-triangle" variant="solid" class="size-5 mt-0.5" />
-                                <div class="text-sm">
-                                    <strong>{{ __('تنبيه إداري:') }}</strong>
-                                    {{ __('لقد تجاوزت الحد المسموح به للغياب أو التأخر، يرجى الالتزام بالحضور لتفادي الإجراءات الإدارية.') }}
-                                </div>
+                                </flux:card>
                             </div>
                         @endif
-                    </div>
+
+                        <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
+
+                        <!-- 🏆 Leaderboard Section -->
+                        @if ($leaderboard)
+                            <div class="space-y-6">
+                                <div class="flex items-center justify-between">
+                                    <flux:heading size="xl" class="flex items-center gap-3">
+                                        <div class="p-2 bg-amber-500 rounded-lg shadow-lg shadow-amber-500/20">
+                                            <flux:icon icon="trophy" variant="solid" class="size-6 text-white" />
+                                        </div>
+                                        {{$leaderboard->title }}
+                                    </flux:heading>
+                                    <div
+                                        class="flex items-center gap-2 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-3 py-1.5 rounded-full border border-amber-200 dark:border-amber-800/50">
+                                        <flux:icon icon="clock" class="size-3.5" />
+                                        @php
+                                            $daysRemaining = now('Asia/Riyadh')->startOfDay()->diffInDays($leaderboard->end_date->startOfDay(), false);
+                                        @endphp
+                                        @if($daysRemaining > 0)
+                                            {{ __('متبقي :days يوم', ['days' => $daysRemaining]) }}
+                                        @elseif($daysRemaining == 0)
+                                            {{ __('اليوم الأخير!') }}
+                                        @else
+                                            {{ __('انتهت المنافسة') }}
+                                        @endif
+                                    </div>
+                                </div>
+
+                                @php
+                                    $top3 = $leaderboardStandings->take(3)->values();
+                                    $rest = $leaderboardStandings->skip(3)->values();
+                                    $currentStudentId = auth('student')->id();
+                                    $myRank = $leaderboardStandings->search(fn($s) => $s['student']->id === $currentStudentId);
+                                    $myRank = $myRank !== false ? $myRank + 1 : 0;
+                                    $myScore =
+                                        $myRank > 0 ? $leaderboardStandings->firstWhere('student.id', $currentStudentId)['score'] : 0;
+                                @endphp
+
+                                @if ($top3->isNotEmpty())
+                                    <!-- Podium -->
+                                    <div
+                                        class="bg-gradient-to-t from-zinc-100/50 to-white dark:from-zinc-900 dark:to-zinc-800/80 p-4 md:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm relative overflow-hidden mb-6">
+                                        <div class="flex justify-center items-end gap-2 md:gap-8 pt-6">
+                                            <!-- Second Place -->
+                                            @if (isset($top3[1]))
+                                                <div class="flex flex-col items-center w-24 md:w-32 z-10">
+                                                    <div class="relative mb-2 shrink-0">
+                                                        <div
+                                                            class="w-14 h-14 md:w-16 md:h-16 rounded-full bg-slate-100 dark:bg-slate-800 border-[3px] border-slate-300 dark:border-slate-600 flex items-center justify-center text-xl font-bold shadow-lg text-slate-600 dark:text-slate-300">
+                                                            {{ mb_substr($top3[1]['student']->name, 0, 1) }}
+                                                        </div>
+                                                        <div
+                                                            class="absolute -top-2 -right-2 bg-slate-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-zinc-800 shadow">
+                                                            2</div>
+                                                    </div>
+                                                    <div
+                                                        class="text-xs md:text-sm font-bold truncate w-full text-center text-zinc-700 dark:text-zinc-300 mb-1">
+                                                        {{ explode(' ', $top3[1]['student']->name)[0] }}
+                                                    </div>
+                                                    <div
+                                                        class="bg-white dark:bg-zinc-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] md:text-xs px-2 py-0.5 rounded shadow-sm border border-zinc-100 dark:border-zinc-700">
+                                                        {{ $top3[1]['score'] }} {{ __('نقطة') }}
+                                                    </div>
+                                                    <div
+                                                        class="w-16 md:w-20 h-16 md:h-20 bg-gradient-to-t from-slate-200 to-slate-100 dark:from-slate-700/50 dark:to-slate-800/50 mt-3 rounded-t-lg border-t-2 border-slate-300 dark:border-slate-600 shadow-inner">
+                                                    </div>
+                                                </div>
+                                            @endif
+
+                                            <!-- First Place -->
+                                            <div class="flex flex-col items-center w-28 md:w-36 z-20 relative">
+                                                <flux:icon icon="star" variant="solid"
+                                                    class="size-6 md:size-8 text-amber-400 absolute -top-8 animate-pulse drop-shadow-md" />
+                                                <div class="relative mb-2 shrink-0">
+                                                    <div
+                                                        class="w-16 h-16 md:w-20 md:h-20 rounded-full bg-amber-50 dark:bg-amber-900/30 border-[4px] border-amber-400 flex items-center justify-center text-2xl font-bold shadow-xl text-amber-600 dark:text-amber-400 z-10 relative">
+                                                        {{ mb_substr($top3[0]['student']->name, 0, 1) }}
+                                                    </div>
+                                                    <div
+                                                        class="absolute -top-3 -right-3 bg-amber-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold border-2 border-white dark:border-zinc-800 z-20 shadow-md">
+                                                        1</div>
+                                                </div>
+                                                <div
+                                                    class="text-sm md:text-base font-extrabold truncate w-full text-center text-zinc-900 dark:text-zinc-100 mb-1">
+                                                    {{ explode(' ', $top3[0]['student']->name)[0] }}
+                                                </div>
+                                                <div
+                                                    class="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 font-black text-xs md:text-sm px-3 py-1 rounded shadow-sm">
+                                                    {{ $top3[0]['score'] }} {{ __('نقطة') }}
+                                                </div>
+                                                <div
+                                                    class="w-20 md:w-24 h-20 md:h-28 bg-gradient-to-t from-amber-200/50 to-amber-100/50 dark:from-amber-900/30 dark:to-amber-900/10 mt-3 rounded-t-lg border-t-2 border-amber-400 shadow-[inset_0_4px_6px_-1px_rgba(251,191,36,0.3)]">
+                                                </div>
+                                            </div>
+
+                                            <!-- Third Place -->
+                                            @if (isset($top3[2]))
+                                                <div class="flex flex-col items-center w-24 md:w-32 z-10">
+                                                    <div class="relative mb-2 shrink-0">
+                                                        <div
+                                                            class="w-14 h-14 md:w-16 md:h-16 rounded-full bg-orange-50 dark:bg-orange-900/20 border-[3px] border-orange-300 dark:border-orange-700/80 flex items-center justify-center text-xl font-bold shadow-lg text-orange-600 dark:text-orange-500">
+                                                            {{ mb_substr($top3[2]['student']->name, 0, 1) }}
+                                                        </div>
+                                                        <div
+                                                            class="absolute -top-2 -right-2 bg-orange-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-zinc-800 shadow">
+                                                            3</div>
+                                                    </div>
+                                                    <div
+                                                        class="text-xs md:text-sm font-bold truncate w-full text-center text-zinc-700 dark:text-zinc-300 mb-1">
+                                                        {{ explode(' ', $top3[2]['student']->name)[0] }}
+                                                    </div>
+                                                    <div
+                                                        class="bg-white dark:bg-zinc-800 text-orange-600 dark:text-orange-500 font-bold text-[10px] md:text-xs px-2 py-0.5 rounded shadow-sm border border-zinc-100 dark:border-zinc-700">
+                                                        {{ $top3[2]['score'] }} {{ __('نقطة') }}
+                                                    </div>
+                                                    <div
+                                                        class="w-16 md:w-20 h-10 md:h-16 bg-gradient-to-t from-orange-100 to-orange-50 dark:from-orange-900/40 dark:to-orange-900/10 mt-3 rounded-t-lg border-t-2 border-orange-300 dark:border-orange-700 shadow-inner">
+                                                    </div>
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        <!-- My Rank Banner -->
+                                        @if ($myRank > 3)
+                                            <div
+                                                class="mt-6 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 p-4 rounded-xl flex items-center justify-between shadow-sm">
+                                                <div class="flex items-center gap-4">
+                                                    <div
+                                                        class="bg-indigo-600 dark:bg-indigo-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-black text-lg shadow-inner">
+                                                        {{ $myRank }}
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-bold text-sm">{{ __('ترتيبك الحالي بين المتنافسين') }}</div>
+                                                        <div class="text-xs opacity-90 mt-0.5">{{ __('مجموع نقاطك:') }} <span
+                                                                class="font-bold">{{ $myScore }}</span> {{ __('شد الهمة!') }}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <flux:icon icon="arrow-trending-up" class="size-6 opacity-50" />
+                                            </div>
+                                        @endif
+                                    </div>
+
+                                    @if ($rest->isNotEmpty())
+                                        <!-- Students List -->
+                                        <div
+                                            class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+                                            <div class="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+                                                @foreach ($rest as $index => $standing)
+                                                    @php $rank = $index + 4; @endphp
+                                                    <div
+                                                        class="flex items-center justify-between p-3 md:p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/30   s {{ $standing['student']->id === $student->id ? 'bg-indigo-50/40 dark:bg-indigo-900/10' : '' }}">
+                                                        <div class="flex items-center gap-3 md:gap-4">
+                                                            <div
+                                                                class="w-6 h-6 md:w-8 md:h-8 flex items-center justify-center text-zinc-400 font-black text-sm md:text-base">
+                                                                {{ $rank }}
+                                                            </div>
+                                                            <div
+                                                                class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-600 dark:text-zinc-400 border border-zinc-200/50 dark:border-zinc-700/50">
+                                                                {{ mb_substr($standing['student']->name, 0, 1) }}
+                                                            </div>
+                                                            <div>
+                                                                <div
+                                                                    class="font-semibold text-sm md:text-base {{ $standing['student']->id === $student->id ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-800 dark:text-zinc-200' }}">
+                                                                    {{ $standing['student']->name }}
+                                                                    @if ($standing['student']->id === $student->id)
+                                                                        <span
+                                                                            class="text-[10px] font-bold ms-2 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">{{ __('أنت') }}</span>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div
+                                                            class="font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/50 px-3 py-1 rounded-full text-xs md:text-sm">
+                                                            {{ $standing['score'] }} <span
+                                                                class="font-normal text-[10px] mx-1 opacity-70">{{ __('نقطة') }}</span>
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+                                @else
+                                    <div
+                                        class="text-center py-10 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
+                                        <div
+                                            class="bg-amber-100 dark:bg-amber-900/30 text-amber-500 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <flux:icon icon="bolt" class="size-6" />
+                                        </div>
+                                        <div class="font-bold text-zinc-700 dark:text-zinc-300">{{ __('المسابقة بدأت للتو!') }}
+                                        </div>
+                                        <p class="text-sm text-zinc-500 mt-1">{{ __('كن أول من يحصد النقاط و يتصدر القائمة.') }}</p>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+
+                        <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
+
+                        <!-- My Plans Section -->
+                        <div class="space-y-10">
+                            <div class="flex items-center justify-between">
+                                <flux:heading size="xl" class="flex items-center gap-3">
+                                    <div class="p-2 bg-indigo-500 rounded-lg shadow-lg shadow-indigo-500/20">
+                                        <flux:icon icon="map-pin" class="size-6 text-white" variant="solid" />
+                                    </div>
+                                    {{ __('مساراتي وخططي الدراسية') }}
+                                </flux:heading>
+                                <flux:button variant="primary" size="sm" icon="plus"
+                                    href="{{ route('student.plan-creator') }}"
+                                    class="bg-indigo-600 hover:bg-indigo-500 text-white border-none shadow-md">
+                                    {{ __('إضافة خطة جديدة') }}
+                                </flux:button>
+                            </div>
+
+                            @php
+                                $approvedPlans = $student->plans()->where('is_approved', true)->latest()->get();
+                                $privatePlans = $student->plans()->where('is_approved', false)->latest()->get();
+                            @endphp
+
+                            @if ($approvedPlans->count() > 0 || $privatePlans->count() > 0)
+
+                                {{-- Approved Plans --}}
+                                @if ($approvedPlans->count() > 0)
+                                    <div class="space-y-4">
+                                        <div class="flex items-center gap-2 px-1">
+                                            <div class="w-1.5 h-6 bg-emerald-500 rounded-full"></div>
+                                            <flux:heading size="lg">{{ __('الخطط المعتمدة') }}</flux:heading>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                                            @foreach ($approvedPlans as $plan)
+                                                                <div
+                                                                    class="group relative rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm hover:shadow-xl hover:border-emerald-500/30   duration-300">
+                                                                    <div class="flex items-start justify-between mb-5">
+                                                                        <div
+                                                                            class="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl text-emerald-600">
+                                                                            <flux:icon icon="academic-cap" class="size-7" />
+                                                                        </div>
+                                                                        <flux:badge color="emerald" size="sm" class="font-bold px-3 py-1 rounded-full">
+                                                                            {{ __('نشطة') }}
+                                                                        </flux:badge>
+                                                                    </div>
+
+                                                                    <div class="mb-6">
+                                                                        <div class="flex items-center gap-2 mb-2">
+                                                                            <span
+                                                                                class="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-lg">
+                                                                                {{ match ($plan->plan_type) {
+                                                    'hifz' => __('حفظ'),
+                                                    'review' => __('مراجعة'),
+                                                    'hifz_review' => __('حفظ ومراجعة'),
+                                                    default => __('مسار تعليمي'),
+                                                } }}
+                                                                            </span>
+                                                                        </div>
+                                                                        <h4 class="font-black text-zinc-900 dark:text-white text-xl line-clamp-1 mb-2">
+                                                                            {{ $plan->description }}
+                                                                        </h4>
+                                                                        <div class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+                                                                            <flux:icon icon="calendar" class="size-4" />
+                                                                            <span class="text-sm font-medium">{{ __('بدأت في:') }}
+                                                                                {{ $plan->start_date->format('Y-m-d') }}</span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div class="pt-5 border-t border-zinc-100 dark:border-zinc-800">
+                                                                        <flux:button variant="filled"
+                                                                            class="w-full bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white text-lg font-bold py-3 rounded-2xl border-none   duration-300"
+                                                                            icon="eye" href="{{ route('student.show-plan', $plan->id) }}">
+                                                                            {{ __('عرض التقدم') }}
+                                                                        </flux:button>
+                                                                    </div>
+                                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+
+                                {{-- Private Plans (Pending) --}}
+                                @if ($privatePlans->count() > 0)
+                                    <div class="space-y-4 mt-10">
+                                        <div class="flex items-center gap-2 px-1">
+                                            <div class="w-1.5 h-6 bg-amber-500 rounded-full"></div>
+                                            <flux:heading size="lg">{{ __('خططي الخاصة') }}</flux:heading>
+                                            <flux:badge color="amber" size="sm" variant="outline" class="ms-2 font-bold">
+                                                {{ __('قيد المراجعة') }}
+                                            </flux:badge>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                                            @foreach ($privatePlans as $plan)
+                                                                <div
+                                                                    class="group relative rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50/30 dark:bg-zinc-900/30 p-6 hover:bg-white dark:hover:bg-zinc-900 hover:border-amber-500/50   duration-300">
+                                                                    <div class="flex items-start justify-between mb-5 opacity-70">
+                                                                        <div class="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl text-zinc-500">
+                                                                            <flux:icon icon="lock-closed" class="size-7" />
+                                                                        </div>
+                                                                        <flux:badge color="amber" size="sm" variant="solid"
+                                                                            class="font-bold px-3 py-1 rounded-full">{{ __('بانتظار المعلم') }}
+                                                                        </flux:badge>
+                                                                    </div>
+
+                                                                    <div class="mb-6">
+                                                                        <div class="flex items-center gap-2 mb-2">
+                                                                            <span
+                                                                                class="text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-lg">
+                                                                                {{ match ($plan->plan_type) {
+                                                    'hifz' => __('حفظ'),
+                                                    'review' => __('مراجعة'),
+                                                    'hifz_review' => __('حفظ ومراجعة'),
+                                                    default => __('مسار تعليمي'),
+                                                } }}
+                                                                            </span>
+                                                                        </div>
+                                                                        <h4
+                                                                            class="font-bold text-zinc-700 dark:text-zinc-300 text-lg line-clamp-1 mb-2">
+                                                                            {{ $plan->description }}
+                                                                        </h4>
+                                                                        <div class="flex items-center gap-2 text-zinc-400">
+                                                                            <flux:icon icon="clock" class="size-4" />
+                                                                            <span class="text-xs font-medium">{{ __('تم إنشاؤها:') }}
+                                                                                {{ $plan->created_at->diffForHumans() }}</span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div class="pt-5 border-t border-zinc-100 dark:border-zinc-800">
+                                                                        <flux:button variant="ghost"
+                                                                            class="w-full text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-lg font-bold py-3 rounded-2xl border border-dashed border-amber-200 dark:border-amber-800/50   duration-300"
+                                                                            icon="eye" href="{{ route('student.show-plan', $plan->id) }}">
+                                                                            {{ __('معاينة الخطة') }}
+                                                                        </flux:button>
+                                                                    </div>
+                                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+                            @else
+                                {{-- Empty State --}}
+                                <div
+                                    class="flex flex-col items-center justify-center p-12 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl bg-zinc-50/50 dark:bg-zinc-900/20 text-center">
+                                    <div
+                                        class="p-5 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-100 dark:border-zinc-800 mb-4 text-zinc-300 dark:text-zinc-700">
+                                        <flux:icon icon="map" class="size-12" />
+                                    </div>
+                                    <h3 class="font-bold text-zinc-800 dark:text-zinc-200 text-lg">
+                                        {{ __('لا توجد خطط دراسية حتى الآن') }}
+                                    </h3>
+                                    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-2 mb-8 max-w-xs mx-auto">
+                                        {{ __('ابدأ رحلتك التعليمية بإنشاء خطة دراسية مخصصة تناسب أهدافك في الحفظ والمراجعة.') }}
+                                    </p>
+                                    <flux:button variant="primary" icon="plus" href="{{ route('student.plan-creator') }}"
+                                        class="bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-500/30">
+                                        {{ __('إنشاء خطتي الأولى') }}
+                                    </flux:button>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
+
+                        <!-- Achievements & Discipline Section -->
+                        <div class="space-y-10">
+                            <flux:heading size="xl" class="flex items-center gap-3">
+                                <div class="p-2 bg-rose-500 rounded-lg shadow-lg shadow-rose-500/20">
+                                    <flux:icon icon="chart-bar" class="size-6 text-white" variant="solid" />
+                                </div>
+                                {{ __('مؤشرات الأداء والانضباط') }}
+                            </flux:heading>
+
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <!-- Achievement Widgets -->
+                                <div class="space-y-4">
+                                    <flux:heading size="lg" class="px-1 text-zinc-500 flex items-center gap-2">
+                                        <flux:icon icon="star" class="size-5" />
+                                        {{ __('مستوى الإنجاز (30 يوماً)') }}
+                                    </flux:heading>
+                                    <div class="grid grid-cols-3 gap-3">
+
+                                        <div
+                                            class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center text-center">
+                                            <div class="text-blue-500 mb-2">
+                                                <flux:icon icon="star" variant="solid" class="size-8" />
+                                            </div>
+                                            <div class="text-3xl font-bold text-zinc-800 dark:text-zinc-100">
+                                                {{ $excellent }}
+                                            </div>
+                                            <div class="text-xs text-zinc-500 mt-1">{{ __('ممتاز') }}</div>
+                                        </div>
+
+                                        <div
+                                            class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center text-center">
+                                            <div class="text-green-500 mb-2">
+                                                <flux:icon icon="check-badge" variant="solid" class="size-8" />
+                                            </div>
+                                            <div class="text-3xl font-bold text-zinc-800 dark:text-zinc-100">{{ $good }}
+                                            </div>
+                                            <div class="text-xs text-zinc-500 mt-1">{{ __('جيد جداً') }}</div>
+                                        </div>
+
+                                        <div
+                                            class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center text-center">
+                                            <div class="text-amber-500 mb-2">
+                                                <flux:icon icon="hand-thumb-up" variant="solid" class="size-8" />
+                                            </div>
+                                            <div class="text-3xl font-bold text-zinc-800 dark:text-zinc-100">
+                                                {{ $acceptable }}
+                                            </div>
+                                            <div class="text-xs text-zinc-500 mt-1">{{ __('مقبول') }}</div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- Discipline Widget -->
+                            <div class="space-y-4">
+                                <flux:heading size="lg" class="px-1 text-zinc-500 flex items-center gap-2">
+                                    <flux:icon icon="check-badge" class="size-5" />
+                                    {{ __('سجل الحضور والانضباط') }}
+                                </flux:heading>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                                    <div
+                                        class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <div class="text-red-500 bg-red-50 dark:bg-red-900/40 p-3 rounded-xl">
+                                                <flux:icon icon="x-circle" variant="solid" class="size-6" />
+                                            </div>
+                                            <div>
+                                                <div class="font-bold text-zinc-800 dark:text-zinc-100">{{ __('الغيابات') }}
+                                                </div>
+                                                <div class="text-xs text-zinc-500">{{ __('الحد الأقصى:') }}
+                                                    {{ $absenceLimit }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="text-3xl font-black {{ $absences >= $absenceLimit ? 'text-red-600' : 'text-zinc-700 dark:text-zinc-300' }}">
+                                            {{ $absences }}<span
+                                                class="text-lg text-zinc-400 font-normal">/{{ $absenceLimit }}</span>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <div class="text-amber-500 bg-amber-50 dark:bg-amber-900/40 p-3 rounded-xl">
+                                                <flux:icon icon="clock" variant="solid" class="size-6" />
+                                            </div>
+                                            <div>
+                                                <div class="font-bold text-zinc-800 dark:text-zinc-100">{{ __('التأخر') }}
+                                                </div>
+                                                <div class="text-xs text-zinc-500">{{ __('الحد الأقصى:') }}
+                                                    {{ $latenessLimit }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="text-3xl font-black {{ $lateness >= $latenessLimit ? 'text-amber-600' : 'text-zinc-700 dark:text-zinc-300' }}">
+                                            {{ $lateness }}<span
+                                                class="text-lg text-zinc-400 font-normal">/{{ $latenessLimit }}</span>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                @if ($absences >= $absenceLimit || $lateness >= $latenessLimit)
+                                    <div
+                                        class="mt-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-xl border border-red-200 dark:border-red-800/50 flex items-start gap-3">
+                                        <flux:icon icon="exclamation-triangle" variant="solid" class="size-5 mt-0.5" />
+                                        <div class="text-sm">
+                                            <strong>{{ __('تنبيه إداري:') }}</strong>
+                                            {{ __('لقد تجاوزت الحد المسموح به للغياب أو التأخر، يرجى الالتزام بالحضور لتفادي الإجراءات الإدارية.') }}
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+    @endif
                 </div>
-@endif
-</div>

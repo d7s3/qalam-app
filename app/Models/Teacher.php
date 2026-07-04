@@ -72,29 +72,49 @@ class Teacher extends Authenticatable
     }
 
     /**
-     * Returns the effective permissions for this teacher.
-     * If the teacher has their own overridden permissions, use those.
-     * Otherwise fall back to the global default teacher permissions from settings.
+     * The canonical set of teacher permission keys with their default (enabled) state.
+     * New keys added here are enabled by default, even for teachers whose stored
+     * override predates the key, because effectivePermissions() merges over these.
      *
-     * @return array{can_manage_students: bool, can_change_student_status: bool}
+     * @return array<string, bool>
      */
-    public function effectivePermissions(): array
+    public static function defaultPermissions(): array
     {
-        if ($this->permissions !== null) {
-            return $this->permissions;
-        }
-
-        $global = Setting::getVal('default_teacher_permissions');
-
-        if (is_string($global)) {
-            $global = json_decode($global, true);
-        }
-
-        return $global ?? [
+        return [
             'can_manage_students' => true,
             'can_change_student_status' => true,
             'can_create_students' => true,
+            'can_manage_hadith_paths' => true,
+            'can_manage_ode_paths' => true,
+            'can_manage_gamification_tracks' => true,
         ];
+    }
+
+    /**
+     * Returns the effective permissions for this teacher.
+     *
+     * Layered so that any key missing from an older stored override falls back to
+     * the global default, and any key missing from both falls back to the canonical
+     * default. This keeps newly-introduced permissions "enabled by default" without
+     * having to backfill every teacher row.
+     *
+     * @return array<string, bool>
+     */
+    public function effectivePermissions(): array
+    {
+        $defaults = self::defaultPermissions();
+
+        $global = Setting::getVal('default_teacher_permissions');
+        if (is_string($global)) {
+            $global = json_decode($global, true);
+        }
+        $base = is_array($global) ? array_merge($defaults, $global) : $defaults;
+
+        if ($this->permissions !== null) {
+            return array_merge($base, $this->permissions);
+        }
+
+        return $base;
     }
 
     /**

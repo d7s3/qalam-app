@@ -34,6 +34,18 @@
                     <flux:switch wire:model="globalPermissions.can_change_student_status" />
                     <span class="text-sm text-zinc-700 dark:text-zinc-300">تغيير حالة الطالب</span>
                 </label>
+                <label class="flex items-center gap-2.5 cursor-pointer">
+                    <flux:switch wire:model="globalPermissions.can_manage_hadith_paths" />
+                    <span class="text-sm text-zinc-700 dark:text-zinc-300">تسكين الطلاب في مسارات الأحاديث</span>
+                </label>
+                <label class="flex items-center gap-2.5 cursor-pointer">
+                    <flux:switch wire:model="globalPermissions.can_manage_ode_paths" />
+                    <span class="text-sm text-zinc-700 dark:text-zinc-300">تسكين الطلاب في مسارات المنظومات</span>
+                </label>
+                <label class="flex items-center gap-2.5 cursor-pointer">
+                    <flux:switch wire:model="globalPermissions.can_manage_gamification_tracks" />
+                    <span class="text-sm text-zinc-700 dark:text-zinc-300">تسكين الطلاب في مسارات التلعيب</span>
+                </label>
                 <flux:button wire:click="saveGlobalPermissions" size="sm" variant="primary" icon="check">
                     حفظ الإعدادات
                 </flux:button>
@@ -125,13 +137,23 @@
                         </flux:table.cell>
                         <flux:table.cell class="hidden md:table-cell">
                             <div class="flex flex-wrap gap-1">
-                                @if(!empty($teacher->permissions['can_manage_students']))
+                                @php $perms = $teacher->effectivePermissions(); @endphp
+                                @if(!empty($perms['can_manage_students']))
                                     <flux:badge size="sm" color="blue" icon="users">إدارة الطلاب</flux:badge>
                                 @endif
-                                @if(!empty($teacher->permissions['can_change_student_status']))
+                                @if(!empty($perms['can_change_student_status']))
                                     <flux:badge size="sm" color="violet" icon="arrow-path">تغيير الحالة</flux:badge>
                                 @endif
-                                @if(empty($teacher->permissions['can_manage_students']) && empty($teacher->permissions['can_change_student_status']))
+                                @if(!empty($perms['can_manage_hadith_paths']))
+                                    <flux:badge size="sm" color="emerald" icon="book-open">مسارات الأحاديث</flux:badge>
+                                @endif
+                                @if(!empty($perms['can_manage_ode_paths']))
+                                    <flux:badge size="sm" color="teal" icon="musical-note">مسارات المنظومات</flux:badge>
+                                @endif
+                                @if(!empty($perms['can_manage_gamification_tracks']))
+                                    <flux:badge size="sm" color="amber" icon="trophy">مسارات التلعيب</flux:badge>
+                                @endif
+                                @if(empty($perms['can_manage_students']) && empty($perms['can_change_student_status']) && empty($perms['can_manage_hadith_paths']) && empty($perms['can_manage_ode_paths']) && empty($perms['can_manage_gamification_tracks']))
                                     <span class="text-xs text-zinc-400">لا صلاحيات إضافية</span>
                                 @endif
                             </div>
@@ -264,6 +286,30 @@
                                     </div>
                                     <flux:switch wire:model="permissions.can_change_student_status" />
                                 </label>
+                                <flux:separator />
+                                <label class="flex items-center justify-between gap-3 cursor-pointer group">
+                                    <div>
+                                        <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200">تسكين الطلاب في مسارات الأحاديث</div>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">تسكين الطالب في مسار حديث أو تغييره من صفحة التسميع</div>
+                                    </div>
+                                    <flux:switch wire:model="permissions.can_manage_hadith_paths" />
+                                </label>
+                                <flux:separator />
+                                <label class="flex items-center justify-between gap-3 cursor-pointer group">
+                                    <div>
+                                        <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200">تسكين الطلاب في مسارات المنظومات</div>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">تسكين الطالب في مسار منظومة أو تغييره من صفحة التسميع</div>
+                                    </div>
+                                    <flux:switch wire:model="permissions.can_manage_ode_paths" />
+                                </label>
+                                <flux:separator />
+                                <label class="flex items-center justify-between gap-3 cursor-pointer group">
+                                    <div>
+                                        <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200">تسكين الطلاب في مسارات التلعيب</div>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">إضافة الطالب إلى أحد مسارات مسابقة التلعيب من صفحة التسميع</div>
+                                    </div>
+                                    <flux:switch wire:model="permissions.can_manage_gamification_tracks" />
+                                </label>
                             </div>
                             @else
                             {{-- Show what the teacher inherits --}}
@@ -287,6 +333,30 @@
                                 <div class="flex items-center justify-between">
                                     <span>تغيير حالة الطالب</span>
                                     @if($globalPermissions['can_change_student_status'])
+                                        <flux:badge size="sm" color="green">مسموح (من الإعداد العام)</flux:badge>
+                                    @else
+                                        <flux:badge size="sm" color="red">غير مسموح (من الإعداد العام)</flux:badge>
+                                    @endif
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>تسكين الطلاب في مسارات الأحاديث</span>
+                                    @if($globalPermissions['can_manage_hadith_paths'] ?? true)
+                                        <flux:badge size="sm" color="green">مسموح (من الإعداد العام)</flux:badge>
+                                    @else
+                                        <flux:badge size="sm" color="red">غير مسموح (من الإعداد العام)</flux:badge>
+                                    @endif
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>تسكين الطلاب في مسارات المنظومات</span>
+                                    @if($globalPermissions['can_manage_ode_paths'] ?? true)
+                                        <flux:badge size="sm" color="green">مسموح (من الإعداد العام)</flux:badge>
+                                    @else
+                                        <flux:badge size="sm" color="red">غير مسموح (من الإعداد العام)</flux:badge>
+                                    @endif
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>تسكين الطلاب في مسارات التلعيب</span>
+                                    @if($globalPermissions['can_manage_gamification_tracks'] ?? true)
                                         <flux:badge size="sm" color="green">مسموح (من الإعداد العام)</flux:badge>
                                     @else
                                         <flux:badge size="sm" color="red">غير مسموح (من الإعداد العام)</flux:badge>
