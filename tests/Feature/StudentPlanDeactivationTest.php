@@ -90,6 +90,95 @@ it('hides inactive plans from the teacher tasmeeh manager', function () {
         ->toContain($this->student->id);
 });
 
+it('bulk activates and deactivates the selected plans', function () {
+    $secondPlan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'teacher_id' => $this->teacher->id,
+        'start_date' => now(),
+        'days_count' => 3,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+        'description' => 'خطة المراجعة',
+        'status' => 'active',
+        'plan_type' => 'review',
+        'direction' => 'forward',
+        'is_approved' => true,
+        'created_by_role' => 'teacher',
+    ]);
+
+    Livewire::test('teacher.⚡student-plans-list')
+        ->set('selectedPlans', [$this->plan->id, $secondPlan->id])
+        ->call('bulkDeactivate')
+        ->assertSet('selectedPlans', []);
+
+    expect($this->plan->refresh()->status)->toBe('inactive');
+    expect($secondPlan->refresh()->status)->toBe('inactive');
+
+    Livewire::test('teacher.⚡student-plans-list')
+        ->set('selectedPlans', [$this->plan->id])
+        ->call('bulkActivate')
+        ->assertSet('selectedPlans', []);
+
+    expect($this->plan->refresh()->status)->toBe('active');
+    expect($secondPlan->refresh()->status)->toBe('inactive');
+});
+
+it('requires typing the exact confirmation word before bulk deleting plans', function () {
+    Livewire::test('teacher.⚡student-plans-list')
+        ->set('selectedPlans', [$this->plan->id])
+        ->call('openBulkDeleteModal')
+        ->assertSet('showBulkDeleteModal', true)
+        ->set('bulkDeleteConfirmation', 'نعم')
+        ->call('bulkDelete')
+        ->assertHasErrors(['bulkDeleteConfirmation']);
+
+    expect(StudentPlan::find($this->plan->id))->not->toBeNull();
+
+    Livewire::test('teacher.⚡student-plans-list')
+        ->set('selectedPlans', [$this->plan->id])
+        ->set('bulkDeleteConfirmation', 'حذف')
+        ->call('bulkDelete')
+        ->assertHasNoErrors()
+        ->assertSet('showBulkDeleteModal', false)
+        ->assertSet('selectedPlans', []);
+
+    expect(StudentPlan::find($this->plan->id))->toBeNull();
+});
+
+it('never bulk deletes or toggles plans of students outside the teacher circles', function () {
+    $otherCircle = Circle::factory()->create();
+    $otherStudent = Student::factory()->create([
+        'circle_id' => $otherCircle->id,
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $otherPlan = StudentPlan::create([
+        'student_id' => $otherStudent->id,
+        'teacher_id' => $this->teacher->id,
+        'start_date' => now(),
+        'days_count' => 5,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+        'status' => 'active',
+        'plan_type' => 'hifz',
+        'direction' => 'forward',
+        'is_approved' => true,
+        'created_by_role' => 'teacher',
+    ]);
+
+    Livewire::test('teacher.⚡student-plans-list')
+        ->set('selectedPlans', [$this->plan->id, $otherPlan->id])
+        ->set('bulkDeleteConfirmation', 'حذف')
+        ->call('bulkDelete');
+
+    expect(StudentPlan::find($this->plan->id))->toBeNull();
+    expect(StudentPlan::find($otherPlan->id))->not->toBeNull();
+
+    Livewire::test('teacher.⚡student-plans-list')
+        ->set('selectedPlans', [$otherPlan->id])
+        ->call('bulkDeactivate');
+
+    expect($otherPlan->refresh()->status)->toBe('active');
+});
+
 it('never selects an inactive plan in the student tasmeeh card', function () {
     $this->plan->update(['status' => 'inactive']);
 

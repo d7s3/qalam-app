@@ -10,9 +10,19 @@ new class extends Component {
 
     public $search = '';
 
+    public $selectedPlans = [];
+    public $showBulkDeleteModal = false;
+    public $bulkDeleteConfirmation = '';
+
     public function updatedSearch()
     {
         $this->resetPage();
+        $this->selectedPlans = [];
+    }
+
+    public function updatedPaginators()
+    {
+        $this->selectedPlans = [];
     }
 
     public $showStudentModal = false;
@@ -144,6 +154,67 @@ new class extends Component {
         session()->flash('success', $plan->status === 'active' ? 'تم تفعيل الخطة بنجاح' : 'تم إلغاء تفعيل الخطة ولن تظهر في صفحة التسميع');
     }
 
+    protected function selectedAuthorizedPlansQuery()
+    {
+        $teacher = Auth::guard('teacher')->user();
+        $circleIds = $teacher->circles()->pluck('id');
+
+        return StudentPlan::whereHas('student', function ($q) use ($circleIds) {
+            $q->whereIn('circle_id', $circleIds);
+        })->whereIn('id', $this->selectedPlans);
+    }
+
+    public function bulkActivate()
+    {
+        if (empty($this->selectedPlans)) {
+            return;
+        }
+
+        $count = $this->selectedAuthorizedPlansQuery()->update(['status' => 'active']);
+        $this->selectedPlans = [];
+        session()->flash('success', "تم تفعيل {$count} من الخطط بنجاح");
+    }
+
+    public function bulkDeactivate()
+    {
+        if (empty($this->selectedPlans)) {
+            return;
+        }
+
+        $count = $this->selectedAuthorizedPlansQuery()->update(['status' => 'inactive']);
+        $this->selectedPlans = [];
+        session()->flash('success', "تم إلغاء تفعيل {$count} من الخطط ولن تظهر في صفحة التسميع");
+    }
+
+    public function openBulkDeleteModal()
+    {
+        if (empty($this->selectedPlans)) {
+            return;
+        }
+
+        $this->bulkDeleteConfirmation = '';
+        $this->resetErrorBag('bulkDeleteConfirmation');
+        $this->showBulkDeleteModal = true;
+    }
+
+    public function bulkDelete()
+    {
+        $this->validate(
+            ['bulkDeleteConfirmation' => 'required|in:حذف'],
+            [
+                'bulkDeleteConfirmation.required' => 'اكتب كلمة "حذف" لتأكيد العملية',
+                'bulkDeleteConfirmation.in' => 'يجب كتابة كلمة "حذف" بالضبط لتأكيد العملية',
+            ]
+        );
+
+        $count = $this->selectedAuthorizedPlansQuery()->get()->each->delete()->count();
+
+        $this->selectedPlans = [];
+        $this->showBulkDeleteModal = false;
+        $this->bulkDeleteConfirmation = '';
+        session()->flash('success', "تم حذف {$count} من الخطط نهائياً");
+    }
+
     public function with()
     {
         $teacher = Auth::guard('teacher')->user();
@@ -187,8 +258,33 @@ new class extends Component {
                 class="max-w-xs" />
         </div>
 
+        @if(count($selectedPlans) > 0)
+            <div class="p-3 px-4 border-b border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/70 dark:bg-indigo-900/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                    <flux:icon icon="check-circle" class="size-5" />
+                    {{ __('تم تحديد') }} {{ count($selectedPlans) }} {{ __('من الخطط') }}
+                </div>
+                <div class="flex items-center gap-2">
+                    <flux:button size="sm" icon="play-circle" wire:click="bulkActivate"
+                        class="text-emerald-700 dark:text-emerald-400">
+                        {{ __('تفعيل') }}
+                    </flux:button>
+                    <flux:button size="sm" icon="pause-circle" wire:click="bulkDeactivate">
+                        {{ __('إلغاء التفعيل') }}
+                    </flux:button>
+                    <flux:button size="sm" variant="danger" icon="trash" wire:click="openBulkDeleteModal">
+                        {{ __('حذف') }}
+                    </flux:button>
+                </div>
+            </div>
+        @endif
+
+        <flux:checkbox.group wire:model.live="selectedPlans">
         <flux:table>
             <flux:table.columns>
+                <flux:table.column class="w-10">
+                    <flux:checkbox.all />
+                </flux:table.column>
                 <flux:table.column>{{ __('الطالب') }}</flux:table.column>
                 <flux:table.column>{{ __('نوع الخطة') }}</flux:table.column>
                 <flux:table.column>{{ __('تاريخ البدء') }}</flux:table.column>
@@ -199,7 +295,10 @@ new class extends Component {
 
             <flux:table.rows>
                 @foreach($plans as $plan)
-                    <flux:table.row class="{{ !$plan->is_approved ? 'bg-amber-50/50 dark:bg-amber-900/10' : '' }}">
+                    <flux:table.row wire:key="plan-row-{{ $plan->id }}" class="{{ !$plan->is_approved ? 'bg-amber-50/50 dark:bg-amber-900/10' : '' }}">
+                        <flux:table.cell>
+                            <flux:checkbox value="{{ $plan->id }}" />
+                        </flux:table.cell>
                         <flux:table.cell class="font-medium">{{ $plan->student->name }}</flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             @if($plan->plan_type === 'review')
@@ -272,11 +371,42 @@ new class extends Component {
                 @endforeach
             </flux:table.rows>
         </flux:table>
+        </flux:checkbox.group>
 
         <div class="p-4 border-t border-zinc-100 dark:border-zinc-800">
             {{ $plans->links() }}
         </div>
     </flux:card>
+
+    <flux:modal wire:model="showBulkDeleteModal" class="md:w-[450px]">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg" class="text-red-600 dark:text-red-400 flex items-center gap-2">
+                    <flux:icon icon="exclamation-triangle" class="size-5" />
+                    {{ __('حذف الخطط المحددة نهائياً') }}
+                </flux:heading>
+                <flux:subheading>
+                    {{ __('أنت على وشك حذف') }} {{ count($selectedPlans) }} {{ __('من الخطط.') }}
+                </flux:subheading>
+            </div>
+
+            <div class="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 rounded-xl p-4 text-sm text-red-700 dark:text-red-400 space-y-1">
+                <p class="font-bold">{{ __('تحذير: هذا الإجراء لا يمكن التراجع عنه!') }}</p>
+                <p>{{ __('سيتم حذف الخطط المحددة مع جميع أيامها وإنجازات التسميع والتقييمات المسجلة فيها بشكل نهائي.') }}</p>
+            </div>
+
+            <flux:input wire:model="bulkDeleteConfirmation" wire:keydown.enter="bulkDelete"
+                label="{{ __('للتأكيد، اكتب كلمة: حذف') }}" placeholder="{{ __('حذف') }}" />
+
+            <div class="flex gap-2">
+                <flux:spacer />
+                <flux:button wire:click="$set('showBulkDeleteModal', false)">{{ __('تراجع') }}</flux:button>
+                <flux:button wire:click="bulkDelete" variant="danger" icon="trash">
+                    {{ __('حذف نهائي') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
 
     <flux:modal wire:model="showStudentModal" class="md:w-96">
         <div class="space-y-6">
