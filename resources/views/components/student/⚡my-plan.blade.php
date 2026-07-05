@@ -70,7 +70,12 @@ new class extends Component {
             @foreach($plans as $plan)
                 <flux:card class="flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group">
                     <!-- Status Ribbon -->
-                    @if($plan->is_approved)
+                    @if($plan->is_approved && $plan->status !== 'active')
+                        <div class="absolute top-0 right-0 bg-zinc-400 text-white text-xs font-bold px-4 py-1 rounded-bl-xl shadow-sm z-10 flex items-center gap-1">
+                            <flux:icon icon="pause-circle" class="size-3" />
+                            {{ __('غير فعالة') }}
+                        </div>
+                    @elseif($plan->is_approved)
                         <div class="absolute top-0 right-0 bg-emerald-500 text-white text-xs font-bold px-4 py-1 rounded-bl-xl shadow-sm z-10 flex items-center gap-1">
                             <flux:icon icon="check-circle" class="size-3" />
                             {{ __('معتمدة') }}

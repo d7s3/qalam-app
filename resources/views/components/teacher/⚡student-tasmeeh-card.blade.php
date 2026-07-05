@@ -369,13 +369,13 @@ new class extends Component {
             $activeHadithPlan = $studentHadithPlans->firstWhere('status', 'active');
         }
 
-        // Selected Quranic plan
+        // Selected Quranic plan (inactive plans never show on the tasmeeh page)
         $activePlan = null;
         if ($this->selectedPlanId) {
-            $activePlan = $this->sPlans->firstWhere('id', $this->selectedPlanId);
+            $activePlan = $this->sPlans->where('status', 'active')->firstWhere('id', $this->selectedPlanId);
         }
         if (!$activePlan) {
-            $activePlan = $this->sPlans->firstWhere('status', 'active') ?: $this->sPlans->first();
+            $activePlan = $this->sPlans->firstWhere('status', 'active');
         }
 
         $days = collect();

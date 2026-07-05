@@ -53,6 +53,7 @@ new class extends Component {
         // Fetch active plans (or selected plans) for these students
         $activePlans = [];
         $studentPlansList = StudentPlan::whereIn('student_id', $students->pluck('id'))
+            ->where('status', 'active')
             ->latest()
             ->get()
             ->groupBy('student_id');
@@ -63,9 +64,7 @@ new class extends Component {
                 continue;
             }
 
-            $activePlan = $sPlans->firstWhere('status', 'active') ?: $sPlans->first();
-
-            $activePlans[$student->id] = $activePlan;
+            $activePlans[$student->id] = $sPlans->first();
         }
 
         // We need all today's plan days for the active plans to check the colors

@@ -804,8 +804,10 @@ it('deducts target team coins when a team attack with voting requirements is app
     expect($purchase->status)->toBe('pending_approval');
     expect($purchase->target_team_id)->toBe($targetTeam->id);
 
-    // Coins shouldn't be deducted from either team yet
-    expect($myTeam->coins)->toBe(200);
+    // The buyer team's coins are held immediately so they cannot over-spend
+    // on other purchases while the vote is still pending; the target team is
+    // only affected once the purchase is approved.
+    expect($myTeam->coins)->toBe(120); // 200 - 80 held upfront
     expect($targetTeam->coins)->toBe(100);
 
     // 2. Member 2 votes YES. (Threshold is 2, since Leader voted yes, 1 more yes vote makes it 2 and approves it)

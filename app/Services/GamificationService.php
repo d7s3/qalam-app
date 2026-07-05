@@ -1592,15 +1592,33 @@ class GamificationService
             if ($requiresVoting) {
                 $memberCount = $team->students()->count();
                 if ($memberCount > 1) {
-                    $purchase = GamificationStorePurchase::create([
-                        'store_item_id' => $item->id,
-                        'student_id' => $studentId,
-                        'team_id' => $team->id,
-                        'status' => 'pending_approval',
-                        'price_paid' => $price,
-                        'target_team_id' => $targetTeamId,
-                        'target_date' => $targetDate ? Carbon::parse($targetDate)->format('Y-m-d') : null,
-                    ]);
+                    $purchase = DB::transaction(function () use ($team, $item, $studentId, $leaderboardId, $targetTeamId, $targetDate, $price) {
+                        $team->coins -= $price;
+                        $team->save();
+
+                        $purchase = GamificationStorePurchase::create([
+                            'store_item_id' => $item->id,
+                            'student_id' => $studentId,
+                            'team_id' => $team->id,
+                            'status' => 'pending_approval',
+                            'price_paid' => $price,
+                            'target_team_id' => $targetTeamId,
+                            'target_date' => $targetDate ? Carbon::parse($targetDate)->format('Y-m-d') : null,
+                        ]);
+
+                        GamificationTransaction::create([
+                            'leaderboard_id' => $leaderboardId,
+                            'team_id' => $team->id,
+                            'student_id' => $studentId,
+                            'type' => 'spend',
+                            'amount' => -$price,
+                            'description' => "حجز رصيد لشراء قيد التصويت: {$item->name}",
+                            'reference_type' => GamificationStorePurchase::class,
+                            'reference_id' => $purchase->id,
+                        ]);
+
+                        return $purchase;
+                    });
 
                     DB::table('gamification_purchase_votes')->insert([
                         'store_purchase_id' => $purchase->id,
@@ -1724,21 +1742,23 @@ class GamificationService
 
         if ($assistantApprovalMet && $memberApprovalMet) {
             DB::transaction(function () use ($purchase, $team) {
-                $team->coins -= $purchase->price_paid;
-                $team->save();
+                if (! self::purchaseCoinsAlreadyHeld($purchase)) {
+                    $team->coins -= $purchase->price_paid;
+                    $team->save();
+
+                    GamificationTransaction::create([
+                        'leaderboard_id' => $team->leaderboard_id,
+                        'team_id' => $team->id,
+                        'student_id' => $purchase->student_id,
+                        'type' => 'spend',
+                        'amount' => -$purchase->price_paid,
+                        'description' => "شراء معتمد بالتصويت: {$purchase->item->name}",
+                        'reference_type' => GamificationStorePurchase::class,
+                        'reference_id' => $purchase->id,
+                    ]);
+                }
 
                 $purchase->update(['status' => 'approved']);
-
-                GamificationTransaction::create([
-                    'leaderboard_id' => $team->leaderboard_id,
-                    'team_id' => $team->id,
-                    'student_id' => $purchase->student_id,
-                    'type' => 'spend',
-                    'amount' => -$purchase->price_paid,
-                    'description' => "شراء معتمد بالتصويت: {$purchase->item->name}",
-                    'reference_type' => GamificationStorePurchase::class,
-                    'reference_id' => $purchase->id,
-                ]);
 
                 self::executePurchase($purchase);
             });
@@ -1774,8 +1794,39 @@ class GamificationService
         }
 
         if ($rejected) {
-            $purchase->update(['status' => 'rejected']);
+            DB::transaction(function () use ($purchase, $team) {
+                if (self::purchaseCoinsAlreadyHeld($purchase)) {
+                    $team->coins += $purchase->price_paid;
+                    $team->save();
+
+                    GamificationTransaction::create([
+                        'leaderboard_id' => $team->leaderboard_id,
+                        'team_id' => $team->id,
+                        'student_id' => $purchase->student_id,
+                        'type' => 'earn',
+                        'amount' => $purchase->price_paid,
+                        'description' => "استرداد رصيد شراء مرفوض بالتصويت: {$purchase->item->name}",
+                        'reference_type' => GamificationStorePurchase::class,
+                        'reference_id' => $purchase->id,
+                    ]);
+                }
+
+                $purchase->update(['status' => 'rejected']);
+            });
         }
+    }
+
+    /**
+     * Whether the team's coins were already deducted for this purchase when the
+     * voting request was created (purchases created before upfront holding was
+     * introduced have no spend transaction yet).
+     */
+    protected static function purchaseCoinsAlreadyHeld(GamificationStorePurchase $purchase): bool
+    {
+        return GamificationTransaction::where('reference_type', GamificationStorePurchase::class)
+            ->where('reference_id', $purchase->id)
+            ->where('type', 'spend')
+            ->exists();
     }
 
     /**

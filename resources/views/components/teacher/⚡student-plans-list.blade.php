@@ -131,6 +131,19 @@ new class extends Component {
         session()->flash('success', 'تم حذف الخطة بنجاح');
     }
 
+    public function togglePlanStatus($id)
+    {
+        $teacher = Auth::guard('teacher')->user();
+        $circleIds = $teacher->circles()->pluck('id');
+        $plan = StudentPlan::whereHas('student', function ($q) use ($circleIds) {
+            $q->whereIn('circle_id', $circleIds);
+        })->findOrFail($id);
+
+        $plan->update(['status' => $plan->status === 'active' ? 'inactive' : 'active']);
+
+        session()->flash('success', $plan->status === 'active' ? 'تم تفعيل الخطة بنجاح' : 'تم إلغاء تفعيل الخطة ولن تظهر في صفحة التسميع');
+    }
+
     public function with()
     {
         $teacher = Auth::guard('teacher')->user();
@@ -202,8 +215,10 @@ new class extends Component {
                         <flux:table.cell class="first:ps-3" >
                             @if(!$plan->is_approved)
                                 <flux:badge color="amber" size="sm" icon="clock">{{ __('قيد الاعتماد') }}</flux:badge>
+                            @elseif($plan->status === 'active')
+                                <flux:badge color="green" size="sm" icon="check-circle">{{ __('فعالة') }}</flux:badge>
                             @else
-                                <flux:badge size="sm">{{ $plan->status }}</flux:badge>
+                                <flux:badge color="zinc" size="sm" icon="pause-circle">{{ __('غير فعالة') }}</flux:badge>
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
@@ -223,6 +238,18 @@ new class extends Component {
                                         icon="document-arrow-down">{{ __('تحميل كـ PDF') }}</flux:menu.item>
 
                                     <flux:menu.separator />
+
+                                    @if($plan->status === 'active')
+                                        <flux:menu.item wire:click="togglePlanStatus({{ $plan->id }})" icon="pause-circle"
+                                            wire:confirm="{{ __('هل أنت متأكد من إلغاء تفعيل هذه الخطة؟ لن تظهر للطالب ولا للمعلم في صفحة التسميع.') }}">
+                                            {{ __('إلغاء تفعيل الخطة') }}
+                                        </flux:menu.item>
+                                    @else
+                                        <flux:menu.item wire:click="togglePlanStatus({{ $plan->id }})" icon="play-circle"
+                                            class="text-emerald-600 dark:text-emerald-400">
+                                            {{ __('تفعيل الخطة') }}
+                                        </flux:menu.item>
+                                    @endif
 
                                     <flux:menu.item wire:click="openStudentModal({{ $plan->id }}, 'duplicate')"
                                         icon="document-duplicate">

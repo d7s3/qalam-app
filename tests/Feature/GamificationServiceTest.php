@@ -794,13 +794,117 @@ it('manages store purchases and voting', function () {
     $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
     expect($purchase->status)->toBe('pending_approval');
 
+    // Coins are held (deducted) as soon as the request is created, before voting completes
+    $team->refresh();
+    expect($team->coins)->toBe(20); // 100 - 80
+
     // Student 2 votes yes (absolute majority is 2 out of 2)
     GamificationService::voteForPurchase($student2->id, $purchase->id, true);
     $purchase->refresh();
     expect($purchase->status)->toBe('approved'); // Approved!
 
+    // Approval must not deduct a second time
     $team->refresh();
     expect($team->coins)->toBe(20); // 100 - 80
+});
+
+it('prevents a second team purchase while a pending vote already holds the coins', function () {
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'أسرة مكة',
+        'coins' => 100,
+    ]);
+
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $student2 = Student::create([
+        'name' => 'محمد سعد',
+        'email' => 'mohamed@example.com',
+        'password' => bcrypt('password'),
+        'circle_id' => $this->circle->id,
+        'is_approved' => true,
+        'status' => 'active',
+    ]);
+    $team->students()->attach($student2->id, ['role' => 'member']);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'درع الحماية',
+        'description' => 'يحمي الفريق من الهجمات',
+        'price' => 80,
+        'item_type' => 'shield',
+        'is_team_product' => true,
+    ]);
+
+    $this->leaderboard->update([
+        'settings' => array_merge($this->leaderboard->settings, ['team_purchase_voting_enabled' => true]),
+    ]);
+
+    $status = GamificationService::requestStorePurchase($this->student->id, $item->id, null, now()->addDay()->format('Y-m-d'));
+    expect($status)->toBe('pending_voting');
+
+    // Remaining balance is 20; a second 80-coin purchase must be blocked while voting is pending
+    $status = GamificationService::requestStorePurchase($this->student->id, $item->id, null, now()->addDays(2)->format('Y-m-d'));
+    expect($status)->toBe('insufficient_team_coins');
+
+    expect(GamificationStorePurchase::where('store_item_id', $item->id)->count())->toBe(1);
+});
+
+it('refunds held coins when a pending team purchase is rejected by voting', function () {
+    $team = GamificationTeam::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'أسرة مكة',
+        'coins' => 100,
+    ]);
+
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $student2 = Student::create([
+        'name' => 'محمد سعد',
+        'email' => 'mohamed@example.com',
+        'password' => bcrypt('password'),
+        'circle_id' => $this->circle->id,
+        'is_approved' => true,
+        'status' => 'active',
+    ]);
+    $team->students()->attach($student2->id, ['role' => 'member']);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'درع الحماية',
+        'description' => 'يحمي الفريق من الهجمات',
+        'price' => 80,
+        'item_type' => 'shield',
+        'is_team_product' => true,
+    ]);
+
+    $this->leaderboard->update([
+        'settings' => array_merge($this->leaderboard->settings, ['team_purchase_voting_enabled' => true]),
+    ]);
+
+    $status = GamificationService::requestStorePurchase($this->student->id, $item->id, null, now()->addDay()->format('Y-m-d'));
+    expect($status)->toBe('pending_voting');
+
+    $team->refresh();
+    expect($team->coins)->toBe(20);
+
+    // Student 2 votes no: 1 yes / 1 no of 2 members fails the absolute majority (2)
+    $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
+    GamificationService::voteForPurchase($student2->id, $purchase->id, false);
+
+    $purchase->refresh();
+    expect($purchase->status)->toBe('rejected');
+
+    // Held coins are returned to the team treasury
+    $team->refresh();
+    expect($team->coins)->toBe(100);
+
+    $refund = GamificationTransaction::where('reference_type', GamificationStorePurchase::class)
+        ->where('reference_id', $purchase->id)
+        ->where('type', 'earn')
+        ->first();
+    expect($refund)->not->toBeNull();
+    expect((int) $refund->amount)->toBe(80);
 });
 
 it('calculates points dynamically using multiplier factor', function () {
