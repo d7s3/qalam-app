@@ -22,6 +22,8 @@ use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\Teacher;
+use App\Models\TurnReservation;
+use App\Models\TurnReservationSession;
 use App\Services\GamificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -855,6 +857,95 @@ it('allows student to upload their custom profile avatar and compresses it to we
     expect($this->student->avatar_path)->toEndWith('.webp');
 
     Storage::disk('public')->assertExists($this->student->avatar_path);
+});
+
+it('lets the student reserve and cancel a tasmeeh turn from the gamification dashboard', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة حجز الدور',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(2),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $teacher = Teacher::create([
+        'name' => 'معلم الطابور',
+        'email' => 'queue-teacher@example.com',
+        'password' => bcrypt('password'),
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $teacher->circles()->attach($this->circle->id);
+
+    $now = Carbon\Carbon::now('Asia/Riyadh');
+    $session = TurnReservationSession::create([
+        'teacher_id' => $teacher->id,
+        'start_date' => $now->copy()->subDay()->format('Y-m-d'),
+        'end_date' => $now->copy()->addDay()->format('Y-m-d'),
+        'days_of_week' => [0, 1, 2, 3, 4, 5, 6],
+        'start_time' => $now->copy()->subHour()->format('H:i:s'),
+        'end_time' => $now->copy()->addHour()->format('H:i:s'),
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertViewHas('activeSession')
+        ->call('reserveTurn', $session->id)
+        ->assertHasNoErrors();
+
+    $reservation = TurnReservation::where('turn_reservation_session_id', $session->id)
+        ->where('student_id', $this->student->id)
+        ->first();
+    expect($reservation)->not->toBeNull();
+    expect($reservation->turn_number)->toBe(1);
+
+    Livewire::test('student.gamification-dashboard')
+        ->call('cancelTurn', $session->id)
+        ->assertHasNoErrors();
+
+    expect(TurnReservation::where('turn_reservation_session_id', $session->id)
+        ->where('student_id', $this->student->id)
+        ->exists())->toBeFalse();
+});
+
+it('does not reserve a turn when the session window is closed', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة حجز مغلق',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(2),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $teacher = Teacher::create([
+        'name' => 'معلم الطابور المغلق',
+        'email' => 'closed-teacher@example.com',
+        'password' => bcrypt('password'),
+        'status' => 'active',
+        'is_approved' => true,
+    ]);
+    $teacher->circles()->attach($this->circle->id);
+
+    $now = Carbon\Carbon::now('Asia/Riyadh');
+    // Active today (so the card shows) but the time window has already passed.
+    $session = TurnReservationSession::create([
+        'teacher_id' => $teacher->id,
+        'start_date' => $now->copy()->subDay()->format('Y-m-d'),
+        'end_date' => $now->copy()->addDay()->format('Y-m-d'),
+        'days_of_week' => [0, 1, 2, 3, 4, 5, 6],
+        'start_time' => $now->copy()->subHours(3)->format('H:i:s'),
+        'end_time' => $now->copy()->subHours(2)->format('H:i:s'),
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->call('reserveTurn', $session->id);
+
+    expect(TurnReservation::where('turn_reservation_session_id', $session->id)->exists())->toBeFalse();
 });
 
 it('calculates competition working days and their enthusiasm status correctly', function () {
