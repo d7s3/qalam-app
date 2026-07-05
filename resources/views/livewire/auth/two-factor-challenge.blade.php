@@ -1,4 +1,4 @@
-<x-layouts.auth :title="__('Two-factor authentication')">
+<x-layouts::auth :title="__('Two-factor authentication')">
     <div class="flex flex-col gap-6">
         <div class="relative w-full h-auto" x-cloak x-data="{
             showRecoveryInput: @js($errors->has('recovery_code')),
