@@ -40,8 +40,10 @@ class GuardianNotificationService
     /**
      * Notify a student's guardian about an absence or late arrival, skipping if the
      * student has no linked guardian or the same alert was already recorded today.
+     * An explicit sender session (e.g. the supervisor broadcasting manually) takes
+     * precedence over the auto-resolved one.
      */
-    public static function notifyAbsence(Student $student, string $status, string $date): ?GuardianNotification
+    public static function notifyAbsence(Student $student, string $status, string $date, ?string $senderClientId = null): ?GuardianNotification
     {
         if (! in_array($status, ['absent', 'late'], true) || ! $student->guardian_id) {
             return null;
@@ -59,19 +61,33 @@ class GuardianNotificationService
             return null;
         }
 
-        $statusText = $status === 'late' ? 'متأخراً' : 'غائباً';
-        $title = $status === 'late' ? 'تنبيه تأخّر' : 'تنبيه غياب';
-        $body = "سُجِّل ابنكم {$student->name} {$statusText} بتاريخ {$date}.";
+        $parts = self::absenceMessageParts($student, $status, $date);
 
         return self::record(
             guardianId: $student->guardian_id,
             type: $type,
-            title: $title,
-            body: $body,
+            title: $parts['title'],
+            body: $parts['body'],
             data: ['date' => $date, 'status' => $status],
             studentId: $student->id,
-            senderClientId: self::resolveWhatsappSender($student),
+            senderClientId: $senderClientId ?? self::resolveWhatsappSender($student),
         );
+    }
+
+    /**
+     * Build the absence/late alert title and body shared by the automatic
+     * notification and the supervisor's manual broadcast.
+     *
+     * @return array{title: string, body: string}
+     */
+    public static function absenceMessageParts(Student $student, string $status, string $date): array
+    {
+        $statusText = $status === 'late' ? 'متأخراً' : 'غائباً';
+
+        return [
+            'title' => $status === 'late' ? 'تنبيه تأخّر' : 'تنبيه غياب',
+            'body' => "سُجِّل ابنكم {$student->name} {$statusText} بتاريخ {$date}.",
+        ];
     }
 
     /**

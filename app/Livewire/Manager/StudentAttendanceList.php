@@ -111,7 +111,7 @@ class StudentAttendanceList extends Component
 
         $ordinal = $ordinals[$absencesCount] ?? $absencesCount;
 
-        return "السلام عليكم ورحمة الله وبركاته\n نود ان نشعركم بأن الطالب {$student->name} غائب اليوم {$hijriDate}\n و انه هذه {$ordinal} حالة غياب تم تسجيلها عليه \n`وفي حال تم تسجيل ثلاث حالات غياب على الطالب بلا عذر فسيتم ايقافه`";
+        return "السلام عليكم ورحمة الله وبركاته\n نود ان نشعركم بأن الطالب {$student->name} غائب اليوم {$hijriDate}\n و انه هذه {$ordinal} حالة غياب تم تسجيلها عليه";
     }
 
     private function getHijriDate(): string

@@ -7,5 +7,9 @@
         @include('supervisor.sidebar-nav')
     </x-slot:sidebar>
 
-    <livewire:supervisor.whatsapp-settings />
+    <div class="space-y-8">
+        <livewire:supervisor.whatsapp-settings />
+
+        <livewire:supervisor.absence-broadcast />
+    </div>
 </x-layouts.role-shell>

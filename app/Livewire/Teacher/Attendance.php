@@ -263,13 +263,13 @@ class Attendance extends Component
 
         $msg = "السلام عليكم ورحمة الله وبركاته\nنود إشعاركم بأن الطالب {$student->name} {$statusText} وذلك في اليوم {$hijriDate} وهذه للمرة {$ordinal}";
 
-        if ($count >= $limit) {
-            $msg .= " ويكون بذلك `تجاوز حد {$limit} ايام وسيتم إحالته للإدارة`.";
-        } else {
-            $statusText = $status === 'late' ? 'تأخر' : 'غياب';
+        // if ($count >= $limit) {
+        //     $msg .= " ويكون بذلك `تجاوز حد {$limit} ايام وسيتم إحالته للإدارة`.";
+        // } else {
+        //     $statusText = $status === 'late' ? 'تأخر' : 'غياب';
 
-            $msg .= " \n`وفي حال تم تسجيل {$limit} حالات {$statusText} على الطالب بلا عذر فسيتم إحالته للإدارة`";
-        }
+        //     $msg .= " \n`وفي حال تم تسجيل {$limit} حالات {$statusText} على الطالب بلا عذر فسيتم إحالته للإدارة`";
+        // }
 
         return $msg;
     }
