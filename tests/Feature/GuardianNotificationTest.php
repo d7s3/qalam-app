@@ -93,6 +93,20 @@ it('does not push WhatsApp when no sender session can be resolved', function () 
     Http::assertNothingSent();
 });
 
+it('sends the shared API key header to the WhatsApp gateway', function () {
+    Http::fake(['*' => Http::response(['ok' => true])]);
+    config(['services.whatsapp.url' => 'http://wa.test']);
+    config(['services.whatsapp.key' => 'secret-gateway-key']);
+    activateWhatsappSender($this->circle);
+
+    GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/send')
+            && $request->header('X-Api-Key') === ['secret-gateway-key'];
+    });
+});
+
 it('creates a guardian absence notification when a teacher marks a student absent', function () {
     $this->actingAs($this->teacher, 'teacher');
 

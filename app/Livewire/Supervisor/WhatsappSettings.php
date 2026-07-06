@@ -26,7 +26,7 @@ class WhatsappSettings extends Component
     {
         try {
             $url = config('services.whatsapp.url');
-            $response = Http::timeout(1)->get("{$url}/status/{$this->clientId}");
+            $response = Http::withHeaders(['X-Api-Key' => config('services.whatsapp.key')])->timeout(1)->get("{$url}/status/{$this->clientId}");
             if ($response->successful()) {
                 $data = $response->json();
                 $this->status = $data['status'] ?? 'unknown';
@@ -46,7 +46,7 @@ class WhatsappSettings extends Component
     {
         try {
             $url = config('services.whatsapp.url');
-            Http::timeout(5)->post("{$url}/disconnect/{$this->clientId}");
+            Http::withHeaders(['X-Api-Key' => config('services.whatsapp.key')])->timeout(5)->post("{$url}/disconnect/{$this->clientId}");
             $this->status = 'starting';
             $this->message = 'جاري إعادة التهيئة...';
             $this->qrCode = null;
@@ -59,7 +59,7 @@ class WhatsappSettings extends Component
     {
         try {
             $url = config('services.whatsapp.url');
-            Http::timeout(5)->post("{$url}/reset/{$this->clientId}");
+            Http::withHeaders(['X-Api-Key' => config('services.whatsapp.key')])->timeout(5)->post("{$url}/reset/{$this->clientId}");
             $this->status = 'starting';
             $this->message = 'جاري إعادة التهيئة بالكامل...';
             $this->qrCode = null;

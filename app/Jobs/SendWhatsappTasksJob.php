@@ -57,7 +57,7 @@ class SendWhatsappTasksJob implements ShouldQueue
             // إرسال الطلب لخدمة الواتساب باستخدام جلسة المُرسِل
             try {
                 $url = config('services.whatsapp.url');
-                $response = Http::timeout(10)->post("{$url}/send", [
+                $response = Http::withHeaders(['X-Api-Key' => config('services.whatsapp.key')])->timeout(10)->post("{$url}/send", [
                     'clientId' => $this->senderClientId,
                     'phone' => $phone,
                     'message' => $message,

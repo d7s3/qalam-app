@@ -37,6 +37,7 @@ return [
 
     'whatsapp' => [
         'url' => rtrim(env('WHATSAPP_SERVICE_URL', 'http://localhost:3000'), '/'),
+        'key' => env('WHATSAPP_SERVICE_KEY', ''),
     ],
 
 ];
