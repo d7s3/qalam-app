@@ -3,8 +3,11 @@
 namespace App\Services;
 
 use App\Jobs\SendGuardianWhatsappJob;
+use App\Models\AcademicCalendarEvent;
+use App\Models\Attendance;
 use App\Models\GuardianNotification;
 use App\Models\Leaderboard;
+use App\Models\Setting;
 use App\Models\Student;
 use Carbon\Carbon;
 
@@ -64,33 +67,94 @@ class GuardianNotificationService
 
         $parts = self::absenceMessageParts($student, $status, $date);
 
-        return self::record(
+        $notification = self::record(
             guardianId: $student->guardian_id,
             type: $type,
             title: $parts['title'],
             body: $parts['body'],
             data: ['date' => $date, 'status' => $status],
             studentId: $student->id,
-            senderClientId: $senderClientId ?? self::resolveWhatsappSender($student),
         );
+
+        $senderClientId ??= self::resolveWhatsappSender($student);
+        $guardian = $notification->guardian;
+        if ($senderClientId && $guardian && $guardian->phone) {
+            SendGuardianWhatsappJob::dispatch($guardian->phone, $parts['whatsapp'], $senderClientId);
+        }
+
+        return $notification;
     }
 
     /**
-     * Build the absence/late alert title and body shared by the automatic
-     * notification and the supervisor's manual broadcast. The date is shown in
-     * Hijri as "weekday day month" without the year.
+     * Build the absence/late alert shared by the automatic notification and the
+     * supervisor's manual broadcast: `title`/`body` for the in-app notification and
+     * `whatsapp` for the letter-style WhatsApp message. The date is shown in Hijri
+     * as "weekday day month" without the year, and the occurrence number counts the
+     * student's absences (or late arrivals) since the current attendance period began.
      *
-     * @return array{title: string, body: string}
+     * @return array{title: string, body: string, whatsapp: string}
      */
     public static function absenceMessageParts(Student $student, string $status, string $date): array
     {
-        $statusText = $status === 'late' ? 'متأخراً' : 'غائباً';
+        $statusText = $status === 'late' ? 'بتأخر' : 'بغياب';
         $hijriDate = self::formatHijriDayMonth($date);
+        $ordinal = self::arabicOrdinal(self::occurrenceNumber($student, $status, $date));
+
+        $body = "نشعركم {$statusText} الطالب ({$student->name}) ليوم {$hijriDate} وذلك للمرة {$ordinal}";
 
         return [
             'title' => $status === 'late' ? 'تنبيه تأخّر' : 'تنبيه غياب',
-            'body' => "سُجِّل ابنكم {$student->name} {$statusText} يوم {$hijriDate}.",
+            'body' => $body,
+            'whatsapp' => "السلام عليكم ورحمة الله وبركاته\n{$body}",
         ];
+    }
+
+    /**
+     * How many times the student has been absent (or late) since the start of the
+     * current attendance period, counting up to and including the given date. Falls
+     * back to the rolling discipline window when no attendance period covers the date.
+     */
+    public static function occurrenceNumber(Student $student, string $status, string $date): int
+    {
+        $period = AcademicCalendarEvent::where('is_attendance_period', true)
+            ->where('start_date', '<=', $date)
+            ->where(function ($q) use ($date) {
+                $q->whereNull('end_date')->orWhere('end_date', '>=', $date);
+            })
+            ->orderByDesc('start_date')
+            ->first();
+
+        $periodStart = $period
+            ? $period->start_date->format('Y-m-d')
+            : Carbon::parse($date)->subDays((int) Setting::getVal('calculation_period_days', 30))->format('Y-m-d');
+
+        $count = Attendance::where('student_id', $student->id)
+            ->where('status', $status === 'late' ? 'late' : 'absent')
+            ->whereDate('date', '>=', $periodStart)
+            ->whereDate('date', '<=', $date)
+            ->count();
+
+        return max(1, $count);
+    }
+
+    /**
+     * Feminine Arabic ordinal for the occurrence number ("المرة الثالثة").
+     */
+    protected static function arabicOrdinal(int $number): string
+    {
+        return match ($number) {
+            1 => 'الأولى',
+            2 => 'الثانية',
+            3 => 'الثالثة',
+            4 => 'الرابعة',
+            5 => 'الخامسة',
+            6 => 'السادسة',
+            7 => 'السابعة',
+            8 => 'الثامنة',
+            9 => 'التاسعة',
+            10 => 'العاشرة',
+            default => "رقم {$number}",
+        };
     }
 
     /**

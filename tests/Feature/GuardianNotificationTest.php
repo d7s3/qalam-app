@@ -2,6 +2,7 @@
 
 use App\Jobs\SendGuardianWhatsappJob;
 use App\Livewire\Teacher\Attendance;
+use App\Models\AcademicCalendarEvent;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\GuardianNotification;
@@ -65,7 +66,45 @@ it('formats the alert date as hijri weekday, day, and month without a year', fun
     expect($note->body)->toContain($expectedHijri);
     expect($note->body)->not->toContain('2026-06-10');
     expect($expectedHijri)->not->toContain('١٤٤')->not->toContain('144');
-    expect($note->body)->toBe("سُجِّل ابنكم {$this->child->name} غائباً يوم {$expectedHijri}.");
+    expect($note->body)->toBe("نشعركم بغياب الطالب ({$this->child->name}) ليوم {$expectedHijri} وذلك للمرة الأولى");
+});
+
+it('counts absence occurrences since the start of the current attendance period', function () {
+    AcademicCalendarEvent::create([
+        'event_name' => 'الفصل الدراسي الحالي',
+        'start_date' => '2026-06-01',
+        'end_date' => '2026-08-30',
+        'is_attendance_period' => true,
+        'is_visible' => true,
+    ]);
+
+    // Absence before the period must not be counted.
+    foreach (['2026-05-20', '2026-06-03', '2026-06-07', '2026-06-10'] as $date) {
+        App\Models\Attendance::create([
+            'student_id' => $this->child->id,
+            'teacher_id' => $this->teacher->id,
+            'circle_id' => $this->circle->id,
+            'date' => $date,
+            'status' => 'absent',
+        ]);
+    }
+
+    $note = GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    expect($note->body)->toContain('وذلك للمرة الثالثة');
+});
+
+it('sends the WhatsApp message opening with the salam greeting and no title prefix', function () {
+    Http::fake(['*' => Http::response(['ok' => true])]);
+    config(['services.whatsapp.url' => 'http://wa.test']);
+    activateWhatsappSender($this->circle);
+
+    GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/send')
+            && str_starts_with($request['message'], "السلام عليكم ورحمة الله وبركاته\nنشعركم بغياب الطالب");
+    });
 });
 
 it('does not record a duplicate absence for the same student and date', function () {

@@ -145,7 +145,7 @@ new class extends Component {
 
                 SendGuardianWhatsappJob::dispatch(
                     $student->guardian->phone,
-                    $parts['title']."\n".$parts['body'],
+                    $parts['whatsapp'],
                     $senderClientId,
                 );
             }
