@@ -90,7 +90,7 @@ class Attendance extends Component
             $history = $student->statusHistories->first();
             $statusOnDate = $history ? $history->status : $student->status;
 
-            return in_array($statusOnDate, ['active', 'registering']);
+            return $statusOnDate === 'active';
         })->values();
 
         $existing = AttendanceModel::where('circle_id', $this->selectedCircle)

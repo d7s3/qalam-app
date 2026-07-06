@@ -80,7 +80,7 @@ class AttendanceController extends Controller
                 $history = $student->statusHistories->first();
                 $statusOnDate = $history ? $history->status : $student->status;
 
-                return in_array($statusOnDate, ['active', 'registering']);
+                return $statusOnDate === 'active';
             })->values();
 
             $existing = Attendance::where('circle_id', $circle->id)

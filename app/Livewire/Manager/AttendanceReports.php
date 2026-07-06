@@ -99,7 +99,9 @@ class AttendanceReports extends Component
             $d->addDay();
         }
 
-        $circles = Circle::with('stage')->withCount('students')->orderBy('stage_id')->orderBy('name')->get();
+        $circles = Circle::with('stage')
+            ->withCount(['students' => fn ($q) => $q->where('status', '!=', 'registering')])
+            ->orderBy('stage_id')->orderBy('name')->get();
         $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون مرحلة');
 
         $records = Attendance::query()
@@ -108,6 +110,7 @@ class AttendanceReports extends Component
                 $q->whereNull('students.joined_at')
                     ->orWhereColumn('students.joined_at', '<=', 'attendances.date');
             })
+            ->whereRaw(Attendance::registeringExclusionSql())
             ->whereDate('attendances.date', '>=', $this->fromDate)
             ->whereDate('attendances.date', '<=', $this->toDate)
             ->select(
@@ -161,8 +164,11 @@ class AttendanceReports extends Component
             }
         }
 
-        // Fetch all circles grouped by stage (with student count)
-        $circles = Circle::with('stage')->withCount('students')->orderBy('stage_id')->orderBy('name')->get();
+        // Fetch all circles grouped by stage (with student count, excluding
+        // students still under registration)
+        $circles = Circle::with('stage')
+            ->withCount(['students' => fn ($q) => $q->where('status', '!=', 'registering')])
+            ->orderBy('stage_id')->orderBy('name')->get();
         $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون مرحلة');
 
         // Fetch aggregated attendance per circle per day
@@ -174,6 +180,7 @@ class AttendanceReports extends Component
                     $q->whereNull('students.joined_at')
                         ->orWhereColumn('students.joined_at', '<=', 'attendances.date');
                 })
+                ->whereRaw(Attendance::registeringExclusionSql())
                 ->whereDate('attendances.date', '>=', $this->fromDate)
                 ->whereDate('attendances.date', '<=', $this->toDate)
                 ->select(

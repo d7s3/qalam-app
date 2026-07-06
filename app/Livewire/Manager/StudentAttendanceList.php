@@ -34,8 +34,18 @@ class StudentAttendanceList extends Component
     {
         $this->students = Student::where('circle_id', $this->circleId)
             ->where('is_approved', true)
+            ->with(['statusHistories' => function ($query) {
+                $query->whereDate('start_date', '<=', $this->date)->orderBy('start_date', 'desc');
+            }])
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->filter(function ($student) {
+                $history = $student->statusHistories->first();
+                $statusOnDate = $history ? $history->status : $student->status;
+
+                return $statusOnDate !== 'registering';
+            })
+            ->values();
 
         $existing = AttendanceModel::where('circle_id', $this->circleId)
             ->whereDate('date', $this->date)

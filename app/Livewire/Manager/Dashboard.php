@@ -6,6 +6,7 @@ use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance;
 use App\Models\Circle;
 use App\Models\Stage;
+use App\Models\Student;
 use App\Models\StudentPlanDay;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -127,20 +128,32 @@ class Dashboard extends Component
             $isSchoolDay = $isSingleDay ? $this->isSchoolDay($from) : null;
         }
 
-        // Total students per circle
-        $circleStudentCounts = DB::table('students')
-            ->whereNotNull('circle_id')
-            ->whereIn('status', ['active', 'under_registration'])
-            ->select('circle_id', DB::raw('count(*) as total'))
+        // Total students per circle, counting only students who were active on the
+        // report date per their status history (registering periods are excluded).
+        $referenceDate = $isSingleDay ? $from : $to;
+        $circleStudentCounts = Student::whereNotNull('circle_id')
+            ->with(['statusHistories' => function ($query) use ($referenceDate) {
+                $query->whereDate('start_date', '<=', $referenceDate)->orderBy('start_date', 'desc');
+            }])
+            ->get(['id', 'circle_id', 'status'])
+            ->filter(function ($student) {
+                $history = $student->statusHistories->first();
+
+                return ($history ? $history->status : $student->status) === 'active';
+            })
             ->groupBy('circle_id')
-            ->pluck('total', 'circle_id')
+            ->map->count()
             ->toArray();
 
         $totalStudents = array_sum($circleStudentCounts);
 
-        // Attendance records in range
+        // Attendance records in range, excluding records taken while the student
+        // was still under registration. whereDate is required because attendance
+        // dates are stored with a time component that breaks raw whereBetween.
         $records = DB::table('attendances')
-            ->whereBetween('date', [$from, $to])
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to)
+            ->whereRaw(Attendance::registeringExclusionSql())
             ->select('attendances.status', DB::raw('count(*) as cnt'))
             ->groupBy('attendances.status')
             ->pluck('cnt', 'attendances.status')
@@ -167,7 +180,9 @@ class Dashboard extends Component
             $rows = DB::table('attendances')
                 ->join('students', 'attendances.student_id', '=', 'students.id')
                 ->whereIn('students.circle_id', $circleIds)
-                ->whereBetween('attendances.date', [$from, $to])
+                ->whereDate('attendances.date', '>=', $from)
+                ->whereDate('attendances.date', '<=', $to)
+                ->whereRaw(Attendance::registeringExclusionSql())
                 ->select('attendances.status', DB::raw('count(*) as cnt'))
                 ->groupBy('attendances.status')
                 ->pluck('cnt', 'attendances.status')
