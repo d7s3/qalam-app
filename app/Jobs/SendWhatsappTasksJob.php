@@ -13,6 +13,12 @@ class SendWhatsappTasksJob implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * The job loops over every assignee with a human-like pause between sends,
+     * so it needs far more than the default 60s worker timeout.
+     */
+    public int $timeout = 1800;
+
     public $teachersTasks;
 
     public string $senderClientId;
@@ -55,6 +61,9 @@ class SendWhatsappTasksJob implements ShouldQueue
             $message = $this->buildMessage($assignee, $tasks);
 
             // إرسال الطلب لخدمة الواتساب باستخدام جلسة المُرسِل
+            // مع فاصل زمني عشوائي بين الرسائل لتجنب اعتبارها سيلاً من الرسائل (Spam)
+            SendGuardianWhatsappJob::humanPause();
+
             try {
                 $url = config('services.whatsapp.url');
                 $response = Http::withHeaders(['X-Api-Key' => config('services.whatsapp.key')])->timeout(10)->post("{$url}/send", [

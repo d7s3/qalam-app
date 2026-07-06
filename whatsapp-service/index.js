@@ -43,7 +43,14 @@ function getOrCreateSession(clientId) {
         authStrategy: new LocalAuth({ clientId }),
         puppeteer: {
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                // crashpad يتطلب HOME قابلاً للكتابة ويفشل تحت systemd؛ لا حاجة له.
+                '--disable-crashpad',
+                '--disable-gpu',
+            ],
         },
     });
 

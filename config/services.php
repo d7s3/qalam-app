@@ -38,6 +38,8 @@ return [
     'whatsapp' => [
         'url' => rtrim(env('WHATSAPP_SERVICE_URL', 'http://localhost:3000'), '/'),
         'key' => env('WHATSAPP_SERVICE_KEY', ''),
+        'send_delay_min' => (int) env('WHATSAPP_SEND_DELAY_MIN', 6),
+        'send_delay_max' => (int) env('WHATSAPP_SEND_DELAY_MAX', 14),
     ],
 
 ];

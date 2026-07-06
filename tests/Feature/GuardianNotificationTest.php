@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\SendGuardianWhatsappJob;
 use App\Livewire\Teacher\Attendance;
 use App\Models\Circle;
 use App\Models\Guardian;
@@ -91,6 +92,15 @@ it('does not push WhatsApp when no sender session can be resolved', function () 
     GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
 
     Http::assertNothingSent();
+});
+
+it('skips the human pause entirely when the delay config is zero', function () {
+    config(['services.whatsapp.send_delay_min' => 0, 'services.whatsapp.send_delay_max' => 0]);
+
+    $start = microtime(true);
+    SendGuardianWhatsappJob::humanPause();
+
+    expect(microtime(true) - $start)->toBeLessThan(0.5);
 });
 
 it('sends the shared API key header to the WhatsApp gateway', function () {

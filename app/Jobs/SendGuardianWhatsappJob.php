@@ -11,6 +11,12 @@ class SendGuardianWhatsappJob implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Sending waits a random human-like pause first, so the job needs more than
+     * the default 60s before the worker considers it stuck.
+     */
+    public int $timeout = 120;
+
     public function __construct(
         public string $phone,
         public string $message,
@@ -28,6 +34,8 @@ class SendGuardianWhatsappJob implements ShouldQueue
         if ($phone === '') {
             return;
         }
+
+        self::humanPause();
 
         if (str_starts_with($phone, '0')) {
             $phone = '966'.substr($phone, 1);
@@ -48,6 +56,22 @@ class SendGuardianWhatsappJob implements ShouldQueue
             }
         } catch (\Exception $e) {
             Log::error("Exception while sending WhatsApp to guardian phone {$phone}: ".$e->getMessage());
+        }
+    }
+
+    /**
+     * Pause for a random interval between sends so bulk notifications (e.g. marking
+     * a whole class absent) trickle out at a human pace instead of a burst that
+     * WhatsApp flags as spam. The queue runs a single worker, so this pause
+     * naturally spaces consecutive messages. Set both config values to 0 to disable.
+     */
+    public static function humanPause(): void
+    {
+        $min = max(0, (int) config('services.whatsapp.send_delay_min'));
+        $max = max($min, (int) config('services.whatsapp.send_delay_max'));
+
+        if ($max > 0) {
+            sleep(random_int($min, $max));
         }
     }
 }
