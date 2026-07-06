@@ -80,7 +80,7 @@ class Attendance extends Component
             ->with([
                 'circle',
                 'statusHistories' => function ($query) {
-                    $query->where('start_date', '<=', $this->date)->orderBy('start_date', 'desc');
+                    $query->where('start_date', '<=', $this->date)->orderBy('start_date', 'desc')->orderByDesc('id');
                 },
             ])
             ->orderBy('name')

@@ -22,6 +22,7 @@ new class extends Component {
     public $editPhone = '';
     public $editCircleId = null;
     public $editStatus = '';
+    public $editStatusDate = '';
     public $editJoinedAt = '';
     public $stats = [];
 
@@ -161,6 +162,7 @@ new class extends Component {
         $this->editPhone = $this->viewingStudent->phone;
         $this->editCircleId = $this->viewingStudent->circle_id;
         $this->editStatus = $this->viewingStudent->status;
+        $this->editStatusDate = now('Asia/Riyadh')->format('Y-m-d');
         $this->editJoinedAt = $this->viewingStudent->joined_at ? $this->viewingStudent->joined_at->format('Y-m-d') : null;
 
         $this->stats = [
@@ -178,7 +180,10 @@ new class extends Component {
             'editName' => 'required|string|min:2|max:255',
             'editPhone' => 'nullable|string|max:20',
             'editStatus' => 'required|in:active,registering,suspended,left',
+            'editStatusDate' => 'nullable|date|before_or_equal:today',
             'editJoinedAt' => 'nullable|date',
+        ], [
+            'editStatusDate.before_or_equal' => 'تاريخ سريان الحالة لا يمكن أن يكون في المستقبل',
         ]);
 
         $oldStatus = $this->viewingStudent->status;
@@ -197,20 +202,15 @@ new class extends Component {
         $this->viewingStudent->update([
             'name' => $this->editName,
             'phone' => $this->editPhone,
-            'status' => $this->editStatus,
             'joined_at' => $this->editJoinedAt,
         ]);
 
-        if ($oldStatus !== $this->editStatus) {
-            $lastHistory = $this->viewingStudent->statusHistories()->latest('start_date')->first();
-            if ($lastHistory) {
-                $lastHistory->update(['end_date' => now()]);
-            }
-
-            $this->viewingStudent->statusHistories()->create([
-                'status' => $this->editStatus,
-                'start_date' => now(),
-            ]);
+        if (!$statusBlockedByPermission) {
+            \App\Services\StudentStatusService::changeStatus(
+                $this->viewingStudent,
+                $this->editStatus,
+                $this->editStatusDate ?: null,
+            );
         }
 
         $this->dispatch('student-list-updated');
@@ -428,6 +428,9 @@ new class extends Component {
                             <flux:select.option value="suspended">موقوف</flux:select.option>
                             <flux:select.option value="left">غادر الحلقات</flux:select.option>
                         </flux:select>
+                        <livewire:shared.hijri-datepicker wire:model="editStatusDate"
+                            label="{{ __('تاريخ سريان الحالة') }}"
+                            wire:key="teacher-status-date-{{ $viewingStudent?->id }}" />
                         <livewire:shared.hijri-datepicker wire:model="editJoinedAt" label="{{ __('تاريخ الالتحاق') }}" />
                         @else
                         <div>

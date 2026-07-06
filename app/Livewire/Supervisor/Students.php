@@ -5,6 +5,7 @@ namespace App\Livewire\Supervisor;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
+use App\Services\StudentStatusService;
 use Flux\Flux;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -35,6 +36,8 @@ class Students extends Component
 
     public string $editStatus = 'active';
 
+    public string $editStatusDate = '';
+
     public string $editJoinedAt = '';
 
     public $viewingStudent = null;
@@ -52,6 +55,8 @@ class Students extends Component
     public string $bulkJoinedAt = '';
 
     public string $bulkStatus = 'active';
+
+    public string $bulkStatusDate = '';
 
     public function mount(): void
     {
@@ -224,15 +229,21 @@ class Students extends Component
     {
         $this->validate([
             'bulkStatus' => 'required|in:active,registering,suspended,left',
+            'bulkStatusDate' => 'nullable|date|before_or_equal:today',
+        ], [
+            'bulkStatusDate.before_or_equal' => __('تاريخ سريان الحالة لا يمكن أن يكون في المستقبل'),
         ]);
 
-        $count = $this->getSupervisorStudentsQuery()->update([
-            'status' => $this->bulkStatus,
-        ]);
+        $students = $this->getSupervisorStudentsQuery()->get();
+        foreach ($students as $student) {
+            StudentStatusService::changeStatus($student, $this->bulkStatus, $this->bulkStatusDate ?: null);
+        }
+        $count = $students->count();
 
         $this->resetSelection();
         $this->loadData();
         $this->bulkStatus = 'active';
+        $this->bulkStatusDate = '';
 
         Flux::modal('bulk-status-modal')->close();
         Flux::toast(__('تم تغيير حالة '.$count.' طلاب بنجاح'), variant: 'success');
@@ -321,6 +332,7 @@ class Students extends Component
         $this->circle_id = $this->viewingStudent->circle_id;
         $this->guardian_id = $this->viewingStudent->guardian_id;
         $this->editStatus = $this->viewingStudent->status ?? 'active';
+        $this->editStatusDate = now('Asia/Riyadh')->format('Y-m-d');
         $this->editJoinedAt = $this->viewingStudent->joined_at ? $this->viewingStudent->joined_at->format('Y-m-d') : '';
 
         $this->stats = [
@@ -340,7 +352,10 @@ class Students extends Component
             'circle_id' => 'nullable|exists:circles,id',
             'guardian_id' => 'nullable|exists:guardians,id',
             'editStatus' => 'required|in:active,registering,suspended,left',
+            'editStatusDate' => 'nullable|date|before_or_equal:today',
             'editJoinedAt' => 'nullable|date',
+        ], [
+            'editStatusDate.before_or_equal' => __('تاريخ سريان الحالة لا يمكن أن يكون في المستقبل'),
         ]);
 
         $circleIds = $this->getSupervisorCircleIds();
@@ -352,19 +367,35 @@ class Students extends Component
             return;
         }
 
-        Student::find($this->editingStudentId)->update([
+        $student = Student::find($this->editingStudentId);
+
+        $student->update([
             'name' => $this->name,
             'email' => $this->email,
             'circle_id' => $this->circle_id,
             'guardian_id' => $this->guardian_id,
-            'status' => $this->editStatus,
             'joined_at' => $this->editJoinedAt ?: null,
         ]);
 
+        StudentStatusService::changeStatus($student, $this->editStatus, $this->editStatusDate ?: null);
+
         Flux::toast(__('تم تحديث بيانات الطالب بنجاح'), variant: 'success');
-        $this->reset(['name', 'email', 'circle_id', 'guardian_id', 'editStatus', 'editJoinedAt', 'editingStudentId']);
+        $this->reset(['name', 'email', 'circle_id', 'guardian_id', 'editStatus', 'editStatusDate', 'editJoinedAt', 'editingStudentId']);
         $this->loadData();
         Flux::modal('student-modal')->close();
+    }
+
+    public function deleteStatusHistory(int $historyId): void
+    {
+        if (! $this->viewingStudent) {
+            return;
+        }
+
+        StudentStatusService::deleteHistoryEntry($this->viewingStudent, $historyId);
+
+        $this->loadData();
+        $this->edit($this->viewingStudent->id);
+        Flux::toast(__('تم حذف سجل الحالة'), variant: 'success');
     }
 
     public function resetToken($id): void

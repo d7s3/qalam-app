@@ -133,7 +133,7 @@ class Dashboard extends Component
         $referenceDate = $isSingleDay ? $from : $to;
         $circleStudentCounts = Student::whereNotNull('circle_id')
             ->with(['statusHistories' => function ($query) use ($referenceDate) {
-                $query->whereDate('start_date', '<=', $referenceDate)->orderBy('start_date', 'desc');
+                $query->whereDate('start_date', '<=', $referenceDate)->orderBy('start_date', 'desc')->orderByDesc('id');
             }])
             ->get(['id', 'circle_id', 'status'])
             ->filter(function ($student) {

@@ -70,7 +70,7 @@ class AttendanceController extends Controller
                 ->with([
                     'circle',
                     'statusHistories' => function ($query) use ($date) {
-                        $query->where('start_date', '<=', $date)->orderBy('start_date', 'desc');
+                        $query->where('start_date', '<=', $date)->orderBy('start_date', 'desc')->orderByDesc('id');
                     },
                 ])
                 ->orderBy('name')

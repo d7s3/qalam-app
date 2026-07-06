@@ -174,6 +174,9 @@
                                 <flux:select.option value="suspended">موقوف</flux:select.option>
                                 <flux:select.option value="left">غادر الحلقات</flux:select.option>
                             </flux:select>
+                            <livewire:shared.hijri-datepicker wire:model="editStatusDate"
+                                label="{{ __('تاريخ سريان الحالة') }}"
+                                wire:key="sup-status-date-{{ $editingStudentId }}" />
                             <livewire:shared.hijri-datepicker wire:model="editJoinedAt"
                                 label="{{ __('تاريخ الالتحاق') }}" />
                         </div>
@@ -353,6 +356,10 @@
                                             <span class="text-xs text-zinc-400 mt-1">{{ $history->notes }}</span>
                                         @endif
                                     </div>
+                                    <flux:button size="xs" variant="ghost" icon="trash"
+                                        class="text-red-400 hover:text-red-600"
+                                        wire:click="deleteStatusHistory({{ $history->id }})"
+                                        wire:confirm="{{ __('حذف هذا السجل من تاريخ الحالات؟ سيُعاد احتساب حالة الطالب من السجلات المتبقية.') }}" />
                                 </div>
                             @empty
                                 <div class="text-sm text-zinc-500 text-center py-4">{{ __('لا يوجد سجل حالات.') }}</div>
@@ -416,7 +423,10 @@
                 <flux:select.option value="suspended">موقوف</flux:select.option>
                 <flux:select.option value="left">غادر الحلقات</flux:select.option>
             </flux:select>
-            
+
+            <livewire:shared.hijri-datepicker wire:model="bulkStatusDate"
+                label="{{ __('تاريخ سريان الحالة (افتراضياً اليوم)') }}" />
+
             <div class="flex justify-end gap-2">
                 <flux:button variant="ghost" x-on:click="$flux.modal('bulk-status-modal').close()">إلغاء</flux:button>
                 <flux:button variant="primary" wire:click="applyBulkStatus">تطبيق</flux:button>
