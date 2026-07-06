@@ -57,6 +57,17 @@ it('records an in-app absence notification for the guardian', function () {
     expect($note->student_id)->toBe($this->child->id);
 });
 
+it('formats the alert date as hijri weekday, day, and month without a year', function () {
+    $note = GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
+
+    $expectedHijri = GuardianNotificationService::formatHijriDayMonth('2026-06-10');
+
+    expect($note->body)->toContain($expectedHijri);
+    expect($note->body)->not->toContain('2026-06-10');
+    expect($expectedHijri)->not->toContain('١٤٤')->not->toContain('144');
+    expect($note->body)->toBe("سُجِّل ابنكم {$this->child->name} غائباً يوم {$expectedHijri}.");
+});
+
 it('does not record a duplicate absence for the same student and date', function () {
     GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');
     $second = GuardianNotificationService::notifyAbsence($this->child, 'absent', '2026-06-10');

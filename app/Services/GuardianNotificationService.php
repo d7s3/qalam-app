@@ -6,6 +6,7 @@ use App\Jobs\SendGuardianWhatsappJob;
 use App\Models\GuardianNotification;
 use App\Models\Leaderboard;
 use App\Models\Student;
+use Carbon\Carbon;
 
 class GuardianNotificationService
 {
@@ -76,18 +77,42 @@ class GuardianNotificationService
 
     /**
      * Build the absence/late alert title and body shared by the automatic
-     * notification and the supervisor's manual broadcast.
+     * notification and the supervisor's manual broadcast. The date is shown in
+     * Hijri as "weekday day month" without the year.
      *
      * @return array{title: string, body: string}
      */
     public static function absenceMessageParts(Student $student, string $status, string $date): array
     {
         $statusText = $status === 'late' ? 'متأخراً' : 'غائباً';
+        $hijriDate = self::formatHijriDayMonth($date);
 
         return [
             'title' => $status === 'late' ? 'تنبيه تأخّر' : 'تنبيه غياب',
-            'body' => "سُجِّل ابنكم {$student->name} {$statusText} بتاريخ {$date}.",
+            'body' => "سُجِّل ابنكم {$student->name} {$statusText} يوم {$hijriDate}.",
         ];
+    }
+
+    /**
+     * Format a Y-m-d Gregorian date as a Hijri "weekday day month" string
+     * (e.g. "الأربعاء 24 ذو الحجة"), falling back to the raw date on failure.
+     */
+    public static function formatHijriDayMonth(string $date): string
+    {
+        try {
+            $formatter = new \IntlDateFormatter(
+                'ar_SA@calendar=islamic-umalqura',
+                \IntlDateFormatter::FULL,
+                \IntlDateFormatter::NONE,
+                'Asia/Riyadh',
+                \IntlDateFormatter::TRADITIONAL,
+                'EEEE d MMMM'
+            );
+
+            return $formatter->format(Carbon::parse($date, 'Asia/Riyadh')->timestamp);
+        } catch (\Exception $e) {
+            return $date;
+        }
     }
 
     /**
