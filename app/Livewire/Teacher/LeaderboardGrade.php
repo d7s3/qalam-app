@@ -124,9 +124,21 @@ class LeaderboardGrade extends Component
         $leaderboard = Leaderboard::with('criteria', 'circles')->findOrFail($this->leaderboardId);
 
         $teacher = auth()->guard('teacher')->user();
-        $circleId = $teacher ? ($teacher->circles()->first()->id ?? $leaderboard->circle_id) : $leaderboard->circle_id;
 
-        $students = Student::where('circle_id', $circleId)
+        $teacherCircleIds = $teacher ? $teacher->circles()->pluck('circles.id') : collect();
+        $leaderboardCircleIds = $leaderboard->circles->pluck('id');
+        if ($leaderboard->circle_id) {
+            $leaderboardCircleIds->push($leaderboard->circle_id);
+        }
+
+        // All of the teacher's circles that participate in this competition; when
+        // the intersection is empty fall back to whichever side is known.
+        $circleIds = $teacherCircleIds->intersect($leaderboardCircleIds)->values();
+        if ($circleIds->isEmpty()) {
+            $circleIds = $teacherCircleIds->isNotEmpty() ? $teacherCircleIds : $leaderboardCircleIds->unique()->values();
+        }
+
+        $students = Student::whereIn('circle_id', $circleIds)
             ->where('status', 'active')
             ->orderBy('name')
             ->get();

@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Teacher;
 
-use App\Models\Circle;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
 use Illuminate\Support\Facades\Auth;
@@ -77,28 +76,30 @@ class Leaderboards extends Component
         ];
     }
 
+    public $circleIds = [];
+
     public function mount()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circle = $teacher->circles()->first();
+        $this->circleIds = $teacher->circles()->pluck('circles.id')->all();
 
-        if ($circle) {
-            $this->circleId = $circle->id;
+        if (! empty($this->circleIds)) {
+            $this->circleId = $this->circleIds[0];
             $this->loadLeaderboards();
         }
     }
 
     public function loadLeaderboards()
     {
-        $this->leaderboards = Leaderboard::where('circle_id', $this->circleId)
+        $this->leaderboards = Leaderboard::whereIn('circle_id', $this->circleIds)
             ->whereNull('supervisor_id')      // Teacher-created only
             ->withCount('criteria')
             ->orderBy('id', 'desc')
             ->get();
 
-        // Supervisor competitions that include this teacher's circle
+        // Supervisor competitions that include any of this teacher's circles
         $this->supervisorCompetitions = Leaderboard::whereHas('circles', function ($q) {
-            $q->where('circles.id', $this->circleId);
+            $q->whereIn('circles.id', $this->circleIds);
         })
             ->whereNotNull('supervisor_id')
             ->withCount('criteria')
@@ -199,8 +200,8 @@ class Leaderboards extends Component
         $board = Leaderboard::findOrFail($id);
 
         if (! $board->is_active_for_grading) {
-            // Unset for all other teacher's leaderboards in this circle
-            Leaderboard::where('circle_id', $this->circleId)
+            // Unset for all other teacher's leaderboards across all their circles
+            Leaderboard::whereIn('circle_id', $this->circleIds)
                 ->whereNull('supervisor_id')
                 ->where('id', '!=', $id)
                 ->update(['is_active_for_grading' => false]);

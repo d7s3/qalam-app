@@ -83,7 +83,14 @@ new class extends Component {
             ->get()
             ->keyBy('student_id');
 
-        $allSessions = \App\Models\TurnReservationSession::where('teacher_id', $teacher->id)->get();
+        // The reservation queue is shared between all teachers of the same circles,
+        // so co-teachers see the session and turn numbers whoever activated it.
+        $coTeacherIds = \Illuminate\Support\Facades\DB::table('circle_teacher')
+            ->whereIn('circle_id', $circleIds)
+            ->pluck('teacher_id')
+            ->unique();
+
+        $allSessions = \App\Models\TurnReservationSession::whereIn('teacher_id', $coTeacherIds)->get();
         $activeSession = null;
         foreach ($allSessions as $session) {
             if ($session->isActiveToday()) {
@@ -179,10 +186,29 @@ new class extends Component {
         ];
     }
 
-    public function openSessionModal()
+    /**
+     * The queue session shared by all teachers of the same circles: the teacher's
+     * own session first, otherwise a co-teacher's, so settings edit one shared
+     * session instead of creating a duplicate competing queue.
+     */
+    protected function findSharedSession()
     {
         $teacher = Auth::guard('teacher')->user();
-        $session = \App\Models\TurnReservationSession::where('teacher_id', $teacher->id)->first();
+        $circleIds = $teacher->circles()->pluck('circles.id');
+
+        $coTeacherIds = \Illuminate\Support\Facades\DB::table('circle_teacher')
+            ->whereIn('circle_id', $circleIds)
+            ->pluck('teacher_id')
+            ->unique();
+
+        return \App\Models\TurnReservationSession::whereIn('teacher_id', $coTeacherIds)
+            ->orderByRaw('(teacher_id = ?) desc', [$teacher->id])
+            ->first();
+    }
+
+    public function openSessionModal()
+    {
+        $session = $this->findSharedSession();
 
         if ($session) {
             $this->sessionStartTime = \Carbon\Carbon::parse($session->start_time)->format('H:i');
@@ -216,7 +242,7 @@ new class extends Component {
         // Convert string arrays to integers
         $days = array_map('intval', $this->sessionDaysOfWeek);
 
-        $session = \App\Models\TurnReservationSession::where('teacher_id', $teacher->id)->first();
+        $session = $this->findSharedSession();
 
         if ($session) {
             $session->update([

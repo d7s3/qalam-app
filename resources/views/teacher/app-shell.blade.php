@@ -9,20 +9,20 @@
 
     @php
         $teacher = Auth::guard('teacher')->user();
-        $circle = $teacher->circles()->first();
+        $teacherCircleIds = $teacher->circles()->pluck('circles.id');
 
         $activeLeaderboard = null;
 
-        if ($circle) {
-            $activeLeaderboard = \App\Models\Leaderboard::whereHas('circles', function($q) use ($circle) {
-                    $q->where('circles.id', $circle->id);
+        if ($teacherCircleIds->isNotEmpty()) {
+            $activeLeaderboard = \App\Models\Leaderboard::whereHas('circles', function($q) use ($teacherCircleIds) {
+                    $q->whereIn('circles.id', $teacherCircleIds);
                 })
                 ->whereNotNull('supervisor_id')
                 ->where('is_active_for_grading', true)
                 ->first();
 
             if (!$activeLeaderboard) {
-                $activeLeaderboard = \App\Models\Leaderboard::where('circle_id', $circle->id)
+                $activeLeaderboard = \App\Models\Leaderboard::whereIn('circle_id', $teacherCircleIds)
                     ->whereNull('supervisor_id')
                     ->where('is_active_for_grading', true)
                     ->first();
@@ -33,7 +33,28 @@
     <div id="teacher-app-shell" x-data="{
         activeTab: '{{ $initialTab ?? 'dashboard' }}',
         showStaleWarning: false,
-        
+        staleTimer: null,
+
+        armStaleTimer() {
+            clearTimeout(this.staleTimer);
+            this.staleTimer = setTimeout(() => {
+                this.showStaleWarning = true;
+            }, 20 * 60 * 1000);
+        },
+
+        registerActivity() {
+            // Every interaction hits Livewire and returns fresh data, so activity
+            // means the screen is NOT stale. Once the warning is visible it stays
+            // until the teacher refreshes or dismisses it explicitly.
+            if (this.showStaleWarning) return;
+            this.armStaleTimer();
+        },
+
+        dismissStaleWarning() {
+            this.showStaleWarning = false;
+            this.armStaleTimer();
+        },
+
         init() {
             // Listen for popstate (browser back/forward) to update tab if needed
             window.addEventListener('popstate', (e) => {
@@ -45,13 +66,14 @@
                     this.activeTab = 'dashboard';
                 }
             });
-            
-            // Stale Data Timer (20 minutes)
-            setTimeout(() => {
-                this.showStaleWarning = true;
-            }, 20 * 60 * 1000);
+
+            // Stale data warning: fires after 20 minutes of *inactivity*,
+            // not 20 minutes after page load.
+            this.armStaleTimer();
+            window.addEventListener('pointerdown', () => this.registerActivity(), { passive: true });
+            window.addEventListener('keydown', () => this.registerActivity(), { passive: true });
         }
-    }" 
+    }"
     x-on:switch-tab.window="
         activeTab = $event.detail.tab;
         if ($event.detail.url && window.location.pathname !== $event.detail.url) {
@@ -60,16 +82,23 @@
     "
     class="relative min-h-[80vh]">
 
-        {{-- Stale Data Warning --}}
-        <div x-cloak x-show="showStaleWarning" 
+        {{-- Stale Data Warning (shown after 20 minutes of inactivity) --}}
+        <div x-cloak x-show="showStaleWarning"
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 -translate-y-4"
              x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
              class="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-100 dark:bg-amber-900/90 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 px-4 py-2 rounded-full shadow-lg flex items-center gap-3">
              <flux:icon icon="clock" class="size-5" />
-             <span class="text-sm font-medium">{{ __('مر وقت على تحديث البيانات') }}</span>
+             <span class="text-sm font-medium">{{ __('مر وقت دون استخدام الصفحة وقد تكون البيانات غير محدثة') }}</span>
              <button onclick="window.location.reload()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-full text-xs font-bold transition-colors">
                  {{ __('تحديث الآن') }} 🔄
+             </button>
+             <button x-on:click="dismissStaleWarning()" aria-label="{{ __('إغلاق') }}"
+                 class="text-amber-600 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 transition-colors">
+                 <flux:icon icon="x-mark" class="size-4" />
              </button>
         </div>
 
