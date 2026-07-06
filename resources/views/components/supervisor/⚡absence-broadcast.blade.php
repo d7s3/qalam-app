@@ -15,6 +15,8 @@ use Livewire\Component;
 new class extends Component {
     public $year;
 
+    public $currentMonthIndex = 0;
+
     public $broadcastDate;
 
     public $selectedDateHijri = '';
@@ -34,6 +36,7 @@ new class extends Component {
         $cal = \IntlCalendar::createInstance('Asia/Riyadh', 'ar_SA@calendar=islamic-umalqura');
         $cal->setTime(now('Asia/Riyadh')->getTimestampMs());
         $this->year = $cal->get(\IntlCalendar::FIELD_YEAR);
+        $this->currentMonthIndex = $cal->get(\IntlCalendar::FIELD_MONTH);
         $this->broadcastDate = now('Asia/Riyadh')->format('Y-m-d');
     }
 
@@ -187,6 +190,7 @@ new class extends Component {
     public function with()
     {
         $circleIds = $this->supervisorCircleIds();
+        $totalCirclesCount = $circleIds->count();
 
         $cal = \IntlCalendar::createInstance('Asia/Riyadh', 'ar_SA@calendar=islamic-umalqura');
         $cal->set(\IntlCalendar::FIELD_YEAR, $this->year);
@@ -200,38 +204,26 @@ new class extends Component {
         $cal->set(\IntlCalendar::FIELD_DAY_OF_MONTH, $monthLength);
         $endDate = date('Y-m-d', $cal->getTime() / 1000);
 
-        $absenceCounts = Attendance::whereIn('circle_id', $circleIds)
+        $allAttendances = Attendance::whereIn('circle_id', $circleIds)
             ->whereBetween('date', [$startDate, $endDate])
-            ->whereIn('status', ['absent', 'late'])
-            ->select('date', 'status', DB::raw('count(*) as total'))
-            ->groupBy('date', 'status')
+            ->select('date', DB::raw('count(distinct circle_id) as circles_completed'))
+            ->groupBy('date')
             ->get()
-            ->groupBy(fn ($row) => \Carbon\Carbon::parse($row->date)->format('Y-m-d'))
-            ->map(fn ($rows) => [
-                'absent' => (int) $rows->firstWhere('status', 'absent')?->total,
-                'late' => (int) $rows->firstWhere('status', 'late')?->total,
-            ]);
-
-        $attendanceDates = Attendance::whereIn('circle_id', $circleIds)
-            ->whereBetween('date', [$startDate, $endDate])
-            ->select('date')
-            ->distinct()
-            ->pluck('date')
-            ->map(fn ($date) => \Carbon\Carbon::parse($date)->format('Y-m-d'))
-            ->flip();
+            ->mapWithKeys(fn ($item) => [\Carbon\Carbon::parse($item->date)->format('Y-m-d') => $item->circles_completed]);
 
         $months = [];
         for ($m = 0; $m < 12; $m++) {
-            $months[] = $this->getMonthData($this->year, $m, $absenceCounts, $attendanceDates);
+            $months[] = $this->getMonthData($this->year, $m, $totalCirclesCount, $allAttendances);
         }
 
         return [
             'months' => $months,
             'currentYear' => $this->year,
+            'totalCirclesCount' => $totalCirclesCount,
         ];
     }
 
-    private function getMonthData($year, $monthIndex, $absenceCounts, $attendanceDates)
+    private function getMonthData($year, $monthIndex, $totalCirclesCount, $allAttendances)
     {
         $cal = \IntlCalendar::createInstance('Asia/Riyadh', 'ar_SA@calendar=islamic-umalqura');
         $cal->set(\IntlCalendar::FIELD_YEAR, $year);
@@ -255,26 +247,26 @@ new class extends Component {
             $cal->set(\IntlCalendar::FIELD_DAY_OF_MONTH, $i);
             $gregDate = date('Y-m-d', $cal->getTime() / 1000);
 
-            $counts = $absenceCounts->get($gregDate);
-            $absentCount = $counts['absent'] ?? 0;
-            $lateCount = $counts['late'] ?? 0;
-            $totalIssues = $absentCount + $lateCount;
-            $hasAttendance = $attendanceDates->has($gregDate);
+            $completedCirclesCount = $allAttendances->get($gregDate, 0);
+            $completionRate = $totalCirclesCount > 0 ? min(100, round(($completedCirclesCount / $totalCirclesCount) * 100)) : 0;
 
             $colorClass = 'bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-700';
-            if ($totalIssues > 3) {
-                $colorClass = 'bg-red-50 dark:bg-red-900/20 border-red-100 hover:bg-red-100';
-            } elseif ($totalIssues > 0) {
-                $colorClass = 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 hover:bg-amber-100';
-            } elseif ($hasAttendance) {
-                $colorClass = 'bg-green-50 dark:bg-green-900/20 border-green-100 hover:bg-green-100';
+            if ($completedCirclesCount > 0 && $totalCirclesCount > 0) {
+                $ratio = $completedCirclesCount / $totalCirclesCount;
+                if ($ratio >= 1.0) {
+                    $colorClass = 'bg-green-100 dark:bg-green-900/40 border-green-200';
+                } elseif ($ratio >= 0.5) {
+                    $colorClass = 'bg-blue-50 dark:bg-blue-900/20 border-blue-100';
+                } else {
+                    $colorClass = 'bg-amber-50 dark:bg-amber-900/20 border-amber-100';
+                }
             }
 
             $days[] = [
                 'hijriDay' => $i,
                 'gregorianDate' => $gregDate,
-                'absentCount' => $absentCount,
-                'lateCount' => $lateCount,
+                'completedCount' => $completedCirclesCount,
+                'completionRate' => $completionRate,
                 'colorClass' => $colorClass,
                 'isToday' => $gregDate === now('Asia/Riyadh')->format('Y-m-d'),
             ];
@@ -296,21 +288,21 @@ new class extends Component {
             </div>
             <div>
                 <flux:heading size="lg">{{ __('إرسال تنبيهات الغياب والتأخر') }}</flux:heading>
-                <flux:subheading>{{ __('اضغط على اليوم المطلوب من تقويم العام الهجري') }} {{ $currentYear }} {{ __('لمعاينة الغياب وإرسال التنبيهات لأولياء الأمور.') }}</flux:subheading>
+                <flux:subheading>{{ __('اضغط على اليوم المطلوب لمعاينة الغياب وإرسال التنبيهات لأولياء الأمور — العام الهجري') }} {{ $currentYear }}</flux:subheading>
             </div>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
             <div class="flex items-center gap-1.5 text-xs">
                 <div class="size-3 rounded-full bg-green-100 dark:bg-green-900 border border-green-200"></div>
-                <span class="text-zinc-500">{{ __('لا غياب') }}</span>
+                <span class="text-zinc-500">{{ __('مكتمل') }}</span>
             </div>
             <div class="flex items-center gap-1.5 text-xs">
-                <div class="size-3 rounded-full bg-amber-100 dark:bg-amber-900/40 border border-amber-200"></div>
-                <span class="text-zinc-500">{{ __('غياب/تأخر') }}</span>
+                <div class="size-3 rounded-full bg-blue-50 dark:bg-blue-900/40 border border-blue-100"></div>
+                <span class="text-zinc-500">{{ __('جزئي (>50%)') }}</span>
             </div>
             <div class="flex items-center gap-1.5 text-xs">
-                <div class="size-3 rounded-full bg-red-100 dark:bg-red-900/40 border border-red-200"></div>
-                <span class="text-zinc-500">{{ __('غياب مرتفع') }}</span>
+                <div class="size-3 rounded-full bg-amber-50 dark:bg-amber-900/40 border border-amber-100"></div>
+                <span class="text-zinc-500">{{ __('تحضير بسيط') }}</span>
             </div>
         </div>
     </div>
@@ -320,16 +312,48 @@ new class extends Component {
         {{ __('تُرسل الرسائل تدريجياً بفواصل زمنية لحماية رقم الواتساب من الحظر.') }}
     </p>
 
-    <div class="max-w-3xl mx-auto grid grid-cols-1 gap-8">
-        @foreach($months as $month)
-            <div wire:key="broadcast-month-{{ $loop->index }}"
-                class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col">
-                {{-- Month Header --}}
-                <div class="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 text-center">
-                    <div class="font-bold text-zinc-800 dark:text-zinc-100 text-sm">
-                        {{ $month['monthName'] }}
+    <div
+        class="max-w-3xl mx-auto"
+        x-data="{
+            month: {{ $currentMonthIndex }},
+            total: 12,
+            startX: null,
+            next() { this.month = Math.min(this.total - 1, this.month + 1); },
+            prev() { this.month = Math.max(0, this.month - 1); },
+        }"
+        @touchstart.passive="startX = $event.touches[0].clientX"
+        @touchend="
+            if (startX !== null) {
+                const dx = $event.changedTouches[0].clientX - startX;
+                if (Math.abs(dx) > 50) { dx > 0 ? next() : prev(); }
+                startX = null;
+            }
+        "
+    >
+        {{-- Month navigation: RTL — right arrow goes back, left arrow goes forward --}}
+        <div class="flex items-center justify-between mb-3">
+            <flux:button variant="ghost" size="sm" icon="chevron-right" x-on:click="prev()"
+                x-bind:disabled="month === 0" />
+
+            <div class="text-center">
+                @foreach($months as $month)
+                    <div x-show="month === {{ $loop->index }}" x-cloak wire:key="month-title-{{ $loop->index }}"
+                        class="font-bold text-zinc-800 dark:text-zinc-100">
+                        {{ $month['monthName'] }} {{ $currentYear }}
                     </div>
-                </div>
+                @endforeach
+            </div>
+
+            <flux:button variant="ghost" size="sm" icon="chevron-left" x-on:click="next()"
+                x-bind:disabled="month === total - 1" />
+        </div>
+
+        @foreach($months as $month)
+            <div x-show="month === {{ $loop->index }}" x-cloak wire:key="broadcast-month-{{ $loop->index }}"
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100"
+                class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col select-none">
 
                 {{-- Weekdays Header --}}
                 <div class="grid grid-cols-7 gap-1 px-3 pt-3 pb-1 text-center">
@@ -362,16 +386,17 @@ new class extends Component {
                                     @endif
                                 </div>
 
-                                {{-- Absence / late counts --}}
-                                <div class="mt-auto w-full">
-                                    @if($day['absentCount'] + $day['lateCount'] > 0)
-                                        <div class="flex items-center justify-center gap-1.5 text-[0.65rem] font-bold leading-none">
-                                            @if($day['absentCount'] > 0)
-                                                <span class="text-red-600 dark:text-red-400">{{ $day['absentCount'] }} {{ __('غ') }}</span>
-                                            @endif
-                                            @if($day['lateCount'] > 0)
-                                                <span class="text-amber-600 dark:text-amber-400">{{ $day['lateCount'] }} {{ __('ت') }}</span>
-                                            @endif
+                                {{-- Stats Area: Circles Completed / Total Circles --}}
+                                <div class="mt-auto w-full space-y-1">
+                                    @if ($day['completedCount'] > 0 || $totalCirclesCount > 0)
+                                        <div class="text-[0.65rem] font-medium leading-none text-center">
+                                            <span class="text-indigo-700 dark:text-indigo-400 font-bold">{{ $day['completedCount'] }}</span>
+                                            <span class="mx-0.5 text-zinc-400">/</span>
+                                            <span class="text-zinc-500 dark:text-zinc-500 font-semibold">{{ $totalCirclesCount }}</span>
+                                        </div>
+                                        <div class="w-full bg-black/5 dark:bg-white/10 rounded-full h-1 overflow-hidden">
+                                            <div class="h-full rounded-full {{ $day['completionRate'] == 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-indigo-400 dark:bg-indigo-500' }}"
+                                                style="width: {{ $day['completionRate'] }}%"></div>
                                         </div>
                                     @endif
                                 </div>

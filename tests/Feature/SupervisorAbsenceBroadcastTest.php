@@ -82,18 +82,41 @@ it('opens the report directly when a calendar day is clicked', function () {
         ->assertSet('eligibleCount', 1);
 });
 
-it('renders the hijri year calendar with absence counts', function () {
+it('renders the hijri year calendar with circle attendance counts scoped to the supervisor', function () {
+    $otherStage = Stage::factory()->create();
+    $otherCircle = Circle::factory()->create(['stage_id' => $otherStage->id]);
+    $outsideStudent = Student::factory()->create(['circle_id' => $otherCircle->id]);
+    Attendance::create([
+        'student_id' => $outsideStudent->id,
+        'teacher_id' => $this->teacher->id,
+        'circle_id' => $otherCircle->id,
+        'date' => '2026-06-10',
+        'status' => 'present',
+    ]);
+
     $component = Livewire::test('supervisor.⚡absence-broadcast');
 
     $months = $component->viewData('months');
     expect($months)->toHaveCount(12);
 
+    // Only the supervisor's single circle counts, not the outside circle.
+    expect($component->viewData('totalCirclesCount'))->toBe(1);
+
     $allDays = collect($months)->flatMap(fn ($month) => $month['days'])->filter();
     $targetDay = $allDays->firstWhere('gregorianDate', '2026-06-10');
 
     expect($targetDay)->not->toBeNull();
-    expect($targetDay['absentCount'])->toBe(2);
-    expect($targetDay['lateCount'])->toBe(1);
+    expect($targetDay['completedCount'])->toBe(1);
+    expect($targetDay['completionRate'])->toBe(100.0);
+});
+
+it('defaults the calendar view to the current hijri month', function () {
+    $component = Livewire::test('supervisor.⚡absence-broadcast');
+
+    $cal = IntlCalendar::createInstance('Asia/Riyadh', 'ar_SA@calendar=islamic-umalqura');
+    $cal->setTime(now('Asia/Riyadh')->getTimestampMs());
+
+    $component->assertSet('currentMonthIndex', $cal->get(IntlCalendar::FIELD_MONTH));
 });
 
 it('does not open the report when the date has no absences', function () {
