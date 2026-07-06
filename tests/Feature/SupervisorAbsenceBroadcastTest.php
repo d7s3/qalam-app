@@ -74,6 +74,28 @@ it('builds a report separating eligible, unlinked, and phoneless students', func
         ->assertSet('noPhoneStudents', ['طالب ولي أمره بلا جوال']);
 });
 
+it('opens the report directly when a calendar day is clicked', function () {
+    Livewire::test('supervisor.⚡absence-broadcast')
+        ->call('selectDate', '2026-06-10', 14, 'ذو الحجة')
+        ->assertSet('broadcastDate', '2026-06-10')
+        ->assertSet('showReportModal', true)
+        ->assertSet('eligibleCount', 1);
+});
+
+it('renders the hijri year calendar with absence counts', function () {
+    $component = Livewire::test('supervisor.⚡absence-broadcast');
+
+    $months = $component->viewData('months');
+    expect($months)->toHaveCount(12);
+
+    $allDays = collect($months)->flatMap(fn ($month) => $month['days'])->filter();
+    $targetDay = $allDays->firstWhere('gregorianDate', '2026-06-10');
+
+    expect($targetDay)->not->toBeNull();
+    expect($targetDay['absentCount'])->toBe(2);
+    expect($targetDay['lateCount'])->toBe(1);
+});
+
 it('does not open the report when the date has no absences', function () {
     Livewire::test('supervisor.⚡absence-broadcast')
         ->set('broadcastDate', '2026-06-11')
