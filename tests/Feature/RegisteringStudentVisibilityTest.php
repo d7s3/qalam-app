@@ -151,7 +151,7 @@ it('counts the student in dashboard reports again once they become active', func
     }
 
     $included = Attendance::query()
-        ->whereRaw(Attendance::registeringExclusionSql())
+        ->whereRaw(Attendance::activeStatusOnDateSql())
         ->pluck('date')
         ->map(fn ($d) => Carbon\Carbon::parse($d)->format('Y-m-d'));
 

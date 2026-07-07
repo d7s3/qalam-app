@@ -47,7 +47,7 @@ new class extends Component {
         $circleIds = $teacher->circles()->pluck('id');
 
         $students = Student::whereIn('circle_id', $circleIds)
-            ->where('status', '!=', 'registering')
+            ->where('status', 'active')
             ->get();
 
         $todayStr = \Carbon\Carbon::today()->format('Y-m-d');

@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Services\StudentStatusService;
 use Flux\Flux;
 use Illuminate\Support\Str;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class Students extends Component
@@ -33,10 +34,6 @@ class Students extends Component
     public $guardiansList = [];
 
     public $guardian_id = null;
-
-    public string $editStatus = 'active';
-
-    public string $editStatusDate = '';
 
     public string $editJoinedAt = '';
 
@@ -235,10 +232,20 @@ class Students extends Component
         ]);
 
         $students = $this->getSupervisorStudentsQuery()->get();
+        $count = 0;
+        $skipped = 0;
         foreach ($students as $student) {
-            StudentStatusService::changeStatus($student, $this->bulkStatus, $this->bulkStatusDate ?: null);
+            try {
+                StudentStatusService::changeStatus($student, $this->bulkStatus, $this->bulkStatusDate ?: null);
+                $count++;
+            } catch (\InvalidArgumentException $e) {
+                $skipped++;
+            }
         }
-        $count = $students->count();
+
+        if ($skipped > 0) {
+            Flux::toast(__('تم تخطي '.$skipped.' طلاب لأن التاريخ يسبق سجلات حالاتهم الحالية'), variant: 'warning');
+        }
 
         $this->resetSelection();
         $this->loadData();
@@ -331,8 +338,6 @@ class Students extends Component
         $this->email = $this->viewingStudent->email;
         $this->circle_id = $this->viewingStudent->circle_id;
         $this->guardian_id = $this->viewingStudent->guardian_id;
-        $this->editStatus = $this->viewingStudent->status ?? 'active';
-        $this->editStatusDate = now('Asia/Riyadh')->format('Y-m-d');
         $this->editJoinedAt = $this->viewingStudent->joined_at ? $this->viewingStudent->joined_at->format('Y-m-d') : '';
 
         $this->stats = [
@@ -351,11 +356,7 @@ class Students extends Component
             'email' => 'required|email|unique:students,email,'.$this->editingStudentId,
             'circle_id' => 'nullable|exists:circles,id',
             'guardian_id' => 'nullable|exists:guardians,id',
-            'editStatus' => 'required|in:active,registering,suspended,left',
-            'editStatusDate' => 'nullable|date|before_or_equal:today',
             'editJoinedAt' => 'nullable|date',
-        ], [
-            'editStatusDate.before_or_equal' => __('تاريخ سريان الحالة لا يمكن أن يكون في المستقبل'),
         ]);
 
         $circleIds = $this->getSupervisorCircleIds();
@@ -367,9 +368,7 @@ class Students extends Component
             return;
         }
 
-        $student = Student::find($this->editingStudentId);
-
-        $student->update([
+        Student::find($this->editingStudentId)->update([
             'name' => $this->name,
             'email' => $this->email,
             'circle_id' => $this->circle_id,
@@ -377,25 +376,20 @@ class Students extends Component
             'joined_at' => $this->editJoinedAt ?: null,
         ]);
 
-        StudentStatusService::changeStatus($student, $this->editStatus, $this->editStatusDate ?: null);
-
         Flux::toast(__('تم تحديث بيانات الطالب بنجاح'), variant: 'success');
-        $this->reset(['name', 'email', 'circle_id', 'guardian_id', 'editStatus', 'editStatusDate', 'editJoinedAt', 'editingStudentId']);
+        $this->reset(['name', 'email', 'circle_id', 'guardian_id', 'editJoinedAt', 'editingStudentId']);
         $this->loadData();
         Flux::modal('student-modal')->close();
     }
 
-    public function deleteStatusHistory(int $historyId): void
+    #[On('student-status-updated')]
+    public function refreshViewingStudent(): void
     {
-        if (! $this->viewingStudent) {
-            return;
-        }
-
-        StudentStatusService::deleteHistoryEntry($this->viewingStudent, $historyId);
-
         $this->loadData();
-        $this->edit($this->viewingStudent->id);
-        Flux::toast(__('تم حذف سجل الحالة'), variant: 'success');
+
+        if ($this->viewingStudent) {
+            $this->edit($this->viewingStudent->id);
+        }
     }
 
     public function resetToken($id): void

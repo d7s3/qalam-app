@@ -55,12 +55,13 @@ class Attendance extends Model
     }
 
     /**
-     * Raw SQL predicate that excludes attendance records taken while the student
-     * was "registering" per their status history on the record's date. Students
-     * with no history rows at or before the date are treated as active, matching
-     * the fallback used when reading a student's status on a given date.
+     * Raw SQL predicate that keeps only attendance records taken while the student
+     * was "active" per their status history on the record's date (the agreed rule:
+     * a student counts nowhere unless active on that date). Students with no
+     * history rows at or before the date are treated as active, matching the
+     * fallback used when reading a student's status on a given date.
      */
-    public static function registeringExclusionSql(string $table = 'attendances'): string
+    public static function activeStatusOnDateSql(string $table = 'attendances'): string
     {
         return "coalesce((
             select h.status
@@ -69,6 +70,6 @@ class Attendance extends Model
               and date(h.start_date) <= date({$table}.date)
             order by h.start_date desc, h.id desc
             limit 1
-        ), 'active') != 'registering'";
+        ), 'active') = 'active'";
     }
 }

@@ -56,6 +56,7 @@ new class extends Component {
             ->whereIn('circle_id', $this->supervisorCircleIds())
             ->whereDate('date', $this->broadcastDate)
             ->whereIn('status', ['absent', 'late'])
+            ->whereRaw(Attendance::activeStatusOnDateSql())
             ->get()
             ->filter(fn ($attendance) => $attendance->student !== null)
             ->unique(fn ($attendance) => $attendance->student_id)

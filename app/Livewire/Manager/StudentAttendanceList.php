@@ -43,7 +43,7 @@ class StudentAttendanceList extends Component
                 $history = $student->statusHistories->first();
                 $statusOnDate = $history ? $history->status : $student->status;
 
-                return $statusOnDate !== 'registering';
+                return $statusOnDate === 'active';
             })
             ->values();
 
