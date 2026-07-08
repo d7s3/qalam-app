@@ -3413,8 +3413,8 @@ new class extends Component {
 
                             <div class="flex items-end justify-between w-full mt-auto">
                                 <div class="flex flex-col justify-end text-right">
-                                    <span class="text-[18px] @min-[400px]:text-[20px] font-bold mb-1.5 leading-none" style="color: {{ $dateColor }}">{{ $hijriDateStr }}</span>
-                                    <div class="px-4 py-1.5 rounded-xl text-white font-black text-[22px] shadow-sm text-center leading-none" style="background-color: {{ $darkerColor }}">
+                                    <span class="text-[20px] font-bold mb-1.5 leading-none" style="color: {{ $dateColor }}">{{ $hijriDateStr }}</span>
+                                    <div class="px-4 py-1.5 rounded-xl text-white font-black text-[18px] @min-[400px]:text-[20px] shadow-sm text-center leading-none" style="background-color: {{ $darkerColor }}">
                                         {{ $round->name }}
                                     </div>
                                 </div>
