@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>مسابقة التاج 13 الصيفية</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+        --accent: #06b6d4;
+        --accent-dark: #0e7490;
+        --accent-tint: #ecfeff;
+        --ink: #1e293b;
+        --muted: #64748b;
+        --line: #cbd5e1;
+        --team-accent: #6366f1;
+        --team-tint: #eef2ff;
+        --warn: #b45309;
+        --warn-tint: #fffbeb;
+        --warn-line: #f59e0b;
+    }
+
+    @page {
+        size: A4;
+        margin: 9mm 10mm;
+    }
+
+    html, body {
+        font-family: 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif;
+        color: var(--ink);
+        font-size: 8.7pt;
+        line-height: 1.35;
+    }
+
+    body {
+        max-width: 210mm;
+        margin: 0 auto;
+        padding: 4mm;
+    }
+
+    /* ── Icons (inline SVG) ────────────────────────────── */
+    .icon { display: inline-block; vertical-align: -0.3mm; flex-shrink: 0; }
+    .icon-fill path, .icon-fill circle { fill: currentColor; }
+    .icon-line path {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    .icon-lg { width: 6mm; height: 6mm; }
+    .icon-md { width: 3mm; height: 3mm; }
+    .icon-sm { width: 2.6mm; height: 2.6mm; margin-left: 0.8mm; }
+
+    /* ── Header ───────────────────────────────────────── */
+    header {
+        text-align: center;
+        border-top: 3px double var(--accent);
+        border-bottom: 3px double var(--accent);
+        padding: 2.5mm 0;
+        margin-bottom: 3mm;
+    }
+    header .title-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2mm;
+    }
+    header .icon-lg { color: var(--accent-dark); }
+    header h1 {
+        font-size: 17pt;
+        font-weight: 900;
+        color: var(--accent-dark);
+        letter-spacing: .5px;
+        display: inline;
+    }
+    header .sub {
+        font-size: 9.5pt;
+        color: var(--muted);
+        font-weight: 500;
+        margin-right: 3mm;
+    }
+    header .curr-line {
+        font-size: 8pt;
+        color: var(--accent-dark);
+        margin-top: 1mm;
+    }
+    header .curr-line b { color: var(--ink); }
+
+    /* ── Two-column layout ────────────────────────────── */
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6mm;
+        align-items: start;
+    }
+
+    /* ── Section headers ──────────────────────────────── */
+    section { margin-bottom: 2.2mm; break-inside: avoid; page-break-inside: avoid; }
+
+    .sec-title {
+        display: flex;
+        align-items: center;
+        gap: 2mm;
+        border-bottom: 1.5px solid var(--accent);
+        padding-bottom: 1mm;
+        margin-bottom: 1.8mm;
+    }
+    .sec-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 4.5mm;
+        height: 4.5mm;
+        background: var(--accent-dark);
+        color: #fff;
+        border-radius: 50%;
+        font-weight: 700;
+        font-size: 7.5pt;
+        flex-shrink: 0;
+    }
+    .sec-title h2 {
+        font-size: 9.8pt;
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    /* ── Unified individual-items table ───────────────── */
+    table.tiers {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 7.8pt;
+    }
+    table.tiers th {
+        background: var(--accent-dark);
+        color: #fff;
+        padding: 1mm 1.5mm;
+        text-align: center;
+        font-weight: 500;
+    }
+    table.tiers th:first-child { border-radius: 4px 0 0 0; }
+    table.tiers th:last-child { border-radius: 0 4px 0 0; }
+    table.tiers td {
+        padding: 0.6mm 1.5mm;
+        text-align: center;
+        border-bottom: 1px solid var(--line);
+        border-left: 1px solid var(--line);
+    }
+    table.tiers td:last-child { border-left: none; }
+    table.tiers td:first-child {
+        font-weight: 700;
+        color: var(--accent-dark);
+        background: var(--accent-tint);
+        text-align: center;
+    }
+    .extra-note {
+        font-size: 7.3pt;
+        color: var(--muted);
+        margin-top: 1.5mm;
+        line-height: 1.4;
+    }
+    .extra-note b { color: var(--accent-dark); }
+
+    /* ── Enthusiasm section ───────────────────────────── */
+    .enthusiasm-box {
+        background: var(--accent-tint);
+        border-right: 3px solid var(--accent);
+        border-radius: 4px;
+        padding: 1.8mm 2.5mm;
+        font-size: 7.8pt;
+        line-height: 1.45;
+    }
+    .enthusiasm-box b { color: var(--accent-dark); }
+
+    /* ── Levels: horizontal strip ─────────────────────── */
+    .levels-strip {
+        display: flex;
+        justify-content: space-between;
+        gap: 1.5mm;
+    }
+    .lvl {
+        flex: 1;
+        text-align: center;
+        background: var(--accent-tint);
+        border-radius: 4px;
+        padding: 1.5mm 0.5mm;
+    }
+    .lvl .lvl-badge {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 4.5mm;
+        height: 4.5mm;
+        margin: 0 auto 0.8mm;
+        border-radius: 50%;
+        background: var(--accent-dark);
+        color: #fff;
+        font-weight: 700;
+        font-size: 6.8pt;
+    }
+    .lvl .lvl-name { font-size: 6.8pt; font-weight: 700; color: var(--ink); }
+    .lvl .lvl-xp { font-size: 6.3pt; color: var(--accent-dark); font-weight: 700; }
+
+    /* ── Family tasks (team section) ──────────────────── */
+    .team-intro { font-size: 7.8pt; margin-bottom: 1.8mm; line-height: 1.4; }
+    .task-card {
+        background: var(--team-tint);
+        border-right: 3px solid var(--team-accent);
+        border-radius: 4px;
+        padding: 1.1mm 2.5mm;
+        margin-bottom: 1.1mm;
+        font-size: 7.2pt;
+        line-height: 1.4;
+    }
+    .task-card b { color: var(--team-accent); display: block; font-size: 8pt; margin-bottom: 0.5mm; }
+    .task-card span { color: var(--muted); }
+
+    /* ── Store section ────────────────────────────────── */
+    .store-sub {
+        font-size: 8pt;
+        font-weight: 700;
+        margin: 1.5mm 0 1mm;
+    }
+    .store-sub.individual { color: var(--accent-dark); }
+    .store-sub.team { color: var(--team-accent); }
+
+    .store-item {
+        border-radius: 4px;
+        padding: 1mm 2.5mm;
+        margin-bottom: 1mm;
+        font-size: 7.4pt;
+        line-height: 1.4;
+    }
+    .store-item.individual { background: var(--accent-tint); border-right: 3px solid var(--accent); }
+    .store-item.team { background: var(--team-tint); border-right: 3px solid var(--team-accent); }
+
+    .store-item .name-price {
+        display: flex;
+        justify-content: space-between;
+        font-weight: 700;
+    }
+    .store-item .name-price > span:first-child { display: flex; align-items: center; }
+    .store-item.individual .icon { color: var(--accent-dark); }
+    .store-item.team .icon { color: var(--team-accent); }
+    .store-item.individual .price { color: var(--accent-dark); }
+    .store-item.team .price { color: var(--team-accent); }
+    .store-item .desc { color: var(--muted); font-size: 7pt; }
+
+    .warn-box {
+        margin-top: 1.5mm;
+        background: var(--warn-tint);
+        border-right: 3px solid var(--warn-line);
+        border-radius: 4px;
+        padding: 1.5mm 2.5mm;
+        font-size: 7.2pt;
+        color: var(--warn);
+        font-weight: 500;
+        line-height: 1.4;
+    }
+
+    /* ── Conclusion ───────────────────────────────────── */
+    .conclusion {
+        text-align: center;
+        background: linear-gradient(135deg, var(--accent-tint), var(--team-tint));
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        padding: 2mm 3mm;
+        margin-top: 2mm;
+    }
+    .conclusion p:first-child { font-size: 7.8pt; margin-bottom: 1mm; }
+    .conclusion p:last-child { font-size: 8.5pt; font-weight: 700; color: var(--accent-dark); }
+
+    /* ── Print controls ───────────────────────────────── */
+    .print-bar { max-width: 210mm; margin: 0 auto 4mm; text-align: center; }
+    .print-bar button {
+        font-family: inherit;
+        font-size: 11pt;
+        font-weight: 700;
+        padding: 3mm 8mm;
+        background: var(--accent-dark);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    @media print {
+        .print-bar { display: none; }
+        body { padding: 0; }
+    }
+</style>
+</head>
+<body>
+
+    <div class="print-bar">
+        <button onclick="window.print()">طباعة الصفحة</button>
+    </div>
+
+    <header>
+        <div class="title-row">
+            <svg class="icon icon-fill icon-lg" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9 L7 13 L9 6 L12 12 L15 6 L17 13 L20 9 L19 19 L5 19 Z"/>
+            </svg>
+            <h1>مسابقة التاج 13</h1>
+            <span class="sub">الموسم الصيفي</span>
+        </div>
+        <div class="curr-line">
+            كل إنجاز يمنحك
+            <svg class="icon icon-fill icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.6 5.4 5.9.6-4.4 4.1 1.2 5.9L12 15.6l-5.3 2.9 1.2-5.9-4.4-4.1 5.9-.6L12 2.5Z"/></svg>
+            <b>نقاط خبرة</b> (ترفع مستواك) و
+            <svg class="icon icon-fill icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12l3.5 5.5L12 21 2.5 9.5 6 4Z"/></svg>
+            <b>دنانير</b> (تُنفق في متجر المسابقة)
+        </div>
+    </header>
+
+    <div class="layout">
+        <!-- ═══════════ العمود الأيمن ═══════════ -->
+        <div class="col-right">
+
+            <!-- 1: البنود الفردية -->
+            <section>
+                <div class="sec-title"><span class="sec-num"><svg class="icon icon-line icon-md" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7C10 5.5 7 5 4 5.3V17c3-.3 6 .2 8 1.7M12 7C14 5.5 17 5 20 5.3V17c-3-.3-6 .2-8 1.7M12 7V18.7"/></svg></span><h2>البنود الفردية</h2></div>
+                <table class="tiers">
+                    <tr><th>البند</th><th>التقدير</th><th>خبرة</th><th>دنانير</th></tr>
+                    <tr><td rowspan="3">الحفظ</td><td>ممتاز</td><td>20</td><td>10</td></tr>
+                    <tr><td>جيد</td><td>10</td><td>5</td></tr>
+                    <tr><td>مقبول</td><td>5</td><td>—</td></tr>
+                    <tr><td rowspan="2">المراجعة</td><td>ممتاز</td><td>15</td><td>5</td></tr>
+                    <tr><td>جيد</td><td>5</td><td>—</td></tr>
+                    <tr><td rowspan="2">الحضور</td><td>حاضر</td><td>10</td><td>5</td></tr>
+                    <tr><td>متأخر</td><td colspan="2">بدون نقاط</td></tr>
+                    <tr><td rowspan="3">الأحاديث<br>والمتون</td><td>ممتاز</td><td>10</td><td>10</td></tr>
+                    <tr><td>جيد</td><td>7</td><td>7</td></tr>
+                    <tr><td>مقبول</td><td>4</td><td>4</td></tr>
+                    <tr><td rowspan="3">القصائد</td><td>ممتاز</td><td>10</td><td>10</td></tr>
+                    <tr><td>جيد</td><td>7</td><td>7</td></tr>
+                    <tr><td>مقبول</td><td>4</td><td>4</td></tr>
+                </table>
+                <table class="tiers" style="margin-top:1.8mm;">
+                    <tr><th>بند يدوي (يمنحه المعلم)</th><th>خبرة</th><th>دنانير</th></tr>
+                    <tr><td>الانضباط</td><td>10</td><td>5</td></tr>
+                    <tr><td>حجز رقم (التسميع)</td><td>10</td><td>5</td></tr>
+                    <tr><td>التدبيل</td><td>10</td><td>5</td></tr>
+                    <tr><td>التسميع المتقن</td><td>15</td><td>10</td></tr>
+                </table>
+                <p class="extra-note"><b>نقاط إضافية (أو خصومات):</b> يمنحها المعلم مباشرة لمواقف مميزة، أو يخصمها عند مخالفة — مفعّلة في هذه المسابقة.</p>
+            </section>
+
+            <!-- 2: نظام الحماسة -->
+            <section>
+                <div class="sec-title"><span class="sec-num"><svg class="icon icon-fill icon-md" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C10.5 5 8 6.5 8 10a4 4 0 008 0c0-1.1-.3-1.9-.7-2.5.1 1.4-.7 2-1.1 1.9.7-2.4-1-4.4-2.2-7.4Z"/></svg></span><h2>نظام الحماسة (الاستمرارية)</h2></div>
+                <div class="enthusiasm-box">
+                    حافظ على أداء "جيد فما فوق" في الحفظ أو المراجعة أو الحضور يومياً بلا انقطاع لتبني سلسلة حماسة متصلة.
+                    <b>القاعدة:</b> كلما طالت السلسلة، زادت مكافآتك.
+                    <b>ملاحظة:</b> يمكنك حماية سلسلتك من الانقطاع عبر متجر المسابقة.
+                </div>
+            </section>
+
+            <!-- 3: المستويات -->
+            <section>
+                <div class="sec-title"><span class="sec-num"><svg class="icon icon-fill icon-md" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.6 5.4 5.9.6-4.4 4.1 1.2 5.9L12 15.6l-5.3 2.9 1.2-5.9-4.4-4.1 5.9-.6L12 2.5Z"/></svg></span><h2>المستويات (بنقاط الخبرة)</h2></div>
+                <div class="levels-strip">
+                    <div class="lvl"><div class="lvl-badge">1</div><div class="lvl-name">مبتدئ</div><div class="lvl-xp">البداية</div></div>
+                    <div class="lvl"><div class="lvl-badge">2</div><div class="lvl-name">مشارك</div><div class="lvl-xp">55</div></div>
+                    <div class="lvl"><div class="lvl-badge">3</div><div class="lvl-name">متميز</div><div class="lvl-xp">195</div></div>
+                    <div class="lvl"><div class="lvl-badge">4</div><div class="lvl-name">متميز متقدم</div><div class="lvl-xp">400</div></div>
+                    <div class="lvl"><div class="lvl-badge">5</div><div class="lvl-name">بطل</div><div class="lvl-xp">700</div></div>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- ═══════════ العمود الأيسر ═══════════ -->
+        <div class="col-left">
+
+            <!-- 4: البنود الجماعية -->
+            <section>
+                <div class="sec-title"><span class="sec-num"><svg class="icon icon-fill icon-md" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="15.5" cy="7.5" r="2.5" opacity="0.55"/><path d="M8.5 11c-3.2 0-5.8 2.4-5.8 5.8V19h11.6v-2.2c0-3.4-2.6-5.8-5.8-5.8Z"/><path opacity="0.55" d="M15.5 11.3c-.5 0-1 .05-1.4.2 1.8 1.1 3 3.1 3 5.4V19h4.7v-2.2c0-3.1-2.4-5.5-6.3-5.5Z"/></svg></span><h2>البنود الجماعية (نظام الأسر)</h2></div>
+                <p class="team-intro">كل طالب ينضم إلى "أسرة" تجمع نقاطها معاً، وتُقيَّم الأسر شهرياً على 3 مهام جماعية:</p>
+
+                <div class="task-card">
+                    <b>الترتيب والنظافة</b>
+                    <span>التجديد والإبداع، مشاركة جميع أعضاء الأسرة، الاستمرارية اليومية، نظافة وترتيب أماكن الحلقات، نظافة وترتيب الباص، نظافة وترتيب المرافق في الطلعات الخارجية، الالتزام بالتوجيهات.</span>
+                </div>
+                <div class="task-card">
+                    <b>الإعلام والتنظيم</b>
+                    <span>التجديد والإبداع، مشاركة جميع أعضاء الأسرة، الالتزام بالتوجيهات، صحة المعلومات، سرعة المتابعة.</span>
+                </div>
+                <div class="task-card">
+                    <b>الضيافة</b>
+                    <span>التجديد والإبداع، مشاركة جميع أعضاء الأسرة، الاستمرارية اليومية، الالتزام بالتوجيهات، الالتزام بشروط الضيافة.</span>
+                </div>
+            </section>
+
+            <!-- 5: متجر المسابقة -->
+            <section>
+                <div class="sec-title"><span class="sec-num"><svg class="icon icon-line icon-md" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 8h11l1 11.5h-13L6.5 8Z M9 8V6.2a3 3 0 016 0V8"/></svg></span><h2>متجر المسابقة</h2></div>
+
+                <div class="store-sub individual">أولاً: البنود الفردية</div>
+                <div class="store-item individual">
+                    <div class="name-price"><span><svg class="icon icon-fill icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4.5 14h5.7l-1 8L19.5 10h-5.7l1-8Z"/></svg>مضاعف النقاط الفردي</span><span class="price">150 دينار</span></div>
+                    <div class="desc">يضاعف نقاطك ×2 ليوم كامل.</div>
+                </div>
+                <div class="store-item individual">
+                    <div class="name-price"><span><svg class="icon icon-line icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3V21M4.5 7.5L19.5 16.5M19.5 7.5L4.5 16.5"/></svg>تجميد يوم حماسة</span><span class="price">100 دينار</span></div>
+                    <div class="desc">يحمي سلسلة حماستك من الانقطاع ليوم واحد.</div>
+                </div>
+
+                <div class="store-sub team">ثانياً: البنود الجماعية (للأسرة)</div>
+                <div class="store-item team">
+                    <div class="name-price"><span><svg class="icon icon-fill icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4.5 5v6.2c0 5 3.3 9.3 7.5 10.8 4.2-1.5 7.5-5.8 7.5-10.8V5L12 2Z"/></svg>درع حماية ليوم</span><span class="price">75 دينار</span></div>
+                    <div class="desc">يحمي الأسرة من هجمات الأسر الأخرى ليوم.</div>
+                </div>
+                <div class="store-item team">
+                    <div class="name-price"><span><svg class="icon icon-fill icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4.5 14h5.7l-1 8L19.5 10h-5.7l1-8Z"/></svg>مضاعف نقاط جماعي</span><span class="price">100 دينار</span></div>
+                    <div class="desc">يضاعف نقاط الأسرة ×2 ليوم.</div>
+                </div>
+                <div class="store-item team">
+                    <div class="name-price"><span><svg class="icon icon-fill icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>هجوم على أسرة أخرى</span><span class="price">100 دينار</span></div>
+                    <div class="desc">يخصم 150 نقطة من رصيد الأسرة المستهدفة.</div>
+                </div>
+
+                <div class="warn-box">
+                    تنبيه هام: الشراء الجماعي يتطلب تصويت أعضاء الأسرة قبل تنفيذه — قرار الإنفاق ليس فردياً بل بموافقة الفريق.
+                </div>
+            </section>
+
+            <!-- الخلاصة -->
+            <div class="conclusion">
+                <p>كل حفظ، كل مراجعة، كل حضور، وكل مبادرة جماعية = نقاط ترفعك أنت وأسرتك في الترتيب.</p>
+                <p>استمر، حافظ على حماستك، وتعاون مع أسرتك لتحققوا المراكز الأولى!</p>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>
