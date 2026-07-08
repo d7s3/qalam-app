@@ -1449,7 +1449,7 @@ new class extends Component {
                 : 100;
         @endphp
         <div id="gam-stats-bar"
-            class="sticky top-2 z-30 flex items-stretch justify-around gap-1 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl px-2 py-2 shadow-sm">
+            class="sticky top-2 isolate z-30 flex items-stretch justify-around gap-1 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl px-2 py-2 shadow-sm">
 
             {{-- Level (tap → home) with progress to next level --}}
             <button type="button"
@@ -2752,9 +2752,15 @@ new class extends Component {
                                                     {{ __('تم تقييم مهمة') }} <span class="font-bold">{{ $d['task_name'] ?? '' }}</span> {{ __('لـ') }} <span class="font-bold">{{ $d['team_name'] ?? '' }}</span> {{ __('بدرجة') }} {{ $d['grade'] ?? 0 }}%
                                                     @break
                                                 @case('adjustment')
-                                                    @php $isAdd = ($d['action'] ?? 'add') === 'add'; @endphp
+                                                    @php
+                                                        $isAdd = ($d['action'] ?? 'add') === 'add';
+                                                        $adjName = $d['target_name'] ?? null;
+                                                        if (! $adjName) {
+                                                            $adjName = ($d['target_type'] ?? 'individual') === 'team' ? __('إحدى الأسر') : __('أحد الطلاب');
+                                                        }
+                                                    @endphp
                                                     <span class="font-bold {{ $isAdd ? 'text-emerald-600' : 'text-rose-600' }}">{{ $isAdd ? __('إضافة') : __('خصم') }}</span>
-                                                    {{ __('لـ') }} <span class="font-bold">{{ $d['target_name'] ?? '' }}</span>:
+                                                    {{ __('لـ') }} <span class="font-bold">{{ $adjName }}</span>:
                                                     @if(($d['xp'] ?? 0) > 0) {{ $d['xp'] }} {{ __('نقطة') }} @endif
                                                     @if(($d['coins'] ?? 0) > 0) {{ ($d['xp'] ?? 0) > 0 ? '،' : '' }} {{ $d['coins'] }} {{ __('عملة') }} @endif
                                                     @if(!empty($d['description'])) <span class="text-slate-400">— {{ $d['description'] }}</span> @endif
