@@ -1,9 +1,14 @@
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-        <div>
-            <h1 class="text-2xl font-bold text-zinc-900 dark:text-white">إدارة النماذج والاستمارات</h1>
-            <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">أنشئ النماذج المخصصة لجمع البيانات والتسجيل واستعراض الردود وتحويلها لطلاب.</p>
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 rounded-xl bg-maroon/10 text-maroon dark:bg-white/10 dark:text-white">
+                <flux:icon icon="document-text" />
+            </div>
+            <div>
+                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إدارة النماذج والاستمارات</flux:heading>
+                <flux:subheading class="text-zinc-400">أنشئ النماذج المخصصة لجمع البيانات والتسجيل واستعراض الردود وتحويلها لطلاب</flux:subheading>
+            </div>
         </div>
         <flux:button as="a" :href="route('supervisor.forms.create')" variant="primary" icon="plus" class="bg-accent hover:bg-accent/90 text-white border-0">
             إنشاء نموذج جديد

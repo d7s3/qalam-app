@@ -67,6 +67,18 @@ new class extends Component {
         $day = StudentPlanDay::find($dayId);
         if ($day) {
             \App\Services\GamificationService::syncStudentPlanDayXP($day);
+
+            if ($value !== null) {
+                $label = $type === 'hifz' ? 'الحفظ' : 'المراجعة';
+                \App\Services\NotificationService::notify(
+                    'student',
+                    $this->student->id,
+                    'grading',
+                    'تقييم جديد',
+                    "قام معلمك بتقييم {$label} الخاص بك",
+                    route('student.hifz'),
+                );
+            }
         }
 
         Flux::toast('تم حفظ التقييم', variant: 'success');
@@ -112,6 +124,18 @@ new class extends Component {
 
         \App\Services\GamificationService::syncStudentOdeAchievementXP($achievement->fresh(['plan.student', 'pathDay']));
 
+        if ($value !== null) {
+            $label = $type === 'hifz' ? 'الحفظ' : 'المراجعة';
+            \App\Services\NotificationService::notify(
+                'student',
+                $this->student->id,
+                'grading',
+                'تقييم جديد',
+                "قام معلمك بتقييم {$label} الخاص بك في المنظومة",
+                route('student.hifz'),
+            );
+        }
+
         Flux::toast('تم حفظ تقييم المنظومة بنجاح', variant: 'success');
     }
 
@@ -154,6 +178,18 @@ new class extends Component {
         );
 
         \App\Services\GamificationService::syncStudentHadithAchievementXP($achievement->fresh(['plan.student', 'pathDay']));
+
+        if ($value !== null) {
+            $label = $type === 'hifz' ? 'الحفظ' : 'المراجعة';
+            \App\Services\NotificationService::notify(
+                'student',
+                $this->student->id,
+                'grading',
+                'تقييم جديد',
+                "قام معلمك بتقييم {$label} الخاص بك في الحديث",
+                route('student.hifz'),
+            );
+        }
 
         Flux::toast('تم حفظ تقييم الحديث بنجاح', variant: 'success');
     }

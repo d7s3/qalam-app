@@ -2608,6 +2608,34 @@ class GamificationService
     }
 
     /**
+     * Progress toward the next level as a 0-100 percentage, given the array
+     * returned by getStudentLevel(). Returns 100 when there is no next level
+     * (max level reached).
+     *
+     * @param  array<string, mixed>  $levelData
+     */
+    public static function levelProgressPercentage(array $levelData): float
+    {
+        $current = $levelData['current'] ?? null;
+        $next = $levelData['next'] ?? null;
+        $xp = (int) ($levelData['xp'] ?? 0);
+
+        if (! $next) {
+            return 100.0;
+        }
+
+        $base = (int) ($current->xp_required ?? 0);
+        $target = (int) $next->xp_required;
+        $range = $target - $base;
+
+        if ($range <= 0) {
+            return 100.0;
+        }
+
+        return min(100.0, max(0.0, round((($xp - $base) / $range) * 100, 1)));
+    }
+
+    /**
      * Calculate the maximum consecutive day streak from a list of dates.
      */
     public static function calculateMaxStreakOfDates($dates): int

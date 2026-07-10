@@ -22,6 +22,7 @@ class Attendance extends Model
         'date',
         'status',
         'notes',
+        'duration_minutes',
     ];
 
     /**

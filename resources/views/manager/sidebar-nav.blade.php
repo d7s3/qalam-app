@@ -2,6 +2,13 @@
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
+@php
+    $managerUnreadMessages = \App\Services\MessagingService::unreadCountFor('manager', auth('manager')->id());
+@endphp
+<flux:sidebar.item icon="envelope" :href="route('manager.messages')" :current="request()->routeIs('manager.messages')"
+    :badge="$managerUnreadMessages > 0 ? $managerUnreadMessages : null" badge-color="rose" wire:navigate>
+    الرسائل
+</flux:sidebar.item>
 <flux:sidebar.item icon="rectangle-stack" :href="route('manager.stages')"
     :current="request()->routeIs('manager.stages')" wire:navigate>
     المراحل التعليمية
@@ -27,6 +34,17 @@
     <flux:sidebar.item icon="user-group" :href="route('manager.guardians')"
         :current="request()->routeIs('manager.guardians')" wire:navigate>
         الأوصياء
+    </flux:sidebar.item>
+    @php
+        $pendingRequestsCount = \App\Models\Student::where('is_approved', false)->where('is_rejected', false)->count()
+            + \App\Models\Teacher::where('is_approved', false)->where('is_rejected', false)->count()
+            + \App\Models\Supervisor::where('is_approved', false)->where('is_rejected', false)->count()
+            + \App\Models\Guardian::where('is_approved', false)->where('is_rejected', false)->count();
+    @endphp
+    <flux:sidebar.item icon="user-plus" :href="route('manager.pending-approvals')"
+        :current="request()->routeIs('manager.pending-approvals')"
+        :badge="$pendingRequestsCount > 0 ? $pendingRequestsCount : null" badge-color="amber" wire:navigate>
+        طلبات التسجيل
     </flux:sidebar.item>
 </flux:sidebar.group>
 <flux:sidebar.group heading="الاختبارات" class="grid">
@@ -91,5 +109,9 @@
     <flux:sidebar.item icon="document-text" :href="route('manager.api-docs')" :current="request()->routeIs('manager.api-docs')"
         wire:navigate>
         توثيق الـ API
+    </flux:sidebar.item>
+    <flux:sidebar.item icon="shield-check" :href="route('manager.role-permissions')" :current="request()->routeIs('manager.role-permissions')"
+        wire:navigate>
+        صلاحيات الصفحات
     </flux:sidebar.item>
 </flux:sidebar.group>

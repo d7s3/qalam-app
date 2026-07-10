@@ -298,9 +298,69 @@ new class extends Component {
             ->orderBy('date_time', 'asc')
             ->first();
 
+        $memorizedRangeForStats = $student->getMemorizedRange();
+        $memorizedAyahsCount = $memorizedRangeForStats ? $memorizedRangeForStats['max'] - $memorizedRangeForStats['min'] + 1 : 0;
+        $surahMap = \App\Services\MemorizationJourneyService::surahMap($student);
+        $completedSurahsCount = collect($surahMap)->where('status', 'full')->count();
+
+        $studentLevel = null;
+        if ($leaderboard) {
+            $studentLevel = \App\Services\GamificationService::getStudentLevel($student->id, $leaderboard->id);
+        }
+
+        $monthlyStats = \App\Services\MemorizationJourneyService::monthlyAyahsMemorized($student);
+        $recentActivity = \App\Services\StudentActivityFeedService::recentActivity($student, $leaderboard);
+
+        $teamTaskAssignment = null;
+        if ($leaderboard) {
+            $studentTeamIds = $student->gamificationTeams()->pluck('gamification_teams.id');
+            $teamTaskAssignment = \App\Models\GamificationTeamTaskAssignment::whereIn('team_id', $studentTeamIds)
+                ->whereHas('task', fn ($q) => $q->where('leaderboard_id', $leaderboard->id))
+                ->where('status', 'assigned')
+                ->with('task')
+                ->orderByDesc('end_date')
+                ->first();
+        }
+
+        $studentBadges = collect();
+        if ($leaderboard) {
+            $studentBadges = \App\Models\GamificationBadge::join('gamification_badge_student', 'gamification_badges.id', '=', 'gamification_badge_student.badge_id')
+                ->where('gamification_badge_student.student_id', $student->id)
+                ->where('gamification_badge_student.status', 'claimed')
+                ->where('gamification_badges.leaderboard_id', $leaderboard->id)
+                ->select('gamification_badges.*')
+                ->get();
+        }
+
+        $currentStreak = null;
+        if ($leaderboard) {
+            $currentStreak = \App\Models\GamificationStudentState::where('student_id', $student->id)
+                ->where('leaderboard_id', $leaderboard->id)
+                ->value('current_streak');
+        }
+        if ($currentStreak === null) {
+            $currentStreak = $student->currentAttendanceStreakDays();
+        }
+
         return [
             'student' => $student,
             'todayStr' => $todayStr,
+            'verseOfDay' => \App\Services\QuranVerseOfDayService::today(),
+            'circleNews' => \App\Services\StudentActivityFeedService::circleNews($student, $leaderboard),
+            'memorizedAyahsCount' => $memorizedAyahsCount,
+            'completedSurahsCount' => $completedSurahsCount,
+            'memorizedJuzCount' => \App\Services\MemorizationJourneyService::memorizedJuzCount($student),
+            'memorizationPercentage' => $student->memorizationPercentage(),
+            'currentSurahProgress' => \App\Services\MemorizationJourneyService::currentSurahProgress($student),
+            'todayMissionProgress' => \App\Services\MemorizationJourneyService::todayMissionProgress($student),
+            'surahMap' => $surahMap,
+            'studentBadges' => $studentBadges,
+            'monthlyStats' => $monthlyStats,
+            'recentActivity' => $recentActivity,
+            'teamTaskAssignment' => $teamTaskAssignment,
+            'currentStreak' => $currentStreak,
+            'totalStudyHours' => $student->totalStudyHours(),
+            'studentLevel' => $studentLevel,
             'pendingMissions' => $pendingMissions,
             'pendingHadithMissions' => $pendingHadithMissions,
             'excellent' => $excellent,
@@ -397,27 +457,518 @@ new class extends Component {
 ?>
 
 <div>
+    <div class="space-y-6 mb-8" dir="rtl">
+        {{-- الصف الأول: بانر آية اليوم المضغوط + الترحيب والإحصائيات --}}
+        <div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-stretch">
+            <div class="order-2 lg:order-1 relative overflow-hidden rounded-2xl bg-gradient-to-b from-[#f7efe0] via-[#faf5ea] to-[#fdfaf3] dark:from-zinc-800 dark:to-zinc-900 border border-amber-100/70 dark:border-zinc-800 p-6 flex flex-col items-center justify-center text-center">
+                <svg viewBox="0 0 120 140" class="w-16 h-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none">
+                    <path d="M60 0v14" stroke="#a8791f" stroke-width="2" stroke-linecap="round" />
+                    <rect x="40" y="18" width="40" height="60" rx="5" stroke="#a8791f" stroke-width="2" />
+                    <circle cx="60" cy="48" r="11" fill="#f0c869" opacity="0.5" />
+                    <path d="M50 80h20l5 12H45l5-12Z" stroke="#a8791f" stroke-width="2" stroke-linejoin="round" />
+                    <circle cx="60" cy="96" r="2.5" fill="#a8791f" />
+                </svg>
+                @if($verseOfDay)
+                    <p class="font-zain text-lg text-maroon dark:text-red-secondary leading-relaxed">
+                        {{ '﴿ '.$verseOfDay->text_uthmani.' ﴾' }}
+                    </p>
+                    <p class="text-xs text-neutral-grey dark:text-zinc-400 mt-2">
+                        {{ __('سورة :surah - الآية :ayah', ['surah' => $verseOfDay->surah->name_arabic, 'ayah' => $verseOfDay->verse_number]) }}
+                    </p>
+                @endif
+            </div>
+
+            <div class="order-1 lg:order-2 flex flex-col gap-6">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-xl md:text-2xl font-black text-zinc-900 dark:text-white">
+                            👋 {{ __('مرحباً بك، :name', ['name' => $student->name]) }}
+                        </h1>
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{{ __('بالتوفيق في رحلتك لحفظ كتاب الله') }}</p>
+                    </div>
+                    @if(!empty($pendingMissions) || !empty($pendingHadithMissions))
+                        <flux:button href="#today-mission" variant="primary" class="!bg-maroon hover:!bg-burgundy shrink-0 hidden sm:inline-flex">
+                            {{ __('استكمل الحفظ') }}
+                        </flux:button>
+                    @endif
+                </div>
+
+                {{-- Quick stats --}}
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <x-student.partials.stat-card
+                        icon="check-badge"
+                        :label="__('سور مكتملة')"
+                        :value="$completedSurahsCount"
+                        :suffix="__('سورة')"
+                        :empty="$completedSurahsCount === 0"
+                        :empty-text="__('لم تكتمل سورة بعد')"
+                        accent-class="bg-emerald-500/10 text-emerald-600" />
+                    <x-student.partials.stat-card
+                        icon="square-3-stack-3d"
+                        :label="__('أجزاء محفوظة')"
+                        :value="$memorizedJuzCount"
+                        :suffix="__('جزء')"
+                        :empty="$memorizedAyahsCount === 0"
+                        :empty-text="__('ابدأ رحلتك في الحفظ')"
+                        accent-class="bg-indigo-500/10 text-indigo-600" />
+                    <x-student.partials.stat-card
+                        icon="chart-pie"
+                        :label="__('إجمالي الحفظ')"
+                        :value="$memorizationPercentage"
+                        suffix="%"
+                        :empty="$memorizedAyahsCount === 0"
+                        :empty-text="__('ابدأ رحلتك في الحفظ')"
+                        accent-class="bg-sky-500/10 text-sky-600" />
+                    <x-student.partials.stat-card
+                        icon="fire"
+                        :label="__('الأيام المتتالية')"
+                        :value="$currentStreak"
+                        :suffix="__('يوم')"
+                        :empty="$currentStreak === 0"
+                        :empty-text="__('ابدأ اليوم!')"
+                        accent-class="bg-amber-500/10 text-amber-600" />
+                </div>
+            </div>
+        </div>
+
+        {{-- الصف الثاني: التقويم وأحدث الإنجازات + تقدم الحفظ وجلسات اليوم والواجبات --}}
+        <div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
+            <div class="order-2 lg:order-1 flex flex-col gap-6">
+                <livewire:student.calendar-widget />
+
+                <div id="achievements" class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+                    <flux:heading size="sm" class="flex items-center gap-2 mb-4">
+                        <flux:icon icon="trophy" class="size-4 text-maroon" />
+                        {{ __('أحدث الإنجازات') }}
+                    </flux:heading>
+
+                    @if($studentBadges->isEmpty())
+                        <p class="text-sm text-zinc-400 text-center py-6">{{ __('لا توجد إنجازات بعد') }}</p>
+                    @else
+                        <div class="space-y-3">
+                            @foreach($studentBadges->sortByDesc('pivot.updated_at')->take(4) as $badge)
+                                <div class="flex items-center gap-3">
+                                    <div class="size-9 rounded-full bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
+                                        <flux:icon icon="{{ $badge->icon ?? 'star' }}" variant="solid" class="size-4 text-amber-500" />
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">{{ $badge->name }}</div>
+                                        <div class="text-xs text-zinc-400">+{{ $badge->reward_xp ?? 0 }} {{ __('نقطة') }}</div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <flux:button href="#achievements" variant="ghost" size="sm" class="w-full mt-4">
+                            {{ __('عرض جميع الإنجازات') }}
+                        </flux:button>
+                    @endif
+                </div>
+            </div>
+
+            <div class="order-1 lg:order-2 flex flex-col gap-6">
+                <div class="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6">
+                    {{-- تقدمك في الحفظ --}}
+                    <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+                        <flux:heading size="sm" class="mb-4">{{ __('تقدمك في الحفظ') }}</flux:heading>
+
+                        @if($currentSurahProgress)
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
+                                <div>
+                                    <p class="text-xs text-zinc-400">{{ __('أنت الآن في') }}</p>
+                                    <p class="text-lg font-black text-zinc-900 dark:text-white mt-1">{{ $currentSurahProgress['surah_name'] }}</p>
+                                    <p class="text-xs text-zinc-400 mt-1">
+                                        {{ __('من الآية :from إلى الآية :to', ['from' => $currentSurahProgress['from_verse'], 'to' => $currentSurahProgress['to_verse']]) }}
+                                    </p>
+
+                                    <div class="flex items-center gap-6 mt-5">
+                                        <div>
+                                            <div class="text-lg font-extrabold text-emerald-600">{{ $currentSurahProgress['memorized_in_surah'] }}</div>
+                                            <div class="text-[11px] text-zinc-400">{{ __('الآيات المحفوظة') }}</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-lg font-extrabold text-zinc-700 dark:text-zinc-200">{{ $currentSurahProgress['total_in_surah'] }}</div>
+                                            <div class="text-[11px] text-zinc-400">{{ __('إجمالي آيات السورة') }}</div>
+                                        </div>
+                                    </div>
+
+                                    <flux:button href="{{ route('student.plan') }}" variant="primary" size="sm" class="!bg-maroon hover:!bg-burgundy mt-5" wire:navigate>
+                                        {{ __('متابعة الحفظ') }}
+                                    </flux:button>
+                                </div>
+
+                                <div class="flex flex-col items-center justify-center">
+                                    <x-student.partials.progress-ring :percentage="$currentSurahProgress['percentage']" :size="140" :stroke-width="10" progress-class="text-emerald-500">
+                                        <span class="text-2xl font-black text-zinc-900 dark:text-white">{{ $currentSurahProgress['percentage'] }}%</span>
+                                    </x-student.partials.progress-ring>
+                                    <p class="text-xs text-zinc-400 mt-2">{{ __('إجمالي التقدم في السورة') }}</p>
+                                </div>
+                            </div>
+
+                            @if(!empty($pendingMissions))
+                                <div class="mt-6 pt-5 border-t border-zinc-100 dark:border-zinc-800">
+                                    <div class="flex items-center justify-between text-xs mb-2">
+                                        <span class="text-zinc-500 dark:text-zinc-400">{{ __('الهدف التالي') }}</span>
+                                        <span class="font-bold text-zinc-700 dark:text-zinc-200">{{ round($memorizationPercentage) }}%</span>
+                                    </div>
+                                    <p class="text-sm font-bold text-zinc-800 dark:text-zinc-100 mb-2">
+                                        {{ $pendingMissions[0]->fromAyah?->surah?->name_arabic }} - {{ __('من الآية :from إلى الآية :to', ['from' => $pendingMissions[0]->fromAyah?->verse_number, 'to' => $pendingMissions[0]->toAyah?->verse_number]) }}
+                                    </p>
+                                    <div class="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                        <div class="h-full bg-maroon rounded-full" style="width: {{ min(100, round($memorizationPercentage)) }}%"></div>
+                                    </div>
+                                </div>
+                            @endif
+                        @else
+                            <p class="text-sm text-zinc-400 text-center py-6">{{ __('لم تبدأ الحفظ بعد') }}</p>
+                        @endif
+                    </div>
+
+                    {{-- جلسات اليوم --}}
+                    <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 flex flex-col">
+                        <flux:heading size="sm" class="flex items-center gap-2 mb-4">
+                            <flux:icon icon="calendar" class="size-4 text-maroon" />
+                            {{ __('جلسات اليوم') }}
+                        </flux:heading>
+
+                        <div class="flex-1 flex items-center justify-between gap-4">
+                            <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{ __(':completed من :total جلسات مكتملة', ['completed' => $todayMissionProgress['completed'], 'total' => $todayMissionProgress['total']]) }}
+                            </p>
+                            <x-student.partials.progress-ring :percentage="$todayMissionProgress['percentage']" :size="64" :stroke-width="6" progress-class="text-maroon">
+                                <span class="text-sm font-black text-zinc-900 dark:text-white">{{ $todayMissionProgress['percentage'] }}%</span>
+                            </x-student.partials.progress-ring>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- الواجبات --}}
+                <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+                    @php
+                        $assignmentItems = collect();
+                        foreach ($pendingMissions as $mission) {
+                            if (is_null($mission->hifz_achievement) && $mission->fromAyah && $mission->toAyah) {
+                                $assignmentItems->push([
+                                    'title' => __('حفظ آيات جديدة'),
+                                    'detail' => $mission->fromAyah->surah->name_arabic.' - '.__('من الآية :from إلى الآية :to', ['from' => $mission->fromAyah->verse_number, 'to' => $mission->toAyah->verse_number]),
+                                ]);
+                            }
+                            if (is_null($mission->review_achievement) && $mission->reviewFromAyah && $mission->reviewToAyah) {
+                                $assignmentItems->push([
+                                    'title' => __('مراجعة الآيات المحفوظة'),
+                                    'detail' => $mission->reviewFromAyah->surah->name_arabic.' - '.__('من الآية :from إلى الآية :to', ['from' => $mission->reviewFromAyah->verse_number, 'to' => $mission->reviewToAyah->verse_number]),
+                                ]);
+                            }
+                        }
+                        if ($nextExam) {
+                            $assignmentItems->push([
+                                'title' => __('اختبار قادم'),
+                                'detail' => $nextExam->examLevel?->name ?? __('اختبار في المستوى الحالي'),
+                            ]);
+                        }
+                    @endphp
+
+                    <div class="flex items-center justify-between mb-4">
+                        <flux:heading size="sm" class="flex items-center gap-2">
+                            <flux:icon icon="clipboard-document-list" class="size-4 text-maroon" />
+                            {{ __('الواجبات') }}
+                        </flux:heading>
+                        <span class="text-xs text-zinc-400">{{ __('لديك :count واجبات متبقية', ['count' => $assignmentItems->count()]) }}</span>
+                    </div>
+
+                    @if($assignmentItems->isEmpty())
+                        <p class="text-sm text-zinc-400 text-center py-6">{{ __('لا توجد واجبات متبقية 🎉') }}</p>
+                    @else
+                        <div class="space-y-3">
+                            @foreach($assignmentItems as $item)
+                                <div class="flex items-center justify-between gap-3 py-2 border-b border-zinc-50 dark:border-zinc-800/60 last:border-0">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">{{ $item['title'] }}</div>
+                                        <div class="text-xs text-zinc-400 truncate">{{ $item['detail'] }}</div>
+                                    </div>
+                                    <flux:badge color="amber" size="sm" class="shrink-0">{{ __('متبقي') }}</flux:badge>
+                                </div>
+                            @endforeach
+                        </div>
+                        <flux:button href="#today-mission" variant="ghost" size="sm" class="w-full mt-4">
+                            {{ __('عرض جميع الواجبات') }}
+                        </flux:button>
+                    @endif
+                </div>
+
+                {{-- لا تتوقف + آخر الأنشطة --}}
+                <div class="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6">
+                    <div class="rounded-2xl bg-gradient-to-b from-emerald-50 to-white dark:from-emerald-900/10 dark:to-zinc-900 border border-emerald-100 dark:border-emerald-900/30 p-6 flex flex-col items-center text-center">
+                        <flux:icon icon="sparkles" variant="solid" class="size-8 text-emerald-500 mb-3" />
+                        <p class="font-bold text-zinc-800 dark:text-zinc-100">{{ __('لا تتوقف') }}</p>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-2 leading-relaxed">
+                            {{ __('كل آية تحفظها اليوم هي نور لك في الدنيا والآخرة') }}
+                        </p>
+                        <flux:button href="{{ route('student.plan') }}" variant="primary" size="sm" class="!bg-maroon hover:!bg-burgundy mt-4" wire:navigate>
+                            {{ __('استمر في رحلتك') }}
+                        </flux:button>
+                    </div>
+
+                    <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+                        <flux:heading size="sm" class="mb-4">{{ __('آخر الأنشطة') }}</flux:heading>
+
+                        @if(empty($recentActivity))
+                            <p class="text-sm text-zinc-400 text-center py-6">{{ __('لا يوجد نشاط بعد') }}</p>
+                        @else
+                            <div class="space-y-4">
+                                @foreach(array_slice($recentActivity, 0, 3) as $activityItem)
+                                    <div class="flex items-start gap-3">
+                                        <div class="size-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center shrink-0 mt-0.5">
+                                            <flux:icon icon="{{ $activityItem['icon'] ?? 'check' }}" variant="solid" class="size-4 text-emerald-500" />
+                                        </div>
+                                        <div class="min-w-0">
+                                            <div class="text-sm text-zinc-700 dark:text-zinc-200">{{ $activityItem['title'] }}</div>
+                                            <div class="text-xs text-zinc-400 mt-0.5">{{ $activityItem['date']->diffForHumans() }}</div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @if($activeGamification)
         <livewire:student.gamification-dashboard />
     @else
         <div class="space-y-8" dir="rtl">
-            <div class="flex items-center justify-between gap-4 px-1">
-                <div>
-                    <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                        {{ __('حياك الله يا') }}
-                    </p>
-                    <h1 class="text-2xl md:text-3xl font-black text-zinc-900 dark:text-white">
-                        {{ $student->name }}
-                    </h1>
+
+            {{-- Level / XP progress --}}
+            <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+                @if($studentLevel && $studentLevel['current'])
+                    @php
+                        $levelProgress = \App\Services\GamificationService::levelProgressPercentage($studentLevel);
+                    @endphp
+                    <div class="flex items-center gap-5">
+                        <x-student.partials.progress-ring :percentage="$levelProgress" :size="88" progress-class="text-maroon">
+                            <div class="text-center">
+                                <div class="text-lg font-black text-zinc-800 dark:text-zinc-100">{{ $studentLevel['current']->level_number ?? 1 }}</div>
+                                <div class="text-[10px] text-zinc-400">{{ __('مستوى') }}</div>
+                            </div>
+                        </x-student.partials.progress-ring>
+                        <div class="min-w-0">
+                            <div class="font-bold text-zinc-800 dark:text-zinc-100">{{ $studentLevel['current']->name ?? __('المستوى الحالي') }}</div>
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                                {{ $studentLevel['xp'] }} XP
+                                @if($studentLevel['next'])
+                                    / {{ $studentLevel['next']->xp_required }} XP
+                                    <span class="text-zinc-400">({{ __('باقي :points نقطة للمستوى القادم', ['points' => max(0, $studentLevel['next']->xp_required - $studentLevel['xp'])]) }})</span>
+                                @else
+                                    <span class="text-zinc-400">{{ __('أقصى مستوى!') }}</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    <div class="flex items-center gap-3 text-zinc-400">
+                        <flux:icon icon="trophy" class="size-6" />
+                        <span class="text-sm">{{ __('لا توجد مسابقة نشطة حالياً لعرض مستواك ونقاطك') }}</span>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Today's mission + notifications --}}
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="lg:col-span-2 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/20 dark:to-zinc-900 p-6">
+                    @php
+                        $heroMission = $pendingMissions[0] ?? null;
+                        $heroHadithMission = $pendingHadithMissions[0] ?? null;
+                    @endphp
+                    @if($heroMission)
+                        <div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold mb-3">
+                            <flux:icon icon="flag" variant="solid" class="size-4" />
+                            {{ __('مهمة اليوم') }}
+                        </div>
+                        <div class="text-xl font-bold text-zinc-800 dark:text-zinc-100 mb-1">
+                            {{ $heroMission->formatRange('hifz') ?? __('حفظ مقطع جديد') }}
+                        </div>
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{{ __('حفظ') }}</p>
+                        <flux:button href="#today-mission" variant="primary" icon="play" class="!bg-emerald-600 hover:!bg-emerald-700">
+                            {{ __('ابدأ الآن') }}
+                        </flux:button>
+                    @elseif($heroHadithMission)
+                        <div class="flex items-center gap-2 text-rose-600 dark:text-rose-400 text-sm font-bold mb-3">
+                            <flux:icon icon="flag" variant="solid" class="size-4" />
+                            {{ __('مهمة اليوم') }}
+                        </div>
+                        <div class="text-xl font-bold text-zinc-800 dark:text-zinc-100 mb-1">
+                            {{ __('حفظ حديث جديد') }}
+                        </div>
+                        <flux:button href="{{ route('student.plan') }}" variant="primary" icon="play" class="!bg-rose-600 hover:!bg-rose-700" wire:navigate>
+                            {{ __('ابدأ الآن') }}
+                        </flux:button>
+                    @else
+                        <div class="flex items-center gap-3 text-emerald-700 dark:text-emerald-400">
+                            <flux:icon icon="check-circle" variant="solid" class="size-8" />
+                            <div>
+                                <div class="font-bold">{{ __('أنت في يوم راحة اليوم!') }}</div>
+                                <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{{ __('لا توجد مهام معلقة حالياً') }}</p>
+                            </div>
+                        </div>
+                    @endif
                 </div>
-                <div
-                    class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-2xl border border-zinc-200 dark:border-zinc-700 shrink-0">
-                    <flux:icon icon="calendar-days" class="size-4" />
-                    <span
-                        class="font-medium hidden sm:inline">{{ \Carbon\Carbon::now('Asia/Riyadh')->translatedFormat('l، d F Y') }}</span>
-                    <span
-                        class="font-medium sm:hidden">{{ \Carbon\Carbon::now('Asia/Riyadh')->translatedFormat('d F') }}</span>
+
+                <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+                    <div class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm font-bold mb-3">
+                        <flux:icon icon="bell" class="size-4" />
+                        {{ __('تنبيهات') }}
+                    </div>
+                    <div class="space-y-2">
+                        @if($nextExam)
+                            <div class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                                <flux:icon icon="academic-cap" class="size-4 text-indigo-500 shrink-0" />
+                                {{ __('اختبار قادم: :date', ['date' => $nextExam->date_time->translatedFormat('d F')]) }}
+                            </div>
+                        @endif
+                        @if($activeSession)
+                            <div class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                                <flux:icon icon="user-circle" class="size-4 text-amber-500 shrink-0" />
+                                {{ __('لديك جلسة تسميع اليوم') }}
+                            </div>
+                        @endif
+                        @if(!$nextExam && !$activeSession)
+                            <div class="text-sm text-zinc-400">{{ __('لا توجد تنبيهات حالياً') }}</div>
+                        @endif
+                    </div>
                 </div>
+            </div>
+
+            {{-- Quran journey: progress rings + timeline, both driven by surahMap() --}}
+            <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+                <x-student.partials.section-heading :title="__('تقدم الحفظ')" icon="chart-bar" />
+                <div class="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+                    @foreach($surahMap as $surahItem)
+                        <x-student.partials.surah-progress-ring :surah="$surahItem" wire:key="ring-{{ $surahItem['surah_id'] }}" />
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+                <x-student.partials.section-heading :title="__('مسارك القرآني')" icon="map" />
+                <div class="max-h-96 overflow-y-auto space-y-1 pr-1">
+                    @foreach($surahMap as $surahItem)
+                        @php
+                            $statusIcon = match($surahItem['status']) {
+                                'full' => ['icon' => 'check-circle', 'class' => 'text-emerald-500'],
+                                'partial' => ['icon' => 'ellipsis-horizontal-circle', 'class' => 'text-amber-500'],
+                                default => ['icon' => 'minus-circle', 'class' => 'text-zinc-300 dark:text-zinc-700'],
+                            };
+                        @endphp
+                        <div class="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                            <flux:icon icon="{{ $statusIcon['icon'] }}" variant="solid" class="size-5 shrink-0 {{ $statusIcon['class'] }}" />
+                            <span class="text-sm text-zinc-400 w-6 shrink-0">{{ $surahItem['number'] }}</span>
+                            <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300 flex-1 truncate">{{ $surahItem['name'] }}</span>
+                            <span class="text-xs font-bold text-zinc-500 dark:text-zinc-400 shrink-0">
+                                {{ $surahItem['status'] === 'none' ? __('لم تبدأ') : $surahItem['percentage'].'%' }}
+                            </span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Achievements + leaderboard mini widget --}}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+                    <x-student.partials.section-heading :title="__('الإنجازات')" icon="trophy" href="{{ $leaderboard ? '#leaderboard-standings' : null }}" />
+                    @if($studentBadges->isNotEmpty())
+                        <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                            @foreach($studentBadges as $badge)
+                                <div class="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-center" wire:key="badge-{{ $badge->id }}">
+                                    <flux:icon icon="{{ $badge->icon ?: 'trophy' }}" variant="solid" class="size-6 text-amber-500" />
+                                    <span class="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 truncate w-full">{{ $badge->name }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @elseif($leaderboard)
+                        <div class="text-center py-6 text-sm text-zinc-400">{{ __('لم تحصل على أوسمة بعد') }}</div>
+                    @else
+                        <div class="text-center py-6 text-sm text-zinc-400">{{ __('لا توجد مسابقة نشطة لعرض الأوسمة بعد') }}</div>
+                    @endif
+                </div>
+
+                <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+                    <x-student.partials.section-heading :title="__('لوحة المتصدرين')" icon="star" href="{{ $leaderboard ? '#leaderboard-standings' : null }}" />
+                    @if($leaderboard && !empty($leaderboardStandings) && collect($leaderboardStandings)->isNotEmpty())
+                        <x-student.partials.leaderboard-podium :top3="collect($leaderboardStandings)->take(3)->values()" />
+                    @else
+                        <div class="text-center py-6 text-sm text-zinc-400">{{ __('لا توجد مسابقة نشطة حالياً') }}</div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Monthly stats + recent activity + team assignment --}}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+                    <x-student.partials.section-heading :title="__('إحصائيات الشهر')" icon="chart-bar-square" />
+                    @if(!empty($monthlyStats))
+                        @php $maxCount = collect($monthlyStats)->max('count') ?: 1; @endphp
+                        <div class="flex items-end gap-1.5 h-32">
+                            @foreach($monthlyStats as $stat)
+                                <div class="flex-1 flex flex-col items-center justify-end h-full group">
+                                    <div class="w-full bg-maroon/70 hover:bg-maroon rounded-t transition-colors" style="height: {{ max(4, round($stat['count'] / $maxCount * 100)) }}%" title="{{ $stat['date'] }}: {{ $stat['count'] }}"></div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <p class="text-xs text-zinc-400 mt-3 text-center">{{ __('عدد الآيات المحفوظة يومياً هذا الشهر') }}</p>
+                    @else
+                        <div class="text-center py-8 text-sm text-zinc-400">{{ __('لا توجد بيانات حفظ لهذا الشهر بعد') }}</div>
+                    @endif
+                </div>
+
+                <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+                    <x-student.partials.section-heading :title="__('النشاط الأخير')" icon="clock" />
+                    @if(!empty($recentActivity))
+                        <div class="space-y-3">
+                            @foreach($recentActivity as $activityItem)
+                                <div class="flex items-center gap-3">
+                                    <div class="size-8 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                                        <flux:icon icon="{{ $activityItem['icon'] }}" variant="solid" class="size-4 text-emerald-500" />
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm text-zinc-700 dark:text-zinc-300 truncate">{{ $activityItem['title'] }}</p>
+                                        <p class="text-xs text-zinc-400">{{ $activityItem['date']->diffForHumans() }}</p>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-center py-8 text-sm text-zinc-400">{{ __('ستظهر أنشطتك هنا بمجرد أن تبدأ رحلتك') }}</div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Team assignment --}}
+            <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+                <x-student.partials.section-heading :title="__('الواجبات')" icon="clipboard-document-list" />
+                @if($teamTaskAssignment && $teamTaskAssignment->task)
+                    @php
+                        $daysLeft = now()->startOfDay()->diffInDays($teamTaskAssignment->end_date->startOfDay(), false);
+                        $isOverdue = $daysLeft < 0;
+                    @endphp
+                    <div class="flex items-center justify-between gap-4 p-4 rounded-xl {{ $isOverdue ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50' : 'bg-zinc-50 dark:bg-zinc-800/50' }}">
+                        <div class="min-w-0">
+                            <div class="font-bold text-zinc-800 dark:text-zinc-100 truncate">{{ $teamTaskAssignment->task->name }}</div>
+                            <div class="text-xs {{ $isOverdue ? 'text-red-500' : 'text-zinc-400' }} mt-1">
+                                @if($isOverdue)
+                                    {{ __('انتهى الموعد') }}
+                                @else
+                                    {{ __('ينتهي بعد :days يوم', ['days' => $daysLeft]) }}
+                                @endif
+                            </div>
+                        </div>
+                        @if($teamTaskAssignment->task->xp_reward > 0)
+                            <flux:badge color="amber">+{{ $teamTaskAssignment->task->xp_reward }} XP</flux:badge>
+                        @endif
+                    </div>
+                @else
+                    <div class="text-center py-6 text-sm text-zinc-400">{{ __('لا توجد واجبات حالياً') }}</div>
+                @endif
             </div>
 
             {{-- Next Exam Banner --}}
@@ -906,7 +1457,7 @@ new class extends Component {
 
                     <!-- Pending Missions Widget -->
                     @if (count($pendingMissions) > 0)
-                        <div class="space-y-6">
+                        <div class="space-y-6" id="today-mission">
                             <flux:heading size="xl" class="flex items-center gap-3">
                                 <div class="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
                                     <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
@@ -1443,7 +1994,7 @@ new class extends Component {
 
                         <!-- 🏆 Leaderboard Section -->
                         @if ($leaderboard)
-                            <div class="space-y-6">
+                            <div class="space-y-6" id="leaderboard-standings">
                                 <div class="flex items-center justify-between">
                                     <flux:heading size="xl" class="flex items-center gap-3">
                                         <div class="p-2 bg-amber-500 rounded-lg shadow-lg shadow-amber-500/20">
@@ -1918,4 +2469,35 @@ new class extends Component {
                             </div>
                         </div>
     @endif
+
+    <div class="space-y-8 mt-8" dir="rtl">
+        {{-- Community: real events from circle-mates within the active competition, honest empty state otherwise --}}
+        <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+            <x-student.partials.section-heading :title="__('المجتمع')" icon="users" />
+            @if(!empty($circleNews))
+                <div class="space-y-3">
+                    @foreach($circleNews as $item)
+                        <div class="flex items-center gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                            <span class="text-xl shrink-0">{{ $item['icon'] }}</span>
+                            <div class="min-w-0">
+                                <span class="font-bold text-zinc-800 dark:text-zinc-100">{{ $item['student_name'] }}</span>
+                                <span class="text-zinc-500 dark:text-zinc-400">{{ $item['title'] }}</span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="text-center py-8 text-sm text-zinc-400">
+                    {{ __('لا توجد أنشطة من زملاء الحلقة بعد') }}
+                </div>
+            @endif
+        </div>
+
+        <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-zinc-400 dark:text-zinc-500 pt-4 pb-2">
+            <a href="#" class="hover:text-maroon transition-colors">{{ __('الدعم') }}</a>
+            <a href="#" class="hover:text-maroon transition-colors">{{ __('سياسة الخصوصية') }}</a>
+            <a href="#" class="hover:text-maroon transition-colors">{{ __('الأسئلة الشائعة') }}</a>
+            <a href="#" class="hover:text-maroon transition-colors">{{ __('تواصل معنا') }}</a>
+        </div>
+    </div>
                 </div>

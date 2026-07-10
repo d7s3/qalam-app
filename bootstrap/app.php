@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsurePageIsEnabled;
 use App\Http\Middleware\EnsureUserIsApproved;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Foundation\Application;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'approved' => EnsureUserIsApproved::class,
             'role' => RoleMiddleware::class,
+            'page.enabled' => EnsurePageIsEnabled::class,
         ]);
 
         $middleware->redirectGuestsTo(function (Request $request) {

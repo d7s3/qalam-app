@@ -647,7 +647,12 @@ new class extends Component {
     {{-- Top Bar --}}
     <div
         class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4 mb-6">
-        <h2 class="text-2xl font-bold">إدارة المهام</h2>
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 rounded-xl bg-maroon/10 text-maroon dark:bg-white/10 dark:text-white">
+                <flux:icon icon="clipboard-document-list" />
+            </div>
+            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إدارة المهام</flux:heading>
+        </div>
         <div class="flex flex-col sm:flex-row w-full md:w-auto items-stretch sm:items-center gap-3 sm:gap-4">
             <x-flux::button wire:click="sendReminderTasksToTeachers" icon="bell"
                 class="!bg-amber-500 hover:!bg-amber-600 !text-white border-0 w-full sm:w-auto min-h-[44px] sm:min-h-0"

@@ -103,6 +103,10 @@
                             </flux:button>
                         </div>
 
+                        <flux:button href="{{ route('supervisor.competitions.standings', $competition->id) }}" variant="ghost" size="sm" class="w-full border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400" icon="trophy" wire:navigate>
+                            عرض الأوائل
+                        </flux:button>
+
                         @if ($isGamification)
                             <flux:button href="{{ route('supervisor.competitions.gamification', $competition->id) }}" variant="primary" size="sm" class="w-full bg-purple-600 hover:bg-purple-700 border-none text-white" icon="cog-6-tooth" wire:navigate>
                                 إدارة التلعيب

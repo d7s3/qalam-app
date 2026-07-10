@@ -57,12 +57,12 @@
         {{-- Back + Title --}}
         <div class="flex items-center gap-3">
             <a href="{{ route('guardian.student', $student->id) }}"
-                class="p-2 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800   s">
+                class="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800   s">
                 <flux:icon icon="arrow-right" class="size-5" />
             </a>
             <div>
-                <h1 class="text-xl font-bold text-neutral-900 dark:text-white">سجل الحضور</h1>
-                <p class="text-sm text-neutral-500">{{ $student->name }}</p>
+                <h1 class="text-xl font-bold text-zinc-900 dark:text-white">سجل الحضور</h1>
+                <p class="text-sm text-zinc-500">{{ $student->name }}</p>
             </div>
         </div>
 
@@ -70,33 +70,33 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             @foreach($statusConfig as $key => $cfg)
                 <div
-                    class="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 flex items-center gap-3">
+                    class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 flex items-center gap-3">
                     <div class="size-3 rounded-full {{ $cfg['dot'] }} shrink-0"></div>
                     <div>
-                        <p class="text-xs text-neutral-500">{{ $cfg['label'] }}</p>
-                        <p class="text-xl font-bold text-neutral-900 dark:text-white">{{ $summary[$key] }}</p>
+                        <p class="text-xs text-zinc-500">{{ $cfg['label'] }}</p>
+                        <p class="text-xl font-bold text-zinc-900 dark:text-white">{{ $summary[$key] }}</p>
                     </div>
                 </div>
             @endforeach
         </div>
 
         {{-- Calendar --}}
-        <div class="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-5">
+        <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
 
             {{-- Month navigation --}}
             <div class="flex items-center justify-between mb-6">
                 <a href="{{ route('guardian.student.attendance', ['id' => $student->id, 'month' => $prevMonth->format('Y-m')]) }}"
-                    class="p-2 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800   s">
+                    class="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800   s">
                     <flux:icon icon="chevron-right" class="size-5" />
                 </a>
 
-                <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">
+                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">
                     {{ $currentMonth->translatedFormat('F Y') }}
                 </h2>
 
                 @if($canGoNext)
                     <a href="{{ route('guardian.student.attendance', ['id' => $student->id, 'month' => $nextMonth->format('Y-m')]) }}"
-                        class="p-2 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800   s">
+                        class="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800   s">
                         <flux:icon icon="chevron-left" class="size-5" />
                     </a>
                 @else
@@ -107,7 +107,7 @@
             {{-- Day headers (Sat → Fri) --}}
             <div class="grid grid-cols-7 mb-2">
                 @foreach(['س', 'أ', 'إ', 'ث', 'خ', 'ج', 'ع'] as $dayLabel)
-                    <div class="text-center text-xs font-medium text-neutral-400 py-2">{{ $dayLabel }}</div>
+                    <div class="text-center text-xs font-medium text-zinc-400 py-2">{{ $dayLabel }}</div>
                 @endforeach
             </div>
 
@@ -129,9 +129,9 @@
                     <div
                         class="relative flex flex-col items-center justify-center rounded-lg py-2 min-h-[52px]
                                     {{ $cfg ? $cfg['bg'] : '' }}
-                                    {{ $isToday && !$cfg ? 'ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-neutral-800' : '' }}">
+                                    {{ $isToday && !$cfg ? 'ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-zinc-800' : '' }}">
                         <span
-                            class="text-sm font-medium {{ $cfg ? $cfg['text'] : 'text-neutral-600 dark:text-neutral-400' }}">
+                            class="text-sm font-medium {{ $cfg ? $cfg['text'] : 'text-zinc-600 dark:text-zinc-400' }}">
                             {{ $day }}
                         </span>
                         @if($cfg)
@@ -142,16 +142,16 @@
             </div>
 
             {{-- Legend --}}
-            <div class="flex flex-wrap gap-4 mt-6 pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <div class="flex flex-wrap gap-4 mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 @foreach($statusConfig as $key => $cfg)
                     <div class="flex items-center gap-1.5">
                         <div class="size-2.5 rounded-full {{ $cfg['dot'] }}"></div>
-                        <span class="text-xs text-neutral-500">{{ $cfg['label'] }}</span>
+                        <span class="text-xs text-zinc-500">{{ $cfg['label'] }}</span>
                     </div>
                 @endforeach
                 <div class="flex items-center gap-1.5">
                     <div class="size-2.5 rounded-full ring-2 ring-blue-400 bg-transparent"></div>
-                    <span class="text-xs text-neutral-500">اليوم</span>
+                    <span class="text-xs text-zinc-500">اليوم</span>
                 </div>
             </div>
         </div>

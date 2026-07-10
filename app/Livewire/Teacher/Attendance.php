@@ -13,6 +13,7 @@ use Flux\Flux;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class Attendance extends Component
 {
@@ -22,6 +23,8 @@ class Attendance extends Component
 
     #[Url]
     public string $date = '';
+
+    public ?int $sessionDurationMinutes = null;
 
     public $students;
 
@@ -59,6 +62,17 @@ class Attendance extends Component
         $this->loadStudents();
     }
 
+    public function updatedSessionDurationMinutes(): void
+    {
+        if (! $this->selectedCircle) {
+            return;
+        }
+
+        AttendanceModel::where('circle_id', $this->selectedCircle)
+            ->whereDate('date', $this->date)
+            ->update(['duration_minutes' => $this->sessionDurationMinutes]);
+    }
+
     #[On('student-list-updated')]
     public function loadStudents(): void
     {
@@ -66,10 +80,16 @@ class Attendance extends Component
             $this->students = collect();
             $this->records = [];
             $this->studentOrder = [];
+            $this->sessionDurationMinutes = null;
             $this->dispatch('studentsLoaded');
 
             return;
         }
+
+        $this->sessionDurationMinutes = AttendanceModel::where('circle_id', $this->selectedCircle)
+            ->whereDate('date', $this->date)
+            ->whereNotNull('duration_minutes')
+            ->value('duration_minutes');
 
         $studentsQuery = Student::where('circle_id', $this->selectedCircle)
             ->where('is_approved', true)
@@ -156,6 +176,7 @@ class Attendance extends Component
                     'teacher_id' => $teacher->id,
                     'circle_id' => $this->selectedCircle,
                     'status' => 'present',
+                    'duration_minutes' => $this->sessionDurationMinutes,
                 ]
             );
 
@@ -165,6 +186,33 @@ class Attendance extends Component
         $this->isComplete = true;
         $this->dispatch('attendance-updated');
         Flux::toast('تم تسجيل حضور جميع الطلاب بنجاح', variant: 'success');
+    }
+
+    public function exportCsv(): ?StreamedResponse
+    {
+        if (! $this->selectedCircle || $this->students->isEmpty()) {
+            Flux::toast(__('اختر حلقة بها طلاب أولاً'), variant: 'warning');
+
+            return null;
+        }
+
+        $labels = ['present' => 'حاضر', 'absent' => 'غائب', 'late' => 'متأخر', 'excused' => 'مستأذن'];
+        $students = $this->students;
+        $records = $this->records;
+        $date = $this->date;
+
+        $circleName = collect($this->circles)->firstWhere('id', $this->selectedCircle)?->name ?? '';
+
+        return response()->streamDownload(function () use ($students, $records, $labels) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel renders Arabic correctly
+            fputcsv($out, ['اسم الطالب', 'الحالة']);
+            foreach ($students as $student) {
+                $status = $records[$student->id] ?? '';
+                fputcsv($out, [$student->name, $labels[$status] ?? 'غير مسجل']);
+            }
+            fclose($out);
+        }, "attendance-{$circleName}-{$date}.csv");
     }
 
     public function clearDayAttendance(): void
@@ -210,6 +258,7 @@ class Attendance extends Component
                 'teacher_id' => $teacher->id,
                 'circle_id' => $this->selectedCircle,
                 'status' => $status,
+                'duration_minutes' => $this->sessionDurationMinutes,
             ]);
         } else {
             $existing = AttendanceModel::create([
@@ -218,6 +267,7 @@ class Attendance extends Component
                 'teacher_id' => $teacher->id,
                 'circle_id' => $this->selectedCircle,
                 'status' => $status,
+                'duration_minutes' => $this->sessionDurationMinutes,
             ]);
         }
 
@@ -229,6 +279,155 @@ class Attendance extends Component
                 GuardianNotificationService::notifyAbsence($student, $status, Carbon::parse($this->date)->toDateString());
             }
         }
+    }
+
+    /** @var array{present: int, late: int, absent: int, excused: int}|null Memoized per render — weeklyAttendancePercentage() and the donut both need it. */
+    protected ?array $weeklyBreakdownCache = null;
+
+    /**
+     * present/late/absent/excused counts for the selected circle within the
+     * calendar week containing the currently selected date.
+     *
+     * @return array{present: int, late: int, absent: int, excused: int}
+     */
+    public function weeklyBreakdown(): array
+    {
+        if ($this->weeklyBreakdownCache !== null) {
+            return $this->weeklyBreakdownCache;
+        }
+
+        $empty = ['present' => 0, 'late' => 0, 'absent' => 0, 'excused' => 0];
+
+        if (! $this->selectedCircle) {
+            return $this->weeklyBreakdownCache = $empty;
+        }
+
+        $weekStart = Carbon::parse($this->date)->startOfWeek(Carbon::SATURDAY);
+        $weekEnd = $weekStart->copy()->endOfWeek(Carbon::FRIDAY);
+
+        // Compared as full datetimes (not bare Y-m-d) since the "date" column is
+        // stored with a time component — a bare upper bound string-compares as
+        // "less than" any same-day timestamp and silently drops that day's rows.
+        $counts = AttendanceModel::where('circle_id', $this->selectedCircle)
+            ->whereBetween('date', [$weekStart->startOfDay(), $weekEnd->endOfDay()])
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        return $this->weeklyBreakdownCache = [
+            'present' => (int) ($counts['present'] ?? 0),
+            'late' => (int) ($counts['late'] ?? 0),
+            'absent' => (int) ($counts['absent'] ?? 0),
+            'excused' => (int) ($counts['excused'] ?? 0),
+        ];
+    }
+
+    /**
+     * Present ratio (present counts as full attendance, late as half) across
+     * this week's recorded attendance for the selected circle.
+     */
+    public function weeklyAttendancePercentage(): int
+    {
+        $breakdown = $this->weeklyBreakdown();
+        $recorded = $breakdown['present'] + $breakdown['late'] + $breakdown['absent'];
+
+        if ($recorded === 0) {
+            return 0;
+        }
+
+        return (int) round(($breakdown['present'] + $breakdown['late'] * 0.5) / $recorded * 100);
+    }
+
+    /** @var array<string, array<string, int>>|null Memoized per render — one query covers all four status sparklines. */
+    protected ?array $sparklineCache = null;
+
+    /**
+     * Daily count of a given status over the last 7 days for the selected
+     * circle, oldest first — feeds the mini sparkline on each stat card.
+     *
+     * @return array<int, int>
+     */
+    public function sparklineFor(string $status): array
+    {
+        $start = Carbon::parse($this->date)->subDays(6);
+
+        if (! $this->selectedCircle) {
+            return array_fill(0, 7, 0);
+        }
+
+        if ($this->sparklineCache === null) {
+            $end = Carbon::parse($this->date);
+            $rows = AttendanceModel::where('circle_id', $this->selectedCircle)
+                ->whereBetween('date', [$start->copy()->startOfDay(), $end->endOfDay()])
+                ->selectRaw('date, status, count(*) as total')
+                ->groupBy('date', 'status')
+                ->get();
+
+            $this->sparklineCache = [];
+            foreach ($rows as $row) {
+                $day = Carbon::parse($row->date)->toDateString();
+                $this->sparklineCache[$row->status][$day] = (int) $row->total;
+            }
+        }
+
+        $counts = $this->sparklineCache[$status] ?? [];
+
+        $series = [];
+        for ($i = 0; $i < 7; $i++) {
+            $day = $start->copy()->addDays($i)->toDateString();
+            $series[] = $counts[$day] ?? 0;
+        }
+
+        return $series;
+    }
+
+    /**
+     * The most recent distinct attendance days for the selected circle, each
+     * with its computed present ratio — feeds "آخر الجلسات".
+     *
+     * @return array<int, array{date: string, percentage: int, time: ?string}>
+     */
+    public function recentSessions(int $limit = 3): array
+    {
+        if (! $this->selectedCircle) {
+            return [];
+        }
+
+        $dates = AttendanceModel::where('circle_id', $this->selectedCircle)
+            ->select('date')
+            ->distinct()
+            ->orderByDesc('date')
+            ->limit($limit)
+            ->pluck('date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString());
+
+        if ($dates->isEmpty()) {
+            return [];
+        }
+
+        // Bound by the earliest/latest of the selected dates rather than whereIn(),
+        // since the "date" column stores a time component and whereIn() would
+        // string-compare bare Y-m-d values against it and match nothing.
+        $allRecords = AttendanceModel::where('circle_id', $this->selectedCircle)
+            ->whereBetween('date', [
+                Carbon::parse($dates->last())->startOfDay(),
+                Carbon::parse($dates->first())->endOfDay(),
+            ])
+            ->get(['date', 'status', 'created_at'])
+            ->groupBy(fn (AttendanceModel $record) => Carbon::parse($record->date)->toDateString());
+
+        return $dates->map(function (string $dateStr) use ($allRecords) {
+            $records = $allRecords->get($dateStr, collect());
+
+            $total = $records->count();
+            $present = $records->whereIn('status', ['present', 'late'])->count();
+
+            return [
+                'date' => $dateStr,
+                'percentage' => $total > 0 ? (int) round($present / $total * 100) : 0,
+                'time' => optional($records->first())->created_at?->format('H:i'),
+            ];
+        })->all();
     }
 
     public function getWhatsAppMessage(Student $student, string $status = 'absent'): string

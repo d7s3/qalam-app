@@ -127,6 +127,16 @@ new class extends Component {
             $q->whereIn('circle_id', $circleIds);
         })->findOrFail($id);
         $plan->update(['is_approved' => true]);
+
+        \App\Services\NotificationService::notify(
+            'student',
+            $plan->student_id,
+            'plan_approved',
+            'تم اعتماد خطتك',
+            'قام معلمك باعتماد خطتك الدراسية',
+            route('student.plan'),
+        );
+
         session()->flash('success', 'تم اعتماد الخطة بنجاح');
     }
 

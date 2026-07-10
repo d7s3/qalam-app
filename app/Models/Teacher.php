@@ -40,6 +40,9 @@ class Teacher extends Authenticatable
         'password',
         'is_approved',
         'approved_by',
+        'is_rejected',
+        'rejected_at',
+        'rejected_by',
         'access_token',
         'is_data_completed',
         'permissions',
@@ -68,6 +71,9 @@ class Teacher extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'permissions' => 'array',
+            'is_approved' => 'boolean',
+            'is_rejected' => 'boolean',
+            'rejected_at' => 'datetime',
         ];
     }
 

@@ -131,6 +131,9 @@ class Student extends Authenticatable
         'password',
         'is_approved',
         'approved_by',
+        'is_rejected',
+        'rejected_at',
+        'rejected_by',
         'circle_id',
         'stage_id',
         'guardian_id',
@@ -153,6 +156,8 @@ class Student extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_approved' => 'boolean',
+            'is_rejected' => 'boolean',
+            'rejected_at' => 'datetime',
             'is_data_completed' => 'boolean',
             'birth_date' => 'date',
             'joined_at' => 'date',
@@ -215,6 +220,57 @@ class Student extends Authenticatable
     public function getGuardianPhoneAttribute()
     {
         return $this->guardian?->phone;
+    }
+
+    /**
+     * Consecutive days of present/late attendance, counted backward from the most
+     * recent activity day. The streak is considered broken (0) if the student has
+     * no attendance record today or yesterday (yesterday allowed so a streak isn't
+     * lost purely because today's session hasn't happened yet).
+     */
+    public function currentAttendanceStreakDays(): int
+    {
+        $dateSet = $this->attendances()
+            ->whereIn('status', ['present', 'late'])
+            ->pluck('date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString())
+            ->unique()
+            ->flip();
+
+        if ($dateSet->isEmpty()) {
+            return 0;
+        }
+
+        $today = now()->startOfDay();
+
+        if (isset($dateSet[$today->toDateString()])) {
+            $cursor = $today->copy();
+        } elseif (isset($dateSet[$today->copy()->subDay()->toDateString()])) {
+            $cursor = $today->copy()->subDay();
+        } else {
+            return 0;
+        }
+
+        $streak = 0;
+        while (isset($dateSet[$cursor->toDateString()])) {
+            $streak++;
+            $cursor = $cursor->subDay();
+        }
+
+        return $streak;
+    }
+
+    /**
+     * Total study hours derived from attendance session durations recorded by teachers.
+     * Returns 0.0 for students whose sessions have no recorded duration yet.
+     */
+    public function totalStudyHours(): float
+    {
+        $minutes = $this->attendances()
+            ->whereIn('status', ['present', 'late'])
+            ->sum('duration_minutes');
+
+        return round($minutes / 60, 1);
     }
 
     public function getMemorizedRange(): ?array

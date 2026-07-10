@@ -1,5 +1,13 @@
 <div @if(!in_array($status, ['ready', 'error'])) wire:poll.5s="checkStatus" @endif class="space-y-6">
-    <flux:heading size="xl">إعدادات ربط الواتساب</flux:heading>
+    <div class="flex items-center gap-3">
+        <div class="p-2.5 rounded-xl bg-maroon/10 text-maroon dark:bg-white/10 dark:text-white">
+            <flux:icon icon="chat-bubble-left-right" />
+        </div>
+        <div>
+            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إعدادات ربط الواتساب</flux:heading>
+            <flux:subheading class="text-zinc-400">الرئيسية</flux:subheading>
+        </div>
+    </div>
 
     <flux:card class="max-w-2xl">
         <div class="flex items-center gap-4 mb-6">

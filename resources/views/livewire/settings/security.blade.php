@@ -1,44 +1,44 @@
 <section class="w-full">
     @include('partials.settings-heading')
 
-    <flux:heading class="sr-only">{{ __('Security settings') }}</flux:heading>
+    <flux:heading class="sr-only">إعدادات الأمان</flux:heading>
 
-    <x-settings.layout :heading="__('Update password')" :subheading="__('Ensure your account is using a long, random password to stay secure')">
+    <x-settings.layout heading="تحديث كلمة المرور" subheading="تأكد من استخدام كلمة مرور طويلة وعشوائية للحفاظ على أمان حسابك">
         <form method="POST" wire:submit="updatePassword" class="mt-6 space-y-6">
-            <flux:input wire:model="current_password" :label="__('Current password')" type="password" required
+            <flux:input wire:model="current_password" label="كلمة المرور الحالية" type="password" required
                 autocomplete="current-password" viewable />
-            <flux:input wire:model="password" :label="__('New password')" type="password" required
+            <flux:input wire:model="password" label="كلمة المرور الجديدة" type="password" required
                 autocomplete="new-password" viewable />
-            <flux:input wire:model="password_confirmation" :label="__('Confirm password')" type="password" required
+            <flux:input wire:model="password_confirmation" label="تأكيد كلمة المرور" type="password" required
                 autocomplete="new-password" viewable />
 
             <div class="flex items-center gap-4">
                 <div class="flex items-center justify-end">
                     <flux:button variant="primary" type="submit" class="w-full" data-test="update-password-button">
-                        {{ __('Save') }}</flux:button>
+                        حفظ</flux:button>
                 </div>
 
                 <x-action-message class="me-3" on="password-updated">
-                    {{ __('Saved.') }}
+                    تم الحفظ.
                 </x-action-message>
             </div>
         </form>
 
         @if ($canManageTwoFactor)
             <section class="mt-12">
-                <flux:heading>{{ __('Two-factor authentication') }}</flux:heading>
-                <flux:subheading>{{ __('Manage your two-factor authentication settings') }}</flux:subheading>
+                <flux:heading>المصادقة الثنائية</flux:heading>
+                <flux:subheading>إدارة إعدادات المصادقة الثنائية لحسابك</flux:subheading>
 
                 <div class="flex flex-col w-full mx-auto space-y-6 text-sm" wire:cloak>
                     @if ($twoFactorEnabled)
                         <div class="space-y-4">
                             <flux:text>
-                                {{ __('You will be prompted for a secure, random pin during login, which you can retrieve from the TOTP-supported application on your phone.') }}
+                                سيُطلب منك إدخال رمز عشوائي آمن عند تسجيل الدخول، يمكنك الحصول عليه من تطبيق TOTP على هاتفك.
                             </flux:text>
 
                             <div class="flex justify-start">
                                 <flux:button variant="danger" wire:click="disable">
-                                    {{ __('Disable 2FA') }}
+                                    إيقاف المصادقة الثنائية
                                 </flux:button>
                             </div>
 
@@ -47,11 +47,11 @@
                     @else
                         <div class="space-y-4">
                             <flux:text variant="subtle">
-                                {{ __('When you enable two-factor authentication, you will be prompted for a secure pin during login. This pin can be retrieved from a TOTP-supported application on your phone.') }}
+                                عند تفعيل المصادقة الثنائية، سيُطلب منك إدخال رمز آمن عند تسجيل الدخول. يمكن الحصول على هذا الرمز من تطبيق TOTP على هاتفك.
                             </flux:text>
 
                             <flux:button variant="primary" wire:click="enable">
-                                {{ __('Enable 2FA') }}
+                                تفعيل المصادقة الثنائية
                             </flux:button>
                         </div>
                     @endif
@@ -93,18 +93,18 @@
                     @if ($showVerificationStep)
                         <div class="space-y-6">
                             <div class="flex flex-col items-center space-y-3 justify-center">
-                                <flux:otp name="code" wire:model="code" length="6" label="OTP Code" label:sr-only
+                                <flux:otp name="code" wire:model="code" length="6" label="رمز التحقق" label:sr-only
                                     class="mx-auto" />
                             </div>
 
                             <div class="flex items-center space-x-3">
                                 <flux:button variant="outline" class="flex-1" wire:click="resetVerification">
-                                    {{ __('Back') }}
+                                    رجوع
                                 </flux:button>
 
                                 <flux:button variant="primary" class="flex-1" wire:click="confirmTwoFactor"
                                     x-bind:disabled="$wire.code.length < 6">
-                                    {{ __('Confirm') }}
+                                    تأكيد
                                 </flux:button>
                             </div>
                         </div>
@@ -144,7 +144,7 @@
                                 <div class="absolute inset-0 w-full h-px top-1/2 bg-stone-200 dark:bg-stone-600"></div>
                                 <span
                                     class="relative px-2 text-sm bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-400">
-                                    {{ __('or, enter the code manually') }}
+                                    أو أدخل الرمز يدويًا
                                 </span>
                             </div>
 

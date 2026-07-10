@@ -95,36 +95,44 @@ new class extends Component
     }
 }; ?>
 
-<div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
+<div class="space-y-6" dir="rtl">
     @php
         $guardian = auth()->guard('guardian')->user();
     @endphp
 
-    <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold">لوحة تحكم ولي الأمر</h1>
+    <div class="flex items-center gap-3">
+        <div class="p-2.5 rounded-xl bg-maroon/10 text-maroon dark:bg-white/10 dark:text-white">
+            <flux:icon icon="home" />
+        </div>
+        <div>
+            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">لوحة تحكم ولي الأمر</flux:heading>
+            <flux:subheading class="text-zinc-400">
+                <span>الرئيسية</span>
+            </flux:subheading>
+        </div>
     </div>
 
     <div class="grid auto-rows-min gap-4 md:grid-cols-3">
-        <div class="relative overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6">
+        <div class="relative overflow-hidden rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
             <div class="flex items-center gap-4">
                 <div class="p-3 bg-blue-100 text-blue-600 rounded-lg dark:bg-blue-900/30 dark:text-blue-400">
                     <flux:icon icon="users" class="size-6" />
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-neutral-500 dark:text-neutral-400">عدد الأبناء</p>
-                    <h3 class="text-2xl font-bold text-neutral-900 dark:text-white">{{ count($this->children) }}</h3>
+                    <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400">عدد الأبناء</p>
+                    <h3 class="text-2xl font-bold text-zinc-900 dark:text-white">{{ count($this->children) }}</h3>
                 </div>
             </div>
         </div>
 
-        <div class="relative overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6">
+        <div class="relative overflow-hidden rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
             <div class="flex items-center gap-4">
                 <div class="p-3 bg-green-100 text-green-600 rounded-lg dark:bg-green-900/30 dark:text-green-400">
                     <flux:icon icon="check-circle" class="size-6" />
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-neutral-500 dark:text-neutral-400">حالة الاعتماد</p>
-                    <h3 class="text-xl font-bold text-neutral-900 dark:text-white">
+                    <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400">حالة الاعتماد</p>
+                    <h3 class="text-xl font-bold text-zinc-900 dark:text-white">
                         {{ $guardian->is_approved ? 'معتمد' : 'قيد الانتظار' }}
                     </h3>
                 </div>
@@ -135,7 +143,7 @@ new class extends Component
     @php
         $unreadCount = $this->notifications->whereNull('read_at')->count();
     @endphp
-    <div class="relative rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6">
+    <div class="relative rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-bold flex items-center gap-2">
                 <flux:icon icon="bell" class="size-5" />
@@ -166,26 +174,26 @@ new class extends Component
                         default => 'sparkles',
                     };
                 @endphp
-                <div class="flex items-start gap-3 rounded-xl border p-3 {{ $isUnread ? $tone : 'bg-neutral-50 dark:bg-neutral-900 border-neutral-100 dark:border-neutral-800' }}">
-                    <flux:icon icon="{{ $icon }}" class="size-4 mt-0.5 shrink-0 {{ $isUnread ? '' : 'text-neutral-400' }}" />
+                <div class="flex items-start gap-3 rounded-xl border p-3 {{ $isUnread ? $tone : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800' }}">
+                    <flux:icon icon="{{ $icon }}" class="size-4 mt-0.5 shrink-0 {{ $isUnread ? '' : 'text-zinc-400' }}" />
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2">
-                            <p class="text-sm font-bold {{ $isUnread ? 'text-neutral-900 dark:text-neutral-100' : 'text-neutral-500' }}">{{ $notification->title }}</p>
+                            <p class="text-sm font-bold {{ $isUnread ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500' }}">{{ $notification->title }}</p>
                             @if($isUnread)
                                 <span class="size-2 rounded-full bg-rose-500 shrink-0"></span>
                             @endif
                         </div>
-                        <p class="text-xs whitespace-pre-line {{ $isUnread ? 'text-neutral-600 dark:text-neutral-300' : 'text-neutral-400' }} leading-relaxed mt-0.5">{{ $notification->body }}</p>
-                        <p class="text-[10px] text-neutral-400 mt-1">{{ $notification->created_at->diffForHumans() }}</p>
+                        <p class="text-xs whitespace-pre-line {{ $isUnread ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400' }} leading-relaxed mt-0.5">{{ $notification->body }}</p>
+                        <p class="text-[10px] text-zinc-400 mt-1">{{ $notification->created_at->diffForHumans() }}</p>
                     </div>
                 </div>
             @empty
-                <div class="text-center py-6 text-sm text-neutral-400">لا توجد تنبيهات حالياً</div>
+                <div class="text-center py-6 text-sm text-zinc-400">لا توجد تنبيهات حالياً</div>
             @endforelse
         </div>
     </div>
 
-    <div class="relative h-full flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6">
+    <div class="relative h-full flex-1 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
         <h2 class="text-lg font-bold mb-4">بيانات الأبناء</h2>
 
         <div class="space-y-4">
@@ -200,17 +208,17 @@ new class extends Component
                     $percentage = $child['percentage'];
                 @endphp
 
-                <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800">
+                <div class="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800">
 
                     {{-- Header row --}}
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <div class="p-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg">
-                                <flux:icon icon="academic-cap" class="size-5 text-neutral-600 dark:text-neutral-300" />
+                            <div class="p-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg">
+                                <flux:icon icon="academic-cap" class="size-5 text-zinc-600 dark:text-zinc-300" />
                             </div>
                             <div>
-                                <h4 class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $student->name }}</h4>
-                                <p class="text-xs text-neutral-500">
+                                <h4 class="font-semibold text-zinc-900 dark:text-zinc-100">{{ $student->name }}</h4>
+                                <p class="text-xs text-zinc-500">
                                     {{ $student->circle?->name ?? 'لم تُحدَّد حلقة بعد' }}
                                 </p>
                             </div>
@@ -233,24 +241,24 @@ new class extends Component
                     <div class="grid grid-cols-3 gap-3 mb-4">
 
                         {{-- Today's task --}}
-                        <div class="rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-3">
-                            <p class="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                        <div class="rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+                            <p class="text-xs text-zinc-500 mb-1 flex items-center gap-1">
                                 <flux:icon icon="calendar-days" class="size-3.5" />
                                 مهمة اليوم
                             </p>
                             @if($todayPlanDay && $todayPlanDay->fromAyah)
-                                <p class="text-xs font-medium text-neutral-800 dark:text-neutral-200 leading-relaxed">
+                                <p class="text-xs font-medium text-zinc-800 dark:text-zinc-200 leading-relaxed">
                                     {{ $todayPlanDay->fromAyah->surah->name_arabic }}
                                     {{ $todayPlanDay->fromAyah->verse_number }}-{{ $todayPlanDay->toAyah->verse_number }}
                                 </p>
                             @else
-                                <p class="text-xs text-neutral-400">لا توجد مهمة</p>
+                                <p class="text-xs text-zinc-400">لا توجد مهمة</p>
                             @endif
                         </div>
 
                         {{-- Last score --}}
-                        <div class="rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-3">
-                            <p class="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                        <div class="rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+                            <p class="text-xs text-zinc-500 mb-1 flex items-center gap-1">
                                 <flux:icon icon="star" class="size-3.5" />
                                 آخر تقييم
                             </p>
@@ -269,25 +277,25 @@ new class extends Component
                                 @endphp
                                 <div class="flex items-center gap-1.5">
                                     <span class="text-xs font-bold {{ $scoreColor }}">{{ $scoreLabel }}</span>
-                                    <span class="text-xs text-neutral-400">({{ $lastScored->date->diffForHumans() }})</span>
+                                    <span class="text-xs text-zinc-400">({{ $lastScored->date->diffForHumans() }})</span>
                                 </div>
                             @else
-                                <p class="text-xs text-neutral-400">لا يوجد بعد</p>
+                                <p class="text-xs text-zinc-400">لا يوجد بعد</p>
                             @endif
                         </div>
 
                         {{-- Weekly attendance --}}
-                        <div class="rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-3">
-                            <p class="text-xs text-neutral-500 mb-1 flex items-center gap-1">
+                        <div class="rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+                            <p class="text-xs text-zinc-500 mb-1 flex items-center gap-1">
                                 <flux:icon icon="clock" class="size-3.5" />
                                 هذا الأسبوع
                             </p>
                             @if($totalCount > 0)
-                                <p class="text-xs font-medium text-neutral-800 dark:text-neutral-200">
+                                <p class="text-xs font-medium text-zinc-800 dark:text-zinc-200">
                                     {{ $presentCount }}/{{ $totalCount }} أيام
                                 </p>
                             @else
-                                <p class="text-xs text-neutral-400">لا توجد بيانات</p>
+                                <p class="text-xs text-zinc-400">لا توجد بيانات</p>
                             @endif
                         </div>
                     </div>
@@ -295,28 +303,28 @@ new class extends Component
                     {{-- Memorization progress --}}
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs text-neutral-500 flex items-center gap-1">
+                            <span class="text-xs text-zinc-500 flex items-center gap-1">
                                 <flux:icon icon="book-open" class="size-3.5" />
                                 نسبة المحفوظ من القرآن الكريم
                             </span>
                             <div class="flex items-center gap-2">
-                                <span class="text-xs text-neutral-500">{{ number_format($memorizedPages) }} صفحة</span>
+                                <span class="text-xs text-zinc-500">{{ number_format($memorizedPages) }} صفحة</span>
                                 <span class="text-sm font-bold text-emerald-600 dark:text-emerald-400">{{ $percentage }}%</span>
                             </div>
                         </div>
-                        <div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2 overflow-hidden">
+                        <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2 overflow-hidden">
                             <div class="h-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-500"
                                 style="width: {{ min($percentage, 100) }}%"></div>
                         </div>
                         @if($memorizedPages > 0)
-                            <p class="text-xs text-neutral-400 mt-1">
+                            <p class="text-xs text-zinc-400 mt-1">
                                 ≈ {{ floor($memorizedPages / 20) }} جزء من 30
                             </p>
                         @endif
                     </div>
                 </div>
             @empty
-                <div class="text-center py-8 text-neutral-500">
+                <div class="text-center py-8 text-zinc-500">
                     لا يوجد أبناء مسجلين حالياً
                 </div>
             @endforelse

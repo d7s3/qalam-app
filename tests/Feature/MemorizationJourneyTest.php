@@ -138,6 +138,213 @@ it('buckets attendance into the last 8 weeks', function () {
     expect($trend[6])->toMatchArray(['present' => 1, 'total' => 1]); // previous week
 });
 
+it('returns all surahs as none with 0 percentage when the student has no memorization', function () {
+    seedJuzAyahs();
+
+    $map = MemorizationJourneyService::surahMap($this->child);
+
+    expect($map)->toHaveCount(1);
+    expect($map[0]['status'])->toBe('none');
+    expect($map[0]['percentage'])->toBe(0.0);
+});
+
+it('computes surah percentage and full status from the memorized range', function () {
+    seedJuzAyahs();
+    $surah = Surah::where('number', 1)->first();
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'direction' => 'forward',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => today(),
+        'day_name' => 'الأربعاء',
+        'hifz_achievement' => 3,
+        'from_ayah_id' => 1,
+        'to_ayah_id' => 3,
+    ]);
+
+    $map = collect(MemorizationJourneyService::surahMap($this->child->fresh()))->keyBy('surah_id');
+
+    expect($map[$surah->id]['status'])->toBe('partial');
+    expect($map[$surah->id]['percentage'])->toBe(50.0); // 3 of 6 verses
+});
+
+it('sums ayahs memorized per day within the current month', function () {
+    seedJuzAyahs();
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => '2026-06-08',
+        'day_name' => 'يوم',
+        'hifz_achievement' => 3,
+        'from_ayah_id' => 1,
+        'to_ayah_id' => 3,
+    ]);
+    // Outside the current month — must be excluded.
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => '2026-05-01',
+        'day_name' => 'يوم',
+        'hifz_achievement' => 3,
+        'from_ayah_id' => 4,
+        'to_ayah_id' => 6,
+    ]);
+
+    $stats = MemorizationJourneyService::monthlyAyahsMemorized($this->child);
+
+    expect($stats)->toBe([['date' => '2026-06-08', 'count' => 3]]);
+});
+
+it('computes a fractional memorized juz count from the memorized page count', function () {
+    expect(MemorizationJourneyService::memorizedJuzCount($this->child))->toBe(0.0);
+
+    $surah = Surah::create([
+        'number' => 1, 'name_arabic' => 'سورة', 'name_simple' => 'Surah', 'revelation_place' => 'makkah',
+        'revelation_order' => 1, 'verses_count' => 1, 'start_page' => 1, 'end_page' => 302,
+    ]);
+    DB::table('ayahs')->insert([
+        'id' => 1, 'surah_id' => $surah->id, 'verse_number' => 1, 'verse_key' => '1:1',
+        'juz_number' => 15, 'hizb_number' => 1, 'rub_number' => 1, 'page_number' => 302,
+        'ruku_number' => 1, 'manzil_number' => 1, 'text_uthmani' => 'نص',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'direction' => 'forward',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => today(),
+        'day_name' => 'الأربعاء',
+        'hifz_achievement' => 3,
+        'from_ayah_id' => 1,
+        'to_ayah_id' => 1,
+    ]);
+
+    // memorizedPagesCount() resolves to page 302 (half of 604), so ~15 juz.
+    expect(MemorizationJourneyService::memorizedJuzCount($this->child->fresh()))->toBe(15.0);
+});
+
+it('returns null current-surah progress for a student with no memorization', function () {
+    expect(MemorizationJourneyService::currentSurahProgress($this->child))->toBeNull();
+});
+
+it('computes the current in-progress surah and its within-surah percentage', function () {
+    seedJuzAyahs();
+    $surah = Surah::where('number', 1)->first();
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'direction' => 'forward',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => today(),
+        'day_name' => 'الأربعاء',
+        'hifz_achievement' => 3,
+        'from_ayah_id' => 1,
+        'to_ayah_id' => 3,
+    ]);
+
+    $progress = MemorizationJourneyService::currentSurahProgress($this->child->fresh());
+
+    expect($progress['surah_name'])->toBe($surah->name_arabic);
+    expect($progress['memorized_in_surah'])->toBe(3);
+    expect($progress['total_in_surah'])->toBe(6);
+    expect($progress['percentage'])->toBe(50.0);
+});
+
+it('returns zero today mission progress when nothing is scheduled today', function () {
+    $progress = MemorizationJourneyService::todayMissionProgress($this->child);
+
+    expect($progress)->toBe(['completed' => 0, 'total' => 0, 'percentage' => 0]);
+});
+
+it('computes today mission progress from graded and ungraded plan day components', function () {
+    seedJuzAyahs();
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => today(),
+        'day_name' => 'الأربعاء',
+        'hifz_achievement' => 3, // graded
+        'from_ayah_id' => 1,
+        'to_ayah_id' => 3,
+        'review_achievement' => null, // not yet graded
+        'review_from_ayah_id' => 4,
+        'review_to_ayah_id' => 6,
+    ]);
+
+    $progress = MemorizationJourneyService::todayMissionProgress($this->child);
+
+    expect($progress)->toBe(['completed' => 1, 'total' => 2, 'percentage' => 50]);
+});
+
+it('lists distinct activity dates for a month from attendance and graded plan days', function () {
+    Attendance::create([
+        'student_id' => $this->child->id,
+        'circle_id' => $this->circle->id,
+        'teacher_id' => $this->teacher->id,
+        'date' => '2026-06-05',
+        'status' => 'present',
+    ]);
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => '2026-06-08',
+        'day_name' => 'يوم',
+        'hifz_achievement' => 3,
+    ]);
+
+    $dates = MemorizationJourneyService::activityDatesForMonth($this->child, 2026, 6);
+
+    expect($dates)->toContain('2026-06-05', '2026-06-08');
+    expect($dates)->toHaveCount(2);
+});
+
 it('renders the memorization journey on the guardian student detail page', function () {
     $this->actingAs($this->guardian, 'guardian');
 

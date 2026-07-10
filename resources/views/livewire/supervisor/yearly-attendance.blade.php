@@ -1,8 +1,13 @@
 <div class="space-y-8 pb-10" dir="rtl">
     <div class="flex items-center justify-between">
-        <div>
-            <flux:heading size="xl" class="font-bold">متابعة تحضير الحلقات السنوي</flux:heading>
-            <flux:subheading>عرض حالة تحضير جميع الحلقات على مدار العام الهجري {{ $currentYear }}</flux:subheading>
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 rounded-xl bg-maroon/10 text-maroon dark:bg-white/10 dark:text-white">
+                <flux:icon icon="calendar" />
+            </div>
+            <div>
+                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">متابعة تحضير الحلقات السنوي</flux:heading>
+                <flux:subheading class="text-zinc-400">عرض حالة تحضير جميع الحلقات على مدار العام الهجري {{ $currentYear }}</flux:subheading>
+            </div>
         </div>
         <div class="flex items-center gap-2">
             <div class="flex items-center gap-1.5 text-xs">

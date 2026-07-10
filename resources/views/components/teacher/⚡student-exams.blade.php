@@ -87,7 +87,10 @@ new class extends Component {
         $circleIds = $teacher->circles()->pluck('circles.id');
         $student = Student::whereIn('circle_id', $circleIds)->findOrFail($this->studentId);
 
-        StudentExam::updateOrCreate(
+        $wasCreate = ! $this->editingId;
+        $previousStatus = $this->editingId ? StudentExam::find($this->editingId)?->status : null;
+
+        $exam = StudentExam::updateOrCreate(
             ['id' => $this->editingId],
             [
                 'student_id' => $student->id,
@@ -99,6 +102,26 @@ new class extends Component {
                 'status' => $this->status,
             ]
         );
+
+        if ($wasCreate) {
+            \App\Services\NotificationService::notify(
+                'student',
+                $student->id,
+                'exam_scheduled',
+                'اختبار جديد مجدول',
+                'تم جدولة اختبار جديد لك، تفقّد التفاصيل',
+                route('student.exams'),
+            );
+        } elseif ($previousStatus === 'pending' && in_array($this->status, ['passed', 'failed'], true)) {
+            \App\Services\NotificationService::notify(
+                'student',
+                $student->id,
+                'exam_result',
+                'نتيجة اختبار',
+                'تم رصد نتيجة اختبارك، تفقّد التفاصيل',
+                route('student.exams'),
+            );
+        }
 
         $this->showModal = false;
         $this->dispatch('toast', variant: 'success', heading: 'تم الحفظ بنجاح!');

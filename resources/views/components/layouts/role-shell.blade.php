@@ -31,45 +31,82 @@
          <flux:icon icon="exclamation-triangle" class="size-4" />
          <span>أنت غير متصل بشبكة الإنترنت حالياً. يرجى التحقق من اتصالك.</span>
     </div>
+    @php
+        $usesMaroonSidebar = auth('manager')->check() || auth('student')->check()
+            || auth('teacher')->check() || auth('supervisor')->check() || auth('guardian')->check();
+    @endphp
     <flux:sidebar sticky collapsible="mobile"
-        class="self-start border-e border-zinc-100 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <flux:sidebar.header>
+        @class([
+            'self-start border-e relative overflow-hidden',
+            'dark bg-gradient-to-b from-maroon to-burgundy border-transparent' => $usesMaroonSidebar,
+            'bg-white border-zinc-100 dark:border-zinc-800 dark:bg-zinc-900' => ! $usesMaroonSidebar,
+        ])>
+        @if($usesMaroonSidebar)
+            {{-- زخرفة إسلامية خفيفة على خلفية السايدبار --}}
+            <div class="absolute inset-0 opacity-[0.06] pointer-events-none">
+                <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <pattern id="sidebar-islamic-pattern" width="70" height="70" patternUnits="userSpaceOnUse">
+                        <path d="M35 0 L70 35 L35 70 L0 35 Z M35 9 L61 35 L35 61 L9 35 Z" fill="none" stroke="white" stroke-width="1" />
+                        <circle cx="35" cy="35" r="7" fill="none" stroke="white" stroke-width="0.75" />
+                    </pattern>
+                    <rect width="100%" height="100%" fill="url(#sidebar-islamic-pattern)" />
+                </svg>
+            </div>
+        @endif
+
+        <flux:sidebar.header class="relative lg:hidden">
             <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
             <flux:sidebar.collapse class="lg:hidden" />
         </flux:sidebar.header>
 
-        {{ $sidebar ?? '' }}
+        <div class="relative flex-1 flex flex-col min-h-0">
+            {{ $sidebar ?? '' }}
 
-        <flux:spacer />
+            <flux:spacer />
 
-        <flux:sidebar.nav>
-            @if(auth('student')->check())
-                <flux:sidebar.item icon="cog" :href="route('student.settings')" :current="request()->routeIs('student.settings')" wire:navigate>
-                    {{ __('إعدادات الحساب') }}
-                </flux:sidebar.item>
+            <flux:sidebar.nav>
+                @if(auth('student')->check())
+                    <flux:sidebar.item icon="cog" :href="route('student.settings')" :current="request()->routeIs('student.settings')" wire:navigate>
+                        {{ __('إعدادات الحساب') }}
+                    </flux:sidebar.item>
+                @else
+                    <flux:sidebar.item icon="cog" :href="route('profile.edit')" :current="request()->routeIs('profile.edit')" wire:navigate>
+                        {{ __('إعدادات الحساب') }}
+                    </flux:sidebar.item>
+                @endif
+
+                @if(auth('student')->check())
+                    <form method="POST" action="{{ route('student.logout') }}" class="w-full">
+                @else
+                    <form method="POST" action="{{ route('logout') }}" class="w-full">
+                @endif
+                    @csrf
+                    <flux:sidebar.item as="button" type="submit" icon="arrow-right-start-on-rectangle"
+                        class="w-full cursor-pointer">
+                        {{ __('تسجيل الخروج') }}
+                    </flux:sidebar.item>
+                </form>
+            </flux:sidebar.nav>
+
+            @if($usesMaroonSidebar)
+                {{-- كارت الدعم الفني --}}
+                <a href="https://wa.me/966500000000" target="_blank" rel="noopener"
+                    class="mx-3 mb-3 mt-2 flex items-center gap-3 rounded-xl bg-white/10 hover:bg-white/15 p-3 text-white">
+                    <span class="flex items-center justify-center size-9 rounded-full bg-white/15 shrink-0">
+                        <flux:icon icon="lifebuoy" class="size-5" />
+                    </span>
+                    <span class="text-sm">
+                        <span class="block font-bold">{{ __('الدعم الفني') }}</span>
+                        <span class="block text-white/70 text-xs">{{ __('تحتاج مساعدة؟ تواصل معنا') }}</span>
+                    </span>
+                </a>
             @else
-                <flux:sidebar.item icon="cog" :href="route('profile.edit')" :current="request()->routeIs('profile.edit')" wire:navigate>
-                    {{ __('إعدادات الحساب') }}
-                </flux:sidebar.item>
+                @php
+                    $currentUser = auth()->user();
+                @endphp
+                <x-desktop-user-menu class="hidden lg:block" :name="$currentUser?->name" />
             @endif
-
-            @if(auth('student')->check())
-                <form method="POST" action="{{ route('student.logout') }}" class="w-full">
-            @else
-                <form method="POST" action="{{ route('logout') }}" class="w-full">
-            @endif
-                @csrf
-                <flux:sidebar.item as="button" type="submit" icon="arrow-right-start-on-rectangle"
-                    class="w-full cursor-pointer">
-                    {{ __('تسجيل الخروج') }}
-                </flux:sidebar.item>
-            </form>
-        </flux:sidebar.nav>
-
-        @php
-            $currentUser = auth('student')->check() ? auth('student')->user() : auth()->user();
-        @endphp
-        <x-desktop-user-menu class="hidden lg:block" :name="$currentUser?->name" />
+        </div>
     </flux:sidebar>
 
     <flux:header class="lg:hidden">
@@ -78,7 +115,11 @@
         <x-layouts.app.header-user-menu />
     </flux:header>
 
-    <flux:main class="!p-1 !pb-32 md:!p-8 md:!pb-32 lg:!pb-8">
+    <flux:header class="hidden lg:flex !min-h-0 !p-0 min-w-0">
+        <x-layouts.app.desktop-header />
+    </flux:header>
+
+    <flux:main class="!p-1 !pb-32 md:!p-8 md:!pb-32 lg:!pb-8 min-w-0">
         {{ $slot }}
     </flux:main>
 
