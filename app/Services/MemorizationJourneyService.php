@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Ayah;
 use App\Models\Student;
 use App\Models\StudentPlanDay;
+use App\Models\Surah;
 use Carbon\Carbon;
 
 class MemorizationJourneyService
@@ -41,6 +42,39 @@ class MemorizationJourneyService
         }
 
         return $map;
+    }
+
+    /**
+     * Map every surah to the student's memorization status: full, partial, none.
+     * Computed by overlapping each surah's ayah-id range with the memorized range.
+     *
+     * @return array<int, array{number: int, name: string, status: string}>
+     */
+    public static function surahMap(Student $student): array
+    {
+        $range = $student->getMemorizedRange();
+
+        $surahBounds = Ayah::selectRaw('surah_id, MIN(id) as min_id, MAX(id) as max_id')
+            ->groupBy('surah_id')
+            ->get()
+            ->keyBy('surah_id');
+
+        return Surah::orderBy('id')
+            ->get(['id', 'number', 'name_arabic'])
+            ->map(function (Surah $surah) use ($range, $surahBounds) {
+                $bounds = $surahBounds->get($surah->id);
+                $status = 'none';
+
+                if ($range && $bounds) {
+                    $overlaps = ! ($bounds->max_id < $range['min'] || $bounds->min_id > $range['max']);
+                    if ($overlaps) {
+                        $status = ($bounds->min_id >= $range['min'] && $bounds->max_id <= $range['max']) ? 'full' : 'partial';
+                    }
+                }
+
+                return ['number' => $surah->number, 'name' => $surah->name_arabic, 'status' => $status];
+            })
+            ->all();
     }
 
     /**

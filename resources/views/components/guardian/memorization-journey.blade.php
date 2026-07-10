@@ -2,11 +2,13 @@
 
 @php
     $juzMap = \App\Services\MemorizationJourneyService::juzMap($student);
+    $surahMap = \App\Services\MemorizationJourneyService::surahMap($student);
     $scoreTrend = \App\Services\MemorizationJourneyService::scoreTrend($student);
     $attendanceTrend = \App\Services\MemorizationJourneyService::attendanceTrend($student);
 
     $fullCount = collect($juzMap)->where('status', 'full')->count();
     $partialCount = collect($juzMap)->where('status', 'partial')->count();
+    $fullSurahCount = collect($surahMap)->where('status', 'full')->count();
 @endphp
 
 <div class="space-y-6" dir="rtl">
@@ -51,6 +53,41 @@
             <span class="flex items-center gap-1.5"><span class="size-3 rounded bg-emerald-500"></span> مكتمل</span>
             <span class="flex items-center gap-1.5"><span class="size-3 rounded bg-amber-200 dark:bg-amber-500/30 border border-amber-300"></span> قيد الحفظ</span>
             <span class="flex items-center gap-1.5"><span class="size-3 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700"></span> لم يبدأ</span>
+        </div>
+
+        {{-- Surah map: highlights every surah the student has completed --}}
+        <div x-data="{ showSurahs: false }" class="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-700">
+            <button type="button" @click="showSurahs = !showSurahs"
+                class="w-full flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white">
+                <span class="flex items-center gap-2">
+                    <flux:icon icon="queue-list" class="size-4 text-emerald-500" />
+                    خريطة السور
+                    <span class="text-xs text-neutral-400">(<span class="font-bold text-emerald-600 dark:text-emerald-400">{{ $fullSurahCount }}</span> سورة مكتملة)</span>
+                </span>
+                <flux:icon icon="chevron-down" class="size-4 transition-transform" x-bind:class="showSurahs ? 'rotate-180' : ''" />
+            </button>
+            <div x-show="showSurahs" x-collapse x-cloak>
+                <div class="flex flex-wrap gap-1.5 mt-3">
+                    @foreach($surahMap as $surah)
+                        @php
+                            $chipClass = match ($surah['status']) {
+                                'full' => 'bg-emerald-500 text-white border-emerald-600',
+                                'partial' => 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-500/40',
+                                default => 'bg-neutral-50 dark:bg-neutral-900 text-neutral-400 border-neutral-200 dark:border-neutral-700',
+                            };
+                            $chipLabel = match ($surah['status']) {
+                                'full' => 'مكتملة',
+                                'partial' => 'قيد الحفظ',
+                                default => 'لم تبدأ',
+                            };
+                        @endphp
+                        <span class="px-2 py-1 rounded-lg border text-[11px] font-medium {{ $chipClass }}"
+                            title="سورة {{ $surah['name'] }} — {{ $chipLabel }}">
+                            {{ $surah['name'] }}
+                        </span>
+                    @endforeach
+                </div>
+            </div>
         </div>
     </div>
 
