@@ -1,4 +1,4 @@
-<x-layouts.role-shell :force-light="true">
+<x-layouts.role-shell>
     <x-slot:sidebar>
         @include('supervisor.sidebar-nav')
     </x-slot:sidebar>

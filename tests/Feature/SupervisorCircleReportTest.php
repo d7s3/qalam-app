@@ -264,22 +264,27 @@ it('narrows the stage report to a single circle', function () {
         ->assertDontSee('طالب الحلقة الثانية');
 });
 
-it('forces light mode on the report pages only', function () {
-    $this->actingAs($this->supervisor, 'supervisor');
+it('keeps the shared public report light-only while supervisor reports follow the theme', function () {
+    $forceLightGuard = 'lightOnlyObserver.observe(document.documentElement';
 
-    $forceLightScript = 'observer.observe(document.documentElement';
+    [$from, $to] = CircleReportService::resolveRange('this_week');
+    $signedUrl = URL::signedRoute('reports.circle', [
+        'circle' => $this->circle->id,
+        'scope' => 'circle',
+        'from' => $from->toDateString(),
+        'to' => $to->toDateString(),
+    ]);
+
+    $this->get($signedUrl)
+        ->assertSuccessful()
+        ->assertSee('class="light"', false)
+        ->assertSee($forceLightGuard, false);
+
+    $this->actingAs($this->supervisor, 'supervisor');
 
     $this->get(route('supervisor.circles.report', $this->circle->id))
         ->assertSuccessful()
-        ->assertSee($forceLightScript, false);
-
-    $this->get(route('supervisor.stages.report', $this->stage->id))
-        ->assertSuccessful()
-        ->assertSee($forceLightScript, false);
-
-    $this->get(route('supervisor.circles'))
-        ->assertSuccessful()
-        ->assertDontSee($forceLightScript, false);
+        ->assertDontSee($forceLightGuard, false);
 });
 
 it('renders the shared public stage report with a valid signature', function () {

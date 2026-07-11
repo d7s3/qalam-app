@@ -20,6 +20,14 @@
 
     <script>
         document.documentElement.classList.remove('dark');
+        // Keep public pages light-only even if the appearance script re-applies
+        // a stored dark preference at runtime.
+        const lightOnlyObserver = new MutationObserver(() => {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+        lightOnlyObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     </script>
     <style>
         :root, html, body {
