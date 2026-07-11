@@ -3,6 +3,7 @@
 use App\Livewire\Auth\Manager\Login;
 use App\Livewire\Auth\Manager\Register;
 use App\Livewire\Manager\PendingApprovals;
+use App\Livewire\Public\CircleReport as PublicCircleReport;
 use App\Livewire\Public\FormReport;
 use App\Livewire\Public\FormSubmit;
 use App\Models\Circle;
@@ -135,6 +136,7 @@ Route::middleware(['auth:supervisor', 'approved'])->prefix('supervisor')->name('
     Route::view('/odes/plans', 'supervisor.ode-plans')->name('odes.plans');
     Route::view('/odes/create-plan', 'supervisor.ode-plan-creator')->name('odes.create-plan');
     Route::view('/circles', 'supervisor.circles')->name('circles');
+    Route::get('/circles/{circle}/report', fn ($circle) => view('supervisor.circle-report', ['circleId' => $circle]))->name('circles.report');
     Route::view('/students', 'supervisor.students')->name('students');
     Route::view('/competitions', 'supervisor.competitions')->name('competitions');
     Route::get('/competitions/{competition}/gamification', fn ($competition) => view('supervisor.gamification', ['competitionId' => $competition]))->name('competitions.gamification');
@@ -321,5 +323,6 @@ Route::get('/test', function () {})->name('test');
 
 Route::get('/f/{slug}', FormSubmit::class)->name('forms.submit');
 Route::get('/f/{slug}/{token}', FormReport::class)->name('forms.report');
+Route::get('/r/circle-report', PublicCircleReport::class)->name('reports.circle')->middleware('signed');
 
 require __DIR__.'/settings.php';

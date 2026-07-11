@@ -41,7 +41,12 @@
             <flux:table.rows>
                 @forelse ($circles as $circle)
                     <flux:table.row :key="$circle->id">
-                        <flux:table.cell class="font-bold text-zinc-900 dark:text-white">{{ $circle->name }}</flux:table.cell>
+                        <flux:table.cell class="font-bold text-zinc-900 dark:text-white">
+                            <a href="{{ route('supervisor.circles.report', $circle->id) }}"
+                                class="hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline underline-offset-4">
+                                {{ $circle->name }}
+                            </a>
+                        </flux:table.cell>
                         <flux:table.cell class="hidden md:table-cell">
                             <flux:badge size="sm" variant="neutral">{{ $circle->stage->name }}</flux:badge>
                         </flux:table.cell>
@@ -58,7 +63,10 @@
                             <flux:badge size="sm" variant="neutral">{{ $circle->students_count }}</flux:badge>
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
-                            <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
+                            <div class="flex items-center gap-1">
+                                <flux:button size="sm" variant="ghost" icon="chart-bar" :href="route('supervisor.circles.report', $circle->id)" title="تقرير الإنجاز" />
+                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
+                            </div>
                         </flux:table.cell>
                     </flux:table.row>
                 @empty
