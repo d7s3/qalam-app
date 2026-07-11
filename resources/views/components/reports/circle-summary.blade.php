@@ -14,7 +14,7 @@
                 <flux:icon icon="book-open" class="size-4 text-emerald-500" />
                 <p class="text-xs text-zinc-500">حفظ القرآن</p>
             </div>
-            <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ number_format($totals['hifz']['ayahs']) }} <span class="text-sm font-medium">آية</span></p>
+            <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ number_format($totals['hifz']['pages']) }} <span class="text-sm font-medium">صفحة</span></p>
             <p class="text-xs text-zinc-400 mt-1">
                 {{ $totals['hifz']['days'] }} يوم تسميع
                 @if($totals['hifz']['average'] !== null)
@@ -28,7 +28,7 @@
                 <flux:icon icon="arrow-path" class="size-4 text-blue-500" />
                 <p class="text-xs text-zinc-500">مراجعة القرآن</p>
             </div>
-            <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ number_format($totals['review']['ayahs']) }} <span class="text-sm font-medium">آية</span></p>
+            <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ number_format($totals['review']['pages']) }} <span class="text-sm font-medium">صفحة</span></p>
             <p class="text-xs text-zinc-400 mt-1">
                 {{ $totals['review']['days'] }} يوم مراجعة
                 @if($totals['review']['average'] !== null)
@@ -77,8 +77,8 @@
                 @if($showCircleColumn)
                     <flux:table.column class="hidden md:table-cell">الحلقة</flux:table.column>
                 @endif
-                <flux:table.column class="text-center">آيات الحفظ</flux:table.column>
-                <flux:table.column class="text-center">آيات المراجعة</flux:table.column>
+                <flux:table.column class="text-center">صفحات الحفظ</flux:table.column>
+                <flux:table.column class="text-center">صفحات المراجعة</flux:table.column>
                 <flux:table.column class="text-center">الحضور</flux:table.column>
                 <flux:table.column class="text-center">الأحاديث</flux:table.column>
                 <flux:table.column class="text-center">الأبيات</flux:table.column>
@@ -94,10 +94,10 @@
                             </flux:table.cell>
                         @endif
                         <flux:table.cell class="text-center">
-                            <span class="font-semibold text-emerald-600 dark:text-emerald-400">{{ $row['hifz_ayahs'] }}</span>
+                            <span class="font-semibold text-emerald-600 dark:text-emerald-400">{{ $row['hifz_pages'] }}</span>
                         </flux:table.cell>
                         <flux:table.cell class="text-center">
-                            <span class="font-semibold text-blue-600 dark:text-blue-400">{{ $row['review_ayahs'] }}</span>
+                            <span class="font-semibold text-blue-600 dark:text-blue-400">{{ $row['review_pages'] }}</span>
                         </flux:table.cell>
                         <flux:table.cell class="text-center">
                             @if($row['attendance_total'] > 0)

@@ -7,7 +7,7 @@
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
                 <h1 class="text-2xl md:text-3xl font-extrabold text-zinc-900">
-                    تقرير الإنجاز — {{ $scope === 'stage' ? 'مرحلة '.$circle->stage->name : 'حلقة '.$circle->name }}
+                    تقرير الإنجاز — {{ $scopeName }}
                 </h1>
                 <p class="text-sm md:text-base text-zinc-500 mt-2">
                     تقرير إنجاز الطلاب في الحفظ والمراجعة والحضور والمتون والمنظومات.
@@ -29,5 +29,5 @@
     </div>
 
     {{-- Report body --}}
-    <x-reports.circle-summary :report="$report" :show-circle-column="$scope === 'stage'" />
+    <x-reports.circle-summary :report="$report" :show-circle-column="$showCircleColumn" />
 </div>

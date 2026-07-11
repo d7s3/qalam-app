@@ -10,7 +10,19 @@
             </div>
         </div>
         @if($stages->isNotEmpty())
-            <flux:button variant="primary" size="sm" icon="plus" wire:click="create">إضافة حلقة جديدة</flux:button>
+            <div class="flex items-center gap-2">
+                <flux:dropdown>
+                    <flux:button size="sm" icon="chart-bar" icon:trailing="chevron-down">تقرير المرحلة</flux:button>
+                    <flux:menu>
+                        @foreach($stages as $stage)
+                            <flux:menu.item :href="route('supervisor.stages.report', $stage->id)" icon="presentation-chart-line">
+                                {{ $stage->name }}
+                            </flux:menu.item>
+                        @endforeach
+                    </flux:menu>
+                </flux:dropdown>
+                <flux:button variant="primary" size="sm" icon="plus" wire:click="create">إضافة حلقة جديدة</flux:button>
+            </div>
         @endif
     </div>
 

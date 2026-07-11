@@ -1,10 +1,11 @@
+@props(['forceLight' => false])
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl">
 
 <head>
     @include('partials.head')
     <title>{{ $title ?? config('app.name') }}</title>
-    @if(auth('student')->check())
+    @if(auth('student')->check() || $forceLight)
         <script>
             document.documentElement.classList.remove('dark');
             const observer = new MutationObserver((mutations) => {

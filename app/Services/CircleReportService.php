@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Attendance;
+use App\Models\Ayah;
 use App\Models\Circle;
 use App\Models\Hadith;
 use App\Models\Stage;
@@ -91,12 +92,13 @@ class CircleReportService
 
     /**
      * Build the achievement report for the given students within a date range:
-     * Quran (hifz/review ayah counts and grades), attendance, memorized hadiths
-     * and ode verses. Graded work is attributed to its grading date, falling
-     * back to the plan-day date for legacy rows without a graded_at timestamp.
+     * Quran (distinct hifz/review pages and grades), attendance, memorized
+     * hadiths and ode verses. Graded work is attributed to its grading date,
+     * falling back to the plan-day date for legacy rows without a graded_at
+     * timestamp.
      *
      * @param  EloquentCollection<int, Student>  $students
-     * @return array{totals: array{hifz: array{ayahs: int, days: int, average: float|null}, review: array{ayahs: int, days: int, average: float|null}, attendance: array{present: int, late: int, absent: int, excused: int, total: int, rate: int|null}, hadiths: int, verses: int}, perStudent: Collection<int, array<string, mixed>>}
+     * @return array{totals: array{hifz: array{pages: int, days: int, average: float|null}, review: array{pages: int, days: int, average: float|null}, attendance: array{present: int, late: int, absent: int, excused: int, total: int, rate: int|null}, hadiths: int, verses: int}, perStudent: Collection<int, array<string, mixed>>}
      */
     public static function build(EloquentCollection $students, Carbon $from, Carbon $to): array
     {
@@ -107,8 +109,8 @@ class CircleReportService
         $per = [];
         foreach ($studentIds as $id) {
             $per[$id] = [
-                'hifz_ayahs' => 0, 'hifz_days' => 0, 'hifz_score_sum' => 0,
-                'review_ayahs' => 0, 'review_days' => 0, 'review_score_sum' => 0,
+                'hifz_pages' => 0, 'hifz_days' => 0, 'hifz_score_sum' => 0,
+                'review_pages' => 0, 'review_days' => 0, 'review_score_sum' => 0,
                 'present' => 0, 'late' => 0, 'absent' => 0, 'excused' => 0, 'attendance_total' => 0,
                 'hadiths' => 0, 'verses' => 0,
             ];
@@ -132,6 +134,9 @@ class CircleReportService
             })
             ->get(['student_plan_days.*', 'student_plans.student_id as owner_student_id']);
 
+        $hifzRanges = [];
+        $reviewRanges = [];
+
         foreach ($quranDays as $day) {
             $sid = $day->owner_student_id;
             if (! isset($per[$sid])) {
@@ -143,7 +148,7 @@ class CircleReportService
                 $per[$sid]['hifz_days']++;
                 $per[$sid]['hifz_score_sum'] += (int) $day->hifz_achievement;
                 if ($day->from_ayah_id && $day->to_ayah_id) {
-                    $per[$sid]['hifz_ayahs'] += abs($day->to_ayah_id - $day->from_ayah_id) + 1;
+                    $hifzRanges[$sid][] = [min($day->from_ayah_id, $day->to_ayah_id), max($day->from_ayah_id, $day->to_ayah_id)];
                 }
             }
 
@@ -152,9 +157,16 @@ class CircleReportService
                 $per[$sid]['review_days']++;
                 $per[$sid]['review_score_sum'] += (int) $day->review_achievement;
                 if ($day->review_from_ayah_id && $day->review_to_ayah_id) {
-                    $per[$sid]['review_ayahs'] += abs($day->review_to_ayah_id - $day->review_from_ayah_id) + 1;
+                    $reviewRanges[$sid][] = [min($day->review_from_ayah_id, $day->review_to_ayah_id), max($day->review_from_ayah_id, $day->review_to_ayah_id)];
                 }
             }
+        }
+
+        foreach (self::distinctPagesPerStudent($hifzRanges) as $sid => $pages) {
+            $per[$sid]['hifz_pages'] = $pages;
+        }
+        foreach (self::distinctPagesPerStudent($reviewRanges) as $sid => $pages) {
+            $per[$sid]['review_pages'] = $pages;
         }
 
         // Attendance within the range, only while the student was active on that date.
@@ -192,8 +204,8 @@ class CircleReportService
         }
 
         $totals = [
-            'hifz' => ['ayahs' => 0, 'days' => 0, 'average' => null],
-            'review' => ['ayahs' => 0, 'days' => 0, 'average' => null],
+            'hifz' => ['pages' => 0, 'days' => 0, 'average' => null],
+            'review' => ['pages' => 0, 'days' => 0, 'average' => null],
             'attendance' => ['present' => 0, 'late' => 0, 'absent' => 0, 'excused' => 0, 'total' => 0, 'rate' => null],
             'hadiths' => 0,
             'verses' => 0,
@@ -202,10 +214,10 @@ class CircleReportService
         $reviewScoreSum = 0;
 
         foreach ($per as $row) {
-            $totals['hifz']['ayahs'] += $row['hifz_ayahs'];
+            $totals['hifz']['pages'] += $row['hifz_pages'];
             $totals['hifz']['days'] += $row['hifz_days'];
             $hifzScoreSum += $row['hifz_score_sum'];
-            $totals['review']['ayahs'] += $row['review_ayahs'];
+            $totals['review']['pages'] += $row['review_pages'];
             $totals['review']['days'] += $row['review_days'];
             $reviewScoreSum += $row['review_score_sum'];
             $totals['attendance']['present'] += $row['present'];
@@ -235,6 +247,48 @@ class CircleReportService
         ))->values();
 
         return ['totals' => $totals, 'perStudent' => $perStudent];
+    }
+
+    /**
+     * Count the distinct mushaf pages covered by each student's ayah ranges,
+     * so overlapping days within the period do not double-count a page.
+     *
+     * @param  array<int, array<int, array{0: int, 1: int}>>  $rangesByStudent
+     * @return array<int, int>
+     */
+    private static function distinctPagesPerStudent(array $rangesByStudent): array
+    {
+        if ($rangesByStudent === []) {
+            return [];
+        }
+
+        $envelopeMin = null;
+        $envelopeMax = null;
+        foreach ($rangesByStudent as $ranges) {
+            foreach ($ranges as [$min, $max]) {
+                $envelopeMin = $envelopeMin === null ? $min : min($envelopeMin, $min);
+                $envelopeMax = $envelopeMax === null ? $max : max($envelopeMax, $max);
+            }
+        }
+
+        $pageByAyah = Ayah::whereBetween('id', [$envelopeMin, $envelopeMax])
+            ->pluck('page_number', 'id');
+
+        $counts = [];
+        foreach ($rangesByStudent as $sid => $ranges) {
+            $pages = [];
+            foreach ($ranges as [$min, $max]) {
+                for ($ayahId = $min; $ayahId <= $max; $ayahId++) {
+                    $page = $pageByAyah[$ayahId] ?? null;
+                    if ($page !== null) {
+                        $pages[$page] = true;
+                    }
+                }
+            }
+            $counts[$sid] = count($pages);
+        }
+
+        return $counts;
     }
 
     /**

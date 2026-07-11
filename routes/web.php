@@ -137,6 +137,7 @@ Route::middleware(['auth:supervisor', 'approved'])->prefix('supervisor')->name('
     Route::view('/odes/create-plan', 'supervisor.ode-plan-creator')->name('odes.create-plan');
     Route::view('/circles', 'supervisor.circles')->name('circles');
     Route::get('/circles/{circle}/report', fn ($circle) => view('supervisor.circle-report', ['circleId' => $circle]))->name('circles.report');
+    Route::get('/stages/{stage}/report', fn ($stage) => view('supervisor.stage-report', ['stageId' => $stage]))->name('stages.report');
     Route::view('/students', 'supervisor.students')->name('students');
     Route::view('/competitions', 'supervisor.competitions')->name('competitions');
     Route::get('/competitions/{competition}/gamification', fn ($competition) => view('supervisor.gamification', ['competitionId' => $competition]))->name('competitions.gamification');

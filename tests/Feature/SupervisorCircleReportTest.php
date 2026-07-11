@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Supervisor\CircleReport as SupervisorCircleReport;
+use App\Livewire\Supervisor\StageReport;
 use App\Models\Attendance;
 use App\Models\Circle;
 use App\Models\Hadith;
@@ -69,22 +70,22 @@ it('resolves the date range presets', function () {
 });
 
 it('aggregates quran, attendance, hadith and ode achievements within the range', function () {
-    // Seed a surah with ayah ids 1-10 to satisfy the plan-day foreign keys.
+    // Seed a surah with ayah ids 1-10: ids 1-5 sit on page 1 and ids 6-10 on page 2.
     $surah = Surah::create([
         'number' => 1, 'name_arabic' => 'سورة', 'name_simple' => 'Surah',
         'revelation_place' => 'makkah', 'revelation_order' => 1, 'verses_count' => 10,
-        'start_page' => 1, 'end_page' => 1,
+        'start_page' => 1, 'end_page' => 2,
     ]);
     foreach (range(1, 10) as $id) {
         DB::table('ayahs')->insert([
             'id' => $id, 'surah_id' => $surah->id, 'verse_number' => $id, 'verse_key' => "1:{$id}",
-            'juz_number' => 1, 'hizb_number' => 1, 'rub_number' => 1, 'page_number' => 1,
+            'juz_number' => 1, 'hizb_number' => 1, 'rub_number' => 1, 'page_number' => $id <= 5 ? 1 : 2,
             'ruku_number' => 1, 'manzil_number' => 1, 'text_uthmani' => 'نص',
             'created_at' => now(), 'updated_at' => now(),
         ]);
     }
 
-    // Quran: a day graded in range (hifz 5 ayahs + review 10 ayahs) and one graded before it.
+    // Quran: a day graded in range (hifz page 1 + review pages 1-2) and one graded before it.
     $plan = StudentPlan::create([
         'student_id' => $this->student->id,
         'plan_type' => 'hifz',
@@ -169,14 +170,14 @@ it('aggregates quran, attendance, hadith and ode achievements within the range',
     [$from, $to] = CircleReportService::resolveRange('this_week');
     $report = CircleReportService::build(CircleReportService::studentsForCircle($this->circle), $from, $to);
 
-    expect($report['totals']['hifz'])->toMatchArray(['ayahs' => 5, 'days' => 1, 'average' => 3.0]);
-    expect($report['totals']['review'])->toMatchArray(['ayahs' => 10, 'days' => 1, 'average' => 2.0]);
+    expect($report['totals']['hifz'])->toMatchArray(['pages' => 1, 'days' => 1, 'average' => 3.0]);
+    expect($report['totals']['review'])->toMatchArray(['pages' => 2, 'days' => 1, 'average' => 2.0]);
     expect($report['totals']['attendance'])->toMatchArray(['present' => 1, 'absent' => 1, 'total' => 2, 'rate' => 50]);
     expect($report['totals']['hadiths'])->toBe(2);
     expect($report['totals']['verses'])->toBe(3);
 
     $row = $report['perStudent']->first(fn ($r) => $r['student']->id === $this->student->id);
-    expect($row)->toMatchArray(['hifz_ayahs' => 5, 'review_ayahs' => 10, 'hadiths' => 2, 'verses' => 3]);
+    expect($row)->toMatchArray(['hifz_pages' => 1, 'review_pages' => 2, 'hadiths' => 2, 'verses' => 3]);
 });
 
 it('opens the report page for a circle within the supervisor stages', function () {
@@ -225,6 +226,75 @@ it('filters the report to a single student', function () {
     Livewire::test(SupervisorCircleReport::class, ['circleId' => $this->circle->id])
         ->set('studentId', (string) $other->id)
         ->assertSee('الطالب: طالب آخر');
+});
+
+it('opens the stage report page for a supervisor stage', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $this->get(route('supervisor.stages.report', $this->stage->id))
+        ->assertSuccessful()
+        ->assertSee('تقرير الإنجاز')
+        ->assertSee('مرحلة '.$this->stage->name)
+        ->assertSee('طالب التقرير')
+        ->assertSee('نسخ رابط المشاركة');
+});
+
+it('rejects a stage report outside the supervisor stages', function () {
+    $foreignStage = Stage::factory()->create();
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $this->get(route('supervisor.stages.report', $foreignStage->id))->assertNotFound();
+});
+
+it('narrows the stage report to a single circle', function () {
+    $secondCircle = Circle::factory()->create(['stage_id' => $this->stage->id]);
+    Student::factory()->create([
+        'name' => 'طالب الحلقة الثانية',
+        'circle_id' => $secondCircle->id,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(StageReport::class, ['stageId' => $this->stage->id])
+        ->assertSee('طالب الحلقة الثانية')
+        ->set('circleId', (string) $this->circle->id)
+        ->assertSee('طالب التقرير')
+        ->assertDontSee('طالب الحلقة الثانية');
+});
+
+it('forces light mode on the report pages only', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $forceLightScript = 'observer.observe(document.documentElement';
+
+    $this->get(route('supervisor.circles.report', $this->circle->id))
+        ->assertSuccessful()
+        ->assertSee($forceLightScript, false);
+
+    $this->get(route('supervisor.stages.report', $this->stage->id))
+        ->assertSuccessful()
+        ->assertSee($forceLightScript, false);
+
+    $this->get(route('supervisor.circles'))
+        ->assertSuccessful()
+        ->assertDontSee($forceLightScript, false);
+});
+
+it('renders the shared public stage report with a valid signature', function () {
+    [$from, $to] = CircleReportService::resolveRange('this_week');
+
+    $signedUrl = URL::signedRoute('reports.circle', [
+        'stage' => $this->stage->id,
+        'from' => $from->toDateString(),
+        'to' => $to->toDateString(),
+    ]);
+
+    $this->get($signedUrl)
+        ->assertSuccessful()
+        ->assertSee('مرحلة '.$this->stage->name)
+        ->assertSee('طالب التقرير');
 });
 
 it('renders the shared public report only with a valid signature', function () {
