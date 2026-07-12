@@ -53,15 +53,14 @@ new class extends Component {
     {
         $circleIds = $this->getCircleIds();
 
-        $plans = StudentOdePlan::with(['student.circle', 'path.ode', 'path.days'])
-            ->whereHas('student', function ($q) use ($circleIds) {
-                $q->whereIn('circle_id', $circleIds);
-            })
+        $studentIds = \App\Models\Student::whereIn('circle_id', $circleIds)
             ->when($this->search, function ($query) {
-                $query->whereHas('student', function ($q) {
-                    $q->where('name', 'like', '%' . $this->search . '%');
-                });
+                $query->where('name', 'like', '%' . $this->search . '%');
             })
+            ->pluck('id');
+
+        $plans = StudentOdePlan::with(['student.circle', 'path.ode', 'path.days'])
+            ->whereIn('student_id', $studentIds)
             ->latest()
             ->paginate(20);
 

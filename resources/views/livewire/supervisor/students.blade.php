@@ -128,6 +128,10 @@
                 @endforelse
             </flux:table.rows>
         </flux:table>
+
+        <div class="p-4 border-t border-zinc-100 dark:border-zinc-800">
+            {{ $students->links() }}
+        </div>
     </div>
 
     {{-- Student Details Flyout --}}

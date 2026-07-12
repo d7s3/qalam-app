@@ -9,10 +9,11 @@ use App\Services\StudentStatusService;
 use Flux\Flux;
 use Illuminate\Support\Str;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 class Students extends Component
 {
-    public $students;
+    use WithPagination;
 
     public $circles;
 
@@ -45,10 +46,10 @@ class Students extends Component
     public function mount()
     {
         $this->circles = Circle::with('stage')->get();
-        $this->loadData();
+        $this->guardiansList = Guardian::where('is_approved', true)->get();
     }
 
-    public function loadData()
+    private function getStudentsQuery()
     {
         $query = Student::with(['circle.stage', 'guardian']);
 
@@ -73,28 +74,27 @@ class Students extends Component
             $query->where('guardian_id', $this->guardianFilter);
         }
 
-        $this->students = $query->latest()->get();
-        $this->guardiansList = Guardian::where('is_approved', true)->get();
+        return $query->latest();
     }
 
     public function updatedSearch()
     {
-        $this->loadData();
+        $this->resetPage();
     }
 
     public function updatedStatusFilter()
     {
-        $this->loadData();
+        $this->resetPage();
     }
 
     public function updatedCircleFilter()
     {
-        $this->loadData();
+        $this->resetPage();
     }
 
     public function updatedGuardianFilter()
     {
-        $this->loadData();
+        $this->resetPage();
     }
 
     public function approve($id)
@@ -112,7 +112,6 @@ class Students extends Component
             'approved_by' => auth()->id(),
         ]);
 
-        $this->loadData();
         Flux::toast(__('تمت الموافقة على الطالب بنجاح'), variant: 'success');
     }
 
@@ -184,7 +183,6 @@ class Students extends Component
 
         Flux::toast(__('تم تحديث بيانات الطالب بنجاح'), variant: 'success');
         $this->reset(['name', 'email', 'circle_id', 'guardian_id', 'editStatus', 'editStatusDate', 'editJoinedAt', 'editingStudentId']);
-        $this->loadData();
         Flux::modal('student-modal')->close();
     }
 
@@ -196,7 +194,6 @@ class Students extends Component
 
         StudentStatusService::deleteHistoryEntry($this->viewingStudent, $historyId);
 
-        $this->loadData();
         $this->edit($this->viewingStudent->id);
         Flux::toast(__('تم حذف سجل الحالة'), variant: 'success');
     }
@@ -208,7 +205,6 @@ class Students extends Component
             $student->update([
                 'access_token' => Str::random(32),
             ]);
-            $this->loadData();
             if ($this->viewingStudent && $this->viewingStudent->id === $student->id) {
                 $this->viewingStudent->access_token = $student->access_token;
             }
@@ -220,7 +216,6 @@ class Students extends Component
     {
         $student = Student::findOrFail($id);
         $student->delete();
-        $this->loadData();
         Flux::toast(__('تم حذف الطالب بنجاح'), variant: 'success');
     }
 
@@ -231,6 +226,8 @@ class Students extends Component
 
     public function render()
     {
-        return view('livewire.manager.students');
+        return view('livewire.manager.students', [
+            'students' => $this->getStudentsQuery()->paginate(20),
+        ]);
     }
 }

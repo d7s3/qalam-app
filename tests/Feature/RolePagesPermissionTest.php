@@ -4,6 +4,7 @@ use App\Models\DisabledRolePage;
 use App\Models\Manager;
 use App\Models\Teacher;
 use App\Support\RolePages;
+use Illuminate\Support\Facades\DB;
 
 it('treats every registered page as enabled by default', function () {
     expect(RolePages::isEnabled('teacher', 'teacher.students'))->toBeTrue();
@@ -48,4 +49,23 @@ it('does not affect manager routes since manager permissions are not controlled'
     $this->actingAs($manager, 'manager')
         ->get(route('manager.students'))
         ->assertSuccessful();
+});
+
+it('queries disabled_role_pages at most once per request despite the middleware plus a dozen-plus sidebar checks', function () {
+    $teacher = Teacher::factory()->create();
+
+    $queries = [];
+    DB::listen(function ($query) use (&$queries) {
+        $queries[] = $query->sql;
+    });
+
+    $this->actingAs($teacher, 'teacher')
+        ->get(route('teacher.student-plans'))
+        ->assertSuccessful();
+
+    $disabledPageQueries = collect($queries)
+        ->filter(fn ($sql) => str_contains($sql, 'disabled_role_pages'))
+        ->count();
+
+    expect($disabledPageQueries)->toBeLessThanOrEqual(1);
 });

@@ -230,15 +230,14 @@ new class extends Component {
         $teacher = Auth::guard('teacher')->user();
         $circleIds = $teacher->circles()->pluck('id');
 
-        $plans = StudentPlan::with('student')
-            ->whereHas('student', function ($q) use ($circleIds) {
-                $q->whereIn('circle_id', $circleIds);
-            })
+        $studentIds = \App\Models\Student::whereIn('circle_id', $circleIds)
             ->when($this->search, function ($query) {
-                $query->whereHas('student', function ($q) {
-                    $q->where('name', 'like', '%' . $this->search . '%');
-                });
+                $query->where('name', 'like', '%' . $this->search . '%');
             })
+            ->pluck('id');
+
+        $plans = StudentPlan::with('student')
+            ->whereIn('student_id', $studentIds)
             // Move unapproved to top, then active ones
             ->orderBy('is_approved', 'asc')
             ->latest()

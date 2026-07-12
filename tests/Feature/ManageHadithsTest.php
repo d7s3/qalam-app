@@ -8,6 +8,7 @@ use App\Models\HadithLine;
 use App\Models\Stage;
 use App\Models\Supervisor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -26,6 +27,26 @@ it('renders the hadiths management page for supervisors', function () {
     $response = $this->get(route('supervisor.hadiths'));
     $response->assertSuccessful();
     $response->assertSee('إدارة الأحاديث الشريفة');
+});
+
+it('does not run a separate lines-count query per hadith in the list', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $text = \App\Models\HadithText::create(['name' => 'متن الاختبار']);
+    foreach (range(1, 15) as $i) {
+        $hadith = Hadith::create(['name' => "حديث رقم {$i}", 'hadith_text_id' => $text->id]);
+        HadithLine::create(['hadith_id' => $hadith->id, 'line_number' => 1, 'text' => 'سطر تجريبي']);
+    }
+
+    $queryCount = 0;
+    DB::listen(function () use (&$queryCount) {
+        $queryCount++;
+    });
+
+    Livewire::test(ManageHadiths::class)->assertSuccessful();
+
+    // Without withCount('lines'), this would run one extra COUNT query per hadith (15+).
+    expect($queryCount)->toBeLessThan(15);
 });
 
 it('can create a new hadith', function () {

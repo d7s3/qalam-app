@@ -362,7 +362,7 @@ class ManageHadiths extends Component
             $this->selectedTextId = $texts->first()->id;
         }
 
-        $query = Hadith::query()->with('chapter');
+        $query = Hadith::query()->with('chapter')->withCount('lines');
         if ($this->selectedTextId) {
             $query->where(function ($q) {
                 $q->where('hadith_text_id', $this->selectedTextId)

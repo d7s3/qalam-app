@@ -143,8 +143,13 @@ class RolePages
             ->first();
     }
 
+    /**
+     * Memoized per request: `isEnabled()` is called once per middleware pass
+     * plus once per sidebar item (a dozen-plus times per page render), so an
+     * uncached query here multiplies into a dozen-plus identical queries.
+     */
     protected static function disabledSet(string $role): array
     {
-        return DisabledRolePage::where('role', $role)->pluck('route')->all();
+        return once(fn () => DisabledRolePage::where('role', $role)->pluck('route')->all());
     }
 }
