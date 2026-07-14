@@ -87,7 +87,7 @@ class HijriDatepicker extends Component
         $monthName = $monthNameFormatter->format($this->currentViewTimestamp);
 
         // Fetch students and attendance
-        $totalStudentsCount = Student::where('circle_id', $this->circleId)->where('is_approved', true)->count();
+        $totalStudentsCount = Student::where('circle_id', $this->circleId)->whereRoleState(fn ($q) => $q->where('is_approved', true))->count();
 
         // Calculate bounds
         $cal->set(\IntlCalendar::FIELD_DAY_OF_MONTH, 1);

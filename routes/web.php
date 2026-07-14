@@ -1,7 +1,6 @@
 <?php
 
-use App\Livewire\Auth\Manager\Login;
-use App\Livewire\Auth\Manager\Register;
+use App\Livewire\Auth\Student\Register;
 use App\Livewire\Manager\PendingApprovals;
 use App\Livewire\Public\FormReport;
 use App\Livewire\Public\FormSubmit;
@@ -12,6 +11,7 @@ use App\Models\StudentPlan;
 use App\Models\Supervisor;
 use App\Models\Surah;
 use App\Models\Teacher;
+use App\Services\MessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Mccarlosen\LaravelMpdf\Facades\LaravelMpdf;
@@ -27,7 +27,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/pending-approval', fn () => view('pending-approval'))
-    ->middleware('auth:manager,supervisor,teacher,student,guardian')
+    ->middleware('auth:manager,supervisor,teacher,student,guardian,staff')
     ->name('pending-approval');
 
 Route::post('logout', function (Request $request) {
@@ -36,7 +36,7 @@ Route::post('logout', function (Request $request) {
     if ($guard) {
         auth()->guard($guard)->logout();
     } else {
-        $guards = ['student', 'manager', 'supervisor', 'teacher', 'guardian', 'web'];
+        $guards = ['student', 'manager', 'supervisor', 'teacher', 'guardian', 'staff', 'web'];
 
         foreach ($guards as $guard) {
             if (auth()->guard($guard)->check()) {
@@ -51,15 +51,44 @@ Route::post('logout', function (Request $request) {
     return redirect()->route('home');
 })->name('logout');
 
+// Lets a user who is already authenticated under one guard switch, with one
+// click and no password, into another guard for the same account — now that
+// all roles live on one `users` row, "switching role" just means logging
+// the same row into another guard, after confirming (server-side) that a
+// `user_roles` entry for that role actually exists.
+Route::post('/switch-role/{guard}', function (string $guard) {
+    if (! array_key_exists($guard, MessagingService::MODELS)) {
+        abort(404);
+    }
+
+    $currentUser = collect(array_keys(MessagingService::MODELS))
+        ->map(fn ($g) => auth()->guard($g)->user())
+        ->filter()
+        ->first();
+
+    if (! $currentUser || ! $currentUser->hasRole($guard)) {
+        abort(403);
+    }
+
+    if (! auth()->guard($guard)->check() || auth()->guard($guard)->id() !== $currentUser->id) {
+        $modelClass = MessagingService::MODELS[$guard];
+        $target = $modelClass::findOrFail($currentUser->id);
+        auth()->guard($guard)->login($target);
+    }
+
+    return redirect()->route("{$guard}.dashboard");
+})->middleware('auth:manager,supervisor,teacher,student,guardian,staff')->name('switch-role');
+
 $roles = [
     'manager' => 'مدير',
     'supervisor' => 'مشرف',
     'teacher' => 'معلم',
     'student' => 'طالب',
     'guardian' => 'ولي أمر',
+    'staff' => 'موظف',
 ];
 
-Route::middleware('auth:manager,supervisor,teacher,student,guardian')->group(function () use ($roles) {
+Route::middleware('auth:manager,supervisor,teacher,student,guardian,staff')->group(function () use ($roles) {
     Route::get('dashboard', function () use ($roles) {
         foreach (array_keys($roles) as $roleKey) {
             if (auth()->guard($roleKey)->check()) {
@@ -71,7 +100,7 @@ Route::middleware('auth:manager,supervisor,teacher,student,guardian')->group(fun
     })->name('dashboard');
 });
 
-Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manager.')->group(function () {
+Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager')->name('manager.')->group(function () {
     Route::livewire('/pending-approvals', PendingApprovals::class)->name('pending-approvals');
     Route::view('/stages', 'manager.stages')->name('stages');
     Route::view('/circles', 'manager.circles')->name('circles');
@@ -96,39 +125,14 @@ Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manage
     Route::view('/api-docs', 'manager.api-docs')->name('api-docs');
     Route::view('/messages', 'manager.messages')->name('messages');
     Route::view('/role-permissions', 'manager.role-permissions')->name('role-permissions');
+    Route::view('/staff-members', 'manager.staff-members')->name('staff-members');
     Route::view('/guide', 'shared.guide')->name('guide');
-});
-
-// القاسم المشترك لمسارات الضيوف (Guest Routes) لكل دور
-Route::middleware('guest:manager')->prefix('manager')->name('manager.')->group(function () {
-    Route::get('/login', Login::class)->name('login');
-    // Route::get('/register', Register::class)->name('register');
-});
-
-Route::middleware('guest:supervisor')->prefix('supervisor')->name('supervisor.')->group(function () {
-    Route::get('/login', App\Livewire\Auth\Supervisor\Login::class)->name('login');
-    // Route::get('/register', App\Livewire\Auth\Supervisor\Register::class)->name('register');
-});
-
-Route::middleware('guest:teacher')->prefix('teacher')->name('teacher.')->group(function () {
-    Route::get('/login', App\Livewire\Auth\Teacher\Login::class)->name('login');
-    // Route::get('/register', App\Livewire\Auth\Teacher\Register::class)->name('register');
-});
-
-Route::middleware('guest:student')->prefix('student')->name('student.')->group(function () {
-    Route::get('/login', App\Livewire\Auth\Student\Login::class)->name('login');
-    // Route::get('/register', App\Livewire\Auth\Student\Register::class)->name('register');
-});
-
-Route::middleware('guest:guardian')->prefix('parent')->name('parent.')->group(function () {
-    Route::get('/login', App\Livewire\Auth\Guardian\Login::class)->name('login');
-    // Route::get('/register', App\Livewire\Auth\Guardian\Register::class)->name('register');
 });
 
 // تسجيل حساب جديد: صفحة عامة واحدة، كل التسجيلات الذاتية تُنشأ كطالب بانتظار
 // موافقة المشرف، اللي بعدين يقدر يغيّر نوع الحساب من صفحة طلبات التسجيل.
 Route::middleware('guest:manager,supervisor,teacher,student,guardian')
-    ->get('/register', App\Livewire\Auth\Student\Register::class)
+    ->get('/register', Register::class)
     ->name('register');
 
 // مسارات لوحة التحكم (Dashboard Routes) لكل دور
@@ -281,6 +285,12 @@ Route::middleware(['auth:guardian', 'approved', 'page.enabled'])->prefix('parent
     Route::get('/challenges', fn () => view('guardian.challenges'))->name('challenges');
     Route::get('/student/{id}/challenge/create', fn ($id) => view('guardian.create-challenge', ['studentId' => $id]))->name('student.challenge.create');
     Route::view('/messages', 'guardian.messages')->name('messages');
+    Route::view('/guide', 'shared.guide')->name('guide');
+});
+
+Route::middleware(['auth:staff', 'approved', 'page.enabled'])->prefix('staff')->name('staff.')->group(function () {
+    Route::view('/dashboard', 'staff.dashboard')->name('dashboard');
+    Route::view('/messages', 'staff.messages')->name('messages');
     Route::view('/guide', 'shared.guide')->name('guide');
 });
 

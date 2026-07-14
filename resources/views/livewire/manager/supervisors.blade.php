@@ -210,6 +210,12 @@
                                 <div class="text-xs text-zinc-500">{{ __('لم يتم إنشاء رابط دخول لهذا المشرف بعد.') }}</div>
                             @endif
                         </div>
+
+                        <livewire:manager.add-linked-role
+                            source-guard="supervisor"
+                            :source-id="$viewingSupervisor->id"
+                            :source-name="$viewingSupervisor->name"
+                            :key="'add-linked-role-supervisor-'.$viewingSupervisor->id" />
                     </div>
                 </div>
             @endif

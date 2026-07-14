@@ -22,7 +22,7 @@
 
     @if($activeGamification)
         @php
-            $studentTeam = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('students.id', $student->id))
+            $studentTeam = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('users.id', $student->id))
                 ->where('leaderboard_id', $activeGamification->id)
                 ->first();
             $theme = \App\Services\GamificationThemeService::getTheme($activeGamification);

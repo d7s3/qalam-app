@@ -1361,7 +1361,7 @@ it('creates a track, assigns students, and enforces one track per student', func
     $trackB = GamificationTrack::where('leaderboard_id', $this->leaderboard->id)->where('name', 'المبتدئون')->first();
     expect($trackB->students()->count())->toBe(1);
     expect($trackA->fresh()->students()->count())->toBe(1); // student2 moved out
-    expect($trackA->students()->pluck('students.id')->toArray())->toBe([$this->student->id]);
+    expect($trackA->students()->pluck('users.id')->toArray())->toBe([$this->student->id]);
 
     // Delete track B
     $component->call('deleteTrack', $trackB->id);

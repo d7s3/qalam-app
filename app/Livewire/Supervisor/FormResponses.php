@@ -383,7 +383,7 @@ class FormResponses extends Component
     public function linkToExistingStudent(): void
     {
         $this->validate([
-            'linkStudentId' => 'required|exists:students,id',
+            'linkStudentId' => 'required|exists:users,id',
             'linkNameOption' => 'required|in:existing,response',
         ]);
 
@@ -778,9 +778,10 @@ class FormResponses extends Component
                 $answer = $response->answers[$this->filterFieldId] ?? null;
                 if (is_array($answer)) {
                     return in_array($this->filterFieldValue, $answer) ||
-                           collect($answer)->contains(fn ($val) => mb_stripos((string)$val, (string)$this->filterFieldValue) !== false);
+                           collect($answer)->contains(fn ($val) => mb_stripos((string) $val, (string) $this->filterFieldValue) !== false);
                 }
-                return mb_stripos((string)$answer, (string)$this->filterFieldValue) !== false;
+
+                return mb_stripos((string) $answer, (string) $this->filterFieldValue) !== false;
             });
         }
 

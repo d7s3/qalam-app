@@ -34,7 +34,7 @@ new class extends Component
         $student = Auth::guard('student')->user();
 
         $rules = [
-            'email' => 'required|email|unique:students,email,' . $student->id,
+            'email' => 'required|email|unique:users,email,' . $student->id,
             'password' => ['required', 'confirmed', Password::defaults()],
         ];
 

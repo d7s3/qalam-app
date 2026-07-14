@@ -18,7 +18,7 @@ class ExceededLimits extends Component
 
         $query = Student::query()
             ->with(['circle.stage', 'guardian'])
-            ->where('is_approved', true)
+            ->whereRoleState(fn ($q) => $q->where('is_approved', true))
             ->withCount([
                 'attendances as recent_absences_count' => function ($query) use ($cutoffDate) {
                     $query->where('status', 'absent')->where('date', '>=', $cutoffDate);

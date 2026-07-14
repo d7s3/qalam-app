@@ -3,6 +3,7 @@
 use Livewire\Component;
 use Illuminate\Support\Facades\Auth;
 use App\Models\StudentPlan;
+use App\Models\StudentPlanDay;
 use Illuminate\Support\Facades\DB;
 
 new class extends Component {
@@ -15,8 +16,17 @@ new class extends Component {
             ->orderBy('created_at', 'desc')
             ->get();
 
+        $totalDays = $plans->sum('days_count');
+        $gradedDays = StudentPlanDay::whereIn('student_plan_id', $plans->pluck('id'))
+            ->where(function ($q) {
+                $q->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement');
+            })
+            ->count();
+        $overallPercentage = $totalDays > 0 ? round(min($gradedDays, $totalDays) / $totalDays * 100, 1) : 0;
+
         return [
             'plans' => $plans,
+            'overallPercentage' => $overallPercentage,
         ];
     }
     
@@ -66,6 +76,16 @@ new class extends Component {
             </div>
         </flux:card>
     @else
+        <flux:card class="flex items-center gap-6">
+            <x-student.partials.progress-ring :percentage="$overallPercentage" :size="96" :stroke-width="8">
+                <span class="text-lg font-bold text-zinc-700 dark:text-zinc-200">{{ $overallPercentage }}%</span>
+            </x-student.partials.progress-ring>
+            <div>
+                <h3 class="text-lg font-bold text-zinc-800 dark:text-zinc-100">{{ __('إنجازك الكلي في كل خططك') }}</h3>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{{ __('نسبة الأيام اللي سجّلت فيها تقييم من إجمالي أيام كل خططك.') }}</p>
+            </div>
+        </flux:card>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             @foreach($plans as $plan)
                 <flux:card class="flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group">
@@ -110,6 +130,18 @@ new class extends Component {
                                     <span class="flex items-center gap-1"><flux:icon icon="list-bullet" class="size-4"/> {{ $plan->days_count }} {{ __('أيام') }}</span>
                                 </div>
                             </div>
+                        </div>
+
+                        @php
+                            $distribution = $plan->achievementDistribution();
+                        @endphp
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
+                            <x-student.partials.plan-progress-bar :percentage="$plan->completionPercentage()" />
+                            <x-student.partials.achievement-distribution-ring
+                                :excellent="$distribution['excellent']"
+                                :good="$distribution['good']"
+                                :weak="$distribution['weak']"
+                                :size="72" />
                         </div>
 
                         <div class="flex items-center gap-2 mt-6">

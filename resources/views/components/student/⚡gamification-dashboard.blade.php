@@ -449,7 +449,7 @@ new class extends Component {
 
             $freezeableDates = \App\Services\GamificationService::getFreezeableDates($student, $activeGamification);
             $nextFreezeUpgrade = \App\Services\GamificationService::getNextFreezeUpgrade($student, $activeGamification);
-            $studentTeam = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('students.id', $student->id))
+            $studentTeam = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('users.id', $student->id))
                 ->where('leaderboard_id', $activeGamification->id)
                 ->first();
             if ($studentTeam) {
@@ -1165,7 +1165,7 @@ new class extends Component {
             return;
         }
 
-        $team = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('students.id', $student->id))
+        $team = \App\Models\GamificationTeam::whereHas('students', fn($q) => $q->where('users.id', $student->id))
             ->where('leaderboard_id', $leaderboard->id)
             ->first();
 

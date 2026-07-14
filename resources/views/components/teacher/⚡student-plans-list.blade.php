@@ -61,7 +61,7 @@ new class extends Component {
     public function executeStudentAction()
     {
         $rules = [
-            'selectedNewStudentId' => 'required|exists:students,id',
+            'selectedNewStudentId' => 'required|exists:users,id',
         ];
         $messages = [
             'selectedNewStudentId.required' => 'يرجى اختيار طالب',

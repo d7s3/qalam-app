@@ -215,6 +215,12 @@
                                 <div class="text-xs text-zinc-500">{{ __('لم يتم إنشاء رابط دخول لهذا المعلم بعد.') }}</div>
                             @endif
                         </div>
+
+                        <livewire:manager.add-linked-role
+                            source-guard="teacher"
+                            :source-id="$viewingTeacher->id"
+                            :source-name="$viewingTeacher->name"
+                            :key="'add-linked-role-teacher-'.$viewingTeacher->id" />
                     </div>
                 </div>
             @endif

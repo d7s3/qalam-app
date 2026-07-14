@@ -457,6 +457,9 @@ new class extends Component {
 ?>
 
 <div>
+    {{-- The whole "everyday" dashboard is hidden while a competition is
+    active — the page should show only the competition widget, not both. --}}
+    @unless($leaderboard)
     <div class="space-y-6 mb-8" dir="rtl">
         {{-- الصف الأول: بانر آية اليوم المضغوط + الترحيب والإحصائيات --}}
         <div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-stretch">
@@ -733,13 +736,16 @@ new class extends Component {
             </div>
         </div>
     </div>
+    @endunless
 
     @if($activeGamification)
         <livewire:student.gamification-dashboard />
     @else
         <div class="space-y-8" dir="rtl">
 
-            {{-- Level / XP progress --}}
+            {{-- Level / XP progress: kept visible even when a competition is
+            active, since it's scoped to that competition (leaderboard_id),
+            not general daily content. --}}
             <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
                 @if($studentLevel && $studentLevel['current'])
                     @php
@@ -773,6 +779,7 @@ new class extends Component {
                 @endif
             </div>
 
+            @unless($leaderboard)
             {{-- Today's mission + notifications --}}
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div class="lg:col-span-2 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/20 dark:to-zinc-900 p-6">
@@ -871,8 +878,12 @@ new class extends Component {
                     @endforeach
                 </div>
             </div>
+            @endunless
 
-            {{-- Achievements + leaderboard mini widget --}}
+            {{-- Achievements + leaderboard mini widget: badges earned and the
+            top-3 preview are both scoped to the active competition, so they
+            stay visible alongside it rather than being hidden as "everything
+            else". --}}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
                     <x-student.partials.section-heading :title="__('الإنجازات')" icon="trophy" href="{{ $leaderboard ? '#leaderboard-standings' : null }}" />
@@ -902,6 +913,7 @@ new class extends Component {
                 </div>
             </div>
 
+            @unless($leaderboard)
             {{-- Monthly stats + recent activity + team assignment --}}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
@@ -1991,6 +2003,7 @@ new class extends Component {
                         @endif
 
                         <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
+                        @endunless
 
                         <!-- 🏆 Leaderboard Section -->
                         @if ($leaderboard)
@@ -2187,6 +2200,7 @@ new class extends Component {
                             </div>
                         @endif
 
+                        @unless($leaderboard)
                         <div class="w-full h-[2px] bg-zinc-100 dark:bg-zinc-800/50 rounded-full my-10"></div>
 
                         <!-- My Plans Section -->
@@ -2468,8 +2482,10 @@ new class extends Component {
                                 @endif
                             </div>
                         </div>
+                        @endunless
     @endif
 
+    @unless($leaderboard)
     <div class="space-y-8 mt-8" dir="rtl">
         {{-- Community: real events from circle-mates within the active competition, honest empty state otherwise --}}
         <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
@@ -2500,4 +2516,5 @@ new class extends Component {
             <a href="#" class="hover:text-maroon transition-colors">{{ __('تواصل معنا') }}</a>
         </div>
     </div>
+    @endunless
                 </div>

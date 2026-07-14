@@ -1005,7 +1005,7 @@ class ManageGamification extends Component
         $this->team_leader_id = $team->students()->wherePivot('role', 'leader')->first()?->id;
         $this->team_assistant_id = $team->students()->wherePivot('role', 'assistant')->first()?->id;
 
-        $this->team_student_ids = $team->students()->pluck('students.id')->map(fn ($id) => (string) $id)->toArray();
+        $this->team_student_ids = $team->students()->pluck('users.id')->map(fn ($id) => (string) $id)->toArray();
 
         $this->team_step = 1;
         $this->showTeamModal = true;
@@ -1568,7 +1568,7 @@ class ManageGamification extends Component
             'assignment_team_id' => 'required|exists:gamification_teams,id',
             'assignment_start_date' => 'required|date',
             'assignment_end_date' => 'required|date|after_or_equal:assignment_start_date',
-            'assignment_teacher_id' => 'nullable|exists:teachers,id',
+            'assignment_teacher_id' => 'nullable|exists:users,id',
             'assignment_notes' => 'nullable|string',
         ]);
 
@@ -2079,7 +2079,7 @@ class ManageGamification extends Component
         ];
 
         if ($this->adjTargetType === 'individual') {
-            $rules['adjStudentId'] = 'required|exists:students,id';
+            $rules['adjStudentId'] = 'required|exists:users,id';
         } else {
             $rules['adjTeamId'] = 'required|exists:gamification_teams,id';
         }

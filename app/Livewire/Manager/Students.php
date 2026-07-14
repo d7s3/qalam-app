@@ -46,7 +46,7 @@ class Students extends Component
     public function mount()
     {
         $this->circles = Circle::with('stage')->get();
-        $this->guardiansList = Guardian::where('is_approved', true)->get();
+        $this->guardiansList = Guardian::whereRoleState(fn ($q) => $q->where('is_approved', true))->get();
     }
 
     private function getStudentsQuery()
@@ -61,9 +61,9 @@ class Students extends Component
         }
 
         if ($this->statusFilter === 'pending') {
-            $query->where('is_approved', false);
+            $query->whereRoleState(fn ($q) => $q->where('is_approved', false));
         } elseif ($this->statusFilter === 'approved') {
-            $query->where('is_approved', true);
+            $query->whereRoleState(fn ($q) => $q->where('is_approved', true));
         }
 
         if ($this->circleFilter) {
@@ -159,9 +159,9 @@ class Students extends Component
     {
         $this->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:students,email,'.$this->editingStudentId,
+            'email' => 'required|email|unique:users,email,'.$this->editingStudentId,
             'circle_id' => 'nullable|exists:circles,id',
-            'guardian_id' => 'nullable|exists:guardians,id',
+            'guardian_id' => 'nullable|exists:users,id',
             'editStatus' => 'required|in:active,registering,suspended,left',
             'editStatusDate' => 'nullable|date|before_or_equal:today',
             'editJoinedAt' => 'nullable|date',

@@ -71,6 +71,7 @@ it('loads every manager page without error', function () {
         'manager.role-permissions',
         'manager.settings',
         'manager.stages',
+        'manager.staff-members',
         'manager.student-exams',
         'manager.students',
         'manager.supervisors',

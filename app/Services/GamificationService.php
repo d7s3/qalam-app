@@ -1842,7 +1842,7 @@ class GamificationService
         $student = Student::findOrFail($studentId);
         $team = $purchase->team;
 
-        if (! $team->students()->where('students.id', $studentId)->exists()) {
+        if (! $team->students()->where('users.id', $studentId)->exists()) {
             return false;
         }
 

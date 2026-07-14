@@ -62,9 +62,9 @@ class Guardians extends Component
         }
 
         if ($this->statusFilter === 'pending') {
-            $query->where('is_approved', false);
+            $query->whereRoleState(fn ($q) => $q->where('is_approved', false));
         } elseif ($this->statusFilter === 'approved') {
-            $query->where('is_approved', true);
+            $query->whereRoleState(fn ($q) => $q->where('is_approved', true));
         }
 
         $this->guardians = $query->latest()->get();
@@ -122,7 +122,7 @@ class Guardians extends Component
     {
         $this->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:guardians,email,'.$this->editingGuardianId,
+            'email' => 'required|email|unique:users,email,'.$this->editingGuardianId,
             'phone' => 'nullable|string|max:20',
         ]);
 

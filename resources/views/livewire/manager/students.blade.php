@@ -323,6 +323,12 @@
                                 <div class="text-sm text-zinc-500 text-center py-4">{{ __('لا يوجد سجل حالات.') }}</div>
                             @endforelse
                         </div>
+
+                        <livewire:manager.add-linked-role
+                            source-guard="student"
+                            :source-id="$viewingStudent->id"
+                            :source-name="$viewingStudent->name"
+                            :key="'add-linked-role-student-'.$viewingStudent->id" />
                     </div>
                 </div>
             @endif

@@ -1,5 +1,5 @@
 @php
-    $activeGuard = collect(['manager', 'supervisor', 'teacher', 'student', 'guardian'])
+    $activeGuard = collect(['manager', 'supervisor', 'teacher', 'student', 'guardian', 'staff'])
         ->first(fn ($guard) => auth()->guard($guard)->check());
 @endphp
 

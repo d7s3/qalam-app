@@ -59,7 +59,7 @@ class HeaderSearch extends Component
             return Student::query()->whereRaw('1 = 0');
         }
 
-        $query = Student::query()->where('is_approved', true);
+        $query = Student::query()->whereRoleState(fn ($q) => $q->where('is_approved', true));
 
         if (auth()->guard('teacher')->check()) {
             $circleIds = auth()->guard('teacher')->user()->circles()->pluck('circles.id');

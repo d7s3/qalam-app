@@ -25,7 +25,7 @@ new class extends Component
         $teacher = Auth::guard('teacher')->user();
 
         $this->validate([
-            'email' => 'required|email|unique:teachers,email,' . $teacher->id,
+            'email' => 'required|email|unique:users,email,' . $teacher->id,
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);
 

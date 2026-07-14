@@ -162,7 +162,7 @@ class LeaderboardGrade extends Component
 
         $pendingBadges = DB::table('gamification_badge_student')
             ->join('gamification_badges', 'gamification_badges.id', '=', 'gamification_badge_student.badge_id')
-            ->join('students', 'students.id', '=', 'gamification_badge_student.student_id')
+            ->join('users as students', 'students.id', '=', 'gamification_badge_student.student_id')
             ->where('gamification_badges.leaderboard_id', $this->leaderboardId)
             ->where('gamification_badge_student.status', 'pending_approval')
             ->select('gamification_badge_student.*', 'gamification_badges.name as badge_name', 'gamification_badges.icon as badge_icon', 'students.name as student_name')

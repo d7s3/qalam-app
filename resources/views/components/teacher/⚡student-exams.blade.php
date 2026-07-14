@@ -28,7 +28,7 @@ new class extends Component {
     public $examLevels = [];
 
     protected $rules = [
-        'studentId' => 'required|exists:students,id',
+        'studentId' => 'required|exists:users,id',
         'examLevelId' => 'required|exists:exam_levels,id',
         'dateTime' => 'required|date',
         'location' => 'nullable|string|max:255',

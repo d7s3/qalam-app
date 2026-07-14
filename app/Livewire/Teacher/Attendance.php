@@ -92,7 +92,7 @@ class Attendance extends Component
             ->value('duration_minutes');
 
         $studentsQuery = Student::where('circle_id', $this->selectedCircle)
-            ->where('is_approved', true)
+            ->whereRoleState(fn ($q) => $q->where('is_approved', true))
             ->where(function ($query) {
                 $query->whereNull('joined_at')
                     ->orWhere('joined_at', '<=', $this->date);

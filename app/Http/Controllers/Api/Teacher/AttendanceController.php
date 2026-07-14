@@ -33,7 +33,7 @@ class AttendanceController extends Controller
                 ->get();
 
             $syncedStudents = Student::whereIn('circle_id', $circleIds)
-                ->where('is_approved', true)
+                ->whereRoleState(fn ($q) => $q->where('is_approved', true))
                 ->where('updated_at', '>', $lastSyncedAt)
                 ->orderBy('name')
                 ->get();
@@ -62,7 +62,7 @@ class AttendanceController extends Controller
             $date = $request->input('date', now()->format('Y-m-d'));
 
             $studentsQuery = Student::where('circle_id', $circle->id)
-                ->where('is_approved', true)
+                ->whereRoleState(fn ($q) => $q->where('is_approved', true))
                 ->where(function ($query) use ($date) {
                     $query->whereNull('joined_at')
                         ->orWhere('joined_at', '<=', $date);
@@ -115,7 +115,7 @@ class AttendanceController extends Controller
         if ($isSequential) {
             $request->validate([
                 'records' => 'required|array',
-                'records.*.student_id' => 'required|exists:students,id',
+                'records.*.student_id' => 'required|exists:users,id',
                 'records.*.status' => 'required|in:present,absent,late,excused',
                 'records.*.date' => 'required|date',
                 'records.*.updated_at' => 'nullable|date',

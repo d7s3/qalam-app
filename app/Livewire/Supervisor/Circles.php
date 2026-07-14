@@ -58,12 +58,12 @@ class Circles extends Component
 
         if ($this->teacherFilter !== 'all') {
             $query->whereHas('teachers', function ($q) {
-                $q->where('teachers.id', $this->teacherFilter);
+                $q->where('users.id', $this->teacherFilter);
             });
         }
 
         $this->circles = $query->latest()->get();
-        $this->teachersList = Teacher::where('is_approved', true)
+        $this->teachersList = Teacher::whereRoleState(fn ($q) => $q->where('is_approved', true))
             ->whereHas('circles', function ($q) use ($circleIds) {
                 $q->whereIn('circles.id', $circleIds);
             })
@@ -85,11 +85,12 @@ class Circles extends Component
         $stages = $this->getSupervisorStages();
         if ($stages->isEmpty()) {
             Flux::toast(__('عذراً، لا توجد مراحل تعليمية مخصصة لك لإضافة حلقة.'), variant: 'danger');
+
             return;
         }
 
         $this->reset(['name', 'description', 'editingCircleId', 'selectedTeachers', 'stage_id']);
-        
+
         // Auto-select if there's only one stage
         if ($stages->count() === 1) {
             $this->stage_id = $stages->first()->id;
@@ -119,14 +120,14 @@ class Circles extends Component
             'description' => 'nullable|string',
         ];
 
-        if (!$this->editingCircleId) {
+        if (! $this->editingCircleId) {
             $rules['stage_id'] = 'required|exists:stages,id';
         }
 
         $this->validate($rules);
 
         $circleIds = $this->getSupervisorCircleIds();
-        
+
         if ($this->editingCircleId) {
             $circle = Circle::whereIn('id', $circleIds)->findOrFail($this->editingCircleId);
             $circle->update([
@@ -137,7 +138,7 @@ class Circles extends Component
         } else {
             // Verify supervisor has access to the chosen stage
             $validStages = $this->getSupervisorStages()->pluck('id')->toArray();
-            if (!in_array($this->stage_id, $validStages)) {
+            if (! in_array($this->stage_id, $validStages)) {
                 abort(403, 'Unauthorized action.');
             }
 
@@ -147,7 +148,7 @@ class Circles extends Component
                 'stage_id' => $this->stage_id,
             ]);
             $message = __('تم إضافة الحلقة بنجاح');
-            
+
             // Re-fetch circleIds after creating the new circle so it can assign teachers
             $circleIds = $this->getSupervisorCircleIds();
         }

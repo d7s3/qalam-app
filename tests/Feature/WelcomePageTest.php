@@ -25,7 +25,7 @@ it('shows a single unified login entry point instead of four separate portals', 
     $response->assertSee('من نحن');
     $response->assertSee('مجمع التاج القرآني منصة رقمية متكاملة');
     $response->assertSee(route('login'), false);
-    $response->assertDontSee(route('student.login'), false);
-    $response->assertDontSee(route('teacher.login'), false);
-    $response->assertDontSee(route('supervisor.login'), false);
+    $response->assertDontSee('/student/login', false);
+    $response->assertDontSee('/teacher/login', false);
+    $response->assertDontSee('/supervisor/login', false);
 });

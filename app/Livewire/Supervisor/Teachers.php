@@ -120,9 +120,9 @@ class Teachers extends Component
         }
 
         if ($this->statusFilter === 'pending') {
-            $query->where('is_approved', false);
+            $query->whereRoleState(fn ($q) => $q->where('is_approved', false));
         } elseif ($this->statusFilter === 'approved') {
-            $query->where('is_approved', true);
+            $query->whereRoleState(fn ($q) => $q->where('is_approved', true));
         }
 
         if ($this->circleFilter !== 'all') {
@@ -262,7 +262,7 @@ class Teachers extends Component
     {
         $this->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:teachers,email,'.$this->editingTeacherId,
+            'email' => 'required|email|unique:users,email,'.$this->editingTeacherId,
             'phone' => 'nullable|string|max:20',
         ]);
 

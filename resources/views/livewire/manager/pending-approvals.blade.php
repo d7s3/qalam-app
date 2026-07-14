@@ -47,6 +47,12 @@
     {{-- البحث والفلترة --}}
     <div class="flex flex-col sm:flex-row gap-3">
         <flux:input wire:model.live.debounce.400ms="search" placeholder="ابحث عن اسم أو بريد إلكتروني..." icon="magnifying-glass" class="flex-1" />
+        <flux:select wire:model.live="roleFilter" class="sm:w-48">
+            <flux:select.option value="all">كل الأدوار</flux:select.option>
+            @foreach(\App\Livewire\Manager\PendingApprovals::ROLE_LABELS as $key => $label)
+                <flux:select.option value="{{ $key }}">{{ $label }}</flux:select.option>
+            @endforeach
+        </flux:select>
         <flux:select wire:model.live="statusFilter" class="sm:w-56">
             <flux:select.option value="all">كل الحالات</flux:select.option>
             <flux:select.option value="pending">قيد المراجعة</flux:select.option>

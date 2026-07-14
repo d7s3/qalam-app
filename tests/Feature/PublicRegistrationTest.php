@@ -40,9 +40,6 @@ it('requires accepting the terms checkbox', function () {
         ->assertHasErrors('terms');
 });
 
-it('shows the create-account link on every role login page', function () {
-    $this->get(route('student.login'))->assertSee(route('register'), false);
-    $this->get(route('teacher.login'))->assertSee(route('register'), false);
-    $this->get(route('supervisor.login'))->assertSee(route('register'), false);
-    $this->get(route('parent.login'))->assertSee(route('register'), false);
+it('shows the create-account link on the unified login page', function () {
+    $this->get(route('login'))->assertSee(route('register'), false);
 });

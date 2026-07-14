@@ -8,7 +8,7 @@ use function Pest\Laravel\actingAs;
 
 it('redirects guests to login when accessing a dashboard', function () {
     $response = $this->get('/manager/dashboard');
-    $response->assertRedirect(route('manager.login'));
+    $response->assertRedirect(route('login'));
 });
 
 it('allows manager to access manager dashboard', function () {
@@ -25,8 +25,8 @@ it('prevents student from accessing manager dashboard and redirects them', funct
     $student = Student::factory()->create();
     $response = actingAs($student, 'student')->get('/manager/dashboard');
     // Because auth:manager restricts the route, and the student active session is auth:student,
-    // the guest redirector will redirect to manager.login
-    $response->assertRedirect(route('manager.login'));
+    // the guest redirector will redirect to the unified login page.
+    $response->assertRedirect(route('login'));
 });
 
 it('redirects authenticated user accessing /dashboard to their specific dashboard', function () {

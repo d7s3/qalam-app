@@ -1,0 +1,31 @@
+<?php
+
+namespace Database\Factories;
+
+use App\Models\Role;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
+
+/**
+ * @extends Factory<Role>
+ */
+class RoleFactory extends Factory
+{
+    /**
+     * Define the model's default state.
+     *
+     * @return array<string, mixed>
+     */
+    public function definition(): array
+    {
+        $label = fake()->unique()->jobTitle();
+
+        return [
+            'key' => Str::slug($label, '_'),
+            'label' => $label,
+            'guard_name' => 'staff',
+            'is_system' => false,
+            'is_active' => true,
+        ];
+    }
+}

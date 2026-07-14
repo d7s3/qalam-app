@@ -6,6 +6,7 @@ use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\Teacher;
+use App\Models\UserRole;
 use App\Services\NotificationService;
 use Flux\Flux;
 use Illuminate\Database\Query\Builder;
@@ -30,6 +31,9 @@ class PendingApprovals extends Component
 
     #[Url]
     public string $statusFilter = 'all';
+
+    #[Url]
+    public string $roleFilter = 'all';
 
     /** Selected target role per row (keyed "type-id"), used only for pending student requests. */
     public array $reassignType = [];
@@ -59,69 +63,77 @@ class PendingApprovals extends Component
         $this->resetPage();
     }
 
+    public function updatingRoleFilter(): void
+    {
+        $this->resetPage();
+    }
+
     /**
-     * A single UNION query across all four approval tables, so the request queue
-     * can be searched/filtered/paginated as one list instead of per-role tabs.
+     * One row per (user, role) via `user_roles`, joined back to `users` — now
+     * that all four directory roles share one table, this replaces what used
+     * to be a UNION across four separate per-role tables.
      */
     protected function baseQuery(): Builder
     {
-        $queries = [];
+        $roles = $this->roleFilter !== 'all' ? [$this->roleFilter] : array_keys(self::MODELS);
 
-        foreach (self::MODELS as $type => $modelClass) {
-            $table = (new $modelClass)->getTable();
+        $query = DB::table('user_roles')
+            ->join('users', 'users.id', '=', 'user_roles.user_id')
+            ->whereIn('user_roles.role', $roles)
+            ->select([
+                'users.id',
+                'users.name',
+                'users.email',
+                DB::raw("COALESCE(users.phone, '') as phone"),
+                'user_roles.is_approved',
+                'user_roles.is_rejected',
+                'user_roles.created_at',
+                'user_roles.role as account_type',
+            ]);
 
-            $query = DB::table($table)
-                ->select([
-                    'id',
-                    'name',
-                    'email',
-                    DB::raw("COALESCE(phone, '') as phone"),
-                    'is_approved',
-                    'is_rejected',
-                    'created_at',
-                    DB::raw("'{$type}' as account_type"),
-                ]);
-
-            if ($this->search !== '') {
-                $query->where(fn ($q) => $q
-                    ->where('name', 'like', "%{$this->search}%")
-                    ->orWhere('email', 'like', "%{$this->search}%"));
-            }
-
-            match ($this->statusFilter) {
-                'pending' => $query->where('is_approved', false)->where('is_rejected', false),
-                'approved' => $query->where('is_approved', true),
-                'rejected' => $query->where('is_rejected', true),
-                default => null,
-            };
-
-            $queries[] = $query;
+        if ($this->search !== '') {
+            $query->where(fn ($q) => $q
+                ->where('users.name', 'like', "%{$this->search}%")
+                ->orWhere('users.email', 'like', "%{$this->search}%"));
         }
 
-        $first = array_shift($queries);
-        foreach ($queries as $query) {
-            $first->unionAll($query);
-        }
+        match ($this->statusFilter) {
+            'pending' => $query->where('user_roles.is_approved', false)->where('user_roles.is_rejected', false),
+            'approved' => $query->where('user_roles.is_approved', true),
+            'rejected' => $query->where('user_roles.is_rejected', true),
+            default => null,
+        };
 
-        return $first;
+        return $query;
     }
 
     #[Computed]
     public function pendingRows()
     {
-        return $this->baseQuery()->orderByDesc('created_at')->paginate(15);
+        return $this->baseQuery()->orderByDesc('user_roles.created_at')->paginate(15);
     }
 
     #[Computed]
     public function counts(): array
     {
+        $rows = DB::table('user_roles')
+            ->whereIn('role', array_keys(self::MODELS))
+            ->selectRaw('is_approved, is_rejected, count(*) as cnt')
+            ->groupBy('is_approved', 'is_rejected')
+            ->get();
+
         $totals = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'total' => 0];
 
-        foreach (self::MODELS as $modelClass) {
-            $totals['pending'] += $modelClass::where('is_approved', false)->where('is_rejected', false)->count();
-            $totals['approved'] += $modelClass::where('is_approved', true)->count();
-            $totals['rejected'] += $modelClass::where('is_rejected', true)->count();
-            $totals['total'] += $modelClass::count();
+        foreach ($rows as $row) {
+            $totals['total'] += $row->cnt;
+
+            if ($row->is_approved) {
+                $totals['approved'] += $row->cnt;
+            } elseif ($row->is_rejected) {
+                $totals['rejected'] += $row->cnt;
+            } else {
+                $totals['pending'] += $row->cnt;
+            }
         }
 
         return $totals;
@@ -175,19 +187,15 @@ class PendingApprovals extends Component
             return;
         }
 
-        $targetModel = self::MODELS[$newType];
+        // Same underlying `users` row throughout — "changing the type" is just
+        // swapping which `user_roles` entry it holds, not creating a new account.
+        DB::transaction(function () use ($record, $newType) {
+            UserRole::updateOrCreate(
+                ['user_id' => $record->id, 'role' => $newType],
+                ['is_approved' => true, 'approved_by' => Auth::id()]
+            );
 
-        DB::transaction(function () use ($record, $targetModel, $newType) {
-            $targetModel::create([
-                'name' => $record->name,
-                'email' => $record->email,
-                'phone' => $record->phone,
-                'password' => $record->getRawOriginal('password'),
-                'is_approved' => true,
-                'approved_by' => Auth::id(),
-            ]);
-
-            $record->delete();
+            UserRole::where('user_id', $record->id)->where('role', 'student')->delete();
 
             Flux::toast(
                 __('تم تحويل الحساب إلى :role بنجاح. يقدر المستخدم يسجّل دخول من جديد بنفس بريده وكلمة مروره.', ['role' => self::ROLE_LABELS[$newType]]),

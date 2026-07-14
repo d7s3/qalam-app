@@ -2,6 +2,8 @@
 
 use App\Models\Guardian;
 use App\Models\Manager;
+use App\Models\RoleScreenPermission;
+use App\Models\Screen;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\Teacher;
@@ -40,7 +42,8 @@ it('shows the guide button in the header linking to the correct role guide', fun
 it('hides a disabled page from the guide instead of listing a dead link', function () {
     $teacher = Teacher::factory()->create(['is_approved' => true]);
 
-    \App\Models\DisabledRolePage::create(['role' => 'teacher', 'route' => 'teacher.pairs']);
+    $screen = Screen::where('route_name', 'teacher.pairs')->firstOrFail();
+    RoleScreenPermission::where('screen_id', $screen->id)->delete();
 
     $this->actingAs($teacher, 'teacher');
 

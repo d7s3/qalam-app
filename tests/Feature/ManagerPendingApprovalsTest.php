@@ -98,3 +98,30 @@ it('filters requests by search term', function () {
         ->assertSee('محمد أحمد الفريد')
         ->assertDontSee('شخص آخر');
 });
+
+it('filters requests by role', function () {
+    $student = Student::factory()->create(['is_approved' => false]);
+    $teacher = Teacher::factory()->create(['is_approved' => false]);
+    $supervisor = Supervisor::factory()->create(['is_approved' => false]);
+    $guardian = Guardian::factory()->create(['is_approved' => false]);
+
+    Livewire::test(PendingApprovals::class)
+        ->set('roleFilter', 'teacher')
+        ->assertSee($teacher->name)
+        ->assertDontSee($student->name)
+        ->assertDontSee($supervisor->name)
+        ->assertDontSee($guardian->name);
+});
+
+it('combines the role filter with the status and search filters', function () {
+    Student::factory()->create(['name' => 'طالب معلّق', 'is_approved' => false]);
+    Teacher::factory()->create(['name' => 'معلم معلّق', 'is_approved' => false]);
+    Teacher::factory()->create(['name' => 'معلم مقبول', 'is_approved' => true]);
+
+    Livewire::test(PendingApprovals::class)
+        ->set('roleFilter', 'teacher')
+        ->set('statusFilter', 'pending')
+        ->assertSee('معلم معلّق')
+        ->assertDontSee('معلم مقبول')
+        ->assertDontSee('طالب معلّق');
+});

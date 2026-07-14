@@ -52,12 +52,12 @@ class Circles extends Component
 
         if ($this->teacherFilter !== 'all') {
             $query->whereHas('teachers', function ($q) {
-                $q->where('teachers.id', $this->teacherFilter);
+                $q->where('users.id', $this->teacherFilter);
             });
         }
 
         $this->circles = $query->latest()->get();
-        $this->teachersList = Teacher::where('is_approved', true)->get();
+        $this->teachersList = Teacher::whereRoleState(fn ($q) => $q->where('is_approved', true))->get();
     }
 
     public function updatedSearch()

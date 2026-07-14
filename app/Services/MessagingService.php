@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Manager;
+use App\Models\Staff;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\Teacher;
@@ -19,17 +21,19 @@ class MessagingService
         'supervisor' => 'مشرف',
         'guardian' => 'ولي أمر',
         'manager' => 'مدير',
+        'staff' => 'موظف',
     ];
 
-    protected const MODELS = [
+    public const MODELS = [
         'student' => Student::class,
         'teacher' => Teacher::class,
         'supervisor' => Supervisor::class,
         'guardian' => Guardian::class,
         'manager' => Manager::class,
+        'staff' => Staff::class,
     ];
 
-    protected const GUARDS = ['student', 'teacher', 'supervisor', 'guardian', 'manager'];
+    protected const GUARDS = ['student', 'teacher', 'supervisor', 'guardian', 'manager', 'staff'];
 
     /**
      * Resolve the currently authenticated participant across all five guards.
@@ -157,7 +161,7 @@ class MessagingService
 
         $stageIds = $supervisor->stages()->pluck('stages.id');
 
-        return \App\Models\Circle::whereIn('stage_id', $stageIds)->pluck('id')->all();
+        return Circle::whereIn('stage_id', $stageIds)->pluck('id')->all();
     }
 
     /**

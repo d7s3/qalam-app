@@ -194,6 +194,12 @@
                                 <div class="text-xs text-zinc-500">{{ __('لم يتم إنشاء رابط دخول لولي الأمر هذا بعد.') }}</div>
                             @endif
                         </div>
+
+                        <livewire:manager.add-linked-role
+                            source-guard="guardian"
+                            :source-id="$viewingGuardian->id"
+                            :source-name="$viewingGuardian->name"
+                            :key="'add-linked-role-guardian-'.$viewingGuardian->id" />
                     </div>
                 </div>
             @endif

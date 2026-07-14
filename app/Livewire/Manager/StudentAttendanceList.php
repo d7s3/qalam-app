@@ -33,7 +33,7 @@ class StudentAttendanceList extends Component
     public function loadStudents()
     {
         $this->students = Student::where('circle_id', $this->circleId)
-            ->where('is_approved', true)
+            ->whereRoleState(fn ($q) => $q->where('is_approved', true))
             ->with(['statusHistories' => function ($query) {
                 $query->whereDate('start_date', '<=', $this->date)->orderBy('start_date', 'desc')->orderByDesc('id');
             }])

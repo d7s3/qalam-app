@@ -105,7 +105,7 @@ class AttendanceReports extends Component
         $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون مرحلة');
 
         $records = Attendance::query()
-            ->join('students', 'attendances.student_id', '=', 'students.id')
+            ->join('users as students', 'attendances.student_id', '=', 'students.id')
             ->where(function ($q) {
                 $q->whereNull('students.joined_at')
                     ->orWhereColumn('students.joined_at', '<=', 'attendances.date');
@@ -175,7 +175,7 @@ class AttendanceReports extends Component
         $attendanceData = [];
         if ($this->fromDate && $this->toDate) {
             $records = Attendance::query()
-                ->join('students', 'attendances.student_id', '=', 'students.id')
+                ->join('users as students', 'attendances.student_id', '=', 'students.id')
                 ->where(function ($q) {
                     $q->whereNull('students.joined_at')
                         ->orWhereColumn('students.joined_at', '<=', 'attendances.date');

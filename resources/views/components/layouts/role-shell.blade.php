@@ -33,7 +33,8 @@
     </div>
     @php
         $usesMaroonSidebar = auth('manager')->check() || auth('student')->check()
-            || auth('teacher')->check() || auth('supervisor')->check() || auth('guardian')->check();
+            || auth('teacher')->check() || auth('supervisor')->check() || auth('guardian')->check()
+            || auth('staff')->check();
     @endphp
     <flux:sidebar sticky collapsible="mobile"
         @class([

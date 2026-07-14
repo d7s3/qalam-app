@@ -53,12 +53,12 @@ class Stages extends Component
 
         if ($this->supervisorFilter !== 'all') {
             $query->whereHas('supervisors', function ($q) {
-                $q->where('supervisors.id', $this->supervisorFilter);
+                $q->where('users.id', $this->supervisorFilter);
             });
         }
 
         $this->stages = $query->latest()->get();
-        $this->supervisorsList = Supervisor::where('is_approved', true)->get();
+        $this->supervisorsList = Supervisor::whereRoleState(fn ($q) => $q->where('is_approved', true))->get();
     }
 
     public function save()

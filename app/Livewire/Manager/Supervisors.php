@@ -55,9 +55,9 @@ class Supervisors extends Component
         }
 
         if ($this->statusFilter === 'pending') {
-            $query->where('is_approved', false);
+            $query->whereRoleState(fn ($q) => $q->where('is_approved', false));
         } elseif ($this->statusFilter === 'approved') {
-            $query->where('is_approved', true);
+            $query->whereRoleState(fn ($q) => $q->where('is_approved', true));
         }
 
         if ($this->stageFilter !== 'all') {
@@ -172,7 +172,7 @@ class Supervisors extends Component
     {
         $this->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:supervisors,email,'.$this->editingSupervisorId,
+            'email' => 'required|email|unique:users,email,'.$this->editingSupervisorId,
             'phone' => 'nullable|string|max:20',
             'password' => $this->editingSupervisorId ? 'nullable|min:8' : 'required|min:8',
         ]);

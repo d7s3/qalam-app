@@ -39,11 +39,11 @@ beforeEach(function () {
 
 it('restricts forms management access to supervisors', function () {
     // Unauthenticated user is redirected or gets forbidden
-    $this->get(route('supervisor.forms'))->assertRedirect(route('supervisor.login'));
+    $this->get(route('supervisor.forms'))->assertRedirect(route('login'));
 
     // Teacher cannot access supervisor forms
     $this->actingAs($this->teacher, 'teacher');
-    $this->get(route('supervisor.forms'))->assertRedirect(route('supervisor.login'));
+    $this->get(route('supervisor.forms'))->assertRedirect(route('login'));
 
     // Supervisor can access forms list page
     $this->actingAs($this->supervisor, 'supervisor');

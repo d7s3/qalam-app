@@ -75,7 +75,7 @@ it('does not render the student topbar on non-student pages', function () {
         ->assertDontSeeLivewire('student.header-search');
 });
 
-it('renders the verse-of-the-day panel always, regardless of gamification state', function () {
+it('renders the verse-of-the-day panel when there is no active competition, and hides it once one starts', function () {
     $this->actingAs($this->student, 'student');
 
     $this->get(route('student.dashboard'))
@@ -93,9 +93,11 @@ it('renders the verse-of-the-day panel always, regardless of gamification state'
     ]);
     $leaderboard->circles()->attach($this->circle->id);
 
+    // The dashboard shows only the active competition while one is running,
+    // so the everyday verse-of-the-day panel is hidden, not shown alongside it.
     $this->get(route('student.dashboard'))
         ->assertSuccessful()
-        ->assertSee('نص الآية التجريبية');
+        ->assertDontSee('نص الآية التجريبية');
 });
 
 it('shows an empty state in the community section when there is no active leaderboard', function () {
@@ -106,7 +108,7 @@ it('shows an empty state in the community section when there is no active leader
         ->assertSee('لا توجد أنشطة من زملاء الحلقة بعد');
 });
 
-it('shows real circle-mate events in the community section', function () {
+it('hides the community section once an active competition starts', function () {
     $this->actingAs($this->student, 'student');
 
     $classmate = Student::factory()->create(['circle_id' => $this->circle->id]);
@@ -129,9 +131,10 @@ it('shows real circle-mate events in the community section', function () {
         'data' => ['student_id' => $classmate->id, 'student_name' => $classmate->name, 'badge_name' => 'حافظ متميز'],
     ]);
 
+    // The community feed is everyday content, not competition-scoped, so it's
+    // hidden along with the rest of the dashboard while a competition runs.
     $this->get(route('student.dashboard'))
         ->assertSuccessful()
-        ->assertSee($classmate->name)
-        ->assertSee('حافظ متميز')
-        ->assertDontSee('لا توجد أنشطة من زملاء الحلقة بعد');
+        ->assertDontSee('لا توجد أنشطة من زملاء الحلقة بعد')
+        ->assertSee($leaderboard->title);
 });

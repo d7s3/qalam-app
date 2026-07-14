@@ -178,7 +178,7 @@ class Dashboard extends Component
             }
 
             $rows = DB::table('attendances')
-                ->join('students', 'attendances.student_id', '=', 'students.id')
+                ->join('users as students', 'attendances.student_id', '=', 'students.id')
                 ->whereIn('students.circle_id', $circleIds)
                 ->whereDate('attendances.date', '>=', $from)
                 ->whereDate('attendances.date', '<=', $to)
@@ -216,7 +216,7 @@ class Dashboard extends Component
 
         $rows = DB::table('student_plan_days')
             ->join('student_plans', 'student_plan_days.student_plan_id', '=', 'student_plans.id')
-            ->join('students', 'student_plans.student_id', '=', 'students.id')
+            ->join('users as students', 'student_plans.student_id', '=', 'students.id')
             ->whereBetween('student_plan_days.date', [$from, $to])
             ->where('student_plans.is_approved', 1)
             ->where(function ($q) {
@@ -277,7 +277,7 @@ class Dashboard extends Component
 
             $hifz = DB::table('student_plan_days')
                 ->join('student_plans', 'student_plan_days.student_plan_id', '=', 'student_plans.id')
-                ->join('students', 'student_plans.student_id', '=', 'students.id')
+                ->join('users as students', 'student_plans.student_id', '=', 'students.id')
                 ->whereIn('students.circle_id', $circleIds)
                 ->whereBetween('student_plan_days.date', [$from, $to])
                 ->where('student_plans.is_approved', 1)
@@ -286,7 +286,7 @@ class Dashboard extends Component
 
             $review = DB::table('student_plan_days')
                 ->join('student_plans', 'student_plan_days.student_plan_id', '=', 'student_plans.id')
-                ->join('students', 'student_plans.student_id', '=', 'students.id')
+                ->join('users as students', 'student_plans.student_id', '=', 'students.id')
                 ->whereIn('students.circle_id', $circleIds)
                 ->whereBetween('student_plan_days.date', [$from, $to])
                 ->where('student_plans.is_approved', 1)

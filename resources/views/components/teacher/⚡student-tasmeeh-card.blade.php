@@ -319,7 +319,7 @@ new class extends Component {
 
         $currentByLeaderboard = GamificationTrack::query()
             ->whereIn('leaderboard_id', $leaderboards->pluck('id'))
-            ->whereHas('students', fn ($q) => $q->where('students.id', $this->student->id))
+            ->whereHas('students', fn ($q) => $q->where('users.id', $this->student->id))
             ->get(['id', 'leaderboard_id'])
             ->keyBy('leaderboard_id');
 
@@ -649,7 +649,7 @@ new class extends Component {
         $currentTracks = collect();
         if (! empty($perms['can_manage_gamification_tracks'])) {
             $currentTracks = GamificationTrack::query()
-                ->whereHas('students', fn ($q) => $q->where('students.id', $this->student->id))
+                ->whereHas('students', fn ($q) => $q->where('users.id', $this->student->id))
                 ->with('leaderboard:id,title')
                 ->get(['id', 'name', 'leaderboard_id']);
         }

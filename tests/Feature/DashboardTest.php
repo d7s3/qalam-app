@@ -2,9 +2,9 @@
 
 use App\Models\Manager;
 
-test('guests are redirected to the home page', function () {
+test('guests are redirected to the login page', function () {
     $response = $this->get(route('dashboard'));
-    $response->assertRedirect(route('home'));
+    $response->assertRedirect(route('login'));
 });
 
 test('authenticated users are redirected to their specific dashboard', function () {
