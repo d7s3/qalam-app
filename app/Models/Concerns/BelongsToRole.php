@@ -59,6 +59,28 @@ trait BelongsToRole
         return $this->hasOne(UserRole::class, 'user_id')->where('role', static::ROLE);
     }
 
+    /**
+     * Deleting a role-scoped model must never destroy the person's whole
+     * account: one users row can hold several roles (e.g. manager + student),
+     * and each panel only manages its own. "Delete" removes this model's
+     * role row; the underlying users row is deleted only when no other role
+     * remains on it.
+     */
+    public function delete(): ?bool
+    {
+        return $this->getConnection()->transaction(function () {
+            if ($this->roles()->where('role', '!=', static::ROLE)->exists()) {
+                $this->roles()->where('role', static::ROLE)->delete();
+                $this->unsetRelation('roles');
+                $this->unsetRelation('roleRecord');
+
+                return true;
+            }
+
+            return parent::delete();
+        });
+    }
+
     public function getIsApprovedAttribute(): bool
     {
         return (bool) ($this->roleRecord?->is_approved ?? false);

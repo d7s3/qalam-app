@@ -237,12 +237,13 @@ it('only displays and filters by stages filled in the responses', function () {
     ]);
 
     $component = Livewire::test(FormResponses::class, ['formId' => $this->form->id]);
-    
+
     $component->assertViewHas('filterStages', function ($filterStages) {
         $filterStageNames = collect($filterStages)->pluck('name')->all();
+
         return in_array('المرحلة الابتدائية', $filterStageNames) &&
                in_array('المرحلة المتوسطة', $filterStageNames) &&
-               !in_array('المرحلة الثانوية', $filterStageNames);
+               ! in_array('المرحلة الثانوية', $filterStageNames);
     });
 
     // Filter by $this->stage
@@ -358,7 +359,8 @@ it('shows circle-less stage-assigned students in the supervisor students list', 
         'is_approved' => false,
     ]);
 
-    $listed = Livewire::test(SupervisorStudents::class)->get('students');
+    $component = Livewire::test(SupervisorStudents::class);
+    $listed = $component->viewData('students')->getCollection();
 
     expect($listed->pluck('id'))->toContain($student->id);
 });
