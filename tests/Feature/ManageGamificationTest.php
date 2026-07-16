@@ -1551,3 +1551,28 @@ it('hides the target name from the adjustment news when the supervisor chooses t
     expect($news->data['name_hidden'])->toBeTrue();
     expect($news->data['target_type'])->toBe('individual');
 });
+
+it('lists per-circle signed coin redemption links on the redemption tab', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->set('activeTab', 'redemption')
+        ->assertSee('روابط صرف العملات')
+        ->assertSee($this->circle->name)
+        ->assertSee('/r/coin-redemption')
+        ->assertSee('signature');
+});
+
+it('offers copying all redemption links as one text with a privacy warning', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $html = Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->set('activeTab', 'redemption')
+        ->assertSee('نسخ جميع الروابط')
+        ->html();
+
+    expect($html)
+        ->toContain('روابط صرف العملات — مسابقة')
+        ->toContain('يجب عدم مشاركتها مع أي شخص')
+        ->toContain('حلقة '.$this->circle->name);
+});

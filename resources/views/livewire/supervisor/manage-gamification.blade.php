@@ -54,6 +54,9 @@
         <button wire:click="$set('activeTab', 'store')" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 {{ $activeTab === 'store' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
             المتجر
         </button>
+        <button wire:click="$set('activeTab', 'redemption')" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 {{ $activeTab === 'redemption' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+            روابط الصرف
+        </button>
         <flux:button wire:click="$set('activeTab', 'team_tasks')" variant="ghost" class="py-2.5 px-4 font-medium text-sm border-b-2 transition-all shrink-0 rounded-none border-b-2 {{ $activeTab === 'team_tasks' ? 'border-purple-600 text-purple-600 dark:text-purple-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
             مهام المجموعات
         </flux:button>
@@ -1574,6 +1577,77 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- TAB: COIN REDEMPTION LINKS --}}
+        @if($activeTab === 'redemption')
+            @php
+                $redemptionLinks = $competition->circles->map(fn ($circle) => [
+                    'circle' => $circle,
+                    'url' => \Illuminate\Support\Facades\URL::signedRoute('redemption.circle', [
+                        'leaderboard' => $competition->id,
+                        'circle' => $circle->id,
+                    ]),
+                ]);
+
+                $allRedemptionLinksText = "🪙 روابط صرف العملات — مسابقة {$competition->title}\n"
+                    ."كل رابط أدناه خاص بحلقة واحدة: يفتح منه معلم الحلقة قائمة طلابه وأرصدتهم من العملات، ويصرف لهم عملاتهم مقابل الجوائز والعلامات الورقية.\n"
+                    ."أرسِل لكل معلم رابط حلقته فقط.\n\n"
+                    .$redemptionLinks->map(fn ($link) => "⦿ حلقة {$link['circle']->name}:\n{$link['url']}")->implode("\n\n")
+                    ."\n\n⚠️ تنبيه مهم: هذه الروابط خاصة وتتيح الصرف من أرصدة الطلاب مباشرة، لذلك يجب عدم مشاركتها مع أي شخص غير معلم الحلقة المعني.";
+            @endphp
+
+            <div class="space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div>
+                        <flux:heading size="lg">روابط صرف العملات</flux:heading>
+                        <flux:subheading>
+                            لكل حلقة رابط خاص أرسله لمعلمها؛ يفتح المعلم الرابط فيرى طلاب حلقته وأرصدتهم من العملات،
+                            ويصرف لأي طالب عملاته مقابل جائزة أو علامات ورقية يسلّمها له.
+                        </flux:subheading>
+                    </div>
+                    @if($redemptionLinks->isNotEmpty())
+                        <div class="shrink-0" x-data>
+                            <flux:button variant="primary" icon="clipboard-document-list"
+                                class="bg-purple-600 hover:bg-purple-700 border-none text-white"
+                                @click="navigator.clipboard.writeText(@js($allRedemptionLinksText)); $dispatch('toast', { message: 'تم نسخ جميع روابط الصرف في نص واحد', variant: 'success' })">
+                                نسخ جميع الروابط
+                            </flux:button>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="space-y-3">
+                    @forelse($redemptionLinks as $link)
+                        @php
+                            $circle = $link['circle'];
+                            $redemptionUrl = $link['url'];
+                        @endphp
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 border border-zinc-200 dark:border-zinc-700/50 rounded-xl bg-zinc-50 dark:bg-zinc-800/50"
+                            wire:key="redemption-circle-{{ $circle->id }}">
+                            <div class="min-w-0">
+                                <div class="font-medium text-zinc-800 dark:text-white">{{ $circle->name }}</div>
+                                <div class="text-xs text-zinc-500 mt-1">{{ $circle->students->count() }} طالباً</div>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0" x-data>
+                                <flux:button size="sm" variant="primary" icon="link"
+                                    class="bg-purple-600 hover:bg-purple-700 border-none text-white"
+                                    @click="navigator.clipboard.writeText(@js($redemptionUrl)); $dispatch('toast', { message: 'تم نسخ رابط صرف حلقة {{ $circle->name }}', variant: 'success' })">
+                                    نسخ الرابط
+                                </flux:button>
+                                <flux:button size="sm" variant="ghost" icon="arrow-top-right-on-square"
+                                    href="{{ $redemptionUrl }}" target="_blank">
+                                    فتح
+                                </flux:button>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="text-center py-10 text-sm text-zinc-500">
+                            لا توجد حلقات مرتبطة بهذه المسابقة. اربط الحلقات بالمسابقة أولاً ثم عد إلى هنا.
+                        </div>
+                    @endforelse
                 </div>
             </div>
         @endif
