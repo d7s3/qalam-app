@@ -300,7 +300,7 @@ Route::middleware(['auth:staff', 'approved', 'page.enabled'])->prefix('staff')->
 
 // Magic Link Routes
 Route::get('/magic/{token}', function ($token) {
-    $student = Student::where('access_token', $token)->firstOrFail();
+    $student = Student::findByAccessToken($token) ?? abort(404);
 
     auth()->guard('student')->login($student);
 
@@ -308,7 +308,7 @@ Route::get('/magic/{token}', function ($token) {
 })->name('magic-link');
 
 Route::get('/teacher-magic/{token}', function ($token) {
-    $teacher = Teacher::where('access_token', $token)->firstOrFail();
+    $teacher = Teacher::findByAccessToken($token) ?? abort(404);
 
     auth()->guard('teacher')->login($teacher);
 
@@ -324,7 +324,7 @@ Route::get('/teacher-magic/{token}', function ($token) {
 })->name('teacher.magic-link');
 
 Route::get('/supervisor-magic/{token}', function ($token) {
-    $supervisor = Supervisor::where('access_token', $token)->firstOrFail();
+    $supervisor = Supervisor::findByAccessToken($token) ?? abort(404);
 
     auth()->guard('supervisor')->login($supervisor);
 
@@ -332,7 +332,7 @@ Route::get('/supervisor-magic/{token}', function ($token) {
 })->name('supervisor.magic-link');
 
 Route::get('/guardian-magic/{token}', function ($token) {
-    $guardian = Guardian::where('access_token', $token)->firstOrFail();
+    $guardian = Guardian::findByAccessToken($token) ?? abort(404);
 
     auth()->guard('guardian')->login($guardian);
 
@@ -345,7 +345,7 @@ Route::get('/magic/{token}/login-as', function ($token) {
         abort(403);
     }
 
-    $student = Student::where('access_token', $token)->firstOrFail();
+    $student = Student::findByAccessToken($token) ?? abort(404);
     auth()->guard('student')->login($student);
 
     return redirect()->route('student.dashboard');

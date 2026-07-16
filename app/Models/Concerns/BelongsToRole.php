@@ -5,6 +5,8 @@ namespace App\Models\Concerns;
 use App\Models\UserRole;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Scopes a User subclass (Manager/Supervisor/Teacher/Student/Guardian/Staff) to
@@ -57,6 +59,44 @@ trait BelongsToRole
     public function roleRecord(): HasOne
     {
         return $this->hasOne(UserRole::class, 'user_id')->where('role', static::ROLE);
+    }
+
+    /**
+     * Resolve a magic-link access token, falling back to the pre-consolidation
+     * role table. When the 6 legacy tables merged into `users`, a person with
+     * several roles kept only the first-migrated role's token on the unified
+     * row — links issued for their other roles would otherwise dead-end. The
+     * fallback finds the token in this role's legacy table and follows
+     * `id_migration_map` to the live user, so every link sent before the
+     * consolidation keeps working. Once the legacy tables are dropped in the
+     * final cleanup phase, the fallback silently disappears.
+     */
+    public static function findByAccessToken(string $token): ?static
+    {
+        $direct = static::where('access_token', $token)->first();
+
+        if ($direct) {
+            return $direct;
+        }
+
+        $legacyTable = static::ROLE.'s';
+
+        if (! Schema::hasTable($legacyTable) || ! Schema::hasTable('id_migration_map')) {
+            return null;
+        }
+
+        $legacyId = DB::table($legacyTable)->where('access_token', $token)->value('id');
+
+        if (! $legacyId) {
+            return null;
+        }
+
+        $newId = DB::table('id_migration_map')
+            ->where('old_table', $legacyTable)
+            ->where('old_id', $legacyId)
+            ->value('new_id');
+
+        return $newId ? static::find($newId) : null;
     }
 
     /**
