@@ -27,6 +27,10 @@ class Circles extends Component
 
     public $teachersList = [];
 
+    public $viewingCircleStudents = null;
+
+    public $viewingCircleName = '';
+
     public function mount(): void
     {
         $this->loadData();
@@ -62,7 +66,10 @@ class Circles extends Component
             });
         }
 
-        $this->circles = $query->latest()->get();
+        // Sorted in-memory (not via a SQL join) so the already-eager-loaded
+        // "stage" relation can be reused without a stages/circles column-name
+        // collision under a plain `select *`.
+        $this->circles = $query->get()->sortBy(['stage.name', 'name'])->values();
         $this->teachersList = Teacher::whereRoleState(fn ($q) => $q->where('is_approved', true))
             ->whereHas('circles', function ($q) use ($circleIds) {
                 $q->whereIn('circles.id', $circleIds);
@@ -113,18 +120,38 @@ class Circles extends Component
         Flux::modal('circle-modal')->show();
     }
 
+    public function viewStudents($id): void
+    {
+        $circleIds = $this->getSupervisorCircleIds();
+        $circle = Circle::whereIn('id', $circleIds)->with('students')->findOrFail($id);
+
+        $this->viewingCircleName = $circle->name;
+        $this->viewingCircleStudents = $circle->students->map(fn ($student) => [
+            'id' => $student->id,
+            'name' => $student->name,
+            'status' => $student->status,
+            'memorization_percentage' => $student->memorizationPercentage(),
+            'absences' => $student->getAbsencesInPeriodCount(),
+            'lateness' => $student->getLatenessInPeriodCount(),
+        ])->sortBy('name')->values();
+
+        Flux::modal('circle-students-modal')->show();
+    }
+
     public function save(): void
     {
-        $rules = [
+        $this->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-        ];
+            'stage_id' => 'required|exists:stages,id',
+        ]);
 
-        if (! $this->editingCircleId) {
-            $rules['stage_id'] = 'required|exists:stages,id';
+        // Verify supervisor has access to the chosen stage, whether creating
+        // or moving an existing circle to it.
+        $validStages = $this->getSupervisorStages()->pluck('id')->toArray();
+        if (! in_array((int) $this->stage_id, $validStages, true)) {
+            abort(403, 'Unauthorized action.');
         }
-
-        $this->validate($rules);
 
         $circleIds = $this->getSupervisorCircleIds();
 
@@ -133,15 +160,10 @@ class Circles extends Component
             $circle->update([
                 'name' => $this->name,
                 'description' => $this->description,
+                'stage_id' => $this->stage_id,
             ]);
             $message = __('تم تحديث الحلقة بنجاح');
         } else {
-            // Verify supervisor has access to the chosen stage
-            $validStages = $this->getSupervisorStages()->pluck('id')->toArray();
-            if (! in_array($this->stage_id, $validStages)) {
-                abort(403, 'Unauthorized action.');
-            }
-
             $circle = Circle::create([
                 'name' => $this->name,
                 'description' => $this->description,

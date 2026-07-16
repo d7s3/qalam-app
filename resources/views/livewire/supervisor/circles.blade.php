@@ -55,7 +55,9 @@
                             </div>
                         </flux:table.cell>
                         <flux:table.cell class="text-center">
-                            <flux:badge size="sm" variant="neutral">{{ $circle->students_count }}</flux:badge>
+                            <button type="button" wire:click="viewStudents({{ $circle->id }})" class="inline-flex">
+                                <flux:badge size="sm" variant="neutral" class="cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700">{{ $circle->students_count }}</flux:badge>
+                            </button>
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
@@ -81,14 +83,12 @@
             </div>
 
             <div class="space-y-4">
-                @if(!$editingCircleId)
-                    <flux:select label="المرحلة التعليمية" wire:model="stage_id" required>
-                        <flux:select.option value="" >اختر المرحلة</flux:select.option>
-                        @foreach($stages as $stage)
-                            <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                @endif
+                <flux:select label="المرحلة التعليمية" wire:model="stage_id" required>
+                    <flux:select.option value="" >اختر المرحلة</flux:select.option>
+                    @foreach($stages as $stage)
+                        <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
                 <flux:input label="اسم الحلقة" wire:model="name" placeholder="مثال: حلقة ابن كثير" required />
                 <flux:textarea label="وصف الحلقة (اختياري)" wire:model="description" placeholder="وصف موجز للحلقة..." />
             </div>
@@ -114,5 +114,60 @@
                 <flux:button type="submit" variant="primary">حفظ التعديلات</flux:button>
             </div>
         </form>
+    </flux:modal>
+
+    {{-- Circle Students Modal --}}
+    <flux:modal name="circle-students-modal" class="md:w-[560px]">
+        <div class="space-y-4">
+            <div>
+                <flux:heading size="lg">طلاب حلقة {{ $viewingCircleName }}</flux:heading>
+                <flux:subheading>{{ $viewingCircleStudents ? $viewingCircleStudents->count() : 0 }} طالب</flux:subheading>
+            </div>
+
+            <div class="space-y-2 max-h-[420px] overflow-y-auto">
+                @forelse(($viewingCircleStudents ?? []) as $student)
+                    <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <flux:avatar size="sm" :name="$student['name']" />
+                            <div class="min-w-0">
+                                <div class="font-bold text-sm text-zinc-800 dark:text-zinc-100 truncate">{{ $student['name'] }}</div>
+                                @if($student['status'] === 'active')
+                                    <flux:badge size="sm" color="green">مشارك</flux:badge>
+                                @elseif($student['status'] === 'registering')
+                                    <flux:badge size="sm" color="amber">تحت التسجيل</flux:badge>
+                                @elseif($student['status'] === 'suspended')
+                                    <flux:badge size="sm" color="red">موقوف</flux:badge>
+                                @else
+                                    <flux:badge size="sm" variant="neutral">غادر الحلقات</flux:badge>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
+                            <div class="text-center">
+                                <div class="font-bold text-zinc-700 dark:text-zinc-200">{{ $student['memorization_percentage'] }}%</div>
+                                <div>الحفظ</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold {{ $student['absences'] > 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-200' }}">{{ $student['absences'] }}</div>
+                                <div>غياب</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold {{ $student['lateness'] > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-700 dark:text-zinc-200' }}">{{ $student['lateness'] }}</div>
+                                <div>تأخر</div>
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-sm text-zinc-400 text-center py-8">لا يوجد طلاب في هذه الحلقة</p>
+                @endforelse
+            </div>
+
+            <div class="flex justify-end">
+                <flux:modal.close>
+                    <flux:button variant="ghost">إغلاق</flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
     </flux:modal>
 </div>
