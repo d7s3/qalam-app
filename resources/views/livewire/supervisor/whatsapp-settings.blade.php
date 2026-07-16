@@ -71,4 +71,8 @@
             </div>
         @endif
     </flux:card>
+
+    <div class="max-w-2xl">
+        <livewire:shared.whatsapp-bulk-links :client-id="$clientId" />
+    </div>
 </div>
