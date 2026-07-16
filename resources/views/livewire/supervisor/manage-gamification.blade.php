@@ -1462,12 +1462,24 @@
                     </div>
 
                     <!-- Show in news (default off) -->
-                    <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
-                        <div>
-                            <span class="text-sm font-bold text-zinc-800 dark:text-zinc-200">إظهار التسوية في الأخبار</span>
-                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">افتراضياً لا تظهر التسوية في موجز أخبار الطلاب.</p>
+                    <div class="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20 space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <span class="text-sm font-bold text-zinc-800 dark:text-zinc-200">إظهار التسوية في الأخبار</span>
+                                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">افتراضياً لا تظهر التسوية في موجز أخبار الطلاب.</p>
+                            </div>
+                            <flux:switch wire:model.live="adjShowInNews" />
                         </div>
-                        <flux:switch wire:model="adjShowInNews" />
+
+                        @if($adjShowInNews)
+                            <div class="flex items-center justify-between gap-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
+                                <div>
+                                    <span class="text-sm font-bold text-zinc-800 dark:text-zinc-200">إظهار اسم {{ $adjTargetType === 'individual' ? 'الطالب' : 'الأسرة' }} في الخبر</span>
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">عند الإخفاء يظهر الخبر باسم مجهول ({{ $adjTargetType === 'individual' ? 'أحد الطلاب' : 'إحدى الأسر' }}).</p>
+                                </div>
+                                <flux:switch wire:model="adjShowTargetName" />
+                            </div>
+                        @endif
                     </div>
 
                     <!-- Submit -->

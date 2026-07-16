@@ -146,16 +146,22 @@
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
-                            <flux:select wire:model="editStatus" label="{{ __('حالة الطالب') }}">
-                                <flux:select.option value="active">مشارك</flux:select.option>
-                                <flux:select.option value="registering">تحت التسجيل</flux:select.option>
-                                <flux:select.option value="suspended">موقوف</flux:select.option>
-                                <flux:select.option value="left">غادر الحلقات</flux:select.option>
-                            </flux:select>
-
-                            <livewire:shared.hijri-datepicker wire:model="editStatusDate"
-                                label="{{ __('تاريخ سريان الحالة') }}"
-                                wire:key="status-date-{{ $editingStudentId }}" />
+                            <div>
+                                <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
+                                @php
+                                    $mStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الحلقات'];
+                                    $mStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
+                                @endphp
+                                <div class="flex items-center gap-2">
+                                    <flux:badge color="{{ $mStatusColors[$viewingStudent->status] ?? 'zinc' }}">
+                                        {{ $mStatusLabels[$viewingStudent->status] ?? $viewingStudent->status }}
+                                    </flux:badge>
+                                    <flux:button type="button" size="sm" variant="filled" icon="adjustments-horizontal"
+                                        wire:click="$dispatch('open-status-manager', { studentId: {{ $viewingStudent->id }} })">
+                                        {{ __('إدارة الحالة') }}
+                                    </flux:button>
+                                </div>
+                            </div>
 
                             <livewire:shared.hijri-datepicker wire:model="editJoinedAt"
                                 label="{{ __('تاريخ الالتحاق') }}" />
@@ -290,48 +296,15 @@
 
                     <flux:separator />
 
-                    <!-- Status History -->
-                    <div>
-                        <flux:heading size="sm" class="mb-3">{{ __('سجل الحالات') }}</flux:heading>
-                        <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
-                            @forelse($viewingStudent->statusHistories as $history)
-                                <div
-                                    class="flex items-center justify-between p-3 border border-zinc-200 dark:border-zinc-700/50 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                                    <div class="flex flex-col">
-                                        <span class="text-sm font-medium">
-                                            @php
-                                                $hStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الحلقات'];
-                                                $hColor = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'][$history->status] ?? 'zinc';
-                                            @endphp
-                                            <flux:badge color="{{ $hColor }}" size="sm">
-                                                {{ $hStatusLabels[$history->status] ?? $history->status }}</flux:badge>
-                                        </span>
-                                        <span class="text-xs text-zinc-500 mt-1">
-                                            {{ $history->start_date->format('Y/m/d') }} @if($history->end_date) -
-                                            {{ $history->end_date->format('Y/m/d') }} @else - {{ __('الآن') }} @endif
-                                        </span>
-                                        @if($history->notes)
-                                            <span class="text-xs text-zinc-400 mt-1">{{ $history->notes }}</span>
-                                        @endif
-                                    </div>
-                                    <flux:button size="xs" variant="ghost" icon="trash"
-                                        class="text-red-400 hover:text-red-600"
-                                        wire:click="deleteStatusHistory({{ $history->id }})"
-                                        wire:confirm="{{ __('حذف هذا السجل من تاريخ الحالات؟ سيُعاد احتساب حالة الطالب من السجلات المتبقية.') }}" />
-                                </div>
-                            @empty
-                                <div class="text-sm text-zinc-500 text-center py-4">{{ __('لا يوجد سجل حالات.') }}</div>
-                            @endforelse
-                        </div>
-
-                        <livewire:manager.add-linked-role
-                            source-guard="student"
-                            :source-id="$viewingStudent->id"
-                            :source-name="$viewingStudent->name"
-                            :key="'add-linked-role-student-'.$viewingStudent->id" />
-                    </div>
+                    <livewire:manager.add-linked-role
+                        source-guard="student"
+                        :source-id="$viewingStudent->id"
+                        :source-name="$viewingStudent->name"
+                        :key="'add-linked-role-student-'.$viewingStudent->id" />
                 </div>
             @endif
         </div>
     </flux:modal>
+
+    <livewire:shared.student-status-manager />
 </div>

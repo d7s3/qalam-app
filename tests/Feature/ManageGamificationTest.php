@@ -1522,7 +1522,7 @@ it('records adjustments in the news only when the supervisor opts in', function 
         ->call('applyAdjustment')->assertHasNoErrors();
     expect(GamificationNews::where('type', 'adjustment')->count())->toBe(0);
 
-    // Opt-in on → news recorded
+    // Opt-in on → news recorded with the student's name (name shown by default)
     $c->set('adjTargetType', 'individual')->set('adjStudentId', $this->student->id)
         ->set('adjActionType', 'add')->set('adjHasXp', true)->set('adjXpVal', 15)
         ->set('adjDescription', 'مكافأة ثانية')->set('adjShowInNews', true)
@@ -1531,5 +1531,23 @@ it('records adjustments in the news only when the supervisor opts in', function 
     $news = GamificationNews::where('type', 'adjustment')->first();
     expect($news)->not->toBeNull();
     expect($news->data['target_name'])->toBe($this->student->name);
+    expect($news->data['name_hidden'])->toBeFalse();
     expect($news->data['xp'])->toBe(15);
+});
+
+it('hides the target name from the adjustment news when the supervisor chooses to', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->set('adjTargetType', 'individual')->set('adjStudentId', $this->student->id)
+        ->set('adjActionType', 'add')->set('adjHasXp', true)->set('adjXpVal', 20)
+        ->set('adjDescription', 'مكافأة سرية')->set('adjShowInNews', true)
+        ->set('adjShowTargetName', false)
+        ->call('applyAdjustment')->assertHasNoErrors();
+
+    $news = GamificationNews::where('type', 'adjustment')->first();
+    expect($news)->not->toBeNull();
+    expect($news->data['target_name'])->toBeNull();
+    expect($news->data['name_hidden'])->toBeTrue();
+    expect($news->data['target_type'])->toBe('individual');
 });

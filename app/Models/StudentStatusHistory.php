@@ -12,6 +12,8 @@ class StudentStatusHistory extends Model
         'start_date',
         'end_date',
         'notes',
+        'changed_by_role',
+        'changed_by_name',
     ];
 
     protected function casts(): array

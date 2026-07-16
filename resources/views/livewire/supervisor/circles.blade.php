@@ -10,7 +10,19 @@
             </div>
         </div>
         @if($stages->isNotEmpty())
-            <flux:button variant="primary" size="sm" icon="plus" wire:click="create">إضافة حلقة جديدة</flux:button>
+            <div class="flex items-center gap-2">
+                <flux:dropdown>
+                    <flux:button size="sm" icon="chart-bar" icon:trailing="chevron-down">تقرير المرحلة</flux:button>
+                    <flux:menu>
+                        @foreach($stages as $stage)
+                            <flux:menu.item :href="route('supervisor.stages.report', $stage->id)" icon="presentation-chart-line">
+                                {{ $stage->name }}
+                            </flux:menu.item>
+                        @endforeach
+                    </flux:menu>
+                </flux:dropdown>
+                <flux:button variant="primary" size="sm" icon="plus" wire:click="create">إضافة حلقة جديدة</flux:button>
+            </div>
         @endif
     </div>
 
@@ -41,7 +53,12 @@
             <flux:table.rows>
                 @forelse ($circles as $circle)
                     <flux:table.row :key="$circle->id">
-                        <flux:table.cell class="font-bold text-zinc-900 dark:text-white">{{ $circle->name }}</flux:table.cell>
+                        <flux:table.cell class="font-bold text-zinc-900 dark:text-white">
+                            <a href="{{ route('supervisor.circles.report', $circle->id) }}"
+                                class="hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline underline-offset-4">
+                                {{ $circle->name }}
+                            </a>
+                        </flux:table.cell>
                         <flux:table.cell class="hidden md:table-cell">
                             <flux:badge size="sm" variant="neutral">{{ $circle->stage->name }}</flux:badge>
                         </flux:table.cell>
@@ -60,7 +77,10 @@
                             </button>
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
-                            <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
+                            <div class="flex items-center gap-1">
+                                <flux:button size="sm" variant="ghost" icon="chart-bar" :href="route('supervisor.circles.report', $circle->id)" title="تقرير الإنجاز" />
+                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
+                            </div>
                         </flux:table.cell>
                     </flux:table.row>
                 @empty

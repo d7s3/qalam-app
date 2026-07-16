@@ -21,8 +21,6 @@ new class extends Component {
     public $editName = '';
     public $editPhone = '';
     public $editCircleId = null;
-    public $editStatus = '';
-    public $editStatusDate = '';
     public $editJoinedAt = '';
     public $stats = [];
 
@@ -161,8 +159,6 @@ new class extends Component {
         $this->editName = $this->viewingStudent->name;
         $this->editPhone = $this->viewingStudent->phone;
         $this->editCircleId = $this->viewingStudent->circle_id;
-        $this->editStatus = $this->viewingStudent->status;
-        $this->editStatusDate = now('Asia/Riyadh')->format('Y-m-d');
         $this->editJoinedAt = $this->viewingStudent->joined_at ? $this->viewingStudent->joined_at->format('Y-m-d') : null;
 
         $this->stats = [
@@ -179,25 +175,8 @@ new class extends Component {
         $this->validate([
             'editName' => 'required|string|min:2|max:255',
             'editPhone' => 'nullable|string|max:20',
-            'editStatus' => 'required|in:active,registering,suspended,left',
-            'editStatusDate' => 'nullable|date|before_or_equal:today',
             'editJoinedAt' => 'nullable|date',
-        ], [
-            'editStatusDate.before_or_equal' => 'تاريخ سريان الحالة لا يمكن أن يكون في المستقبل',
         ]);
-
-        $oldStatus = $this->viewingStudent->status;
-
-        $teacher = Auth::guard('teacher')->user();
-        $statusChanged = $this->editStatus !== $oldStatus;
-
-        // If teacher lacks permission to change status, silently revert it
-        // but still continue saving name, phone, and joined_at
-        $statusBlockedByPermission = false;
-        if ($statusChanged && empty($teacher->effectivePermissions()['can_change_student_status'])) {
-            $this->editStatus = $oldStatus;
-            $statusBlockedByPermission = true;
-        }
 
         $this->viewingStudent->update([
             'name' => $this->editName,
@@ -205,20 +184,16 @@ new class extends Component {
             'joined_at' => $this->editJoinedAt,
         ]);
 
-        if (!$statusBlockedByPermission) {
-            \App\Services\StudentStatusService::changeStatus(
-                $this->viewingStudent,
-                $this->editStatus,
-                $this->editStatusDate ?: null,
-            );
-        }
-
         $this->dispatch('student-list-updated');
 
-        if ($statusBlockedByPermission) {
-            Flux::toast('تم حفظ البيانات، لكن تغيير الحالة غير مسموح به لك', variant: 'warning');
-        } else {
-            Flux::toast('تم حفظ بيانات الطالب بنجاح', variant: 'success');
+        Flux::toast('تم حفظ بيانات الطالب بنجاح', variant: 'success');
+    }
+
+    #[\Livewire\Attributes\On('student-status-updated')]
+    public function refreshViewingStudent()
+    {
+        if ($this->viewingStudent) {
+            $this->viewingStudent->refresh();
         }
     }
 
@@ -422,15 +397,22 @@ new class extends Component {
 
                     <div class="grid grid-cols-2 gap-4">
                         @if($canChangeStatus)
-                        <flux:select wire:model="editStatus" label="{{ __('حالة الطالب') }}">
-                            <flux:select.option value="active">مشارك</flux:select.option>
-                            <flux:select.option value="registering">تحت التسجيل</flux:select.option>
-                            <flux:select.option value="suspended">موقوف</flux:select.option>
-                            <flux:select.option value="left">غادر الحلقات</flux:select.option>
-                        </flux:select>
-                        <livewire:shared.hijri-datepicker wire:model="editStatusDate"
-                            label="{{ __('تاريخ سريان الحالة') }}"
-                            wire:key="teacher-status-date-{{ $viewingStudent?->id }}" />
+                        <div>
+                            <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
+                            @php
+                                $tStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الحلقات'];
+                                $tStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
+                            @endphp
+                            <div class="flex items-center gap-2">
+                                <flux:badge color="{{ $tStatusColors[$viewingStudent->status] ?? 'zinc' }}">
+                                    {{ $tStatusLabels[$viewingStudent->status] ?? $viewingStudent->status }}
+                                </flux:badge>
+                                <flux:button type="button" size="sm" variant="filled" icon="adjustments-horizontal"
+                                    wire:click="$dispatch('open-status-manager', { studentId: {{ $viewingStudent->id }} })">
+                                    {{ __('إدارة الحالة') }}
+                                </flux:button>
+                            </div>
+                        </div>
                         <livewire:shared.hijri-datepicker wire:model="editJoinedAt" label="{{ __('تاريخ الالتحاق') }}" />
                         @else
                         <div>
@@ -671,4 +653,6 @@ new class extends Component {
             @endforelse
         </div>
     </flux:modal>
+
+    <livewire:shared.student-status-manager />
 </div>

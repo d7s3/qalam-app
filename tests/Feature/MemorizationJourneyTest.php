@@ -96,6 +96,62 @@ it('marks a juz full or partial based on the memorized range', function () {
     expect($map[2]['status'])->toBe('none');   // juz 2 (ayahs 4-6) untouched
 });
 
+it('marks a surah full or partial based on the memorized range', function () {
+    // Surah 1 covers ayahs 1-3, surah 2 covers ayahs 4-6.
+    foreach ([1, 2] as $number) {
+        Surah::create([
+            'number' => $number,
+            'name_arabic' => "سورة {$number}",
+            'name_simple' => "Surah {$number}",
+            'revelation_place' => 'makkah',
+            'revelation_order' => $number,
+            'verses_count' => 3,
+            'start_page' => 1,
+            'end_page' => 1,
+        ]);
+    }
+    foreach (range(1, 6) as $id) {
+        DB::table('ayahs')->insert([
+            'id' => $id,
+            'surah_id' => $id <= 3 ? 1 : 2,
+            'verse_number' => $id <= 3 ? $id : $id - 3,
+            'verse_key' => ($id <= 3 ? '1:'.$id : '2:'.($id - 3)),
+            'juz_number' => 1,
+            'hizb_number' => 1,
+            'rub_number' => 1,
+            'page_number' => 1,
+            'ruku_number' => 1,
+            'manzil_number' => 1,
+            'text_uthmani' => 'نص',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->child->id,
+        'plan_type' => 'hifz',
+        'direction' => 'forward',
+        'start_date' => now()->subDays(5),
+        'is_approved' => true,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => today(),
+        'day_name' => 'الأربعاء',
+        'hifz_achievement' => 3,
+        'from_ayah_id' => 1,
+        'to_ayah_id' => 4,
+    ]);
+
+    $map = collect(MemorizationJourneyService::surahMap($this->child->fresh()))->keyBy('number');
+
+    expect($map[1]['status'])->toBe('full');    // ayahs 1-3 fully within [1,4]
+    expect($map[2]['status'])->toBe('partial'); // only ayah 4 of 4-6 memorized
+});
+
 it('returns the score trend oldest-first', function () {
     $plan = StudentPlan::create([
         'student_id' => $this->child->id,
@@ -351,6 +407,7 @@ it('renders the memorization journey on the guardian student detail page', funct
     $this->get(route('guardian.student', $this->child->id))
         ->assertSuccessful()
         ->assertSee('رحلة الحفظ')
+        ->assertSee('خريطة السور')
         ->assertSee('تطوّر التقييم')
         ->assertSee('حضور آخر 8 أسابيع');
 });

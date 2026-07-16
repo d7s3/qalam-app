@@ -354,6 +354,8 @@ class ManageGamification extends Component
 
     public bool $adjShowInNews = false;
 
+    public bool $adjShowTargetName = true;
+
     public function mount($competitionId): void
     {
         $this->competitionId = $competitionId;
@@ -2142,15 +2144,20 @@ class ManageGamification extends Component
             }
         });
 
-        // Adjustments stay out of the news feed unless the supervisor opts in.
+        // Adjustments stay out of the news feed unless the supervisor opts in,
+        // and the target's name is included only when they choose to reveal it.
         if ($this->adjShowInNews) {
-            $name = $this->adjTargetType === 'individual'
-                ? (Student::find($this->adjStudentId)?->name ?? '')
-                : (GamificationTeam::find($this->adjTeamId)?->name ?? '');
+            $name = null;
+            if ($this->adjShowTargetName) {
+                $name = $this->adjTargetType === 'individual'
+                    ? (Student::find($this->adjStudentId)?->name ?? '')
+                    : (GamificationTeam::find($this->adjTeamId)?->name ?? '');
+            }
 
             GamificationNewsService::record($this->competitionId, 'adjustment', [
                 'target_type' => $this->adjTargetType,
                 'target_name' => $name,
+                'name_hidden' => ! $this->adjShowTargetName,
                 'action' => $this->adjActionType,
                 'xp' => abs($xp),
                 'coins' => abs($coins),
@@ -2169,6 +2176,7 @@ class ManageGamification extends Component
             'adjHasCoins',
             'adjDescription',
             'adjShowInNews',
+            'adjShowTargetName',
         ]);
     }
 
