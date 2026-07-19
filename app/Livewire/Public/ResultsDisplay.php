@@ -169,7 +169,9 @@ class ResultsDisplay extends Component
             ->having('presents', '>', 0)
             ->get()
             ->sortBy([['absences', 'asc'], ['presents', 'desc']])
-            ->take(10);
+            // More than fit one screen: the slide rotates through pages of this
+            // list client-side, showing a different chunk on each visit.
+            ->take(50);
 
         $slides[] = [
             'key' => 'attendance',
