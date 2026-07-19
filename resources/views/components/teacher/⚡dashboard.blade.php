@@ -3,6 +3,7 @@
 use Livewire\Component;
 use App\Models\Student;
 use App\Models\StudentPlanDay;
+use App\Services\TeacherCompetitionService;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
@@ -230,11 +231,22 @@ new class extends Component {
             ->orderBy('end_date')
             ->get();
 
+        // Independent teacher-competition system (separate from the student
+        // leaderboard/gamification above) — when active, the dashboard shows
+        // only this instead of the everyday content.
+        $competitionService = new TeacherCompetitionService();
+        $activeTeacherCompetition = $competitionService->activeCompetitionFor($teacher);
+        $teacherCompetitionStandings = $activeTeacherCompetition
+            ? $competitionService->getStandings($activeTeacherCompetition)
+            : collect();
+
         return [
             'topAttendance' => $topAttendance,
             'topExcellent' => $topExcellent,
             'studentsCount' => Student::whereIn('circle_id', $circleIds)->count(),
             'assignments' => $assignments,
+            'activeTeacherCompetition' => $activeTeacherCompetition,
+            'teacherCompetitionStandings' => $teacherCompetitionStandings,
         ];
     }
 };
@@ -251,6 +263,60 @@ new class extends Component {
         </flux:subheading>
     </div>
 
+    {{-- Independent teacher-competition override: while one is active for this
+    teacher, show only it instead of the everyday dashboard content below. --}}
+    @if($activeTeacherCompetition)
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-6 space-y-4" dir="rtl">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+                <flux:heading size="lg" class="flex items-center gap-2">
+                    <div class="p-2 bg-sky-500 rounded-lg shadow-lg shadow-sky-500/20">
+                        <flux:icon icon="trophy" variant="solid" class="size-6 text-white" />
+                    </div>
+                    {{ $activeTeacherCompetition->name }}
+                </flux:heading>
+                <div class="flex items-center gap-2 text-xs font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 px-3 py-1.5 rounded-full border border-sky-200 dark:border-sky-800/50">
+                    <flux:icon icon="clock" class="size-3.5" />
+                    @php $daysRemaining = now()->startOfDay()->diffInDays($activeTeacherCompetition->end_date->startOfDay(), false); @endphp
+                    @if($daysRemaining > 0)
+                        {{ __('متبقي :days يوم', ['days' => $daysRemaining]) }}
+                    @else
+                        {{ __('اليوم الأخير!') }}
+                    @endif
+                </div>
+            </div>
+
+            @if($teacherCompetitionStandings->isEmpty())
+                <div class="text-center py-10 text-sm text-zinc-400 border border-dashed rounded-xl">
+                    {{ __('لسه محدش اتقيّم في المسابقة دي.') }}
+                </div>
+            @else
+                <div class="space-y-2">
+                    @foreach($teacherCompetitionStandings as $row)
+                        @php $isMe = $row['teacher']->id === auth()->guard('teacher')->id(); @endphp
+                        <div class="flex items-center justify-between gap-3 p-3 rounded-xl {{ $isMe ? 'bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/50' : 'bg-zinc-50 dark:bg-zinc-800/50' }}">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-sm {{ $row['rank'] <= 3 ? 'bg-amber-400 text-white' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300' }}">
+                                    {{ $row['rank'] }}
+                                </div>
+                                <span class="font-bold text-zinc-800 dark:text-zinc-100">
+                                    {{ $row['teacher']->name }}
+                                    @if($isMe)
+                                        <span class="text-[10px] font-bold ms-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">{{ __('أنت') }}</span>
+                                    @endif
+                                </span>
+                            </div>
+                            <div class="text-end">
+                                <div class="font-bold text-zinc-700 dark:text-zinc-200">{{ $row['score'] }} / {{ $row['max_score'] }}</div>
+                                <div class="text-xs text-zinc-400">{{ $row['percentage'] }}%</div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    @endif
+
+    @unless($activeTeacherCompetition)
     <!-- Quick CTA: Attendance -->
     <a href="{{ route('teacher.attendance') }}" class="block w-full transition-transform hover:-translate-y-1">
         <div
@@ -442,6 +508,7 @@ new class extends Component {
 
         </div>
     </div>
+    @endunless
 
     <!-- Grading Modal -->
     <flux:modal wire:model="showGradingModal" class="md:w-[500px]">
