@@ -891,7 +891,20 @@
                         <flux:heading size="lg">مراكز الطلاب</flux:heading>
                         <flux:subheading>ترتيب الطلاب ضمن كل مسار (إن وُجدت المسارات)، مع ما أنجزه كل طالب في اليوم المحدد. اضغط على أي طالب لعرض إنجازاته حسب الأيام.</flux:subheading>
                     </div>
-                    <flux:input type="date" wire:model.live="standingsDate" label="اليوم" class="sm:w-56 shrink-0" />
+                    <div class="flex items-end gap-2 shrink-0">
+                        @php
+                            $displayUrl = \Illuminate\Support\Facades\URL::signedRoute('results.display', ['leaderboard' => $competition->id]);
+                        @endphp
+                        <div x-data>
+                            <flux:button variant="primary" icon="tv"
+                                class="bg-purple-600 hover:bg-purple-700 border-none text-white"
+                                href="{{ $displayUrl }}" target="_blank"
+                                @click.prevent="navigator.clipboard.writeText(@js($displayUrl)); window.open(@js($displayUrl), '_blank'); $dispatch('toast', { message: 'تم فتح شاشة العرض ونسخ رابطها', variant: 'success' })">
+                                شاشة العرض (بروجكتر)
+                            </flux:button>
+                        </div>
+                        <flux:input type="date" wire:model.live="standingsDate" label="اليوم" class="sm:w-56" />
+                    </div>
                 </div>
 
                 @forelse($standingsGroups as $group)

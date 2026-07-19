@@ -6,6 +6,7 @@ use App\Livewire\Public\CircleReport as PublicCircleReport;
 use App\Livewire\Public\CoinRedemption as PublicCoinRedemption;
 use App\Livewire\Public\FormReport;
 use App\Livewire\Public\FormSubmit;
+use App\Livewire\Public\ResultsDisplay as PublicResultsDisplay;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
@@ -361,5 +362,6 @@ Route::get('/f/{slug}', FormSubmit::class)->name('forms.submit');
 Route::get('/f/{slug}/{token}', FormReport::class)->name('forms.report');
 Route::get('/r/circle-report', PublicCircleReport::class)->name('reports.circle')->middleware('signed');
 Route::get('/r/coin-redemption', PublicCoinRedemption::class)->name('redemption.circle')->middleware('signed');
+Route::get('/r/results-display', PublicResultsDisplay::class)->name('results.display')->middleware('signed');
 
 require __DIR__.'/settings.php';

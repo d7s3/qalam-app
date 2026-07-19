@@ -2411,6 +2411,42 @@ class GamificationService
      * @param  \Illuminate\Support\Collection<int, mixed>  $transactions
      * @return array<int, string> Keyed by transaction id → 'Y-m-d'.
      */
+    /**
+     * Per-student XP totals for work whose graded day falls inside [$fromDate,
+     * $toDate] ('Y-m-d'), using the same graded-date resolution and competition
+     * window rules as the standings. Returns [student_id => xp] sorted desc.
+     *
+     * @return array<int, int>
+     */
+    public static function xpTotalsForRange(Leaderboard $leaderboard, string $fromDate, string $toDate): array
+    {
+        $transactions = GamificationTransaction::where('leaderboard_id', $leaderboard->id)
+            ->where('type', 'earn')
+            ->whereNotNull('student_id')
+            ->get();
+
+        if ($transactions->isEmpty()) {
+            return [];
+        }
+
+        $dates = self::resolveTransactionDates($transactions);
+        $totals = [];
+
+        foreach ($transactions as $tx) {
+            $day = $dates[$tx->id];
+
+            if ($day < $fromDate || $day > $toDate || ! self::dateWithinWindow($day, $leaderboard)) {
+                continue;
+            }
+
+            $totals[$tx->student_id] = ($totals[$tx->student_id] ?? 0) + (int) ($tx->xp_amount ?? $tx->amount);
+        }
+
+        arsort($totals);
+
+        return $totals;
+    }
+
     private static function resolveTransactionDates($transactions): array
     {
         $idsFor = fn (string $type) => $transactions->where('reference_type', $type)->pluck('reference_id')->filter()->unique()->all();
