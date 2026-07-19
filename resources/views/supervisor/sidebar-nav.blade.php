@@ -76,6 +76,14 @@
     </flux:sidebar.group>
 @endif
 
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.teacher-competitions'))
+    <flux:sidebar.group heading="مسابقة المعلمين" class="grid">
+        <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="trophy" :href="route('supervisor.teacher-competitions')" :current="request()->routeIs('supervisor.teacher-competitions*')" wire:navigate>
+            مسابقة المعلمين
+        </flux:sidebar.item>
+    </flux:sidebar.group>
+@endif
+
 <flux:sidebar.group heading="المتابعة والتقارير" class="grid">
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.yearly-attendance'))
         <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="calendar" :href="route('supervisor.yearly-attendance')"
