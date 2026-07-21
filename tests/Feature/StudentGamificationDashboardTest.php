@@ -2093,3 +2093,38 @@ it('marks an achieved but unclaimed auto badge as awaiting claim', function () {
     Livewire::test('student.gamification-dashboard')
         ->assertSee('اكتمل — بانتظار الاستلام');
 });
+
+it('shows the progress bar for a fresh streak badge with zero progress', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة وسام الانضباط',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(10),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    // Exactly the screenshot: consecutive attendance, 10 days required.
+    GamificationBadge::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'وسام الانضباط',
+        'description' => '',
+        'icon' => 'star',
+        'badge_type' => 'streak_attendance',
+        'requirement_value' => 10,
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertViewHas('badgeProgress', function ($progress) use ($leaderboard) {
+            $badgeId = GamificationBadge::where('leaderboard_id', $leaderboard->id)->value('id');
+
+            return isset($progress[$badgeId])
+                && $progress[$badgeId]['value'] === 0
+                && $progress[$badgeId]['required'] === 10
+                && $progress[$badgeId]['remaining'] === 10;
+        })
+        ->assertSee('متتالية:')
+        ->assertSee('يتبقّى');
+});
