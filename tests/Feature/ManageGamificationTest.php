@@ -1642,3 +1642,34 @@ it('does not cancel a purchase belonging to another competition', function () {
     // Untouched: the purchase belongs to a different competition.
     expect($purchase->fresh()->status)->toBe('approved');
 });
+
+it('groups store purchases by product with a per-product count', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $team = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق التجميع', 'coins' => 500]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'دعم الفريق',
+        'price' => 30,
+        'item_type' => 'team_points',
+        'value' => 40,
+        'is_team_product' => true,
+    ]);
+
+    // Two purchases of the same product -> one group with a count of 2.
+    GamificationService::requestStorePurchase($this->student->id, $item->id);
+    GamificationService::requestStorePurchase($this->student->id, $item->id);
+
+    $component = Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->set('activeTab', 'store');
+
+    $groups = $component->viewData('purchasesByProduct');
+
+    expect($groups)->toHaveCount(1);
+    expect($groups->first()['item']->id)->toBe($item->id);
+    expect($groups->first()['purchases'])->toHaveCount(2);
+
+    $component->assertSee('2 عملية');
+});

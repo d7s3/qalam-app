@@ -23,6 +23,7 @@ use App\Services\GamificationService;
 use App\Services\GamificationThemeService;
 use App\Services\LeaderboardService;
 use Flux\Flux;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Drivers\Gd\Driver;
@@ -2291,16 +2292,26 @@ class ManageGamification extends Component
             ->get();
 
         // Purchases log (store tab) — every made purchase with its buyer/target so a
-        // supervisor can cancel one and reverse its effect.
-        $storePurchases = collect();
+        // supervisor can cancel one and reverse its effect. Grouped by product and,
+        // within each product, ordered by date (newest first).
+        $purchasesByProduct = collect();
         if ($this->activeTab === 'store') {
-            $storePurchases = GamificationStorePurchase::whereHas('item', function ($query) {
+            $sortKey = fn ($purchase) => $purchase->target_date
+                ? Carbon::parse($purchase->target_date)->toDateString()
+                : $purchase->created_at->toDateString();
+
+            $purchasesByProduct = GamificationStorePurchase::whereHas('item', function ($query) {
                 $query->where('leaderboard_id', $this->competitionId);
             })
                 ->with(['item', 'student', 'team', 'targetTeam'])
-                ->latest()
                 ->get()
                 ->filter(fn ($purchase) => $purchase->item !== null)
+                ->groupBy('store_item_id')
+                ->map(fn ($group) => [
+                    'item' => $group->first()->item,
+                    'purchases' => $group->sortByDesc($sortKey)->values(),
+                ])
+                ->sortByDesc(fn ($group) => $sortKey($group['purchases']->first()))
                 ->values();
         }
 
@@ -2396,7 +2407,7 @@ class ManageGamification extends Component
             'dbTeams' => $dbTeams,
             'dbTracks' => $dbTracks,
             'dbStoreItems' => $dbStoreItems,
-            'storePurchases' => $storePurchases,
+            'purchasesByProduct' => $purchasesByProduct,
             'students' => $students,
             'dbCriteria' => $dbCriteria,
             'dbTeamTasks' => $dbTeamTasks,
