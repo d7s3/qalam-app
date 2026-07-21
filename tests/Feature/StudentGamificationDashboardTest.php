@@ -2034,3 +2034,62 @@ it('shows streak badge progress and remaining count on locked badges', function 
         ->assertSee('متتالية:')
         ->assertSee('يتبقّى');
 });
+
+it('marks manual badges as awarded by hand instead of locked', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة الأوسمة اليدوية',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(5),
+        'end_date' => now()->addDays(5),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    GamificationBadge::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'وسام الانضباط',
+        'description' => 'يمنحه المعلم يدوياً',
+        'icon' => 'star',
+        'badge_type' => 'manual',
+        'requirement_value' => 0,
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertSee('يُمنح يدوياً')
+        ->assertDontSee('متبقّى');
+});
+
+it('marks an achieved but unclaimed auto badge as awaiting claim', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة أوسمة الاستلام',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(10),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $badge = GamificationBadge::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'وسام المواظبة',
+        'icon' => 'bolt',
+        'badge_type' => 'streak_attendance',
+        'requirement_value' => 3,
+    ]);
+
+    // Requirement met and teacher-approved, but the student has not claimed it yet.
+    DB::table('gamification_badge_student')->insert([
+        'badge_id' => $badge->id,
+        'student_id' => $this->student->id,
+        'status' => 'approved',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertSee('اكتمل — بانتظار الاستلام');
+});

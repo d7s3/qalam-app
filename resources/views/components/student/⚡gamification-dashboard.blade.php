@@ -469,6 +469,13 @@ new class extends Component {
                 ->where('status', 'claimed')
                 ->pluck('badge_id')
                 ->toArray();
+            // Per-badge award status for this student (claimed / approved /
+            // pending_approval) so the badges grid can show "awaiting claim" and
+            // "awaiting approval" states, not just locked.
+            $badgeStatuses = \Illuminate\Support\Facades\DB::table('gamification_badge_student')
+                ->where('student_id', $student->id)
+                ->pluck('status', 'badge_id')
+                ->toArray();
             $pendingClaims = \App\Models\GamificationBadge::join('gamification_badge_student', 'gamification_badges.id', '=', 'gamification_badge_student.badge_id')
                 ->where('gamification_badge_student.student_id', $student->id)
                 ->where('gamification_badge_student.status', 'approved')
@@ -920,6 +927,7 @@ new class extends Component {
             'pendingMilestoneClaims' => $pendingMilestoneClaims ?? collect(),
             'allBadges' => $allBadges,
             'badgeProgress' => $badgeProgress ?? [],
+            'badgeStatuses' => $badgeStatuses ?? [],
             'milestones' => $milestones,
             'claimedMilestones' => $claimedMilestones,
             'pendingTeamPurchases' => $pendingTeamPurchases,
@@ -2298,9 +2306,20 @@ new class extends Component {
                         @php
                             $earned = in_array($badge->id, $studentBadges);
                             $progress = $badgeProgress[$badge->id] ?? null;
-                            // Show progress only for locked, auto-tracked badges that
-                            // still need more achievements.
-                            $showProgress = ! $earned && $progress !== null && $progress['required'] > 0 && $progress['remaining'] > 0;
+                            $status = $badgeStatuses[$badge->id] ?? null;
+
+                            // A manual badge is awarded by hand (no automatic progress
+                            // to track): calculateBadgeValue returns null for it.
+                            $isManual = $badge->badge_type === 'manual' || $progress === null;
+
+                            // Auto badge whose requirement is met but not yet claimed.
+                            $awaitingClaim = ! $earned && $status === 'approved';
+                            $awaitingApproval = ! $earned && $status === 'pending_approval';
+
+                            // Show the progress bar only for locked, auto-tracked badges
+                            // that still need more achievements.
+                            $showProgress = ! $earned && ! $awaitingClaim && ! $awaitingApproval
+                                && $progress !== null && $progress['required'] > 0 && $progress['remaining'] > 0;
                             $progressPercent = $showProgress
                                 ? min(100, (int) round(($progress['value'] / max(1, $progress['required'])) * 100))
                                 : 0;
@@ -2326,9 +2345,17 @@ new class extends Component {
                                 <h5 class="font-bold text-sm text-slate-800 leading-snug">{{ $badge->name }}</h5>
                                 <p class="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{{ $badge->description }}</p>
                             </div>
-                            <flux:badge color="{{ $earned ? 'emerald' : 'zinc' }}" size="sm">
-                                {{ $earned ? __('مكتمل') : __('مغلق') }}
-                            </flux:badge>
+                            @if($earned)
+                                <flux:badge color="emerald" size="sm" icon="check-circle">{{ __('مكتمل') }}</flux:badge>
+                            @elseif($awaitingClaim)
+                                <flux:badge color="amber" size="sm" icon="gift">{{ __('اكتمل — بانتظار الاستلام') }}</flux:badge>
+                            @elseif($awaitingApproval)
+                                <flux:badge color="blue" size="sm" icon="clock">{{ __('اكتمل — بانتظار الاعتماد') }}</flux:badge>
+                            @elseif($isManual)
+                                <flux:badge color="purple" size="sm" icon="hand-raised">{{ __('يُمنح يدوياً') }}</flux:badge>
+                            @else
+                                <flux:badge color="zinc" size="sm">{{ __('مغلق') }}</flux:badge>
+                            @endif
 
                             @if($showProgress)
                                 <div class="w-full mt-1 space-y-1.5">
