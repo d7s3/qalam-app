@@ -9,6 +9,7 @@ use App\Models\Student;
 use App\Services\GamificationService;
 use App\Services\LeaderboardService;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
@@ -33,6 +34,43 @@ class LeaderboardGrade extends Component
     {
         $this->leaderboardId = $leaderboardId;
         $this->date = now()->format('Y-m-d');
+
+        // Reconcile badge awards once on load so any student who already meets a
+        // requirement (e.g. a badge added or edited after they qualified) gets a
+        // pending-approval row and surfaces in the teacher's approval list.
+        foreach ($this->participatingStudents() as $student) {
+            GamificationService::syncStudentBadges($student->id, $this->leaderboardId);
+        }
+    }
+
+    /**
+     * The active students in the teacher's circles that participate in this
+     * competition.
+     *
+     * @return Collection<int, Student>
+     */
+    private function participatingStudents(): Collection
+    {
+        $leaderboard = Leaderboard::with('circles')->findOrFail($this->leaderboardId);
+
+        $teacher = auth()->guard('teacher')->user();
+        $teacherCircleIds = $teacher ? $teacher->circles()->pluck('circles.id') : collect();
+        $leaderboardCircleIds = $leaderboard->circles->pluck('id');
+        if ($leaderboard->circle_id) {
+            $leaderboardCircleIds->push($leaderboard->circle_id);
+        }
+
+        // All of the teacher's circles that participate in this competition; when
+        // the intersection is empty fall back to whichever side is known.
+        $circleIds = $teacherCircleIds->intersect($leaderboardCircleIds)->values();
+        if ($circleIds->isEmpty()) {
+            $circleIds = $teacherCircleIds->isNotEmpty() ? $teacherCircleIds : $leaderboardCircleIds->unique()->values();
+        }
+
+        return Student::whereIn('circle_id', $circleIds)
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get();
     }
 
     public function toggleScore($studentId, $criterionId, $points)
@@ -123,25 +161,7 @@ class LeaderboardGrade extends Component
     {
         $leaderboard = Leaderboard::with('criteria', 'circles')->findOrFail($this->leaderboardId);
 
-        $teacher = auth()->guard('teacher')->user();
-
-        $teacherCircleIds = $teacher ? $teacher->circles()->pluck('circles.id') : collect();
-        $leaderboardCircleIds = $leaderboard->circles->pluck('id');
-        if ($leaderboard->circle_id) {
-            $leaderboardCircleIds->push($leaderboard->circle_id);
-        }
-
-        // All of the teacher's circles that participate in this competition; when
-        // the intersection is empty fall back to whichever side is known.
-        $circleIds = $teacherCircleIds->intersect($leaderboardCircleIds)->values();
-        if ($circleIds->isEmpty()) {
-            $circleIds = $teacherCircleIds->isNotEmpty() ? $teacherCircleIds : $leaderboardCircleIds->unique()->values();
-        }
-
-        $students = Student::whereIn('circle_id', $circleIds)
-            ->where('status', 'active')
-            ->orderBy('name')
-            ->get();
+        $students = $this->participatingStudents();
 
         $scores = LeaderboardScore::where('leaderboard_id', $this->leaderboardId)
             ->whereDate('date', \Carbon\Carbon::parse($this->date))

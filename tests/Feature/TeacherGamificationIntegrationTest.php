@@ -2,8 +2,10 @@
 
 use App\Livewire\Teacher\Attendance;
 use App\Livewire\Teacher\LeaderboardGrade;
+use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
+use App\Models\GamificationBadge;
 use App\Models\GamificationStudentState;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
@@ -190,4 +192,51 @@ it('syncs extra points on saveExtraPoints', function () {
 
     expect(DB::table('leaderboard_extra_points')->where('student_id', $this->student->id)->count())->toBe(0);
     expect(GamificationTransaction::where('student_id', $this->student->id)->count())->toBe(0);
+});
+
+it('surfaces a newly-qualifying badge for approval when the teacher opens the grade page', function () {
+    // All weekdays are working days so consecutive calendar days form a streak.
+    AcademicCalendarEvent::create([
+        'event_name' => 'دوام كامل التجريبي',
+        'start_date' => now()->subDays(30)->format('Y-m-d'),
+        'end_date' => now()->addDays(30)->format('Y-m-d'),
+        'is_attendance_period' => true,
+        'weekdays' => [1, 2, 3, 4, 5, 6, 7],
+        'is_visible' => true,
+    ]);
+
+    // Student already attended 3 consecutive days (created directly — no badge sync).
+    foreach ([now()->subDays(2), now()->subDay(), now()] as $d) {
+        AttendanceModel::create([
+            'student_id' => $this->student->id,
+            'circle_id' => $this->circle->id,
+            'teacher_id' => $this->teacher->id,
+            'date' => $d->format('Y-m-d'),
+            'status' => 'present',
+        ]);
+    }
+
+    // Badge requiring 3 consecutive attendance days, added AFTER the streak existed.
+    $badge = GamificationBadge::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'وسام الانضباط',
+        'icon' => 'bolt',
+        'badge_type' => 'streak_attendance',
+        'requirement_value' => 3,
+    ]);
+
+    // No award row exists yet (the student is stuck in "reached but unawarded").
+    expect(DB::table('gamification_badge_student')->where('badge_id', $badge->id)->count())->toBe(0);
+
+    // Opening the grade page reconciles awards and lists the pending badge.
+    Livewire::test(LeaderboardGrade::class, ['leaderboardId' => $this->leaderboard->id])
+        ->assertSee('وسام الانضباط')
+        ->assertSee('مراجعة واعتماد');
+
+    // The pending-approval row now exists, ready for the teacher to approve.
+    expect(DB::table('gamification_badge_student')
+        ->where('badge_id', $badge->id)
+        ->where('student_id', $this->student->id)
+        ->where('status', 'pending_approval')
+        ->exists())->toBeTrue();
 });
