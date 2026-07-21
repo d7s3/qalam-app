@@ -29,6 +29,7 @@ use App\Models\Supervisor;
 use App\Models\Teacher;
 use App\Services\GamificationService;
 use App\Services\LeaderboardService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +39,10 @@ use Livewire\Livewire;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    // Freeze to a Tuesday so relative test dates (today / -1 / -2 days) all land on
+    // circle working days (Sun–Thu), keeping working-day streak assertions stable.
+    Carbon::setTestNow('2026-06-16 10:00:00');
+
     $this->stage = Stage::create(['name' => 'مرحلة اختبار التلعيب']);
     $this->circle = Circle::create(['name' => 'حلقة اختبار التلعيب', 'stage_id' => $this->stage->id]);
 
@@ -518,6 +523,89 @@ it('awards and revokes badges based on streak and count criteria for hifz, revie
 
     // Should now have the count badge!
     expect(DB::table('gamification_badge_student')->where('student_id', $this->student->id)->where('badge_id', $countHifzBadge->id)->exists())->toBeTrue();
+});
+
+it('counts a streak across a weekend gap as consecutive circle days', function () {
+    $teacher = Teacher::factory()->create();
+
+    // Requires 4 consecutive circle days. Wider window so the streak spans a weekend.
+    $this->leaderboard->update([
+        'start_date' => '2026-06-01',
+        'end_date' => '2026-06-30',
+    ]);
+
+    $streakBadge = GamificationBadge::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'وسام المواظبة',
+        'icon' => 'bolt',
+        'badge_type' => 'streak_attendance',
+        'requirement_value' => 4,
+    ]);
+
+    // Wed 10, Thu 11 — then Fri 12 & Sat 13 are days off — then Sun 14, Mon 15.
+    // As calendar days this is only a 2-day run (broken by the weekend), but as
+    // circle working days it is a 4-day consecutive streak.
+    foreach (['2026-06-10', '2026-06-11', '2026-06-14', '2026-06-15'] as $date) {
+        $attendance = Attendance::create([
+            'student_id' => $this->student->id,
+            'circle_id' => $this->circle->id,
+            'teacher_id' => $teacher->id,
+            'date' => $date,
+            'status' => 'present',
+        ]);
+        GamificationService::syncStudentAttendanceXP($attendance);
+    }
+
+    expect(GamificationService::calculateMaxStreakOnWorkingDays(
+        collect(['2026-06-10', '2026-06-11', '2026-06-14', '2026-06-15']),
+        GamificationService::getWorkingDaysForLeaderboard($this->leaderboard->fresh())
+    ))->toBe(4);
+
+    // The weekend-spanning run meets the 4-day requirement, so the badge is awarded.
+    expect(DB::table('gamification_badge_student')
+        ->where('student_id', $this->student->id)
+        ->where('badge_id', $streakBadge->id)
+        ->exists())->toBeTrue();
+});
+
+it('breaks a streak when a middle circle day is missed', function () {
+    $teacher = Teacher::factory()->create();
+
+    $this->leaderboard->update([
+        'start_date' => '2026-06-01',
+        'end_date' => '2026-06-30',
+    ]);
+
+    $streakBadge = GamificationBadge::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'وسام المواظبة',
+        'icon' => 'bolt',
+        'badge_type' => 'streak_attendance',
+        'requirement_value' => 4,
+    ]);
+
+    // Sun 14, Mon 15, (missed Tue 16 — a circle day), Wed 17, Thu 18.
+    // Longest working-day run is 2, below the requirement of 4.
+    foreach (['2026-06-14', '2026-06-15', '2026-06-17', '2026-06-18'] as $date) {
+        $attendance = Attendance::create([
+            'student_id' => $this->student->id,
+            'circle_id' => $this->circle->id,
+            'teacher_id' => $teacher->id,
+            'date' => $date,
+            'status' => 'present',
+        ]);
+        GamificationService::syncStudentAttendanceXP($attendance);
+    }
+
+    expect(GamificationService::calculateMaxStreakOnWorkingDays(
+        collect(['2026-06-14', '2026-06-15', '2026-06-17', '2026-06-18']),
+        GamificationService::getWorkingDaysForLeaderboard($this->leaderboard->fresh())
+    ))->toBe(2);
+
+    expect(DB::table('gamification_badge_student')
+        ->where('student_id', $this->student->id)
+        ->where('badge_id', $streakBadge->id)
+        ->exists())->toBeFalse();
 });
 
 it('manages individual store items and streak freezes', function () {

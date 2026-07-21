@@ -2893,6 +2893,59 @@ class GamificationService
     }
 
     /**
+     * Calculate the longest run of consecutive *working days* (circle days) from a
+     * set of activity dates, ignoring weekly days off and academic holidays.
+     *
+     * Two dates count as consecutive when they are adjacent in the leaderboard's
+     * working-day sequence, so gaps that fall entirely on non-circle days (weekends,
+     * holidays) do not break the streak — matching how the enthusiasm streak is
+     * computed in recalculateStudentStreak. Activity dates that are not circle days
+     * are ignored. Falls back to raw calendar-day streaks when no working-day
+     * calendar is available.
+     *
+     * @param  iterable<string>  $dates  Activity dates (Y-m-d).
+     * @param  array<string>  $workingDays  Ordered working-day dates (Y-m-d).
+     */
+    public static function calculateMaxStreakOnWorkingDays($dates, array $workingDays): int
+    {
+        if (empty($workingDays)) {
+            return self::calculateMaxStreakOfDates($dates);
+        }
+
+        $workingDayIndex = array_flip($workingDays);
+
+        $indices = [];
+        foreach ($dates as $dateStr) {
+            $normalized = Carbon::parse($dateStr)->format('Y-m-d');
+            if (isset($workingDayIndex[$normalized])) {
+                $indices[$workingDayIndex[$normalized]] = true;
+            }
+        }
+
+        if (empty($indices)) {
+            return 0;
+        }
+
+        $indices = array_keys($indices);
+        sort($indices);
+
+        $maxStreak = 1;
+        $currentStreak = 1;
+        for ($i = 1, $count = count($indices); $i < $count; $i++) {
+            if ($indices[$i] - $indices[$i - 1] === 1) {
+                $currentStreak++;
+            } else {
+                $currentStreak = 1;
+            }
+            if ($currentStreak > $maxStreak) {
+                $maxStreak = $currentStreak;
+            }
+        }
+
+        return $maxStreak;
+    }
+
+    /**
      * Sync and automatically award/revoke all badges of all types for a student.
      */
     public static function syncStudentBadges(int $studentId, int $leaderboardId): void
@@ -2906,6 +2959,11 @@ class GamificationService
         $endDate = $leaderboard->end_date ?? now()->format('Y-m-d');
 
         $badges = GamificationBadge::where('leaderboard_id', $leaderboardId)->get();
+
+        // Ordered circle working days (excludes weekly days off and academic
+        // holidays) so streak badges count consecutive circle days, not calendar
+        // days. Computed once and reused across every streak badge.
+        $workingDays = self::getWorkingDaysForLeaderboard($leaderboard);
 
         foreach ($badges as $badge) {
             $value = 0;
@@ -2921,7 +2979,7 @@ class GamificationService
                         ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
                         ->unique()
                         ->values();
-                    $value = self::calculateMaxStreakOfDates($dates);
+                    $value = self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
                     break;
 
                 case 'count_attendance':
@@ -2943,7 +3001,7 @@ class GamificationService
                         ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
                         ->unique()
                         ->values();
-                    $value = self::calculateMaxStreakOfDates($dates);
+                    $value = self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
                     break;
 
                 case 'count_hifz':
@@ -2966,7 +3024,7 @@ class GamificationService
                         ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
                         ->unique()
                         ->values();
-                    $value = self::calculateMaxStreakOfDates($dates);
+                    $value = self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
                     break;
 
                 case 'count_review':
@@ -2988,7 +3046,7 @@ class GamificationService
                             ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
                             ->unique()
                             ->values();
-                        $value = self::calculateMaxStreakOfDates($dates);
+                        $value = self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
                     }
                     break;
 
