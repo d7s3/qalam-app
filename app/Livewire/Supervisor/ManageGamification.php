@@ -8,6 +8,7 @@ use App\Models\GamificationActivityWinner;
 use App\Models\GamificationBadge;
 use App\Models\GamificationLevel;
 use App\Models\GamificationStoreItem;
+use App\Models\GamificationStorePurchase;
 use App\Models\GamificationTeam;
 use App\Models\GamificationTeamTask;
 use App\Models\GamificationTeamTaskAssignment;
@@ -1373,6 +1374,33 @@ class ManageGamification extends Component
         Flux::toast('تم تحديث حالة المنتج بنجاح', variant: 'success');
     }
 
+    /**
+     * Cancel a store purchase for this competition and reverse its effect
+     * (refund coins, undo team support/attack, strip multiplier/shield/freeze).
+     */
+    public function cancelPurchase(int $id): void
+    {
+        $purchase = GamificationStorePurchase::whereHas('item', function ($query) {
+            $query->where('leaderboard_id', $this->competitionId);
+        })->find($id);
+
+        if (! $purchase) {
+            Flux::toast('لم يتم العثور على عملية الشراء.', variant: 'danger');
+
+            return;
+        }
+
+        $status = GamificationService::cancelPurchase($id);
+
+        if ($status === 'success') {
+            Flux::toast('تم إلغاء عملية الشراء واسترداد العملات وإلغاء تأثيرها بنجاح.', variant: 'success');
+        } elseif ($status === 'not_cancellable') {
+            Flux::toast('لا يمكن إلغاء هذه العملية (ملغاة أو مرفوضة مسبقاً).', variant: 'danger');
+        } else {
+            Flux::toast('تعذر إلغاء عملية الشراء.', variant: 'danger');
+        }
+    }
+
     public function addFreezeLevelRule(): void
     {
         $this->freezeLevelRules[] = ['level' => 1, 'days' => 1];
@@ -2262,6 +2290,20 @@ class ManageGamification extends Component
             ->whereNotIn('item_type', ['multiplier', 'freeze'])
             ->get();
 
+        // Purchases log (store tab) — every made purchase with its buyer/target so a
+        // supervisor can cancel one and reverse its effect.
+        $storePurchases = collect();
+        if ($this->activeTab === 'store') {
+            $storePurchases = GamificationStorePurchase::whereHas('item', function ($query) {
+                $query->where('leaderboard_id', $this->competitionId);
+            })
+                ->with(['item', 'student', 'team', 'targetTeam'])
+                ->latest()
+                ->get()
+                ->filter(fn ($purchase) => $purchase->item !== null)
+                ->values();
+        }
+
         $students = $this->getStudents();
         if (empty($this->studentTeams) && count($students) > 0) {
             $this->loadDistributionData();
@@ -2354,6 +2396,7 @@ class ManageGamification extends Component
             'dbTeams' => $dbTeams,
             'dbTracks' => $dbTracks,
             'dbStoreItems' => $dbStoreItems,
+            'storePurchases' => $storePurchases,
             'students' => $students,
             'dbCriteria' => $dbCriteria,
             'dbTeamTasks' => $dbTeamTasks,

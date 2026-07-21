@@ -1930,6 +1930,196 @@ class GamificationService
     }
 
     /**
+     * Cancel a store purchase and fully reverse its effect.
+     *
+     * Handles every product type: the paid price is always refunded to the buyer
+     * (student wallet or team treasury), one-time effects (team support points and
+     * team attacks) are undone with compensating transactions, and dynamic effects
+     * (multiplier, shield, streak freeze) are reversed by re-syncing the affected
+     * student's points so already-applied bonuses are recomputed as if the purchase
+     * never happened.
+     *
+     * @return 'success'|'not_found'|'not_cancellable'
+     */
+    public static function cancelPurchase(int $purchaseId): string
+    {
+        $purchase = GamificationStorePurchase::with(['item', 'student', 'team'])->find($purchaseId);
+
+        if (! $purchase || ! $purchase->item) {
+            return 'not_found';
+        }
+
+        if (! in_array($purchase->status, ['approved', 'pending_approval'], true)) {
+            return 'not_cancellable';
+        }
+
+        $item = $purchase->item;
+        $leaderboardId = $item->leaderboard_id;
+        $wasApproved = $purchase->status === 'approved';
+
+        DB::transaction(function () use ($purchase, $item, $leaderboardId, $wasApproved): void {
+            // 1. Reverse one-time effects that were applied on approval.
+            if ($wasApproved) {
+                if ($item->item_type === 'team_points' && $purchase->team_id) {
+                    $team = $purchase->team;
+                    if ($team) {
+                        GamificationTransaction::create([
+                            'leaderboard_id' => $leaderboardId,
+                            'team_id' => $team->id,
+                            'type' => 'spend',
+                            'amount' => -(int) $item->value,
+                            'description' => "إلغاء دعم الفريق: -{$item->value} نقاط",
+                            'reference_type' => GamificationStorePurchase::class,
+                            'reference_id' => $purchase->id,
+                        ]);
+                    }
+                } elseif ($item->item_type === 'team_attack' && $purchase->target_team_id) {
+                    $targetTeam = GamificationTeam::find($purchase->target_team_id);
+                    if ($targetTeam) {
+                        $attackValue = (int) $item->value;
+                        $targetTeam->coins += $attackValue;
+                        $targetTeam->save();
+
+                        GamificationTransaction::create([
+                            'leaderboard_id' => $leaderboardId,
+                            'team_id' => $targetTeam->id,
+                            'type' => 'earn',
+                            'amount' => $attackValue,
+                            'description' => "استرداد عملات بعد إلغاء هجوم خصم النقاط: +{$attackValue} عملة",
+                            'reference_type' => GamificationStorePurchase::class,
+                            'reference_id' => $purchase->id,
+                        ]);
+                    }
+                }
+            }
+
+            // 2. Refund the price paid to the buyer. Individual purchases always
+            // deduct the price up front; team purchases only when the coins were
+            // actually held (approved or reserved for voting).
+            $shouldRefund = $purchase->price_paid > 0
+                && ($purchase->team_id === null || self::purchaseCoinsAlreadyHeld($purchase));
+
+            if ($shouldRefund) {
+                if ($purchase->team_id) {
+                    $team = $purchase->team;
+                    if ($team) {
+                        $team->coins += $purchase->price_paid;
+                        $team->save();
+
+                        GamificationTransaction::create([
+                            'leaderboard_id' => $leaderboardId,
+                            'team_id' => $team->id,
+                            'student_id' => $purchase->student_id,
+                            'type' => 'earn',
+                            'amount' => $purchase->price_paid,
+                            'description' => "استرداد قيمة شراء ملغى: {$item->name}",
+                            'reference_type' => GamificationStorePurchase::class,
+                            'reference_id' => $purchase->id,
+                        ]);
+                    }
+                } else {
+                    GamificationTransaction::create([
+                        'leaderboard_id' => $leaderboardId,
+                        'student_id' => $purchase->student_id,
+                        'type' => 'earn',
+                        'amount' => $purchase->price_paid,
+                        'description' => "استرداد قيمة شراء ملغى: {$item->name}",
+                        'reference_type' => GamificationStorePurchase::class,
+                        'reference_id' => $purchase->id,
+                    ]);
+                }
+            }
+
+            // 3. Mark the purchase cancelled so every "approved"/"pending_approval"
+            // lookup (multipliers, shields, freeze dates, inventory) stops counting it.
+            $purchase->update(['status' => 'cancelled']);
+
+            // 4. Reverse dynamic effects that were baked into or derived from the
+            // now-cancelled purchase.
+            $student = $purchase->student;
+
+            if ($student) {
+                // An individual multiplier is baked into the graded transactions of
+                // its target day, so re-sync the student's points to strip it.
+                if ($item->item_type === 'multiplier' && ! $item->is_team_product) {
+                    self::resyncStudentGamification($student);
+                }
+
+                // A streak freeze's count and streak simulation are derived from the
+                // approved freeze purchases, so recompute the streak without it.
+                if ($item->is_streak_freeze) {
+                    self::recalculateStudentStreak($student, $item->leaderboard);
+                }
+
+                self::recalculateStudentState($student->id, $leaderboardId);
+            }
+        });
+
+        return 'success';
+    }
+
+    /**
+     * Re-run every multiplier-eligible XP sync for a single student so their graded
+     * transactions are recomputed against the currently-active store purchases. Used
+     * when cancelling an individual multiplier whose bonus was already baked into the
+     * student's points. Idempotent: records outside the cancelled day are unchanged.
+     */
+    protected static function resyncStudentGamification(Student $student): void
+    {
+        $graded = fn ($q) => $q->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement');
+
+        StudentPlanDay::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+            ->where($graded)
+            ->with('plan.student')
+            ->chunkById(200, function ($days): void {
+                foreach ($days as $day) {
+                    if ($day->plan?->student) {
+                        self::syncStudentPlanDayXP($day);
+                    }
+                }
+            });
+
+        StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+            ->where($graded)
+            ->with(['plan.student', 'pathDay'])
+            ->chunkById(200, function ($achievements): void {
+                foreach ($achievements as $achievement) {
+                    if ($achievement->plan?->student) {
+                        self::syncStudentOdeAchievementXP($achievement);
+                    }
+                }
+            });
+
+        StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+            ->where($graded)
+            ->with(['plan.student', 'pathDay'])
+            ->chunkById(200, function ($achievements): void {
+                foreach ($achievements as $achievement) {
+                    if ($achievement->plan?->student) {
+                        self::syncStudentHadithAchievementXP($achievement);
+                    }
+                }
+            });
+
+        Attendance::where('student_id', $student->id)
+            ->chunkById(200, function ($attendances): void {
+                foreach ($attendances as $attendance) {
+                    self::syncStudentAttendanceXP($attendance);
+                }
+            });
+
+        LeaderboardScore::where('student_id', $student->id)
+            ->with(['student', 'leaderboard', 'criterion'])
+            ->chunkById(200, function ($scores): void {
+                foreach ($scores as $score) {
+                    if ($score->student && $score->leaderboard && $score->criterion) {
+                        self::syncStudentCustomCriterionXP($score);
+                    }
+                }
+            });
+    }
+
+    /**
      * Get active multiplier factor for a team on a given date.
      */
     public static function getMultiplierForTeam(GamificationTeam $team, $date): int

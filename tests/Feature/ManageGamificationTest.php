@@ -11,6 +11,7 @@ use App\Models\GamificationBadge;
 use App\Models\GamificationLevel;
 use App\Models\GamificationNews;
 use App\Models\GamificationStoreItem;
+use App\Models\GamificationStorePurchase;
 use App\Models\GamificationStudentState;
 use App\Models\GamificationTeam;
 use App\Models\GamificationTeamTask;
@@ -1575,4 +1576,69 @@ it('offers copying all redemption links as one text with a privacy warning', fun
         ->toContain('روابط صرف العملات — مسابقة')
         ->toContain('يجب عدم مشاركتها مع أي شخص')
         ->toContain('حلقة '.$this->circle->name);
+});
+
+it('lists store purchases and cancels one via the supervisor store tab', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $team = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق المتجر', 'coins' => 100]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'دعم الفريق',
+        'price' => 30,
+        'item_type' => 'team_points',
+        'value' => 40,
+        'is_team_product' => true,
+    ]);
+    GamificationService::requestStorePurchase($this->student->id, $item->id);
+    $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
+
+    $team->refresh();
+    expect($team->coins)->toBe(70);
+
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->set('activeTab', 'store')
+        ->assertSee('سجل المشتريات')
+        ->assertSee($item->name)
+        ->call('cancelPurchase', $purchase->id)
+        ->assertHasNoErrors();
+
+    expect($purchase->fresh()->status)->toBe('cancelled');
+    $team->refresh();
+    expect($team->coins)->toBe(100);
+});
+
+it('does not cancel a purchase belonging to another competition', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $otherLeaderboard = Leaderboard::create([
+        'supervisor_id' => $this->supervisor->id,
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة أخرى',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(5),
+        'end_date' => now()->addDays(5),
+        'is_active' => true,
+    ]);
+
+    $team = GamificationTeam::create(['leaderboard_id' => $otherLeaderboard->id, 'name' => 'فريق آخر', 'coins' => 100]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $otherLeaderboard->id,
+        'name' => 'دعم فريق آخر',
+        'price' => 30,
+        'item_type' => 'team_points',
+        'value' => 40,
+        'is_team_product' => true,
+    ]);
+    GamificationService::requestStorePurchase($this->student->id, $item->id);
+    $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
+
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->call('cancelPurchase', $purchase->id);
+
+    // Untouched: the purchase belongs to a different competition.
+    expect($purchase->fresh()->status)->toBe('approved');
 });

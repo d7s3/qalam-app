@@ -1544,3 +1544,187 @@ it('denies the enthusiasm day when an enabled category is unmet even if criteria
 
     expect(GamificationService::checkEnthusiasmForDate($this->student, $date, $this->leaderboard))->toBeFalse();
 });
+
+it('cancels an individual multiplier purchase, refunds coins and strips the already-applied bonus', function () {
+    // Give the student a real coin balance to spend from.
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 100,
+        'xp_amount' => 100,
+        'description' => 'رصيد ابتدائي',
+    ]);
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'مضاعف فردي',
+        'price' => 50,
+        'item_type' => 'multiplier',
+        'value' => 2,
+        'is_team_product' => false,
+    ]);
+
+    $tomorrow = now()->addDay()->format('Y-m-d');
+    expect(GamificationService::requestStorePurchase($this->student->id, $item->id, null, $tomorrow))->toBe('success');
+
+    // Grade a plan day on the multiplier's target date -> bonus baked in (13 * 2 = 26).
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'plan_type' => 'hifz_review',
+        'start_date' => now()->subDays(5),
+        'is_approved' => 1,
+        'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    $day = StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => $tomorrow,
+        'day_name' => 'السبت',
+        'hifz_achievement' => 3,
+        'review_achievement' => 2,
+        'hifz_graded_at' => now(),
+        'review_graded_at' => now(),
+    ]);
+    GamificationService::syncStudentPlanDayXP($day);
+
+    $dayTx = GamificationTransaction::where('reference_type', StudentPlanDay::class)->where('reference_id', $day->id)->first();
+    expect($dayTx->amount)->toBe(26); // doubled
+    // 100 earned - 50 spent + 26 day = 76
+    expect(GamificationStudentState::where('student_id', $this->student->id)->first()->coins)->toBe(76);
+
+    $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
+    expect(GamificationService::cancelPurchase($purchase->id))->toBe('success');
+
+    // Multiplier stripped: day reverts to base 13.
+    expect($dayTx->fresh()->amount)->toBe(13);
+    // Purchase marked cancelled.
+    expect($purchase->fresh()->status)->toBe('cancelled');
+    // Refund of 50 recorded against the purchase.
+    $refund = GamificationTransaction::where('reference_type', GamificationStorePurchase::class)
+        ->where('reference_id', $purchase->id)->where('type', 'earn')->first();
+    expect((int) $refund->amount)->toBe(50);
+    // 100 earned - 50 spent + 13 day + 50 refund = 113
+    expect(GamificationStudentState::where('student_id', $this->student->id)->first()->coins)->toBe(113);
+});
+
+it('cancels a team support-points purchase and reverses the granted points', function () {
+    $team = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق الدعم', 'coins' => 100]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'دعم الفريق',
+        'price' => 30,
+        'item_type' => 'team_points',
+        'value' => 40,
+        'is_team_product' => true,
+    ]);
+
+    expect(GamificationService::requestStorePurchase($this->student->id, $item->id))->toBe('success');
+    $team->refresh();
+    expect($team->coins)->toBe(70); // 100 - 30 price
+
+    // team_points grants +40 as an earn transaction
+    $granted = GamificationTransaction::where('team_id', $team->id)->where('type', 'earn')->where('amount', 40)->first();
+    expect($granted)->not->toBeNull();
+
+    $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
+    expect(GamificationService::cancelPurchase($purchase->id))->toBe('success');
+
+    $team->refresh();
+    // 70 + 30 refund = 100 (treasury restored)
+    expect($team->coins)->toBe(100);
+    // Compensating -40 spend recorded
+    $reversal = GamificationTransaction::where('reference_type', GamificationStorePurchase::class)
+        ->where('reference_id', $purchase->id)->where('amount', -40)->first();
+    expect($reversal)->not->toBeNull();
+    expect($purchase->fresh()->status)->toBe('cancelled');
+});
+
+it('cancels a team attack and restores the target team coins', function () {
+    $attacker = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'المهاجم', 'coins' => 100]);
+    $attacker->students()->attach($this->student->id, ['role' => 'leader']);
+    $target = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'الهدف', 'coins' => 100]);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'هجوم',
+        'price' => 20,
+        'item_type' => 'team_attack',
+        'value' => 35,
+        'is_team_product' => true,
+    ]);
+
+    expect(GamificationService::requestStorePurchase($this->student->id, $item->id, $target->id))->toBe('success');
+    $attacker->refresh();
+    $target->refresh();
+    expect($attacker->coins)->toBe(80); // paid 20
+    expect($target->coins)->toBe(65);   // lost 35
+
+    $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
+    expect(GamificationService::cancelPurchase($purchase->id))->toBe('success');
+
+    $attacker->refresh();
+    $target->refresh();
+    expect($attacker->coins)->toBe(100); // price refunded
+    expect($target->coins)->toBe(100);   // attack reversed
+    expect($purchase->fresh()->status)->toBe('cancelled');
+});
+
+it('cancels a streak freeze purchase and lowers the freeze count', function () {
+    GamificationTransaction::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'student_id' => $this->student->id,
+        'type' => 'earn',
+        'amount' => 100,
+        'xp_amount' => 100,
+        'description' => 'رصيد ابتدائي',
+    ]);
+    GamificationService::recalculateStudentState($this->student->id, $this->leaderboard->id);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'تجميد اليوم',
+        'price' => 40,
+        'item_type' => 'freeze',
+        'value' => 0,
+        'is_streak_freeze' => true,
+        'is_team_product' => false,
+    ]);
+
+    // Freeze a future working day (getFreezeableDates gates the target date).
+    $freezeable = GamificationService::getFreezeableDates($this->student, $this->leaderboard);
+    expect($freezeable)->not->toBeEmpty();
+    $target = $freezeable[0];
+
+    expect(GamificationService::requestStorePurchase($this->student->id, $item->id, null, $target))->toBe('success');
+    expect((int) GamificationStudentState::where('student_id', $this->student->id)->first()->streak_freezes_count)->toBe(1);
+
+    $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
+    expect(GamificationService::cancelPurchase($purchase->id))->toBe('success');
+
+    expect($purchase->fresh()->status)->toBe('cancelled');
+    expect((int) GamificationStudentState::where('student_id', $this->student->id)->first()->streak_freezes_count)->toBe(0);
+    // Coins refunded (100 - 40 + 40 = 100)
+    expect(GamificationStudentState::where('student_id', $this->student->id)->first()->coins)->toBe(100);
+});
+
+it('refuses to cancel an already-cancelled purchase', function () {
+    $team = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق', 'coins' => 100]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'دعم الفريق',
+        'price' => 30,
+        'item_type' => 'team_points',
+        'value' => 40,
+        'is_team_product' => true,
+    ]);
+    GamificationService::requestStorePurchase($this->student->id, $item->id);
+    $purchase = GamificationStorePurchase::where('store_item_id', $item->id)->first();
+
+    expect(GamificationService::cancelPurchase($purchase->id))->toBe('success');
+    expect(GamificationService::cancelPurchase($purchase->id))->toBe('not_cancellable');
+});

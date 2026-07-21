@@ -31,6 +31,12 @@ class GamificationStorePurchase extends Model
         return $this->belongsTo(GamificationTeam::class);
     }
 
+    /** @return BelongsTo<GamificationTeam, $this> */
+    public function targetTeam(): BelongsTo
+    {
+        return $this->belongsTo(GamificationTeam::class, 'target_team_id');
+    }
+
     /** @return HasMany<GamificationPurchaseVote, $this> */
     public function votes(): HasMany
     {

@@ -1753,6 +1753,77 @@
                         </div>
                     @endforelse
                 </div>
+
+                {{-- Purchases log: cancel a made purchase and reverse its effect --}}
+                <div class="pt-4 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
+                    <div>
+                        <flux:heading size="lg">سجل المشتريات</flux:heading>
+                        <flux:subheading>يمكنك إلغاء أي عملية شراء لاسترداد العملات وإلغاء تأثيرها (التجميد، المضاعفة الفردية أو الجماعية، الدرع، الهجوم، أو دعم الفريق) حتى لو تم استخدامها.</flux:subheading>
+                    </div>
+
+                    @php
+                        $purchaseTypeLabel = function ($purchase) {
+                            $item = $purchase->item;
+                            if ($item->is_streak_freeze || $item->item_type === 'freeze') return 'تجميد (فردي)';
+                            if ($item->item_type === 'multiplier') return $item->is_team_product ? 'مضاعفة النقاط (جماعي)' : 'مضاعفة النقاط (فردي)';
+                            if ($item->item_type === 'shield') return 'درع حماية (جماعي)';
+                            if ($item->item_type === 'team_points') return 'دعم الفريق بالنقاط (جماعي)';
+                            if ($item->item_type === 'team_attack') return 'هجوم خصم النقاط (جماعي)';
+                            return 'مخصصة';
+                        };
+                    @endphp
+
+                    @forelse($storePurchases as $purchase)
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40">
+                            <div class="flex-1 min-w-0 space-y-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-bold text-zinc-900 dark:text-zinc-100 truncate">{{ $purchase->item->name }}</span>
+                                    <flux:badge size="sm" color="purple">{{ $purchaseTypeLabel($purchase) }}</flux:badge>
+                                    @if($purchase->status === 'pending_approval')
+                                        <flux:badge size="sm" color="amber">بانتظار التصويت</flux:badge>
+                                    @elseif($purchase->status === 'cancelled')
+                                        <flux:badge size="sm" color="zinc" icon="x-mark">ملغاة</flux:badge>
+                                    @elseif($purchase->status === 'rejected')
+                                        <flux:badge size="sm" color="rose">مرفوضة</flux:badge>
+                                    @else
+                                        <flux:badge size="sm" color="success">معتمدة</flux:badge>
+                                    @endif
+                                </div>
+                                <p class="text-xs text-zinc-500 flex items-center gap-x-3 gap-y-1 flex-wrap">
+                                    @if($purchase->team)
+                                        <span>الفريق: {{ $purchase->team->name }}</span>
+                                    @endif
+                                    @if($purchase->student)
+                                        <span>المشتري: {{ $purchase->student->name }}</span>
+                                    @endif
+                                    @if($purchase->targetTeam)
+                                        <span>الفريق المستهدف: {{ $purchase->targetTeam->name }}</span>
+                                    @endif
+                                    @if($purchase->target_date)
+                                        <span>التاريخ: {{ \Carbon\Carbon::parse($purchase->target_date)->format('Y-m-d') }}</span>
+                                    @endif
+                                    <span class="text-amber-600 dark:text-amber-400 font-semibold">{{ $purchase->price_paid }} {{ $theme['currency_name'] }}</span>
+                                    <span>{{ $purchase->created_at->diffForHumans() }}</span>
+                                </p>
+                            </div>
+                            <div class="shrink-0">
+                                @if(in_array($purchase->status, ['approved', 'pending_approval']))
+                                    <flux:button
+                                        wire:click="cancelPurchase({{ $purchase->id }})"
+                                        wire:confirm="هل أنت متأكد من إلغاء هذه العملية؟ ستُعاد العملات المدفوعة ({{ $purchase->price_paid }}) ويُلغى تأثيرها بالكامل."
+                                        size="xs" variant="ghost" icon="x-circle"
+                                        class="text-rose-500 hover:text-rose-600">إلغاء وإعادة العملات</flux:button>
+                                @else
+                                    <span class="text-xs text-zinc-400">—</span>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <div class="text-center py-8 text-zinc-500 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
+                            لا توجد مشتريات بعد.
+                        </div>
+                    @endforelse
+                </div>
             </div>
         @endif
 
