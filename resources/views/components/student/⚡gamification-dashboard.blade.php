@@ -476,6 +476,25 @@ new class extends Component {
                 ->select('gamification_badges.*')
                 ->get();
             $allBadges = \App\Models\GamificationBadge::where('leaderboard_id', $activeGamification->id)->get();
+
+            // Progress toward each auto-tracked badge (streak/count) so locked badges
+            // show how many consecutive/total achievements are done and how many
+            // remain. Working days computed once and reused across all badges.
+            $badgeWorkingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification);
+            $badgeProgress = [];
+            foreach ($allBadges as $b) {
+                $val = \App\Services\GamificationService::calculateBadgeValue($b, $student->id, $activeGamification, $badgeWorkingDays);
+                if ($val === null) {
+                    continue;
+                }
+                $required = (int) $b->requirement_value;
+                $badgeProgress[$b->id] = [
+                    'value' => (int) $val,
+                    'required' => $required,
+                    'remaining' => max(0, $required - (int) $val),
+                    'is_streak' => str_starts_with($b->badge_type, 'streak_') || in_array($b->badge_type, ['attendance_streak', 'hifz_streak']),
+                ];
+            }
             $milestones = \Illuminate\Support\Facades\DB::table('gamification_streak_milestones')
                 ->where('leaderboard_id', $activeGamification->id)
                 ->orderBy('days_required', 'asc')
@@ -900,6 +919,7 @@ new class extends Component {
             'pendingClaims' => $pendingClaims,
             'pendingMilestoneClaims' => $pendingMilestoneClaims ?? collect(),
             'allBadges' => $allBadges,
+            'badgeProgress' => $badgeProgress ?? [],
             'milestones' => $milestones,
             'claimedMilestones' => $claimedMilestones,
             'pendingTeamPurchases' => $pendingTeamPurchases,
@@ -2277,6 +2297,13 @@ new class extends Component {
                     @foreach($allBadges as $badge)
                         @php
                             $earned = in_array($badge->id, $studentBadges);
+                            $progress = $badgeProgress[$badge->id] ?? null;
+                            // Show progress only for locked, auto-tracked badges that
+                            // still need more achievements.
+                            $showProgress = ! $earned && $progress !== null && $progress['required'] > 0 && $progress['remaining'] > 0;
+                            $progressPercent = $showProgress
+                                ? min(100, (int) round(($progress['value'] / max(1, $progress['required'])) * 100))
+                                : 0;
                         @endphp
                         <div class="rounded-2xl p-5 flex flex-col items-center text-center gap-3 border shadow-sm transition-all duration-300 {{ $earned ? 'bg-team-10 border-team-20 text-slate-800 shadow-team-10/20' : 'bg-slate-50/60 border-slate-200/60 opacity-60 text-slate-400' }}" title="{{ $badge->description }}">
                             <div class="w-16 h-16 rounded-full flex items-center justify-center text-3xl {{ $earned ? 'bg-white text-team-primary border border-team-20 shadow-md' : 'bg-slate-100 text-slate-400' }} overflow-hidden">
@@ -2302,6 +2329,28 @@ new class extends Component {
                             <flux:badge color="{{ $earned ? 'emerald' : 'zinc' }}" size="sm">
                                 {{ $earned ? __('مكتمل') : __('مغلق') }}
                             </flux:badge>
+
+                            @if($showProgress)
+                                <div class="w-full mt-1 space-y-1.5">
+                                    <div class="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                                        <div class="h-full rounded-full bg-team-primary transition-all duration-500" style="width: {{ $progressPercent }}%"></div>
+                                    </div>
+                                    <p class="text-[10px] font-bold text-slate-500 leading-tight">
+                                        @if($progress['is_streak'])
+                                            {{ __('متتالية:') }}
+                                        @endif
+                                        <span class="text-team-primary">{{ $progress['value'] }}</span> / {{ $progress['required'] }}
+                                    </p>
+                                    <p class="text-[10px] text-amber-600 font-semibold leading-tight">
+                                        {{ __('يتبقّى') }} {{ $progress['remaining'] }}
+                                        @if($progress['is_streak'])
+                                            {{ __('يوم متتالٍ') }}
+                                        @else
+                                            {{ __('إنجاز') }}
+                                        @endif
+                                    </p>
+                                </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>

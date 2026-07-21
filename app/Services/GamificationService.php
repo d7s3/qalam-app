@@ -2946,6 +2946,117 @@ class GamificationService
     }
 
     /**
+     * Compute a student's current progress value toward a single badge.
+     *
+     * Streak badges return the longest run of consecutive circle days; count
+     * badges return the total number of qualifying days. Returns null for manual
+     * or non-trackable badges (no automatic progress).
+     *
+     * @param  array<string>  $workingDays  Ordered working-day dates (Y-m-d).
+     */
+    public static function calculateBadgeValue(GamificationBadge $badge, int $studentId, Leaderboard $leaderboard, array $workingDays): ?int
+    {
+        $leaderboardId = $leaderboard->id;
+        $startDate = $leaderboard->start_date;
+        $endDate = $leaderboard->end_date ?? now()->format('Y-m-d');
+
+        switch ($badge->badge_type) {
+            case 'streak_attendance':
+            case 'attendance_streak':
+                $dates = Attendance::where('student_id', $studentId)
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->whereIn('status', ['present', 'late'])
+                    ->orderBy('date', 'asc')
+                    ->pluck('date')
+                    ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+                    ->unique()
+                    ->values();
+
+                return self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
+
+            case 'count_attendance':
+                return Attendance::where('student_id', $studentId)
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->whereIn('status', ['present', 'late'])
+                    ->count();
+
+            case 'streak_hifz':
+            case 'hifz_streak':
+                $dates = StudentPlanDay::whereHas('plan', function ($q) use ($studentId) {
+                    $q->where('student_id', $studentId)->where('is_approved', 1);
+                })
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->whereIn('hifz_achievement', [1, 2, 3, '1', '2', '3', 'acceptable', 'good', 'excellent'])
+                    ->orderBy('date', 'asc')
+                    ->pluck('date')
+                    ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+                    ->unique()
+                    ->values();
+
+                return self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
+
+            case 'count_hifz':
+                return StudentPlanDay::whereHas('plan', function ($q) use ($studentId) {
+                    $q->where('student_id', $studentId)->where('is_approved', 1);
+                })
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->whereIn('hifz_achievement', [1, 2, 3, '1', '2', '3', 'acceptable', 'good', 'excellent'])
+                    ->count();
+
+            case 'streak_review':
+                $dates = StudentPlanDay::whereHas('plan', function ($q) use ($studentId) {
+                    $q->where('student_id', $studentId)->where('is_approved', 1);
+                })
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->whereIn('review_achievement', [1, 2, 3, '1', '2', '3', 'acceptable', 'good', 'excellent'])
+                    ->orderBy('date', 'asc')
+                    ->pluck('date')
+                    ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+                    ->unique()
+                    ->values();
+
+                return self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
+
+            case 'count_review':
+                return StudentPlanDay::whereHas('plan', function ($q) use ($studentId) {
+                    $q->where('student_id', $studentId)->where('is_approved', 1);
+                })
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->whereIn('review_achievement', [1, 2, 3, '1', '2', '3', 'acceptable', 'good', 'excellent'])
+                    ->count();
+
+            case 'streak_criterion':
+                if (! $badge->leaderboard_criterion_id) {
+                    return null;
+                }
+                $dates = LeaderboardScore::where('leaderboard_id', $leaderboardId)
+                    ->where('student_id', $studentId)
+                    ->where('leaderboard_criterion_id', $badge->leaderboard_criterion_id)
+                    ->orderBy('date', 'asc')
+                    ->pluck('date')
+                    ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+                    ->unique()
+                    ->values();
+
+                return self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
+
+            case 'count_criterion':
+            case 'custom':
+                if (! $badge->leaderboard_criterion_id) {
+                    return null;
+                }
+
+                return LeaderboardScore::where('leaderboard_id', $leaderboardId)
+                    ->where('student_id', $studentId)
+                    ->where('leaderboard_criterion_id', $badge->leaderboard_criterion_id)
+                    ->count();
+
+            default:
+                return null;
+        }
+    }
+
+    /**
      * Sync and automatically award/revoke all badges of all types for a student.
      */
     public static function syncStudentBadges(int $studentId, int $leaderboardId): void
@@ -2955,9 +3066,6 @@ class GamificationService
             return;
         }
 
-        $startDate = $leaderboard->start_date;
-        $endDate = $leaderboard->end_date ?? now()->format('Y-m-d');
-
         $badges = GamificationBadge::where('leaderboard_id', $leaderboardId)->get();
 
         // Ordered circle working days (excludes weekly days off and academic
@@ -2966,106 +3074,11 @@ class GamificationService
         $workingDays = self::getWorkingDaysForLeaderboard($leaderboard);
 
         foreach ($badges as $badge) {
-            $value = 0;
+            $value = self::calculateBadgeValue($badge, $studentId, $leaderboard, $workingDays);
 
-            switch ($badge->badge_type) {
-                case 'streak_attendance':
-                case 'attendance_streak':
-                    $dates = Attendance::where('student_id', $studentId)
-                        ->whereBetween('date', [$startDate, $endDate])
-                        ->whereIn('status', ['present', 'late'])
-                        ->orderBy('date', 'asc')
-                        ->pluck('date')
-                        ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
-                        ->unique()
-                        ->values();
-                    $value = self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
-                    break;
-
-                case 'count_attendance':
-                    $value = Attendance::where('student_id', $studentId)
-                        ->whereBetween('date', [$startDate, $endDate])
-                        ->whereIn('status', ['present', 'late'])
-                        ->count();
-                    break;
-
-                case 'streak_hifz':
-                case 'hifz_streak':
-                    $dates = StudentPlanDay::whereHas('plan', function ($q) use ($studentId) {
-                        $q->where('student_id', $studentId)->where('is_approved', 1);
-                    })
-                        ->whereBetween('date', [$startDate, $endDate])
-                        ->whereIn('hifz_achievement', [1, 2, 3, '1', '2', '3', 'acceptable', 'good', 'excellent'])
-                        ->orderBy('date', 'asc')
-                        ->pluck('date')
-                        ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
-                        ->unique()
-                        ->values();
-                    $value = self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
-                    break;
-
-                case 'count_hifz':
-                    $value = StudentPlanDay::whereHas('plan', function ($q) use ($studentId) {
-                        $q->where('student_id', $studentId)->where('is_approved', 1);
-                    })
-                        ->whereBetween('date', [$startDate, $endDate])
-                        ->whereIn('hifz_achievement', [1, 2, 3, '1', '2', '3', 'acceptable', 'good', 'excellent'])
-                        ->count();
-                    break;
-
-                case 'streak_review':
-                    $dates = StudentPlanDay::whereHas('plan', function ($q) use ($studentId) {
-                        $q->where('student_id', $studentId)->where('is_approved', 1);
-                    })
-                        ->whereBetween('date', [$startDate, $endDate])
-                        ->whereIn('review_achievement', [1, 2, 3, '1', '2', '3', 'acceptable', 'good', 'excellent'])
-                        ->orderBy('date', 'asc')
-                        ->pluck('date')
-                        ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
-                        ->unique()
-                        ->values();
-                    $value = self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
-                    break;
-
-                case 'count_review':
-                    $value = StudentPlanDay::whereHas('plan', function ($q) use ($studentId) {
-                        $q->where('student_id', $studentId)->where('is_approved', 1);
-                    })
-                        ->whereBetween('date', [$startDate, $endDate])
-                        ->whereIn('review_achievement', [1, 2, 3, '1', '2', '3', 'acceptable', 'good', 'excellent'])
-                        ->count();
-                    break;
-
-                case 'streak_criterion':
-                    if ($badge->leaderboard_criterion_id) {
-                        $dates = LeaderboardScore::where('leaderboard_id', $leaderboardId)
-                            ->where('student_id', $studentId)
-                            ->where('leaderboard_criterion_id', $badge->leaderboard_criterion_id)
-                            ->orderBy('date', 'asc')
-                            ->pluck('date')
-                            ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
-                            ->unique()
-                            ->values();
-                        $value = self::calculateMaxStreakOnWorkingDays($dates, $workingDays);
-                    }
-                    break;
-
-                case 'count_criterion':
-                case 'custom':
-                    if ($badge->leaderboard_criterion_id) {
-                        $value = LeaderboardScore::where('leaderboard_id', $leaderboardId)
-                            ->where('student_id', $studentId)
-                            ->where('leaderboard_criterion_id', $badge->leaderboard_criterion_id)
-                            ->count();
-                    } else {
-                        // Manual custom badge - skip auto syncing
-                        continue 2;
-                    }
-                    break;
-
-                default:
-                    // Manual/custom - don't sync automatically
-                    continue 2;
+            // Manual/custom badges have no automatic progress to sync.
+            if ($value === null) {
+                continue;
             }
 
             $existing = DB::table('gamification_badge_student')

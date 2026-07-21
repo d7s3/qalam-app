@@ -1985,3 +1985,52 @@ it('shows the student rank in the always-visible compact stats bar', function ()
         ->assertSee('gam-level-meter', false) // animation target for the claim effect
         ->assertSee('مركزك'); // rank segment replaced the team segment
 });
+
+it('shows streak badge progress and remaining count on locked badges', function () {
+    $teacher = Teacher::factory()->create();
+
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة الأوسمة',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(10),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    // Requires 5 consecutive attendance days.
+    GamificationBadge::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'وسام المواظبة',
+        'icon' => 'bolt',
+        'badge_type' => 'streak_attendance',
+        'requirement_value' => 5,
+    ]);
+
+    // Student attended 3 consecutive days (all 7 weekdays are working days here).
+    foreach ([now()->subDays(2), now()->subDay(), now()] as $d) {
+        $attendance = Attendance::create([
+            'student_id' => $this->student->id,
+            'circle_id' => $this->circle->id,
+            'teacher_id' => $teacher->id,
+            'date' => $d->format('Y-m-d'),
+            'status' => 'present',
+        ]);
+        GamificationService::syncStudentAttendanceXP($attendance);
+    }
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertViewHas('badgeProgress', function ($progress) use ($leaderboard) {
+            $badgeId = GamificationBadge::where('leaderboard_id', $leaderboard->id)->value('id');
+
+            return isset($progress[$badgeId])
+                && $progress[$badgeId]['value'] === 3
+                && $progress[$badgeId]['required'] === 5
+                && $progress[$badgeId]['remaining'] === 2
+                && $progress[$badgeId]['is_streak'] === true;
+        })
+        ->assertSee('متتالية:')
+        ->assertSee('يتبقّى');
+});
