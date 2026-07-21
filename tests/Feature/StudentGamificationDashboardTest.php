@@ -2128,3 +2128,44 @@ it('shows the progress bar for a fresh streak badge with zero progress', functio
         ->assertSee('متتالية:')
         ->assertSee('يتبقّى');
 });
+
+it('shows a reached-requirement auto badge as awaiting approval even without an award row', function () {
+    $teacher = Teacher::factory()->create();
+
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة اكتمال الشرط',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(10),
+        'end_date' => now()->addDays(10),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($leaderboard->circle_id);
+
+    // 3-day attendance streak already present.
+    foreach ([now()->subDays(2), now()->subDay(), now()] as $d) {
+        $attendance = Attendance::create([
+            'student_id' => $this->student->id,
+            'circle_id' => $this->circle->id,
+            'teacher_id' => $teacher->id,
+            'date' => $d->format('Y-m-d'),
+            'status' => 'present',
+        ]);
+        // Intentionally NOT syncing badges, to simulate a badge added afterwards.
+    }
+
+    // Badge requires exactly 3 — the student's live value meets it, but no award
+    // row exists (e.g. badge created/edited after the streak was achieved).
+    GamificationBadge::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'وسام الانضباط',
+        'icon' => 'bolt',
+        'badge_type' => 'streak_attendance',
+        'requirement_value' => 3,
+    ]);
+
+    Livewire::test('student.gamification-dashboard')
+        ->assertSee('اكتمل — بانتظار الاعتماد')
+        ->assertDontSee('يتبقّى');
+});

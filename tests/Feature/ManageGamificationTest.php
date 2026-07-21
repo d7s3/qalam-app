@@ -1761,3 +1761,41 @@ it('groups store purchases by product with a per-product count', function () {
 
     $component->assertSee('2 عملية');
 });
+
+it('awards a qualifying student immediately when a badge is created or edited', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+    $teacher = Teacher::factory()->create();
+
+    $this->leaderboard->update(['start_date' => '2026-06-01', 'end_date' => '2026-06-30']);
+
+    // Student already has a 3-day consecutive attendance streak.
+    foreach (['2026-06-14', '2026-06-15', '2026-06-16'] as $date) {
+        $attendance = Attendance::create([
+            'student_id' => $this->student->id,
+            'circle_id' => $this->circle->id,
+            'teacher_id' => $teacher->id,
+            'date' => $date,
+            'status' => 'present',
+        ]);
+        GamificationService::syncStudentAttendanceXP($attendance);
+    }
+
+    // Supervisor now creates a streak_attendance badge requiring 3 days.
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->call('createBadge')
+        ->set('badge_name', 'وسام المواظبة')
+        ->set('badge_mechanism', 'streak')
+        ->set('badge_achievement_type', 'attendance')
+        ->set('badge_requirement_value', 3)
+        ->set('badge_image_file', UploadedFile::fake()->image('badge.png'))
+        ->call('saveBadge')
+        ->assertHasNoErrors();
+
+    $badge = GamificationBadge::where('leaderboard_id', $this->leaderboard->id)->where('name', 'وسام المواظبة')->first();
+
+    // The already-qualifying student is awarded on save, without needing a new event.
+    expect(DB::table('gamification_badge_student')
+        ->where('badge_id', $badge->id)
+        ->where('student_id', $this->student->id)
+        ->exists())->toBeTrue();
+});

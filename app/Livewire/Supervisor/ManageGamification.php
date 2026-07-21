@@ -977,6 +977,13 @@ class ManageGamification extends Component
             ]
         );
 
+        // Re-sync every participant so students who already meet a newly created or
+        // edited automatic badge's requirement are awarded it immediately (otherwise
+        // they would only get it on their next attendance/grading event).
+        foreach ($this->getStudents() as $student) {
+            GamificationService::syncStudentBadges($student->id, $this->competitionId);
+        }
+
         Flux::toast('تم حفظ الوسام بنجاح', variant: 'success');
         $this->showBadgeModal = false;
     }

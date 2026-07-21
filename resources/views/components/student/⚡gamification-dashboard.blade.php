@@ -2312,14 +2312,20 @@ new class extends Component {
                             // to track): calculateBadgeValue returns null for it.
                             $isManual = $badge->badge_type === 'manual' || $progress === null;
 
-                            // Auto badge whose requirement is met but not yet claimed.
+                            // Auto badge whose live progress already meets the
+                            // requirement (e.g. requirement lowered/added after the
+                            // student qualified) but no award row exists yet.
+                            $reachedRequirement = ! $isManual && $progress['required'] > 0 && $progress['remaining'] === 0;
+
+                            // Award states: approved and waiting to be claimed, or
+                            // pending teacher approval / requirement just reached.
                             $awaitingClaim = ! $earned && $status === 'approved';
-                            $awaitingApproval = ! $earned && $status === 'pending_approval';
+                            $awaitingApproval = ! $earned && ! $awaitingClaim && ($status === 'pending_approval' || $reachedRequirement);
 
                             // Show the progress bar only for locked, auto-tracked badges
                             // that still need more achievements.
-                            $showProgress = ! $earned && ! $awaitingClaim && ! $awaitingApproval
-                                && $progress !== null && $progress['required'] > 0 && $progress['remaining'] > 0;
+                            $showProgress = ! $earned && ! $awaitingClaim && ! $awaitingApproval && ! $isManual
+                                && $progress['required'] > 0 && $progress['remaining'] > 0;
                             $progressPercent = $showProgress
                                 ? min(100, (int) round(($progress['value'] / max(1, $progress['required'])) * 100))
                                 : 0;
