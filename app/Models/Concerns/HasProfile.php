@@ -2,6 +2,7 @@
 
 namespace App\Models\Concerns;
 
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 trait HasProfile
@@ -12,6 +13,14 @@ trait HasProfile
     public function initials(): string
     {
         return Str::upper(mb_substr($this->name, 0, 2));
+    }
+
+    /**
+     * Get the public URL of the user's profile picture, or null if none is set.
+     */
+    public function avatarUrl(): ?string
+    {
+        return $this->avatar_path ? Storage::disk('public')->url($this->avatar_path) : null;
     }
 
     /**

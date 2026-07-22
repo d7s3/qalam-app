@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Settings;
 
+use App\Concerns\HasAvatarUpload;
 use App\Concerns\ProfileValidationRules;
+use App\Models\User;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -13,7 +15,7 @@ use Livewire\Component;
 #[Title('Profile settings')]
 class Profile extends Component
 {
-    use ProfileValidationRules;
+    use HasAvatarUpload, ProfileValidationRules;
 
     public string $name = '';
 
@@ -77,5 +79,10 @@ class Profile extends Component
     {
         return ! Auth::user() instanceof MustVerifyEmail
             || (Auth::user() instanceof MustVerifyEmail && Auth::user()->hasVerifiedEmail());
+    }
+
+    protected function avatarOwner(): User
+    {
+        return Auth::user();
     }
 }

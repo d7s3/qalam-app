@@ -55,13 +55,13 @@
                         <div class="text-sm font-bold text-zinc-800 dark:text-zinc-100">{{ $currentUser->name }}</div>
                         <div class="text-xs text-zinc-400">{{ $roleLabels[$activeGuard] ?? '' }}</div>
                     </div>
-                    <flux:avatar :name="$currentUser->name" :initials="$currentUser->initials()" size="sm" />
+                    <flux:avatar :src="$currentUser->avatarUrl()" :name="$currentUser->name" :initials="$currentUser->initials()" size="sm" />
                     <flux:icon icon="chevron-down" class="size-4 text-zinc-400" />
                 </button>
 
                 <flux:menu>
                     <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-                        <flux:avatar :name="$currentUser->name" :initials="$currentUser->initials()" />
+                        <flux:avatar :src="$currentUser->avatarUrl()" :name="$currentUser->name" :initials="$currentUser->initials()" />
                         <div class="grid flex-1 text-start text-sm leading-tight">
                             <flux:heading class="truncate">{{ $currentUser->name }}</flux:heading>
                             <flux:text class="truncate">{{ $currentUser->email }}</flux:text>

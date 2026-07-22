@@ -23,6 +23,7 @@
 @endphp
 <flux:dropdown position="top" align="end">
     <flux:profile
+        :avatar="$currentUser?->avatarUrl()"
         :initials="$currentUser?->initials()"
         icon-trailing="chevron-down"
     />
@@ -32,6 +33,7 @@
             <div class="p-0 text-sm font-normal text-right">
                 <div class="flex items-center gap-2 px-1 py-1.5 text-right text-sm">
                     <flux:avatar
+                        :src="$currentUser?->avatarUrl()"
                         :name="$currentUser?->name"
                         :initials="$currentUser?->initials()"
                     />

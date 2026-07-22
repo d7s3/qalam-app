@@ -1,13 +1,15 @@
 <?php
 
+use App\Concerns\HasAvatarUpload;
 use App\Concerns\PasswordValidationRules;
+use App\Models\User;
 use Livewire\Component;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 new class extends Component {
-    use PasswordValidationRules;
+    use HasAvatarUpload, PasswordValidationRules;
 
     public string $name = '';
     public string $email = '';
@@ -66,6 +68,11 @@ new class extends Component {
 
         $this->dispatch('password-updated');
     }
+
+    protected function avatarOwner(): User
+    {
+        return Auth::guard('student')->user();
+    }
 };
 ?>
 
@@ -73,6 +80,20 @@ new class extends Component {
     <div class="mb-6">
         <flux:heading size="lg">{{ __('إعدادات الحساب') }}</flux:heading>
         <flux:subheading>{{ __('تحديث بيانات حسابك كطالب') }}</flux:subheading>
+    </div>
+
+    <div class="flex items-center gap-4 mb-6 pb-6 border-b border-zinc-100 dark:border-zinc-800">
+        <flux:avatar size="xl" circle :src="auth('student')->user()->avatarUrl()" :name="$name" />
+
+        <div class="flex-1 space-y-2">
+            <flux:input type="file" wire:model="avatarFile" :label="__('الصورة الشخصية')" accept="image/*" />
+
+            @if (auth('student')->user()->avatarUrl())
+                <flux:button size="sm" variant="ghost" wire:click="deleteAvatar" wire:confirm="{{ __('هل أنت متأكد من حذف الصورة الشخصية؟') }}">
+                    {{ __('حذف الصورة') }}
+                </flux:button>
+            @endif
+        </div>
     </div>
 
     <form wire:submit="updateProfileInformation" class="space-y-6">
