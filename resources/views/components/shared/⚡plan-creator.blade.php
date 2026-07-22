@@ -9,6 +9,7 @@ use App\Models\StudentPlanDay;
 use App\Services\QuranPlanService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
 
 new class extends Component {
@@ -25,9 +26,7 @@ new class extends Component {
     public $planType = 'hifz_review';
 
     public $planDays = [];
-    public $allSurahs = [];
-    public $juzSurahs = [];
-    public $versesData = [];
+    protected ?array $quranReferenceDataCache = null;
     public $fillDirection = 'reverse';
     public $reviewDirection = 'reverse';
     public $fillTarget = 'hifz';
@@ -55,46 +54,6 @@ new class extends Component {
     public function mount()
     {
         $this->userLevel = Auth::guard('student')->check() ? 'student' : 'teacher';
-        $this->allSurahs = Surah::orderBy('id')->get();
-
-        $ayahs = Ayah::orderBy('surah_id')->orderBy('verse_number')->get(['surah_id', 'verse_number', 'page_number', 'line_number_start', 'line_number_end', 'juz_number']);
-
-        $this->juzSurahs = [];
-        $this->versesData = [];
-
-        $mapping = $ayahs->unique(function ($item) {
-            return $item->surah_id . '-' . $item->juz_number;
-        });
-        foreach ($mapping as $row) {
-            $this->juzSurahs[$row->juz_number][] = $row->surah_id;
-        }
-
-        foreach ($ayahs->groupBy('surah_id') as $surahId => $surahAyahs) {
-            $first = $surahAyahs->first();
-            $last = $surahAyahs->last();
-            $startAbs = $first->page_number * 15 + $first->line_number_start;
-            $endAbs = $last->page_number * 15 + $last->line_number_end;
-            $midAbs = ($startAbs + $endAbs) / 2;
-
-            $middleVerseNumber = 1;
-            $minDiff = 999999;
-            $pages = [];
-
-            foreach ($surahAyahs as $ayah) {
-                $abs = $ayah->page_number * 15 + $ayah->line_number_start;
-                $diff = abs($abs - $midAbs);
-                if ($diff < $minDiff) {
-                    $minDiff = $diff;
-                    $middleVerseNumber = $ayah->verse_number;
-                }
-                $pages[$ayah->page_number][$ayah->line_number_end][] = $ayah->verse_number;
-            }
-
-            $this->versesData[$surahId] = [
-                'mid' => $middleVerseNumber,
-                'pages' => $pages
-            ];
-        }
 
         $this->bulkStartSurah = 114;
         $this->bulkStartVerse = 1;
@@ -156,6 +115,80 @@ new class extends Component {
         }
 
         $this->checkAttendancePeriod();
+    }
+
+    #[Computed]
+    public function allSurahs()
+    {
+        return Surah::orderBy('id')->get();
+    }
+
+    #[Computed]
+    public function juzSurahs(): array
+    {
+        return $this->quranReferenceData()['juzSurahs'];
+    }
+
+    #[Computed]
+    public function versesData(): array
+    {
+        return $this->quranReferenceData()['versesData'];
+    }
+
+    /**
+     * Builds the juz/surah mapping and per-surah verse/page layout used by the wizard UI.
+     * Memoized on the instance (not a public property) so it is computed at most once per
+     * request and never travels in the Livewire snapshot sent on every wire request.
+     */
+    protected function quranReferenceData(): array
+    {
+        if ($this->quranReferenceDataCache !== null) {
+            return $this->quranReferenceDataCache;
+        }
+
+        $ayahs = Ayah::orderBy('surah_id')->orderBy('verse_number')->get(['surah_id', 'verse_number', 'page_number', 'line_number_start', 'line_number_end', 'juz_number']);
+
+        $juzSurahs = [];
+        $versesData = [];
+
+        $mapping = $ayahs->unique(function ($item) {
+            return $item->surah_id . '-' . $item->juz_number;
+        });
+        foreach ($mapping as $row) {
+            $juzSurahs[$row->juz_number][] = $row->surah_id;
+        }
+
+        foreach ($ayahs->groupBy('surah_id') as $surahId => $surahAyahs) {
+            $first = $surahAyahs->first();
+            $last = $surahAyahs->last();
+            $startAbs = $first->page_number * 15 + $first->line_number_start;
+            $endAbs = $last->page_number * 15 + $last->line_number_end;
+            $midAbs = ($startAbs + $endAbs) / 2;
+
+            $middleVerseNumber = 1;
+            $minDiff = 999999;
+            $pages = [];
+
+            foreach ($surahAyahs as $ayah) {
+                $abs = $ayah->page_number * 15 + $ayah->line_number_start;
+                $diff = abs($abs - $midAbs);
+                if ($diff < $minDiff) {
+                    $minDiff = $diff;
+                    $middleVerseNumber = $ayah->verse_number;
+                }
+                $pages[$ayah->page_number][$ayah->line_number_end][] = $ayah->verse_number;
+            }
+
+            $versesData[$surahId] = [
+                'mid' => $middleVerseNumber,
+                'pages' => $pages
+            ];
+        }
+
+        return $this->quranReferenceDataCache = [
+            'juzSurahs' => $juzSurahs,
+            'versesData' => $versesData,
+        ];
     }
 
     public function checkAttendancePeriod()
@@ -1389,7 +1422,7 @@ new class extends Component {
                         </span>
                         @if($planType === 'review')
                             <span class="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
-                                <flux:icon icon="flag" class="size-3" /> {{ __('سقف المراجعة:') }} {{ $allSurahs->firstWhere('id', $memorizedUpToSurah)?->name_arabic ?? '' }} ({{ $memorizedUpToVerse }})
+                                <flux:icon icon="flag" class="size-3" /> {{ __('سقف المراجعة:') }} {{ $this->allSurahs->firstWhere('id', $memorizedUpToSurah)?->name_arabic ?? '' }} ({{ $memorizedUpToVerse }})
                             </span>
                         @endif
                     </div>
@@ -1433,13 +1466,13 @@ new class extends Component {
                                     </span>
                                     <div class="flex items-center gap-2">
                                         <select wire:model.live="memorizedUpToSurah" class="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 outline-none">
-                                            @foreach($allSurahs as $surah)
+                                            @foreach($this->allSurahs as $surah)
                                                 <option value="{{ $surah->id }}">{{ $surah->name_arabic }}</option>
                                             @endforeach
                                         </select>
                                         <select wire:model.live="memorizedUpToVerse" class="text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 outline-none">
                                             @php
-                                                $ceilingSurah = $allSurahs->firstWhere('id', $memorizedUpToSurah);
+                                                $ceilingSurah = $this->allSurahs->firstWhere('id', $memorizedUpToSurah);
                                                 $versesCount = $ceilingSurah ? $ceilingSurah->verses_count : 1;
                                             @endphp
                                             @for($i = 1; $i <= $versesCount; $i++)
@@ -1671,18 +1704,18 @@ new class extends Component {
         (function () {
             const initStores = () => {
                 Alpine.store('surahsData', {
-                    @foreach($allSurahs as $surah)
+                    @foreach($this->allSurahs as $surah)
                         {{ $surah->id }}: { count: {{ $surah->verses_count }}, name: '{{ $surah->name_arabic }}' },
                     @endforeach
                 });
 
             Alpine.store('juzSurahs', {
-                @foreach($juzSurahs as $juz => $surahs)
+                @foreach($this->juzSurahs as $juz => $surahs)
                     {{ $juz }}: {{ json_encode($surahs) }},
                 @endforeach
                 });
 
-        Alpine.store('versesData', @json($versesData));
+        Alpine.store('versesData', @json($this->versesData));
             };
 
         if (window.Alpine) {
