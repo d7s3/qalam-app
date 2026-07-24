@@ -120,7 +120,7 @@ new class extends Component {
     #[Computed]
     public function allSurahs()
     {
-        return Surah::orderBy('id')->get();
+        return app(QuranPlanService::class)->getAllSurahs();
     }
 
     #[Computed]
@@ -136,9 +136,10 @@ new class extends Component {
     }
 
     /**
-     * Builds the juz/surah mapping and per-surah verse/page layout used by the wizard UI.
-     * Memoized on the instance (not a public property) so it is computed at most once per
-     * request and never travels in the Livewire snapshot sent on every wire request.
+     * Request-scoped guard around the app-cached plan reference data, so the two
+     * computed properties (juzSurahs/versesData) that depend on it touch the cache
+     * store at most once per Livewire request. The heavy build and the persistent
+     * cache live in QuranPlanService::getPlanReferenceData().
      */
     protected function quranReferenceData(): array
     {
@@ -146,49 +147,7 @@ new class extends Component {
             return $this->quranReferenceDataCache;
         }
 
-        $ayahs = Ayah::orderBy('surah_id')->orderBy('verse_number')->get(['surah_id', 'verse_number', 'page_number', 'line_number_start', 'line_number_end', 'juz_number']);
-
-        $juzSurahs = [];
-        $versesData = [];
-
-        $mapping = $ayahs->unique(function ($item) {
-            return $item->surah_id . '-' . $item->juz_number;
-        });
-        foreach ($mapping as $row) {
-            $juzSurahs[$row->juz_number][] = $row->surah_id;
-        }
-
-        foreach ($ayahs->groupBy('surah_id') as $surahId => $surahAyahs) {
-            $first = $surahAyahs->first();
-            $last = $surahAyahs->last();
-            $startAbs = $first->page_number * 15 + $first->line_number_start;
-            $endAbs = $last->page_number * 15 + $last->line_number_end;
-            $midAbs = ($startAbs + $endAbs) / 2;
-
-            $middleVerseNumber = 1;
-            $minDiff = 999999;
-            $pages = [];
-
-            foreach ($surahAyahs as $ayah) {
-                $abs = $ayah->page_number * 15 + $ayah->line_number_start;
-                $diff = abs($abs - $midAbs);
-                if ($diff < $minDiff) {
-                    $minDiff = $diff;
-                    $middleVerseNumber = $ayah->verse_number;
-                }
-                $pages[$ayah->page_number][$ayah->line_number_end][] = $ayah->verse_number;
-            }
-
-            $versesData[$surahId] = [
-                'mid' => $middleVerseNumber,
-                'pages' => $pages
-            ];
-        }
-
-        return $this->quranReferenceDataCache = [
-            'juzSurahs' => $juzSurahs,
-            'versesData' => $versesData,
-        ];
+        return $this->quranReferenceDataCache = app(QuranPlanService::class)->getPlanReferenceData();
     }
 
     public function checkAttendancePeriod()

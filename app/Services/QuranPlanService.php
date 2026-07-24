@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Ayah;
 use App\Models\Surah;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class QuranPlanService
 {
@@ -38,6 +40,83 @@ class QuranPlanService
         }
 
         return $this->lastBySurah[$surahId];
+    }
+
+    /**
+     * All surahs ordered by id. The raw attribute rows are cached forever (the
+     * surah list is immutable reference data) and rehydrated into models on read.
+     *
+     * Plain arrays are cached rather than the Eloquent collection itself: a
+     * serializing cache store (file/redis/database) cannot always reconstruct
+     * cached model objects and hands back an __PHP_Incomplete_Class instead.
+     * Run `php artisan cache:clear` after reseeding surahs.
+     *
+     * @return Collection<int, Surah>
+     */
+    public function getAllSurahs(): Collection
+    {
+        $rows = Cache::rememberForever('quran.surahs.rows', function () {
+            return Surah::orderBy('id')->get()->map->getAttributes()->all();
+        });
+
+        return Surah::hydrate($rows);
+    }
+
+    /**
+     * Builds the juz→surah mapping and per-surah verse/page layout consumed by
+     * the plan-creator wizard. Cached forever since it is derived purely from the
+     * immutable ayah reference data, so the ~6k-row scan runs once per cache
+     * lifetime instead of on every Livewire request that renders the wizard.
+     *
+     * @return array{juzSurahs: array<int, list<int>>, versesData: array<int, array{mid: int, pages: array<int, array<int, list<int>>>}>}
+     */
+    public function getPlanReferenceData(): array
+    {
+        return Cache::rememberForever('quran.plan.reference_data', function () {
+            $ayahs = Ayah::orderBy('surah_id')->orderBy('verse_number')->get(['surah_id', 'verse_number', 'page_number', 'line_number_start', 'line_number_end', 'juz_number']);
+
+            $juzSurahs = [];
+            $versesData = [];
+
+            $mapping = $ayahs->unique(function ($item) {
+                return $item->surah_id.'-'.$item->juz_number;
+            });
+            foreach ($mapping as $row) {
+                $juzSurahs[$row->juz_number][] = $row->surah_id;
+            }
+
+            foreach ($ayahs->groupBy('surah_id') as $surahId => $surahAyahs) {
+                $first = $surahAyahs->first();
+                $last = $surahAyahs->last();
+                $startAbs = $first->page_number * 15 + $first->line_number_start;
+                $endAbs = $last->page_number * 15 + $last->line_number_end;
+                $midAbs = ($startAbs + $endAbs) / 2;
+
+                $middleVerseNumber = 1;
+                $minDiff = 999999;
+                $pages = [];
+
+                foreach ($surahAyahs as $ayah) {
+                    $abs = $ayah->page_number * 15 + $ayah->line_number_start;
+                    $diff = abs($abs - $midAbs);
+                    if ($diff < $minDiff) {
+                        $minDiff = $diff;
+                        $middleVerseNumber = $ayah->verse_number;
+                    }
+                    $pages[$ayah->page_number][$ayah->line_number_end][] = $ayah->verse_number;
+                }
+
+                $versesData[$surahId] = [
+                    'mid' => $middleVerseNumber,
+                    'pages' => $pages,
+                ];
+            }
+
+            return [
+                'juzSurahs' => $juzSurahs,
+                'versesData' => $versesData,
+            ];
+        });
     }
 
     /**
