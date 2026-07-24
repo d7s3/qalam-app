@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Manager\BackupController;
 use App\Livewire\Auth\Student\Register;
 use App\Livewire\Manager\PendingApprovals;
 use App\Livewire\Public\CircleReport as PublicCircleReport;
@@ -140,6 +141,12 @@ Route::middleware('guest:manager,supervisor,teacher,student,guardian')
 
 // مسارات لوحة التحكم (Dashboard Routes) لكل دور
 Route::middleware(['auth:manager', 'approved'])->get('/manager/dashboard', fn () => view('manager.dashboard'))->name('manager.dashboard');
+
+// تنزيل النسخ الاحتياطية عبر بثّ HTTP عادي (خارج دورة Livewire) لتفادي تحميل الملف كاملاً في الذاكرة.
+Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manager.')->group(function () {
+    Route::get('/backup/download', [BackupController::class, 'downloadCurrent'])->name('backup.download');
+    Route::get('/backup/download/{filename}', [BackupController::class, 'downloadStored'])->name('backup.download.stored');
+});
 Route::middleware(['auth:supervisor', 'approved', 'page.enabled'])->prefix('supervisor')->name('supervisor.')->group(function () {
     Route::get('/dashboard', fn () => view('supervisor.dashboard'))->name('dashboard');
     Route::view('/teachers', 'supervisor.teachers')->name('teachers');

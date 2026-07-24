@@ -45,20 +45,6 @@ class Settings extends Component
         Flux::toast('تم حفظ الإعدادات بنجاح', variant: 'success');
     }
 
-    public function downloadBackup()
-    {
-        $dbPath = config('database.connections.sqlite.database');
-        if (! file_exists($dbPath)) {
-            Flux::toast('ملف قاعدة البيانات غير موجود.', variant: 'danger');
-
-            return;
-        }
-
-        $filename = 'manual_'.now()->format('Y-m-d_H-i-s').'.sqlite';
-
-        return response()->download($dbPath, $filename);
-    }
-
     public function saveBackupToServer()
     {
         $dbPath = config('database.connections.sqlite.database');
@@ -111,15 +97,6 @@ class Settings extends Component
 
         $this->uploadedBackup = null;
         Flux::toast('تم رفع النسخة الاحتياطية بنجاح.', variant: 'success');
-    }
-
-    public function downloadSpecificBackup($filename)
-    {
-        $path = storage_path('app/backups/'.$filename);
-        if (file_exists($path)) {
-            return response()->download($path);
-        }
-        Flux::toast('الملف غير موجود.', variant: 'danger');
     }
 
     public function deleteBackup($filename)

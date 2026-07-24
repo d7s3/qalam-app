@@ -50,8 +50,7 @@
                 <p class="text-sm text-zinc-500 dark:text-zinc-400">تحميل نسخة كاملة من قاعدة البيانات الحالية إلى
                     جهازك.</p>
             </div>
-            <flux:button wire:click="downloadBackup" icon="arrow-down-tray" class="shrink-0"
-                wire:loading.attr="disabled">
+            <flux:button :href="route('manager.backup.download')" icon="arrow-down-tray" class="shrink-0">
                 تحميل نسخة
             </flux:button>
         </div>
@@ -139,7 +138,8 @@
                                         </td>
                                         <td class="px-4 py-3">
                                             <div class="flex items-center gap-2">
-                                                <flux:button wire:click="downloadSpecificBackup('{{ $backup['name'] }}')"
+                                                <flux:button
+                                                    :href="route('manager.backup.download.stored', ['filename' => $backup['name']])"
                                                     icon="arrow-down-tray" variant="subtle" size="sm">
                                                     تحميل
                                                 </flux:button>
