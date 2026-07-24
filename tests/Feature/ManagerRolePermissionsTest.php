@@ -101,3 +101,49 @@ it('rejects creating a role with a duplicate name', function () {
 
     expect(Role::where('label', 'مشرف مساعد')->count())->toBe(1);
 });
+
+it('refuses to grant a system role a screen owned by another role', function () {
+    $manager = Manager::factory()->create();
+    $this->actingAs($manager, 'manager');
+
+    $managerRole = Role::where('key', 'manager')->firstOrFail();
+    $teacherScreen = Screen::where('route_name', 'teacher.attendance')->firstOrFail();
+
+    Livewire::test('manager.role-permissions')
+        ->call('toggle', $managerRole->id, $teacherScreen->id);
+
+    expect(RoleScreenPermission::where('role_id', $managerRole->id)->where('screen_id', $teacherScreen->id)->exists())
+        ->toBeFalse();
+});
+
+it('shows a system role only its own screens, not other roles pages', function () {
+    $manager = Manager::factory()->create();
+    $this->actingAs($manager, 'manager');
+
+    $managerRole = Role::where('key', 'manager')->firstOrFail();
+
+    Livewire::test('manager.role-permissions')
+        ->call('setActiveRole', $managerRole->id)
+        ->assertSee('تقارير الحضور والغياب') // a manager screen
+        ->assertDontSee('سجل الحضور');       // teacher.attendance — must not leak in
+});
+
+it('still lets a custom role be granted a screen from another namespace', function () {
+    $manager = Manager::factory()->create();
+    $this->actingAs($manager, 'manager');
+
+    $customRole = Role::create([
+        'key' => 'accountant_x',
+        'label' => 'محاسب اختبار',
+        'guard_name' => 'staff',
+        'is_system' => false,
+        'is_active' => true,
+    ]);
+    $managerScreen = Screen::where('route_name', 'manager.attendance-reports')->firstOrFail();
+
+    Livewire::test('manager.role-permissions')
+        ->call('toggle', $customRole->id, $managerScreen->id);
+
+    expect(RoleScreenPermission::where('role_id', $customRole->id)->where('screen_id', $managerScreen->id)->exists())
+        ->toBeTrue();
+});

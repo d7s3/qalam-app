@@ -63,6 +63,14 @@ new class extends Component
             return;
         }
 
+        // A system role is locked to its own screens: it lives behind its own
+        // guard and renders a fixed sidebar, so granting it another role's page
+        // is inert. Reject it at the source instead of creating a dead row.
+        // Custom (staff) roles may still be composed from any screen.
+        if ($role->is_system && $screen->owner_role_id !== $role->id) {
+            return;
+        }
+
         $existing = RoleScreenPermission::where('role_id', $roleId)->where('screen_id', $screenId)->first();
 
         if ($existing) {
@@ -83,10 +91,15 @@ new class extends Component
         $roles = Role::query()->orderByDesc('is_system')->orderBy('id')->get();
         $activeRole = $roles->firstWhere('id', $this->activeRoleId) ?? $roles->first();
 
-        $screensByOwner = Screen::query()
-            ->with('ownerRole')
-            ->orderBy('sort_order')
-            ->get()
+        $screensQuery = Screen::query()->with('ownerRole')->orderBy('sort_order');
+
+        // System roles only manage their own screens (see toggle()); custom
+        // roles may be composed from every screen.
+        if ($activeRole && $activeRole->is_system) {
+            $screensQuery->where('owner_role_id', $activeRole->id);
+        }
+
+        $screensByOwner = $screensQuery->get()
             ->groupBy(fn (Screen $screen) => $screen->ownerRole->label);
 
         $enabledForActiveRole = $activeRole
