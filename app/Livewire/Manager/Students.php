@@ -81,25 +81,25 @@ class Students extends Component
 
     public function updatedSearch()
     {
-        $this->resetStudentSelection();
+        $this->resetSelectAllToggle();
         $this->resetPage();
     }
 
     public function updatedStatusFilter()
     {
-        $this->resetStudentSelection();
+        $this->resetSelectAllToggle();
         $this->resetPage();
     }
 
     public function updatedCircleFilter()
     {
-        $this->resetStudentSelection();
+        $this->resetSelectAllToggle();
         $this->resetPage();
     }
 
     public function updatedGuardianFilter()
     {
-        $this->resetStudentSelection();
+        $this->resetSelectAllToggle();
         $this->resetPage();
     }
 
@@ -221,6 +221,7 @@ class Students extends Component
         return view('livewire.manager.students', [
             'students' => $this->filteredStudentsQuery()->paginate(20),
             'selectedMagicLinksText' => $this->buildSelectedMagicLinksText(),
+            'selectedOutsideFilters' => $this->selectedOutsideFiltersCount(),
         ]);
     }
 }

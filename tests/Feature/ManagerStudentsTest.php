@@ -75,6 +75,72 @@ it('builds a copyable text of selected student names and magic links', function 
         ->not->toContain('manager-token-two');
 });
 
+it('keeps selected students while the manager searches for more', function () {
+    $manager = Manager::factory()->create();
+    $circle = Circle::factory()->create();
+    $first = Student::factory()->create(['circle_id' => $circle->id, 'name' => 'أحمد']);
+    $second = Student::factory()->create(['circle_id' => $circle->id, 'name' => 'بدر']);
+
+    $this->actingAs($manager, 'manager');
+
+    Livewire::test(Students::class)
+        ->set('selectedStudentIds', [(string) $first->id])
+        // Searching for someone else must not drop the first pick.
+        ->set('search', 'بدر')
+        ->assertSet('selectedStudentIds', [(string) $first->id])
+        ->set('selectedStudentIds', [(string) $first->id, (string) $second->id])
+        // Nor must changing a filter afterwards.
+        ->set('circleFilter', $circle->id)
+        ->assertSet('selectedStudentIds', [(string) $first->id, (string) $second->id])
+        ->assertSee('نسخ الأسماء والروابط');
+});
+
+it('clears the header checkbox but not the selection when filters change', function () {
+    $manager = Manager::factory()->create();
+    $student = Student::factory()->create(['circle_id' => Circle::factory()->create()->id]);
+
+    $this->actingAs($manager, 'manager');
+
+    Livewire::test(Students::class)
+        ->set('selectAll', true)
+        ->assertSet('selectAll', true)
+        ->set('search', 'لا أحد')
+        ->assertSet('selectAll', false)
+        ->assertSet('selectedStudentIds', [(string) $student->id]);
+});
+
+it('reports how many selected students the active filters hide', function () {
+    $manager = Manager::factory()->create();
+    $circle = Circle::factory()->create();
+    $visible = Student::factory()->create(['circle_id' => $circle->id, 'name' => 'ظاهر']);
+    $hidden = Student::factory()->create([
+        'circle_id' => Circle::factory()->create()->id,
+        'name' => 'مخفي',
+    ]);
+
+    $this->actingAs($manager, 'manager');
+
+    Livewire::test(Students::class)
+        ->set('selectedStudentIds', [(string) $visible->id, (string) $hidden->id])
+        ->set('circleFilter', $circle->id)
+        ->assertSee('خارج نتائج البحث الحالية')
+        ->call('selectedOutsideFiltersCount')
+        ->assertReturned(1);
+});
+
+it('lets the manager clear the whole selection at once', function () {
+    $manager = Manager::factory()->create();
+    $student = Student::factory()->create(['circle_id' => Circle::factory()->create()->id]);
+
+    $this->actingAs($manager, 'manager');
+
+    Livewire::test(Students::class)
+        ->set('selectedStudentIds', [(string) $student->id])
+        ->call('resetStudentSelection')
+        ->assertSet('selectedStudentIds', [])
+        ->assertSet('selectAll', false);
+});
+
 it('selects every filtered student when the manager ticks select all', function () {
     $manager = Manager::factory()->create();
     $circle = Circle::factory()->create();

@@ -53,11 +53,53 @@ trait CopiesStudentMagicLinks
         $this->selectAll = false;
     }
 
+    /**
+     * Selection deliberately survives searching and filtering so a list can be
+     * gathered over several searches. Only the header checkbox is cleared,
+     * because it describes the rows currently on screen.
+     */
+    public function resetSelectAllToggle(): void
+    {
+        $this->selectAll = false;
+    }
+
+    /**
+     * Ticking the header checkbox adds the filtered students to the selection
+     * rather than replacing it; unticking removes only those same students, so
+     * picks made under other filters are left alone.
+     */
     public function updatedSelectAll(bool $value): void
     {
+        $filteredIds = $this->filteredStudentsIds();
+
         $this->selectedStudentIds = $value
-            ? $this->filteredStudentsQuery()->pluck('id')->map(fn ($id) => (string) $id)->toArray()
-            : [];
+            ? array_values(array_unique(array_merge($this->selectedStudentIds, $filteredIds)))
+            : array_values(array_diff($this->selectedStudentIds, $filteredIds));
+    }
+
+    /**
+     * How many selected students the active filters currently hide, so the UI
+     * can warn that an action reaches further than the visible rows.
+     */
+    public function selectedOutsideFiltersCount(): int
+    {
+        if ($this->selectedStudentIds === []) {
+            return 0;
+        }
+
+        $visible = $this->filteredStudentsQuery()
+            ->whereIn('id', $this->selectedStudentIds)
+            ->count();
+
+        return count($this->selectedStudentIds) - $visible;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function filteredStudentsIds(): array
+    {
+        return $this->filteredStudentsQuery()->pluck('id')->map(fn ($id) => (string) $id)->all();
     }
 
     /**

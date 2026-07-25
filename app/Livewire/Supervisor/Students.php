@@ -122,19 +122,19 @@ class Students extends Component
 
     public function updatedSearch(): void
     {
-        $this->resetSelection();
+        $this->resetSelectAllToggle();
         $this->resetPage();
     }
 
     public function updatedStatusFilter(): void
     {
-        $this->resetSelection();
+        $this->resetSelectAllToggle();
         $this->resetPage();
     }
 
     public function updatedCircleFilter(): void
     {
-        $this->resetSelection();
+        $this->resetSelectAllToggle();
         $this->resetPage();
     }
 
@@ -367,6 +367,7 @@ class Students extends Component
         return view('livewire.supervisor.students', [
             'students' => $this->filteredStudentsQuery()->paginate(20),
             'selectedMagicLinksText' => $this->buildSelectedMagicLinksText(),
+            'selectedOutsideFilters' => $this->selectedOutsideFiltersCount(),
         ])->layout('layouts.role-shell');
     }
 }

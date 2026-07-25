@@ -188,6 +188,46 @@ it('limits select all to the supervisor scope and the active filters', function 
         ->assertSet('selectedStudentIds', [(string) $inScope->id]);
 });
 
+it('adds to the selection when select all is ticked under a new filter', function () {
+    $inCircle = Student::factory()->create(['circle_id' => $this->circle->id]);
+    $inCircle2 = Student::factory()->create(['circle_id' => $this->circle2->id]);
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $component = Livewire::test(Students::class)
+        ->set('circleFilter', $this->circle->id)
+        ->set('selectAll', true)
+        ->assertSet('selectedStudentIds', [(string) $inCircle->id])
+        // Switching filter and ticking again accumulates instead of replacing.
+        ->set('circleFilter', $this->circle2->id)
+        ->set('selectAll', true);
+
+    $selected = $component->get('selectedStudentIds');
+    sort($selected);
+    $expected = [(string) $inCircle->id, (string) $inCircle2->id];
+    sort($expected);
+
+    expect($selected)->toBe($expected);
+
+    // Unticking only drops the students the current filter shows.
+    $component->set('selectAll', false)
+        ->assertSet('selectedStudentIds', [(string) $inCircle->id]);
+});
+
+it('keeps selected students while the supervisor searches for more', function () {
+    $first = Student::factory()->create(['circle_id' => $this->circle->id, 'name' => 'أحمد']);
+    Student::factory()->create(['circle_id' => $this->circle->id, 'name' => 'بدر']);
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(Students::class)
+        ->set('selectedStudentIds', [(string) $first->id])
+        ->set('search', 'بدر')
+        ->assertSet('selectedStudentIds', [(string) $first->id])
+        ->set('statusFilter', 'approved')
+        ->assertSet('selectedStudentIds', [(string) $first->id]);
+});
+
 it('returns an empty magic links text when nothing is selected', function () {
     $this->actingAs($this->supervisor, 'supervisor');
 

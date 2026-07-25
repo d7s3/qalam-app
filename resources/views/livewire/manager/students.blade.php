@@ -42,9 +42,19 @@
         <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
             <div class="flex items-center gap-2">
                 <span class="flex h-2 w-2 rounded-full bg-indigo-600 dark:bg-indigo-400"></span>
-                <span class="text-sm font-medium text-indigo-900 dark:text-indigo-200">
-                    تم تحديد {{ count($selectedStudentIds) }} طالب
-                </span>
+                <div class="flex flex-col">
+                    <span class="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                        تم تحديد {{ count($selectedStudentIds) }} طالب
+                    </span>
+                    @if ($selectedOutsideFilters > 0)
+                        <span class="text-xs text-amber-700 dark:text-amber-400">
+                            منهم {{ $selectedOutsideFilters }} خارج نتائج البحث الحالية
+                        </span>
+                    @endif
+                </div>
+                <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="resetStudentSelection">
+                    إلغاء التحديد
+                </flux:button>
             </div>
             <div class="flex flex-wrap gap-2">
                 <flux:button size="sm" variant="filled" icon="clipboard-document-list"
