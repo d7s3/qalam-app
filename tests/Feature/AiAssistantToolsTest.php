@@ -3,6 +3,7 @@
 use App\Ai\Agents\PersonlanAssistant;
 use App\Ai\Tools\getAcademicCalendar;
 use App\Ai\Tools\getAttendanceData;
+use App\Ai\Tools\getCompetitionGroups;
 use App\Ai\Tools\getCompetitions;
 use App\Ai\Tools\getMutunPlans;
 use App\Ai\Tools\getOrganizationStructure;
@@ -13,6 +14,8 @@ use App\Ai\Tools\getTasks;
 use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance;
 use App\Models\Circle;
+use App\Models\GamificationTeam;
+use App\Models\GamificationTrack;
 use App\Models\Guardian;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
@@ -369,6 +372,114 @@ it('returns tasks with their category and assignee', function () {
     expect(runTool(new getTasks, ['status' => 'completed'])['tasks'])->toHaveCount(1);
 });
 
+/**
+ * Competition groups cut across circles, so this is the only route from a
+ * student to the group they compete in. Without it the assistant used to walk
+ * students one at a time and run out of steps mid-answer.
+ */
+it('maps competition teams to their members and their attendance', function () {
+    $competition = Leaderboard::create([
+        'title' => 'مسابقة التاج',
+        'circle_id' => $this->circle->id,
+        'start_date' => '2026-06-30',
+        'end_date' => '2026-08-13',
+        'is_active' => true,
+        'competition_type' => 'gamification',
+    ]);
+
+    $otherCircle = Circle::create(['name' => 'حلقة الفرقان', 'stage_id' => $this->stage->id]);
+    $teammate = Student::factory()->create(['name' => 'الطالب زيد', 'circle_id' => $otherCircle->id]);
+
+    $team = GamificationTeam::create(['leaderboard_id' => $competition->id, 'name' => 'فريق تركي']);
+    $team->students()->attach([$this->student->id, $teammate->id]);
+
+    GamificationTeam::create(['leaderboard_id' => $competition->id, 'name' => 'فريق صالح']);
+
+    // Two recorded days: both attend the first, one is absent on the second.
+    foreach ([
+        [$this->student->id, '2026-07-01', 'present'],
+        [$teammate->id, '2026-07-01', 'late'],
+        [$this->student->id, '2026-07-02', 'present'],
+        [$teammate->id, '2026-07-02', 'absent'],
+        [$this->student->id, '2026-06-01', 'present'],
+    ] as [$studentId, $date, $status]) {
+        Attendance::create([
+            'student_id' => $studentId,
+            'teacher_id' => $this->teacher->id,
+            'circle_id' => $this->circle->id,
+            'date' => $date,
+            'status' => $status,
+        ]);
+    }
+
+    $result = runTool(new getCompetitionGroups, [
+        'competition' => 'التاج',
+        'kind' => 'team',
+        'from' => '2026-06-30',
+        'include_members' => true,
+    ]);
+
+    expect($result['competition'])->toBe('مسابقة التاج')
+        ->and($result['teams'])->toHaveCount(2);
+
+    $turki = collect($result['teams'])->firstWhere('team', 'فريق تركي');
+
+    // The teammate sits in another circle, so a circle-based answer would miss them.
+    expect($turki['members_count'])->toBe(2)
+        ->and($turki['members'])->toContain('الطالب أنس', 'الطالب زيد')
+        ->and($turki['attendance']['حاضر'])->toBe(2)
+        ->and($turki['attendance']['متأخر'])->toBe(1)
+        ->and($turki['attendance']['غائب'])->toBe(1)
+        ->and($turki['attendance']['days_with_records'])->toBe(2)
+        // Three attended out of two recorded days, and the June record is outside the period.
+        ->and($turki['attendance']['average_attending_per_day'])->toBe(1.5);
+
+    $saleh = collect($result['teams'])->firstWhere('team', 'فريق صالح');
+
+    expect($saleh['members_count'])->toBe(0)
+        ->and($saleh['attendance']['note'])->toContain('no members');
+});
+
+it('returns competition tracks and skips attendance without a period', function () {
+    $competition = Leaderboard::create([
+        'title' => 'مسابقة التاج',
+        'circle_id' => $this->circle->id,
+        'start_date' => '2026-06-30',
+        'is_active' => true,
+        'competition_type' => 'gamification',
+    ]);
+
+    $track = GamificationTrack::create([
+        'leaderboard_id' => $competition->id,
+        'name' => 'مسار المتقدمين',
+        'sort_order' => 1,
+    ]);
+    $track->students()->attach($this->student->id);
+
+    $result = runTool(new getCompetitionGroups, ['competition' => 'التاج', 'kind' => 'track']);
+
+    expect($result['tracks'][0]['track'])->toBe('مسار المتقدمين')
+        ->and($result['tracks'][0]['members_count'])->toBe(1)
+        ->and($result['tracks'][0])->not->toHaveKey('attendance')
+        ->and($result)->not->toHaveKey('teams')
+        ->and($result['attendance_period'])->toContain('no attendance was counted');
+});
+
+it('lists the competitions when the name does not match', function () {
+    Leaderboard::create([
+        'title' => 'مسابقة التاج',
+        'circle_id' => $this->circle->id,
+        'start_date' => '2026-06-30',
+        'is_active' => true,
+        'competition_type' => 'gamification',
+    ]);
+
+    $result = runTool(new getCompetitionGroups, ['competition' => 'لا شيء']);
+
+    expect($result['error'])->toContain('No competition')
+        ->and($result['available_competitions'])->toContain('مسابقة التاج');
+});
+
 it('bounds attendance data by date and can summarize it', function () {
     foreach (['2026-07-01' => 'present', '2026-07-02' => 'absent', '2026-08-01' => 'late'] as $date => $status) {
         Attendance::create([
@@ -408,6 +519,7 @@ it('exposes every data tool to the assistant', function () {
         'getQuranPlans',
         'getMutunPlans',
         'getCompetitions',
+        'getCompetitionGroups',
         'getAcademicCalendar',
         'getTasks',
     );
