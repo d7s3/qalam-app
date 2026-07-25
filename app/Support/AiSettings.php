@@ -47,7 +47,7 @@ class AiSettings
         ],
         'deepseek' => [
             'label' => 'DeepSeek',
-            'models' => ['deepseek-chat', 'deepseek-reasoner'],
+            'models' => ['deepseek-v4-flash', 'deepseek-v4-pro'],
             'needs_url' => false,
         ],
         'xai' => [

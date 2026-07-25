@@ -72,6 +72,21 @@ return [
         'deepseek' => [
             'driver' => 'deepseek',
             'key' => env('DEEPSEEK_API_KEY'),
+
+            /*
+             * The SDK still ships "deepseek-chat" and "deepseek-reasoner" as
+             * this provider's defaults, but the DeepSeek API now rejects both
+             * with a 400 ("the supported API model names are deepseek-v4-pro
+             * or deepseek-v4-flash"). Pinning them here keeps the provider
+             * usable without an explicit model.
+             */
+            'models' => [
+                'text' => [
+                    'default' => 'deepseek-v4-flash',
+                    'cheapest' => 'deepseek-v4-flash',
+                    'smartest' => 'deepseek-v4-pro',
+                ],
+            ],
         ],
 
         'eleven' => [

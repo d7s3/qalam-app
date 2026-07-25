@@ -15,6 +15,8 @@ beforeEach(function () {
 });
 
 it('falls back to the configured default provider when nothing is chosen', function () {
+    Setting::setVal(AiSettings::FALLBACK_PROVIDER_KEY, '');
+
     expect((new PersonlanAssistant)->provider())->toBe([config('ai.default') => null]);
 });
 

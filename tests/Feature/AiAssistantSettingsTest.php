@@ -41,6 +41,7 @@ it('hands the SDK a provider-keyed chain so the chosen model survives failover',
 it('asks for the provider default when no model is chosen', function () {
     Setting::setVal(AiSettings::PROVIDER_KEY, 'gemini');
     Setting::setVal(AiSettings::MODEL_KEY, '');
+    Setting::setVal(AiSettings::FALLBACK_PROVIDER_KEY, '');
 
     expect(AiSettings::model())->toBeNull()
         ->and((new PersonlanAssistant)->provider())->toBe(['gemini' => null]);
@@ -155,6 +156,19 @@ it('warns on save when the chosen provider has no key at all', function () {
 
     expect(AiSettings::hasKey('groq'))->toBeFalse()
         ->and(AiSettings::provider())->toBe('groq');
+});
+
+/**
+ * The SDK ships "deepseek-chat" as this provider's default, which the DeepSeek
+ * API rejects outright with a 400. A stale name here silently breaks the
+ * provider for anyone who does not type a model by hand.
+ */
+it('pins deepseek to model names its api still accepts', function () {
+    $accepted = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+
+    expect(config('ai.providers.deepseek.models.text.default'))->toBeIn($accepted)
+        ->and(config('ai.providers.deepseek.models.text.smartest'))->toBeIn($accepted)
+        ->and(AiSettings::TEXT_PROVIDERS['deepseek']['models'])->toBe($accepted);
 });
 
 it('shows the settings page to a manager', function () {
