@@ -118,6 +118,7 @@ Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager
     Route::view('/quranic-achievement', 'manager.quranic-achievement-report')->name('quranic-achievement');
     Route::view('/attendance/{circleId}/{date}', 'manager.student-attendance-list')->name('attendance-list');
     Route::view('/ai-analysis', 'manager.ai-analysis')->name('ai-analysis');
+    Route::view('/ai-settings', 'manager.ai-settings')->name('ai-settings');
     Route::view('/quran-editor', 'manager.quran-editor')->name('quran-editor');
     Route::view('/settings', 'manager.settings')->name('settings');
     Route::view('/whatsapp-settings', 'manager.whatsapp-settings')->name('whatsapp-settings');

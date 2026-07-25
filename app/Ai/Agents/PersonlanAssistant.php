@@ -12,27 +12,38 @@ use App\Ai\Tools\getPeopleDirectory;
 use App\Ai\Tools\getQuranPlans;
 use App\Ai\Tools\getStudentProfile;
 use App\Ai\Tools\getTasks;
+use App\Support\AiSettings;
 use Laravel\Ai\Attributes\MaxSteps;
-use Laravel\Ai\Attributes\Provider;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Contracts\Tool;
-use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Promptable;
 use Stringable;
 
-/**
- * Gemini's quota is the one that runs out in practice, so DeepSeek stands
- * behind it: the SDK fails over automatically on a rate limit, an overloaded
- * provider, or exhausted credits.
- */
-#[Provider([Lab::Gemini, Lab::DeepSeek])]
 #[MaxSteps(15)]
 class PersonlanAssistant implements Agent, Conversational, HasTools
 {
     use Promptable;
+
+    /**
+     * The provider and model chosen on the manager's AI settings page, as a
+     * provider-keyed chain so the SDK fails over to the second provider on a
+     * rate limit, an overloaded provider or exhausted credits.
+     *
+     * Loading the stored API keys into the SDK's configuration here, rather
+     * than in a service provider, keeps the lookup off every request that
+     * never asks the assistant anything.
+     *
+     * @return array<string, string|null>
+     */
+    public function provider(): array
+    {
+        AiSettings::apply();
+
+        return AiSettings::providerChain();
+    }
 
     /**
      * Get the instructions that the agent should follow.

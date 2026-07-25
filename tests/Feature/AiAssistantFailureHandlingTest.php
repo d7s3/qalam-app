@@ -3,8 +3,8 @@
 use App\Ai\Agents\PersonlanAssistant;
 use App\Models\AiInsight;
 use App\Models\Manager;
-use Laravel\Ai\Attributes\Provider;
-use Laravel\Ai\Enums\Lab;
+use App\Models\Setting;
+use App\Support\AiSettings;
 use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Exceptions\RateLimitedException;
 use Livewire\Livewire;
@@ -14,12 +14,15 @@ beforeEach(function () {
     $this->actingAs($this->manager, 'manager');
 });
 
-it('fails over to a second provider when the first one is rate limited', function () {
-    $reflection = new ReflectionClass(PersonlanAssistant::class);
-    $providers = $reflection->getAttributes(Provider::class)[0]
-        ->newInstance()->value;
+it('falls back to the configured default provider when nothing is chosen', function () {
+    expect((new PersonlanAssistant)->provider())->toBe([config('ai.default') => null]);
+});
 
-    expect($providers)->toBe([Lab::Gemini, Lab::DeepSeek]);
+it('fails over to the second provider chosen in settings', function () {
+    Setting::setVal(AiSettings::PROVIDER_KEY, 'gemini');
+    Setting::setVal(AiSettings::FALLBACK_PROVIDER_KEY, 'deepseek');
+
+    expect(array_keys((new PersonlanAssistant)->provider()))->toBe(['gemini', 'deepseek']);
 });
 
 it('shows a rate limit notice instead of failing when generating insights', function () {

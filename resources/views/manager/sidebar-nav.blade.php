@@ -128,6 +128,12 @@
             إعدادات الواتساب
         </flux:sidebar.item>
     @endif
+    @if(\App\Support\RolePages::isEnabled('manager', 'manager.ai-settings'))
+        <flux:sidebar.item icon="sparkles" :href="route('manager.ai-settings')" :current="request()->routeIs('manager.ai-settings')"
+            wire:navigate>
+            إعدادات الذكاء الاصطناعي
+        </flux:sidebar.item>
+    @endif
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.api-docs'))
         <flux:sidebar.item icon="document-text" :href="route('manager.api-docs')" :current="request()->routeIs('manager.api-docs')"
             wire:navigate>
