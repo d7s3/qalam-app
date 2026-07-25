@@ -38,10 +38,30 @@
         </div>
     </div>
 
+    @if (count($selectedStudentIds) > 0)
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
+            <div class="flex items-center gap-2">
+                <span class="flex h-2 w-2 rounded-full bg-indigo-600 dark:bg-indigo-400"></span>
+                <span class="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                    تم تحديد {{ count($selectedStudentIds) }} طالب
+                </span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <flux:button size="sm" variant="filled" icon="clipboard-document-list"
+                    x-on:click="navigator.clipboard.writeText(@js($selectedMagicLinksText)); $dispatch('toast', { message: 'تم نسخ أسماء الطلاب وروابطهم السحرية', variant: 'success' })">
+                    نسخ الأسماء والروابط
+                </flux:button>
+            </div>
+        </div>
+    @endif
+
     <div
         class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs overflow-hidden">
         <flux:table class="w-full">
             <flux:table.columns>
+                <flux:table.column class="w-10">
+                    <flux:checkbox wire:model.live="selectAll" />
+                </flux:table.column>
                 <flux:table.column>{{ __('الطالب') }}</flux:table.column>
                 <flux:table.column class="hidden md:table-cell">{{ __('الحلقة') }}</flux:table.column>
                 <flux:table.column class="hidden sm:table-cell">{{ __('حالة الطالب') }}</flux:table.column>
@@ -53,6 +73,9 @@
                     <flux:table.row :key="$student->id"
                         class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50   s"
                         x-on:click="$flux.modal('student-modal').show(); $wire.edit({{ $student->id }})">
+                        <flux:table.cell x-on:click.stop="">
+                            <flux:checkbox wire:model.live="selectedStudentIds" value="{{ $student->id }}" />
+                        </flux:table.cell>
                         <flux:table.cell class="first:ps-3">
                             <div class="flex flex-col">
                                 <span class="font-bold text-zinc-900 dark:text-white">{{ $student->name }}</span>

@@ -48,6 +48,10 @@
                 <flux:button size="sm" variant="filled" x-on:click="$flux.modal('bulk-status-modal').show()">
                     تغيير حالة الطالب
                 </flux:button>
+                <flux:button size="sm" variant="filled" icon="clipboard-document-list"
+                    x-on:click="navigator.clipboard.writeText(@js($selectedMagicLinksText)); $dispatch('toast', { message: 'تم نسخ أسماء الطلاب وروابطهم السحرية', variant: 'success' })">
+                    نسخ الأسماء والروابط
+                </flux:button>
                 <flux:button size="sm" variant="filled" wire:click="applyBulkResetMagicLinks" wire:confirm="هل أنت متأكد من إعادة تعيين الروابط السحرية للطلاب المحددين؟">
                     تحديث الروابط السحرية
                 </flux:button>

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Manager;
 
+use App\Concerns\CopiesStudentMagicLinks;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
@@ -13,7 +14,7 @@ use Livewire\WithPagination;
 
 class Students extends Component
 {
-    use WithPagination;
+    use CopiesStudentMagicLinks, WithPagination;
 
     public $circles;
 
@@ -45,7 +46,12 @@ class Students extends Component
         $this->guardiansList = Guardian::whereRoleState(fn ($q) => $q->where('is_approved', true))->get();
     }
 
-    private function getStudentsQuery()
+    protected function selectableStudentsQuery()
+    {
+        return Student::query();
+    }
+
+    protected function filteredStudentsQuery()
     {
         $query = Student::with(['circle.stage', 'guardian']);
 
@@ -75,21 +81,25 @@ class Students extends Component
 
     public function updatedSearch()
     {
+        $this->resetStudentSelection();
         $this->resetPage();
     }
 
     public function updatedStatusFilter()
     {
+        $this->resetStudentSelection();
         $this->resetPage();
     }
 
     public function updatedCircleFilter()
     {
+        $this->resetStudentSelection();
         $this->resetPage();
     }
 
     public function updatedGuardianFilter()
     {
+        $this->resetStudentSelection();
         $this->resetPage();
     }
 
@@ -209,7 +219,8 @@ class Students extends Component
     public function render()
     {
         return view('livewire.manager.students', [
-            'students' => $this->getStudentsQuery()->paginate(20),
+            'students' => $this->filteredStudentsQuery()->paginate(20),
+            'selectedMagicLinksText' => $this->buildSelectedMagicLinksText(),
         ]);
     }
 }

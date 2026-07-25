@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Supervisor;
 
+use App\Concerns\CopiesStudentMagicLinks;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
@@ -14,7 +15,7 @@ use Livewire\WithPagination;
 
 class Students extends Component
 {
-    use WithPagination;
+    use CopiesStudentMagicLinks, WithPagination;
 
     public $circles;
 
@@ -41,10 +42,6 @@ class Students extends Component
     public $viewingStudent = null;
 
     public array $stats = [];
-
-    public array $selectedStudentIds = [];
-
-    public bool $selectAll = false;
 
     public string $deleteConfirmationInput = '';
 
@@ -94,7 +91,12 @@ class Students extends Component
         });
     }
 
-    private function getFilteredStudentsQuery()
+    protected function selectableStudentsQuery()
+    {
+        return $this->scopeToSupervisor(Student::query());
+    }
+
+    protected function filteredStudentsQuery()
     {
         $query = $this->scopeToSupervisor(Student::with(['circle.stage', 'stage', 'guardian']));
 
@@ -138,42 +140,8 @@ class Students extends Component
 
     public function resetSelection(): void
     {
-        $this->selectedStudentIds = [];
-        $this->selectAll = false;
+        $this->resetStudentSelection();
         $this->deleteConfirmationInput = '';
-    }
-
-    public function updatedSelectAll(bool $value): void
-    {
-        if ($value) {
-            $query = $this->scopeToSupervisor(Student::query());
-
-            if ($this->search) {
-                $query->where(function ($q) {
-                    $q->where('name', 'like', '%'.$this->search.'%')
-                        ->orWhere('email', 'like', '%'.$this->search.'%');
-                });
-            }
-
-            if ($this->statusFilter === 'pending') {
-                $query->whereRoleState(fn ($q) => $q->where('is_approved', false));
-            } elseif ($this->statusFilter === 'approved') {
-                $query->whereRoleState(fn ($q) => $q->where('is_approved', true));
-            }
-
-            if ($this->circleFilter) {
-                $query->where('circle_id', $this->circleFilter);
-            }
-
-            $this->selectedStudentIds = $query->pluck('id')->map(fn ($id) => (string) $id)->toArray();
-        } else {
-            $this->selectedStudentIds = [];
-        }
-    }
-
-    private function getSupervisorStudentsQuery()
-    {
-        return $this->scopeToSupervisor(Student::query())->whereIn('id', $this->selectedStudentIds);
     }
 
     public function applyBulkCircle(): void
@@ -190,7 +158,7 @@ class Students extends Component
             return;
         }
 
-        $count = $this->getSupervisorStudentsQuery()->update([
+        $count = $this->selectedStudentsQuery()->update([
             'circle_id' => $this->bulkCircleId ?: null,
         ]);
 
@@ -207,7 +175,7 @@ class Students extends Component
             'bulkJoinedAt' => 'required|date',
         ]);
 
-        $count = $this->getSupervisorStudentsQuery()->update([
+        $count = $this->selectedStudentsQuery()->update([
             'joined_at' => $this->bulkJoinedAt,
         ]);
 
@@ -227,7 +195,7 @@ class Students extends Component
             'bulkStatusDate.before_or_equal' => __('تاريخ سريان الحالة لا يمكن أن يكون في المستقبل'),
         ]);
 
-        $students = $this->getSupervisorStudentsQuery()->get();
+        $students = $this->selectedStudentsQuery()->get();
         $count = 0;
         $skipped = 0;
         foreach ($students as $student) {
@@ -253,7 +221,7 @@ class Students extends Component
 
     public function applyBulkResetMagicLinks(): void
     {
-        $students = $this->getSupervisorStudentsQuery()->get();
+        $students = $this->selectedStudentsQuery()->get();
         $count = $students->count();
 
         foreach ($students as $student) {
@@ -275,7 +243,7 @@ class Students extends Component
             return;
         }
 
-        $students = $this->getSupervisorStudentsQuery()->get();
+        $students = $this->selectedStudentsQuery()->get();
         $count = $students->count();
 
         foreach ($students as $student) {
@@ -397,7 +365,8 @@ class Students extends Component
     public function render()
     {
         return view('livewire.supervisor.students', [
-            'students' => $this->getFilteredStudentsQuery()->paginate(20),
+            'students' => $this->filteredStudentsQuery()->paginate(20),
+            'selectedMagicLinksText' => $this->buildSelectedMagicLinksText(),
         ])->layout('layouts.role-shell');
     }
 }

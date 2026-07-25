@@ -104,6 +104,100 @@ it('allows supervisor to bulk reset access tokens', function () {
     expect($student2->refresh()->access_token)->not->toBeEmpty();
 });
 
+it('builds a copyable text of selected student names and magic links', function () {
+    $student1 = Student::factory()->create([
+        'circle_id' => $this->circle->id,
+        'name' => 'أحمد',
+        'access_token' => 'token-one',
+    ]);
+    $student2 = Student::factory()->create([
+        'circle_id' => $this->circle->id,
+        'name' => 'بدر',
+        'access_token' => 'token-two',
+    ]);
+    $outsider = Student::factory()->create([
+        'circle_id' => Circle::factory()->create(['stage_id' => Stage::factory()->create()->id])->id,
+        'name' => 'خارج النطاق',
+        'access_token' => 'token-outsider',
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $component = Livewire::test(Students::class)
+        ->set('selectedStudentIds', [(string) $student1->id, (string) $student2->id, (string) $outsider->id])
+        ->assertSee('نسخ الأسماء والروابط')
+        ->call('buildSelectedMagicLinksText')
+        ->assertHasNoErrors();
+
+    $text = $component->effects['returns'][0];
+
+    expect($text)
+        ->toContain('أحمد')
+        ->toContain(route('magic-link', ['token' => 'token-one']))
+        ->toContain('بدر')
+        ->toContain(route('magic-link', ['token' => 'token-two']))
+        ->not->toContain('خارج النطاق')
+        ->not->toContain('token-outsider');
+});
+
+it('issues a magic link token to selected students that never had one', function () {
+    $student = Student::factory()->create([
+        'circle_id' => $this->circle->id,
+        'name' => 'طالب بلا رابط',
+        'access_token' => null,
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $text = Livewire::test(Students::class)
+        ->set('selectedStudentIds', [(string) $student->id])
+        ->call('buildSelectedMagicLinksText')
+        ->effects['returns'][0];
+
+    $token = $student->refresh()->access_token;
+
+    expect($token)->not->toBeEmpty();
+    expect($text)->toContain(route('magic-link', ['token' => $token]));
+});
+
+it('limits select all to the supervisor scope and the active filters', function () {
+    $inScope = Student::factory()->create(['circle_id' => $this->circle->id]);
+    $inScopeOtherCircle = Student::factory()->create(['circle_id' => $this->circle2->id]);
+    Student::factory()->create([
+        'circle_id' => Circle::factory()->create(['stage_id' => Stage::factory()->create()->id])->id,
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    // Without filters, select all covers the supervisor's stage only.
+    Livewire::test(Students::class)
+        ->set('selectAll', true)
+        ->assertCount('selectedStudentIds', 2)
+        ->assertSet('selectedStudentIds', function (array $ids) use ($inScope, $inScopeOtherCircle) {
+            sort($ids);
+            $expected = [(string) $inScope->id, (string) $inScopeOtherCircle->id];
+            sort($expected);
+
+            return $ids === $expected;
+        });
+
+    // With a circle filter, select all narrows to that circle.
+    Livewire::test(Students::class)
+        ->set('circleFilter', $this->circle->id)
+        ->set('selectAll', true)
+        ->assertSet('selectedStudentIds', [(string) $inScope->id]);
+});
+
+it('returns an empty magic links text when nothing is selected', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $text = Livewire::test(Students::class)
+        ->call('buildSelectedMagicLinksText')
+        ->effects['returns'][0];
+
+    expect($text)->toBe('');
+});
+
 it('allows supervisor to bulk delete students with strict confirmation', function () {
     $student1 = Student::factory()->create([
         'circle_id' => $this->circle->id,
