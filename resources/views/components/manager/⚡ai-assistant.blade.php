@@ -2,6 +2,9 @@
 
 use Livewire\Component;
 use App\Ai\Agents\PersonlanAssistant;
+use Illuminate\Http\Client\ConnectionException;
+use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Exceptions\RateLimitedException;
 use Laravel\Ai\Streaming\Events\TextDelta;
 
 new class extends Component
@@ -39,9 +42,7 @@ new class extends Component
         $replyIndex = count($this->messages) - 1;
 
         $assistant = new PersonlanAssistant();
-        
-        $stream = $assistant->stream($input);
-        
+
         $fullReply = '';
 
         $this->stream(
@@ -50,17 +51,54 @@ new class extends Component
             replace: true
         );
 
-        foreach ($stream as $event) {
-            if ($event instanceof TextDelta) {
-                $fullReply .= $event->delta;
-                $this->stream(
-                    to: "chat-reply-{$replyIndex}",
-                    content: $event->delta,
-                );
+        // A provider failure mid-stream must land in the chat bubble as a
+        // readable message, not as a 500 that loses the whole conversation.
+        try {
+            foreach ($assistant->stream($input) as $event) {
+                if ($event instanceof TextDelta) {
+                    $fullReply .= $event->delta;
+                    $this->stream(
+                        to: "chat-reply-{$replyIndex}",
+                        content: $event->delta,
+                    );
+                }
             }
+        } catch (RateLimitedException $e) {
+            report($e);
+            $fullReply = $this->failureNotice(
+                $fullReply,
+                'تجاوزت حصة الطلبات لدى مزوّد الذكاء الاصطناعي. أعد المحاولة بعد قليل.'
+            );
+        } catch (AiException | ConnectionException $e) {
+            report($e);
+            $fullReply = $this->failureNotice(
+                $fullReply,
+                'تعذّر الاتصال بمزوّد الذكاء الاصطناعي. أعد المحاولة.'
+            );
+        } catch (\Throwable $e) {
+            // The assistant reaches the database through ten tools; a failure in
+            // any of them should cost one reply, not the whole conversation.
+            report($e);
+            $fullReply = $this->failureNotice(
+                $fullReply,
+                'حدث خطأ أثناء تجهيز الإجابة. أعد المحاولة.'
+            );
         }
-        
+
         $this->messages[$replyIndex]['content'] = $fullReply;
+    }
+
+    /**
+     * Append the failure notice to whatever text had already streamed, so a
+     * partial answer is kept rather than thrown away.
+     */
+    private function failureNotice(string $partialReply, string $notice): string
+    {
+        $notice = '⚠️ '.$notice;
+
+        return trim($partialReply) === ''
+            ? $notice
+            : trim($partialReply)."\n\n".$notice;
     }
 };
 ?>

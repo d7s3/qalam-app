@@ -13,14 +13,22 @@ use App\Ai\Tools\getQuranPlans;
 use App\Ai\Tools\getStudentProfile;
 use App\Ai\Tools\getTasks;
 use Laravel\Ai\Attributes\MaxSteps;
+use Laravel\Ai\Attributes\Provider;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Contracts\Tool;
+use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Promptable;
 use Stringable;
 
+/**
+ * Gemini's quota is the one that runs out in practice, so DeepSeek stands
+ * behind it: the SDK fails over automatically on a rate limit, an overloaded
+ * provider, or exhausted credits.
+ */
+#[Provider([Lab::Gemini, Lab::DeepSeek])]
 #[MaxSteps(15)]
 class PersonlanAssistant implements Agent, Conversational, HasTools
 {

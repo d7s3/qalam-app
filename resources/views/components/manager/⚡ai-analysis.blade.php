@@ -4,8 +4,12 @@ use Livewire\Component;
 use App\Models\AiInsight;
 use App\Models\Attendance;
 use App\Ai\Agents\PersonlanAssistant;
+use Flux\Flux;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Exceptions\RateLimitedException;
 
 new class extends Component
 {
@@ -89,7 +93,35 @@ new class extends Component
 
         // 3. Request AI Insight
         $assistant = PersonlanAssistant::make();
-        $response = $assistant->prompt($prompt);
+
+        try {
+            $response = $assistant->prompt($prompt);
+        } catch (RateLimitedException $e) {
+            report($e);
+            Flux::toast(
+                __('تجاوزت حصة الطلبات لدى مزوّد الذكاء الاصطناعي. أعد المحاولة بعد قليل.'),
+                variant: 'warning',
+            );
+
+            return;
+        } catch (AiException | ConnectionException $e) {
+            report($e);
+            Flux::toast(
+                __('تعذّر الاتصال بمزوّد الذكاء الاصطناعي، ولم يتم تعديل التحليلات الحالية.'),
+                variant: 'danger',
+            );
+
+            return;
+        } catch (\Throwable $e) {
+            report($e);
+            Flux::toast(
+                __('حدث خطأ أثناء توليد التحليل، ولم يتم تعديل التحليلات الحالية.'),
+                variant: 'danger',
+            );
+
+            return;
+        }
+
         $jsonText = $response->text;
 
         // Clean up markdown json tags if present
@@ -98,23 +130,32 @@ new class extends Component
 
         $parsed = json_decode($jsonText, true);
 
-        if (is_array($parsed)) {
-            // Remove old insights
-            AiInsight::where('period', $this->period)->delete();
+        if (! is_array($parsed)) {
+            Flux::toast(
+                __('لم يُرجِع المساعد الذكي تحليلاً مفهوماً. أعد المحاولة.'),
+                variant: 'warning',
+            );
 
-            // Save new insights
-            foreach ($parsed as $insight) {
-                AiInsight::create([
-                    'period' => $this->period,
-                    'category' => $insight['category'] ?? 'عام',
-                    'title' => $insight['title'] ?? 'تحليل ذكي',
-                    'description' => $insight['description'] ?? '',
-                    'type' => in_array($insight['type'] ?? '', ['positive', 'negative', 'neutral']) ? $insight['type'] : 'neutral',
-                ]);
-            }
+            return;
+        }
+
+        // Remove old insights
+        AiInsight::where('period', $this->period)->delete();
+
+        // Save new insights
+        foreach ($parsed as $insight) {
+            AiInsight::create([
+                'period' => $this->period,
+                'category' => $insight['category'] ?? 'عام',
+                'title' => $insight['title'] ?? 'تحليل ذكي',
+                'description' => $insight['description'] ?? '',
+                'type' => in_array($insight['type'] ?? '', ['positive', 'negative', 'neutral']) ? $insight['type'] : 'neutral',
+            ]);
         }
 
         $this->loadInsights();
+
+        Flux::toast(__('تم تحديث التحليل الذكي'), variant: 'success');
     }
 };
 ?>
