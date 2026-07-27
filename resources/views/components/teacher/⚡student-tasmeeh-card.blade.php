@@ -1054,36 +1054,7 @@ new class extends Component {
 
     @if($activeOdePlan && $odeDays->isNotEmpty())
         @foreach($odeDays as $odeDay)
-            @php
-                $hifzVerses = collect();
-                if ($odeDay->from_verse_number && $odeDay->to_verse_number) {
-                    $hifzVerses = $odeVerses->filter(function ($v) use ($odeDay) {
-                        return $v->verse_number >= $odeDay->from_verse_number && $v->verse_number <= $odeDay->to_verse_number;
-                    });
-                }
-
-                $previousHifzVerses = collect();
-                if ($odeDay->from_verse_number && $odeDay->from_verse_number > 1) {
-                    $previousHifzVerses = $odeVerses->filter(function ($v) use ($odeDay) {
-                        return $v->verse_number < $odeDay->from_verse_number;
-                    })->values()->slice(-5)->values();
-                }
-
-                $reviewVerses = collect();
-                if ($odeDay->review_from_verse_number && $odeDay->review_to_verse_number) {
-                    $reviewVerses = $odeVerses->filter(function ($v) use ($odeDay) {
-                        return $v->verse_number >= $odeDay->review_from_verse_number && $v->verse_number <= $odeDay->review_to_verse_number;
-                    });
-                }
-
-                $previousReviewVerses = collect();
-                if ($odeDay->review_from_verse_number && $odeDay->review_from_verse_number > 1) {
-                    $previousReviewVerses = $odeVerses->filter(function ($v) use ($odeDay) {
-                        return $v->verse_number < $odeDay->review_from_verse_number;
-                    })->values()->slice(-5)->values();
-                }
-            @endphp
-            <div wire:key="ode-day-card-container-{{ $odeDay->id }}" x-show="activeOdeDayId == {{ $odeDay->id }}" class="mt-4" x-data="{ showHifzModal: false, showReviewModal: false, prevHifzCount: 0, prevReviewCount: 0, syncing: null, hifz: {{ $odeDay->hifz_achievement ?? 'null' }}, review: {{ $odeDay->review_achievement ?? 'null' }} }">
+            <div wire:key="ode-day-card-container-{{ $odeDay->id }}" x-show="activeOdeDayId == {{ $odeDay->id }}" class="mt-4" x-data="{ showHifzModal: false, showReviewModal: false, prevHifzCount: 0, prevReviewCount: 0, syncing: null, textData: null, textLoading: false, textError: null, prevShown: 0, async loadText(kind, id, part) { this.textData = null; this.textError = null; this.prevShown = 0; this.textLoading = true; try { const r = await fetch(`{{ route('teacher.tasmeeh.text', $student) }}?kind=${kind}&id=${id}&part=${part}`, { headers: { 'Accept': 'application/json' } }); if (!r.ok) throw new Error(); this.textData = await r.json(); } catch (e) { this.textError = '{{ __('تعذّر تحميل النص، أعد المحاولة.') }}'; } finally { this.textLoading = false; } }, hifz: {{ $odeDay->hifz_achievement ?? 'null' }}, review: {{ $odeDay->review_achievement ?? 'null' }} }">
 
                 {{-- Unified Card --}}
                 <flux:card x-bind:class="syncing && 'opacity-70'" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between transition-opacity">
@@ -1127,7 +1098,7 @@ new class extends Component {
 
                                 {{-- No margin of its own: the parent's space-y already separates it. --}}
                                 <div>
-                                    <flux:button type="button" @click="showHifzModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
+                                    <flux:button type="button" @click="showHifzModal = true; loadText('ode', {{ $odeDay->id }}, 'hifz')" icon="book-open" variant="subtle" class="w-full justify-center">
                                         {{ __('إظهار نص المنظومة') }}
                                     </flux:button>
                                 </div>
@@ -1200,7 +1171,7 @@ new class extends Component {
                                 <flux:separator class="opacity-50 shrink-0" />
 
                                 <div>
-                                    <flux:button type="button" @click="showReviewModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
+                                    <flux:button type="button" @click="showReviewModal = true; loadText('ode', {{ $odeDay->id }}, 'review')" icon="book-open" variant="subtle" class="w-full justify-center">
                                         {{ __('إظهار نص المنظومة') }}
                                     </flux:button>
                                 </div>
@@ -1283,57 +1254,43 @@ new class extends Component {
                                 </button>
                             </div>
 
-                            {{-- Modal Content (Scrollable) --}}
-                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
-                                <div class="max-w-4xl mx-auto space-y-4">
-                                    {{-- Previous Verses Button --}}
-                                    @if($previousHifzVerses->isNotEmpty())
-                                        <div x-show="prevHifzCount < {{ $previousHifzVerses->count() }}" class="flex justify-center mb-4 shrink-0">
-                                            <flux:button type="button" @click="prevHifzCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold border border-zinc-200 dark:border-zinc-700">
-                                                {{ __('إظهار البيت السابق') }}
-                                            </flux:button>
-                                        </div>
-                                    @endif
+                            {{-- Fetched when the modal opens; see TasmeehDataController::text --}}
+                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30">
+                                <div class="max-w-4xl mx-auto space-y-6 text-right">
+                                    <template x-if="textLoading">
+                                        <p class="text-center text-zinc-400 py-12">{{ __('جارٍ التحميل...') }}</p>
+                                    </template>
 
-                                    {{-- Previous Verses (Dimmed) --}}
-                                    @foreach($previousHifzVerses as $index => $verse)
-                                        <div x-show="prevHifzCount >= {{ $previousHifzVerses->count() - $index }}"
-                                             x-cloak
-                                             class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100/60 dark:border-zinc-800/40 shadow-sm opacity-40 hover:opacity-80 transition-opacity">
-                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
-                                                {{ $verse->verse_number }}
-                                            </span>
-                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
-                                                <div class="font-semibold text-zinc-500 dark:text-zinc-400 text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
-                                                    {{ $verse->sadr }}
-                                                </div>
-                                                <div class="font-semibold text-zinc-400 dark:text-zinc-500 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
-                                                    {{ $verse->ajuz }}
-                                                    <span class="text-xs font-sans text-zinc-400 dark:text-zinc-600 mr-2">({{ __('سابق') }})</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endforeach
+                                    <template x-if="!textLoading && textError">
+                                        <p class="text-center text-red-500 py-12" x-text="textError"></p>
+                                    </template>
 
-                                    {{-- Current Hifz Verses --}}
-                                    @foreach($hifzVerses as $verse)
-                                        <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-extrabold text-sm shadow-sm">
-                                                {{ $verse->verse_number }}
-                                            </span>
-                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
-                                                <div class="font-semibold text-zinc-800 dark:text-zinc-100 text-right pr-4 border-r-4 border-indigo-500 dark:border-indigo-400 font-serif">
-                                                    {{ $verse->sadr }}
-                                                </div>
-                                                <div class="font-semibold text-zinc-700 dark:text-zinc-300 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
-                                                    {{ $verse->ajuz }}
-                                                </div>
+                                    <template x-if="!textLoading && textData">
+                                        <div class="space-y-6">
+                                            <div x-show="textData.previous.length && prevShown < textData.previous.length" class="flex justify-center">
+                                                <flux:button type="button" @click="prevShown++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
+                                                    {{ __('إظهار البيت السابق') }}
+                                                </flux:button>
                                             </div>
+
+                                            <template x-for="(v, i) in textData.previous" :key="'prev-'+v.number">
+                                                <div x-show="prevShown >= textData.previous.length - i" x-cloak
+                                                    class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 opacity-60 hover:opacity-100 transition-opacity">
+                                                    <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose" x-text="v.sadr"></p>
+                                                    <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
+                                                </div>
+                                            </template>
+
+                                            <template x-for="v in textData.verses" :key="v.number">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 p-4">
+                                                    <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose" x-text="v.sadr"></p>
+                                                    <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
+                                                </div>
+                                            </template>
                                         </div>
-                                    @endforeach
+                                    </template>
                                 </div>
                             </div>
-
                             {{-- Modal Footer --}}
                             <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
                                 <flux:button type="button" @click="showHifzModal = false; prevHifzCount = 0" variant="ghost">
@@ -1370,57 +1327,43 @@ new class extends Component {
                                 </button>
                             </div>
 
-                            {{-- Modal Content (Scrollable) --}}
-                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-4 bg-zinc-50/30 dark:bg-zinc-950/30">
-                                <div class="max-w-4xl mx-auto space-y-4">
-                                    {{-- Previous Verses Button --}}
-                                    @if($previousReviewVerses->isNotEmpty())
-                                        <div x-show="prevReviewCount < {{ $previousReviewVerses->count() }}" class="flex justify-center mb-4 shrink-0">
-                                            <flux:button type="button" @click="prevReviewCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold border border-zinc-200 dark:border-zinc-700">
-                                                {{ __('إظهار البيت السابق') }}
-                                            </flux:button>
-                                        </div>
-                                    @endif
+                            {{-- Fetched when the modal opens; see TasmeehDataController::text --}}
+                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30">
+                                <div class="max-w-4xl mx-auto space-y-6 text-right">
+                                    <template x-if="textLoading">
+                                        <p class="text-center text-zinc-400 py-12">{{ __('جارٍ التحميل...') }}</p>
+                                    </template>
 
-                                    {{-- Previous Verses (Dimmed) --}}
-                                    @foreach($previousReviewVerses as $index => $verse)
-                                        <div x-show="prevReviewCount >= {{ $previousReviewVerses->count() - $index }}"
-                                             x-cloak
-                                             class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100/60 dark:border-zinc-800/40 shadow-sm opacity-40 hover:opacity-80 transition-opacity">
-                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 font-extrabold text-sm shadow-sm">
-                                                {{ $verse->verse_number }}
-                                            </span>
-                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
-                                                <div class="font-semibold text-zinc-500 dark:text-zinc-400 text-right pr-4 border-r-4 border-zinc-300 dark:border-zinc-600 font-serif">
-                                                    {{ $verse->sadr }}
-                                                </div>
-                                                <div class="font-semibold text-zinc-400 dark:text-zinc-500 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
-                                                    {{ $verse->ajuz }}
-                                                    <span class="text-xs font-sans text-zinc-400 dark:text-zinc-600 mr-2">({{ __('سابق') }})</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endforeach
+                                    <template x-if="!textLoading && textError">
+                                        <p class="text-center text-red-500 py-12" x-text="textError"></p>
+                                    </template>
 
-                                    {{-- Current Review Verses --}}
-                                    @foreach($reviewVerses as $verse)
-                                        <div class="flex items-start gap-4 p-4 md:p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-emerald-100/60 dark:border-emerald-950/40 shadow-sm hover:shadow-md transition-shadow">
-                                            <span class="shrink-0 flex items-center justify-center size-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-sm shadow-sm">
-                                                {{ $verse->verse_number }}
-                                            </span>
-                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-base md:text-xl leading-relaxed">
-                                                <div class="font-semibold text-zinc-800 dark:text-zinc-100 text-right pr-4 border-r-4 border-emerald-500 dark:border-emerald-400 font-serif">
-                                                    {{ $verse->sadr }}
-                                                </div>
-                                                <div class="font-semibold text-zinc-700 dark:text-zinc-300 text-right pl-4 md:border-r md:border-dashed md:border-zinc-200 md:dark:border-zinc-800 font-serif">
-                                                    {{ $verse->ajuz }}
-                                                </div>
+                                    <template x-if="!textLoading && textData">
+                                        <div class="space-y-6">
+                                            <div x-show="textData.previous.length && prevShown < textData.previous.length" class="flex justify-center">
+                                                <flux:button type="button" @click="prevShown++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
+                                                    {{ __('إظهار البيت السابق') }}
+                                                </flux:button>
                                             </div>
+
+                                            <template x-for="(v, i) in textData.previous" :key="'prev-'+v.number">
+                                                <div x-show="prevShown >= textData.previous.length - i" x-cloak
+                                                    class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 opacity-60 hover:opacity-100 transition-opacity">
+                                                    <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose" x-text="v.sadr"></p>
+                                                    <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
+                                                </div>
+                                            </template>
+
+                                            <template x-for="v in textData.verses" :key="v.number">
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 p-4">
+                                                    <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose" x-text="v.sadr"></p>
+                                                    <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
+                                                </div>
+                                            </template>
                                         </div>
-                                    @endforeach
+                                    </template>
                                 </div>
                             </div>
-
                             {{-- Modal Footer --}}
                             <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
                                 <flux:button type="button" @click="showReviewModal = false; prevReviewCount = 0" variant="ghost">
@@ -1476,48 +1419,7 @@ new class extends Component {
     {{-- Hadith plans daily rendering --}}
     @if($activeHadithPlan && $hadithDays->isNotEmpty())
         @foreach($hadithDays as $hadithDay)
-            @php
-                $hifzHadiths = collect();
-                if ($hadithDay->memorize_type === 'hadiths' && $hadithDay->from_hadith_id && $hadithDay->to_hadith_id) {
-                    $startIdx = $allHadiths->search(fn($h) => $h->id == $hadithDay->from_hadith_id);
-                    $endIdx = $allHadiths->search(fn($h) => $h->id == $hadithDay->to_hadith_id);
-                    if ($startIdx !== false && $endIdx !== false) {
-                        $hifzHadiths = $allHadiths->slice($startIdx, $endIdx - $startIdx + 1);
-                    }
-                } elseif ($hadithDay->memorize_type === 'lines' && $hadithDay->from_hadith_id) {
-                    $hadith = $allHadiths->first(fn($h) => $h->id == $hadithDay->from_hadith_id);
-                    if ($hadith) {
-                        $hifzHadiths->push($hadith);
-                    }
-                }
-
-                $reviewHadiths = collect();
-                if ($hadithDay->memorize_type === 'hadiths' && $hadithDay->review_from_hadith_id && $hadithDay->review_to_hadith_id) {
-                    $startIdx = $allHadiths->search(fn($h) => $h->id == $hadithDay->review_from_hadith_id);
-                    $endIdx = $allHadiths->search(fn($h) => $h->id == $hadithDay->review_to_hadith_id);
-                    if ($startIdx !== false && $endIdx !== false) {
-                        $reviewHadiths = $allHadiths->slice($startIdx, $endIdx - $startIdx + 1);
-                    }
-                } elseif ($hadithDay->memorize_type === 'lines' && $hadithDay->review_from_hadith_id) {
-                    $hadith = $allHadiths->first(fn($h) => $h->id == $hadithDay->review_from_hadith_id);
-                    if ($hadith) {
-                        $reviewHadiths->push($hadith);
-                    }
-                }
-
-                $firstHifzHadith = $hifzHadiths->first();
-                $firstHifzIdx = $firstHifzHadith ? $allHadiths->search(fn($h) => $h->id == $firstHifzHadith->id) : false;
-                $previousHifzHadiths = $firstHifzIdx !== false && $firstHifzIdx > 0
-                    ? $allHadiths->slice(0, $firstHifzIdx)->values()
-                    : collect();
-
-                $firstReviewHadith = $reviewHadiths->first();
-                $firstReviewIdx = $firstReviewHadith ? $allHadiths->search(fn($h) => $h->id == $firstReviewHadith->id) : false;
-                $previousReviewHadiths = $firstReviewIdx !== false && $firstReviewIdx > 0
-                    ? $allHadiths->slice(0, $firstReviewIdx)->values()
-                    : collect();
-            @endphp
-            <div wire:key="hadith-day-card-container-{{ $hadithDay->id }}" x-show="activeHadithDayId == {{ $hadithDay->id }}" class="mt-4" x-data="{ showHadithHifzModal: false, showHadithReviewModal: false, hifzPrevCount: 0, reviewPrevCount: 0, syncing: null, hifz: {{ $hadithDay->hifz_achievement ?? 'null' }}, review: {{ $hadithDay->review_achievement ?? 'null' }} }">
+            <div wire:key="hadith-day-card-container-{{ $hadithDay->id }}" x-show="activeHadithDayId == {{ $hadithDay->id }}" class="mt-4" x-data="{ showHadithHifzModal: false, showHadithReviewModal: false, hifzPrevCount: 0, reviewPrevCount: 0, syncing: null, textData: null, textLoading: false, textError: null, prevShown: 0, async loadText(kind, id, part) { this.textData = null; this.textError = null; this.prevShown = 0; this.textLoading = true; try { const r = await fetch(`{{ route('teacher.tasmeeh.text', $student) }}?kind=${kind}&id=${id}&part=${part}`, { headers: { 'Accept': 'application/json' } }); if (!r.ok) throw new Error(); this.textData = await r.json(); } catch (e) { this.textError = '{{ __('تعذّر تحميل النص، أعد المحاولة.') }}'; } finally { this.textLoading = false; } }, hifz: {{ $hadithDay->hifz_achievement ?? 'null' }}, review: {{ $hadithDay->review_achievement ?? 'null' }} }">
 
                 {{-- Unified Card --}}
                 <flux:card x-bind:class="syncing && 'opacity-70'" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between transition-opacity">
@@ -1555,7 +1457,7 @@ new class extends Component {
                                 <flux:separator class="opacity-50 shrink-0" />
 
                                 <div>
-                                    <flux:button type="button" @click="showHadithHifzModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
+                                    <flux:button type="button" @click="showHadithHifzModal = true; loadText('hadith', {{ $hadithDay->id }}, 'hifz')" icon="book-open" variant="subtle" class="w-full justify-center">
                                         {{ __('إظهار نص الحديث') }}
                                     </flux:button>
                                 </div>
@@ -1623,7 +1525,7 @@ new class extends Component {
                                 <flux:separator class="opacity-50 shrink-0" />
 
                                 <div>
-                                    <flux:button type="button" @click="showHadithReviewModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
+                                    <flux:button type="button" @click="showHadithReviewModal = true; loadText('hadith', {{ $hadithDay->id }}, 'review')" icon="book-open" variant="subtle" class="w-full justify-center">
                                         {{ __('إظهار نص الحديث') }}
                                     </flux:button>
                                 </div>
@@ -1706,107 +1608,72 @@ new class extends Component {
                                  </button>
                              </div>
 
-                             {{-- Modal Content (Scrollable) --}}
+                             {{-- Fetched when the modal opens; see TasmeehDataController::text --}}
                              <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30">
                                  <div class="max-w-4xl mx-auto space-y-8 text-right">
-                                      {{-- Previous Hadiths Button --}}
-                                      @if($previousHifzHadiths->isNotEmpty())
-                                          <div x-show="hifzPrevCount < {{ $previousHifzHadiths->count() }}" class="flex justify-center mb-8 shrink-0">
-                                              <flux:button type="button" @click="hifzPrevCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
-                                                  {{ __('إظهار الحديث السابق') }}
-                                              </flux:button>
-                                          </div>
-                                      @endif
+                                     <template x-if="textLoading">
+                                         <p class="text-center text-zinc-400 py-12">{{ __('جارٍ التحميل...') }}</p>
+                                     </template>
 
-                                      {{-- Previous Hadiths (Dimmed) --}}
-                                      @foreach($previousHifzHadiths as $index => $hadith)
-                                          @php
-                                            $currentHadithLines = $hadith->lines;
-                                          @endphp
-                                          <div x-show="hifzPrevCount >= {{ $previousHifzHadiths->count() - $index }}"
-                                               x-cloak
-                                               class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-zinc-400 dark:border-r-zinc-500 shadow-sm p-5 md:p-7 space-y-4 opacity-60 hover:opacity-100 transition-opacity duration-200">
-                                               {{-- Hadith Header (Name), only needed when several hadiths share this day --}}
-                                               @if ($previousHifzHadiths->count() > 1)
-                                                   <div class="flex items-center gap-2 text-base font-bold text-zinc-600 dark:text-zinc-300">
-                                                       <span class="truncate">{{ $hadith->name }}</span>
-                                                       <span class="shrink-0 px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400">{{ __('سابق') }}</span>
-                                                   </div>
-                                               @endif
+                                     <template x-if="!textLoading && textError">
+                                         <p class="text-center text-red-500 py-12" x-text="textError"></p>
+                                     </template>
 
-                                               @if ($hadith->sanad)
-                                                   <p class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                                                       <span class="font-bold text-zinc-500 dark:text-zinc-400">{{ __('السند') }}: </span>{{ $hadith->sanad }}
-                                                   </p>
-                                                   <div class="border-t border-zinc-100 dark:border-zinc-800"></div>
-                                               @endif
-
-                                               @php $showLineNumbers = $currentHadithLines->count() > 1; @endphp
-                                               <div class="space-y-3">
-                                                   @foreach($currentHadithLines as $line)
-                                                       <div class="flex items-start gap-3">
-                                                           @if ($showLineNumbers)
-                                                               <span class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold text-xs">{{ $line->line_number }}</span>
-                                                           @endif
-                                                           <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-700 dark:text-zinc-200 leading-loose font-serif">{{ $line->text }}</p>
-                                                       </div>
-                                                   @endforeach
-                                               </div>
-
-                                               @if ($hadith->ruling)
-                                                   <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                                                       <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-zinc-600 dark:text-zinc-300">{{ __('حكم الحديث') }}: </span>{{ $hadith->ruling }}</p>
-                                                   </div>
-                                               @endif
-                                          </div>
-                                      @endforeach
-
-                                     @foreach($hifzHadiths as $hadith)
-                                         @php
-                                            $currentHadithLines = $hadith->lines;
-                                            if ($hadithDay->memorize_type === 'lines') {
-                                                $currentHadithLines = $currentHadithLines->filter(function ($l) use ($hadithDay) {
-                                                    return $l->line_number >= $hadithDay->from_line_number && $l->line_number <= $hadithDay->to_line_number;
-                                                });
-                                            }
-                                            $showLineNumbers = $currentHadithLines->count() > 1;
-                                         @endphp
-                                         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 shadow-sm p-5 md:p-7 space-y-4">
-                                             {{-- Hadith Header (Name), only needed when several hadiths share this day --}}
-                                             @if ($hifzHadiths->count() > 1)
-                                                 <div class="text-base font-bold text-indigo-600 dark:text-indigo-400 truncate">
-                                                     {{ $hadith->name }}
-                                                 </div>
-                                             @endif
-
-                                             @if ($hadith->sanad)
-                                                 <p class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                                                     <span class="font-bold text-indigo-600 dark:text-indigo-400">{{ __('السند') }}: </span>{{ $hadith->sanad }}
-                                                 </p>
-                                                 <div class="border-t border-zinc-100 dark:border-zinc-800"></div>
-                                             @endif
-
-                                             <div class="space-y-3">
-                                                 @foreach($currentHadithLines as $line)
-                                                     <div class="flex items-start gap-3">
-                                                         @if ($showLineNumbers)
-                                                             <span class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 font-bold text-xs">{{ $line->line_number }}</span>
-                                                         @endif
-                                                         <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-loose font-serif">{{ $line->text }}</p>
-                                                     </div>
-                                                 @endforeach
+                                     <template x-if="!textLoading && textData">
+                                         <div class="space-y-8">
+                                             <div x-show="textData.previous.length && prevShown < textData.previous.length" class="flex justify-center">
+                                                 <flux:button type="button" @click="prevShown++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
+                                                     {{ __('إظهار الحديث السابق') }}
+                                                 </flux:button>
                                              </div>
 
-                                             @if ($hadith->ruling)
-                                                 <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                                                     <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-indigo-600 dark:text-indigo-400">{{ __('حكم الحديث') }}: </span>{{ $hadith->ruling }}</p>
+                                             <template x-for="(h, i) in textData.previous" :key="'prev-'+i">
+                                                 <div x-show="prevShown >= textData.previous.length - i" x-cloak
+                                                     class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-zinc-400 dark:border-r-zinc-500 shadow-sm p-5 md:p-7 space-y-4 opacity-60 hover:opacity-100 transition-opacity">
+                                                     <div class="flex items-center gap-2 text-base font-bold text-zinc-600 dark:text-zinc-300">
+                                                         <span class="truncate" x-text="h.name"></span>
+                                                         <span class="shrink-0 px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400">{{ __('سابق') }}</span>
+                                                     </div>
+                                                     <p x-show="h.sanad" class="text-lg text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                                         <span class="font-bold">{{ __('السند') }}: </span><span x-text="h.sanad"></span>
+                                                     </p>
+                                                     <div class="space-y-3">
+                                                         <template x-for="line in h.lines" :key="line.number">
+                                                             <div class="flex items-start gap-3">
+                                                                 <span x-show="h.lines.length > 1" class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold text-xs" x-text="line.number"></span>
+                                                                 <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-700 dark:text-zinc-200 leading-loose font-serif" x-text="line.text"></p>
+                                                             </div>
+                                                         </template>
+                                                     </div>
+                                                     <div x-show="h.ruling" class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                                         <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold">{{ __('حكم الحديث') }}: </span><span x-text="h.ruling"></span></p>
+                                                     </div>
                                                  </div>
-                                             @endif
+                                             </template>
+
+                                             <template x-for="(h, i) in textData.hadiths" :key="'cur-'+i">
+                                                 <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 shadow-sm p-5 md:p-7 space-y-4">
+                                                     <div x-show="textData.hadiths.length > 1" class="text-base font-bold text-indigo-600 dark:text-indigo-400 truncate" x-text="h.name"></div>
+                                                     <p x-show="h.sanad" class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                                         <span class="font-bold text-indigo-600 dark:text-indigo-400">{{ __('السند') }}: </span><span x-text="h.sanad"></span>
+                                                     </p>
+                                                     <div class="space-y-3">
+                                                         <template x-for="line in h.lines" :key="line.number">
+                                                             <div class="flex items-start gap-3">
+                                                                 <span x-show="h.lines.length > 1" class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 font-bold text-xs" x-text="line.number"></span>
+                                                                 <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-loose font-serif" x-text="line.text"></p>
+                                                             </div>
+                                                         </template>
+                                                     </div>
+                                                     <div x-show="h.ruling" class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                                         <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-indigo-600 dark:text-indigo-400">{{ __('حكم الحديث') }}: </span><span x-text="h.ruling"></span></p>
+                                                     </div>
+                                                 </div>
+                                             </template>
                                          </div>
-                                     @endforeach
+                                     </template>
                                  </div>
                              </div>
-
                              {{-- Modal Footer --}}
                              <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
                                  <flux:button type="button" @click="showHadithHifzModal = false" variant="ghost">
@@ -1843,107 +1710,72 @@ new class extends Component {
                                  </button>
                              </div>
 
-                             {{-- Modal Content (Scrollable) --}}
-                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-900/30">
+                             {{-- Fetched when the modal opens; see TasmeehDataController::text --}}
+                             <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30">
                                  <div class="max-w-4xl mx-auto space-y-8 text-right">
-                                     {{-- Previous Hadiths Button --}}
-                                     @if($previousReviewHadiths->isNotEmpty())
-                                         <div x-show="reviewPrevCount < {{ $previousReviewHadiths->count() }}" class="flex justify-center mb-8 shrink-0">
-                                             <flux:button type="button" @click="reviewPrevCount++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
-                                                 {{ __('إظهار الحديث السابق') }}
-                                             </flux:button>
-                                         </div>
-                                     @endif
+                                     <template x-if="textLoading">
+                                         <p class="text-center text-zinc-400 py-12">{{ __('جارٍ التحميل...') }}</p>
+                                     </template>
 
-                                     {{-- Previous Hadiths (Dimmed) --}}
-                                     @foreach($previousReviewHadiths as $index => $hadith)
-                                         @php
-                                            $currentHadithLines = $hadith->lines;
-                                         @endphp
-                                         <div x-show="reviewPrevCount >= {{ $previousReviewHadiths->count() - $index }}"
-                                              x-cloak
-                                              class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-zinc-400 dark:border-r-zinc-500 shadow-sm p-5 md:p-7 space-y-4 opacity-60 hover:opacity-100 transition-opacity duration-200">
-                                              {{-- Hadith Header (Name), only needed when several hadiths share this day --}}
-                                              @if ($previousReviewHadiths->count() > 1)
-                                                  <div class="flex items-center gap-2 text-base font-bold text-zinc-600 dark:text-zinc-300">
-                                                      <span class="truncate">{{ $hadith->name }}</span>
-                                                      <span class="shrink-0 px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400">{{ __('سابق') }}</span>
-                                                  </div>
-                                              @endif
+                                     <template x-if="!textLoading && textError">
+                                         <p class="text-center text-red-500 py-12" x-text="textError"></p>
+                                     </template>
 
-                                              @if ($hadith->sanad)
-                                                  <p class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                                                      <span class="font-bold text-zinc-500 dark:text-zinc-400">{{ __('السند') }}: </span>{{ $hadith->sanad }}
-                                                  </p>
-                                                  <div class="border-t border-zinc-100 dark:border-zinc-800"></div>
-                                              @endif
-
-                                              @php $showLineNumbers = $currentHadithLines->count() > 1; @endphp
-                                              <div class="space-y-3">
-                                                  @foreach($currentHadithLines as $line)
-                                                      <div class="flex items-start gap-3">
-                                                          @if ($showLineNumbers)
-                                                              <span class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold text-xs">{{ $line->line_number }}</span>
-                                                          @endif
-                                                          <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-700 dark:text-zinc-200 leading-loose font-serif">{{ $line->text }}</p>
-                                                      </div>
-                                                  @endforeach
-                                              </div>
-
-                                              @if ($hadith->ruling)
-                                                  <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                                                      <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-zinc-600 dark:text-zinc-300">{{ __('حكم الحديث') }}: </span>{{ $hadith->ruling }}</p>
-                                                  </div>
-                                              @endif
-                                         </div>
-                                     @endforeach
-
-                                     @foreach($reviewHadiths as $hadith)
-                                         @php
-                                            $currentHadithLines = $hadith->lines;
-                                            if ($hadithDay->memorize_type === 'lines') {
-                                                $currentHadithLines = $currentHadithLines->filter(function ($l) use ($hadithDay) {
-                                                    return $l->line_number >= $hadithDay->review_from_line_number && $l->line_number <= $hadithDay->review_to_line_number;
-                                                });
-                                            }
-                                            $showLineNumbers = $currentHadithLines->count() > 1;
-                                         @endphp
-                                         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-emerald-500 dark:border-r-emerald-400 shadow-sm p-5 md:p-7 space-y-4">
-                                             {{-- Hadith Header (Name), only needed when several hadiths share this day --}}
-                                             @if ($reviewHadiths->count() > 1)
-                                                 <div class="text-base font-bold text-emerald-600 dark:text-emerald-400 truncate">
-                                                     {{ $hadith->name }}
-                                                 </div>
-                                             @endif
-
-                                             @if ($hadith->sanad)
-                                                 <p class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                                                     <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ __('السند') }}: </span>{{ $hadith->sanad }}
-                                                 </p>
-                                                 <div class="border-t border-zinc-100 dark:border-zinc-800"></div>
-                                             @endif
-
-                                             <div class="space-y-3">
-                                                 @foreach($currentHadithLines as $line)
-                                                     <div class="flex items-start gap-3">
-                                                         @if ($showLineNumbers)
-                                                             <span class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-200 font-bold text-xs">{{ $line->line_number }}</span>
-                                                         @endif
-                                                         <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-loose font-serif">{{ $line->text }}</p>
-                                                     </div>
-                                                 @endforeach
+                                     <template x-if="!textLoading && textData">
+                                         <div class="space-y-8">
+                                             <div x-show="textData.previous.length && prevShown < textData.previous.length" class="flex justify-center">
+                                                 <flux:button type="button" @click="prevShown++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
+                                                     {{ __('إظهار الحديث السابق') }}
+                                                 </flux:button>
                                              </div>
 
-                                             @if ($hadith->ruling)
-                                                 <div class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                                                     <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-emerald-600 dark:text-emerald-400">{{ __('حكم الحديث') }}: </span>{{ $hadith->ruling }}</p>
+                                             <template x-for="(h, i) in textData.previous" :key="'prev-'+i">
+                                                 <div x-show="prevShown >= textData.previous.length - i" x-cloak
+                                                     class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-zinc-400 dark:border-r-zinc-500 shadow-sm p-5 md:p-7 space-y-4 opacity-60 hover:opacity-100 transition-opacity">
+                                                     <div class="flex items-center gap-2 text-base font-bold text-zinc-600 dark:text-zinc-300">
+                                                         <span class="truncate" x-text="h.name"></span>
+                                                         <span class="shrink-0 px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400">{{ __('سابق') }}</span>
+                                                     </div>
+                                                     <p x-show="h.sanad" class="text-lg text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                                         <span class="font-bold">{{ __('السند') }}: </span><span x-text="h.sanad"></span>
+                                                     </p>
+                                                     <div class="space-y-3">
+                                                         <template x-for="line in h.lines" :key="line.number">
+                                                             <div class="flex items-start gap-3">
+                                                                 <span x-show="h.lines.length > 1" class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold text-xs" x-text="line.number"></span>
+                                                                 <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-700 dark:text-zinc-200 leading-loose font-serif" x-text="line.text"></p>
+                                                             </div>
+                                                         </template>
+                                                     </div>
+                                                     <div x-show="h.ruling" class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                                         <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold">{{ __('حكم الحديث') }}: </span><span x-text="h.ruling"></span></p>
+                                                     </div>
                                                  </div>
-                                             @endif
+                                             </template>
+
+                                             <template x-for="(h, i) in textData.hadiths" :key="'cur-'+i">
+                                                 <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 shadow-sm p-5 md:p-7 space-y-4">
+                                                     <div x-show="textData.hadiths.length > 1" class="text-base font-bold text-indigo-600 dark:text-indigo-400 truncate" x-text="h.name"></div>
+                                                     <p x-show="h.sanad" class="text-lg md:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                                         <span class="font-bold text-indigo-600 dark:text-indigo-400">{{ __('السند') }}: </span><span x-text="h.sanad"></span>
+                                                     </p>
+                                                     <div class="space-y-3">
+                                                         <template x-for="line in h.lines" :key="line.number">
+                                                             <div class="flex items-start gap-3">
+                                                                 <span x-show="h.lines.length > 1" class="shrink-0 mt-2 flex items-center justify-center size-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 font-bold text-xs" x-text="line.number"></span>
+                                                                 <p class="flex-1 text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 leading-loose font-serif" x-text="line.text"></p>
+                                                             </div>
+                                                         </template>
+                                                     </div>
+                                                     <div x-show="h.ruling" class="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                                         <p class="text-sm text-zinc-500 dark:text-zinc-400"><span class="font-bold text-indigo-600 dark:text-indigo-400">{{ __('حكم الحديث') }}: </span><span x-text="h.ruling"></span></p>
+                                                     </div>
+                                                 </div>
+                                             </template>
                                          </div>
-                                     @endforeach
+                                     </template>
                                  </div>
                              </div>
-
                              {{-- Modal Footer --}}
                              <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
                                  <flux:button type="button" @click="showHadithReviewModal = false" variant="ghost">

@@ -46,12 +46,21 @@ class TasmeehDataController extends Controller
     }
 
     /**
+     * How much of what came before a day travels with it. The ode modal already
+     * capped this at five; the hadith modal capped nothing and carried every
+     * preceding hadith in the book, so a day late in a text weighed far more
+     * than a day early in it.
+     */
+    private const PREVIOUS_LIMIT = 5;
+
+    /**
      * The full text behind a day, fetched only when the teacher opens it.
      */
     public function text(Request $request, Student $student): JsonResponse
     {
         $this->authorizeStudent($student);
 
+        // "id" is a path day id, the same identifier the grading actions use.
         $validated = $request->validate([
             'kind' => 'required|in:ode,hadith',
             'id' => 'required|integer',
@@ -107,7 +116,8 @@ class TasmeehDataController extends Controller
             ->get()
             ->sortBy(fn ($a) => $a->pathDay?->day_number)
             ->map(fn (StudentOdeAchievement $achievement) => [
-                'id' => $achievement->id,
+                'id' => $achievement->ode_path_day_id,
+                'achievement_id' => $achievement->id,
                 'day_number' => $achievement->pathDay?->day_number,
                 'date' => $achievement->pathDay?->date?->format('Y-m-d'),
                 'day_name' => $achievement->pathDay?->day_name,
@@ -132,7 +142,8 @@ class TasmeehDataController extends Controller
             ->get()
             ->sortBy(fn ($a) => $a->pathDay?->day_number)
             ->map(fn (StudentHadithAchievement $achievement) => [
-                'id' => $achievement->id,
+                'id' => $achievement->hadith_path_day_id,
+                'achievement_id' => $achievement->id,
                 'day_number' => $achievement->pathDay?->day_number,
                 'date' => $achievement->pathDay?->date?->format('Y-m-d'),
                 'day_name' => $achievement->pathDay?->day_name,
@@ -150,11 +161,12 @@ class TasmeehDataController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function odeText(Student $student, int $achievementId, string $part): array
+    private function odeText(Student $student, int $pathDayId, string $part): array
     {
         $achievement = StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+            ->where('ode_path_day_id', $pathDayId)
             ->with('pathDay', 'plan.path')
-            ->findOrFail($achievementId);
+            ->firstOrFail();
 
         $day = $achievement->pathDay;
         $from = $part === 'review' ? $day?->review_from_verse_number : $day?->from_verse_number;
@@ -167,24 +179,34 @@ class TasmeehDataController extends Controller
                 ->get(['verse_number', 'sadr', 'ajuz'])
             : collect();
 
+        $previous = $from > 1
+            ? OdeVerse::where('ode_id', $achievement->plan?->path?->ode_id)
+                ->where('verse_number', '<', $from)
+                ->orderByDesc('verse_number')
+                ->limit(self::PREVIOUS_LIMIT)
+                ->get(['verse_number', 'sadr', 'ajuz'])
+                ->sortBy('verse_number')
+                ->values()
+            : collect();
+
+        $shape = fn ($v) => ['number' => $v->verse_number, 'sadr' => $v->sadr, 'ajuz' => $v->ajuz];
+
         return [
             'title' => $achievement->formatOdeRange($part),
-            'verses' => $verses->map(fn ($v) => [
-                'number' => $v->verse_number,
-                'sadr' => $v->sadr,
-                'ajuz' => $v->ajuz,
-            ])->all(),
+            'verses' => $verses->map($shape)->values()->all(),
+            'previous' => $previous->map($shape)->values()->all(),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function hadithText(Student $student, int $achievementId, string $part): array
+    private function hadithText(Student $student, int $pathDayId, string $part): array
     {
         $achievement = StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+            ->where('hadith_path_day_id', $pathDayId)
             ->with('pathDay', 'plan.path')
-            ->findOrFail($achievementId);
+            ->firstOrFail();
 
         $day = $achievement->pathDay;
         $fromId = $part === 'review' ? $day?->review_from_hadith_id : $day?->from_hadith_id;
@@ -193,6 +215,7 @@ class TasmeehDataController extends Controller
         $toLine = $part === 'review' ? $day?->review_to_line_number : $day?->to_line_number;
 
         $hadiths = collect();
+        $previous = collect();
 
         if ($fromId) {
             $textId = $achievement->plan?->path?->hadith_text_id;
@@ -213,22 +236,26 @@ class TasmeehDataController extends Controller
             if ($start !== false) {
                 $end = $end === false ? $start : $end;
                 $hadiths = $ordered->slice(min($start, $end), abs($end - $start) + 1);
+                $previous = $ordered->slice(max(0, $start - self::PREVIOUS_LIMIT), min($start, self::PREVIOUS_LIMIT));
             }
         }
 
+        $shape = fn (Hadith $hadith) => [
+            'name' => $hadith->name,
+            'sanad' => $hadith->sanad,
+            'ruling' => $hadith->ruling,
+            'lines' => $hadith->lines
+                ->when($fromLine && $toLine && $hadith->id === $fromId,
+                    fn ($lines) => $lines->whereBetween('line_number', [$fromLine, $toLine]))
+                ->sortBy('line_number')
+                ->map(fn ($line) => ['number' => $line->line_number, 'text' => $line->text])
+                ->values()->all(),
+        ];
+
         return [
             'title' => $achievement->formatHadithRange($part),
-            'hadiths' => $hadiths->map(fn (Hadith $hadith) => [
-                'name' => $hadith->name,
-                'sanad' => $hadith->sanad,
-                'ruling' => $hadith->ruling,
-                'lines' => $hadith->lines
-                    ->when($fromLine && $toLine && $hadith->id === $fromId,
-                        fn ($lines) => $lines->whereBetween('line_number', [$fromLine, $toLine]))
-                    ->sortBy('line_number')
-                    ->map(fn ($line) => ['number' => $line->line_number, 'text' => $line->text])
-                    ->values()->all(),
-            ])->values()->all(),
+            'hadiths' => $hadiths->map($shape)->values()->all(),
+            'previous' => $previous->map($shape)->values()->all(),
         ];
     }
 
