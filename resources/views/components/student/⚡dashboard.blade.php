@@ -49,6 +49,11 @@ new class extends Component {
 
         // Fetch Earliest Pending Hadith Missions (one per active Hadith plan)
         $activeHadithPlans = \App\Models\StudentHadithPlan::where('student_id', $student->id)->where('status', 'active')->get();
+
+        // Ode plans had no place on this dashboard at all, so the student could
+        // not reach one from here.
+        $activeOdePlans = \App\Models\StudentOdePlan::where('student_id', $student->id)
+            ->where('status', 'active')->with('path.ode')->get();
         $pendingHadithMissions = [];
         foreach ($activeHadithPlans as $plan) {
             $mission = \App\Models\HadithPathDay::with(['fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
@@ -381,6 +386,8 @@ new class extends Component {
             'pendingHifzMission' => $pendingHifzMission,
             'pendingReviewMission' => $pendingReviewMission,
             'pendingHadithMissions' => $pendingHadithMissions,
+            'activeHadithPlans' => $activeHadithPlans,
+            'activeOdePlans' => $activeOdePlans,
             'excellent' => $excellent,
             'good' => $good,
             'acceptable' => $acceptable,
@@ -1489,12 +1496,22 @@ new class extends Component {
                     <!-- Pending Missions Widget -->
                     @if (count($pendingMissions) > 0)
                         <div class="space-y-6" id="today-mission">
-                            <flux:heading size="xl" class="flex items-center gap-3">
-                                <div class="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
-                                    <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
-                                </div>
-                                {{ __('المهام القرآنية المجدولة') }}
-                            </flux:heading>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <flux:heading size="xl" class="flex items-center gap-3">
+                                    <div class="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/20">
+                                        <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
+                                    </div>
+                                    {{ __('المهام القرآنية المجدولة') }}
+                                </flux:heading>
+
+                                {{-- One link per plan, not per pending part, so it is not offered twice. --}}
+                                @foreach (collect($pendingMissions)->pluck('plan')->unique('id') as $plan)
+                                    <flux:button as="a" href="{{ route('student.plan.print', ['kind' => 'quran', 'id' => $plan->id]) }}"
+                                        icon="printer" size="sm" variant="ghost">
+                                        {{ __('عرض وطباعة الخطة') }}
+                                    </flux:button>
+                                @endforeach
+                            </div>
 
                             <flux:card
                                 class="bg-gradient-to-br from-emerald-500 to-teal-600 border-none text-white overflow-hidden relative shadow-lg shadow-emerald-600/20 p-0">
@@ -1741,14 +1758,59 @@ new class extends Component {
                         @endif
 
                         {{-- Hadith plans daily rendering --}}
-                        @if (count($pendingHadithMissions) > 0)
-                            <div class="space-y-6 mt-6">
+                        {{--
+                            Ode plans had no section here, so a student following one
+                            could not open it. Their days live on a shared path with the
+                            grades kept separately, so this offers the plan itself rather
+                            than restating the mission cards above.
+                        --}}
+                        @if ($activeOdePlans->isNotEmpty())
+                            <div class="space-y-4 mt-6">
                                 <flux:heading size="xl" class="flex items-center gap-3">
-                                    <div class="p-2 bg-rose-500 rounded-lg shadow-lg shadow-rose-500/20">
+                                    <div class="p-2 bg-purple-500 rounded-lg shadow-lg shadow-purple-500/20">
                                         <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
                                     </div>
-                                    {{ __('مهام حفظ الحديث المجدولة') }}
+                                    {{ __('خطط المنظومات') }}
                                 </flux:heading>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    @foreach ($activeOdePlans as $odePlan)
+                                        <div class="rounded-2xl border border-purple-100 dark:border-purple-900/40 bg-purple-50/40 dark:bg-purple-950/20 p-5 flex items-center justify-between gap-3">
+                                            <div>
+                                                <div class="font-bold text-zinc-800 dark:text-zinc-100">
+                                                    {{ $odePlan->path?->ode?->name ?? __('منظومة') }}
+                                                </div>
+                                                <div class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                                    {{ $odePlan->path?->name }}
+                                                </div>
+                                            </div>
+                                            <flux:button as="a" href="{{ route('student.plan.print', ['kind' => 'ode', 'id' => $odePlan->id]) }}"
+                                                icon="printer" size="sm" variant="ghost" class="shrink-0">
+                                                {{ __('عرض وطباعة الخطة') }}
+                                            </flux:button>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        @if (count($pendingHadithMissions) > 0)
+                            <div class="space-y-6 mt-6">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <flux:heading size="xl" class="flex items-center gap-3">
+                                        <div class="p-2 bg-rose-500 rounded-lg shadow-lg shadow-rose-500/20">
+                                            <flux:icon icon="sparkles" class="size-6 text-white" variant="solid" />
+                                        </div>
+                                        {{ __('مهام حفظ الحديث المجدولة') }}
+                                    </flux:heading>
+
+                                    @foreach ($activeHadithPlans as $hadithPlan)
+                                        <flux:button as="a" href="{{ route('student.plan.print', ['kind' => 'hadith', 'id' => $hadithPlan->id]) }}"
+                                            icon="printer" size="sm" variant="ghost">
+                                            {{ __('عرض وطباعة الخطة') }}
+                                        </flux:button>
+                                    @endforeach
+                                </div>
 
                                 <flux:card
                                     class="bg-gradient-to-br from-rose-500 to-red-600 border-none text-white overflow-hidden relative shadow-lg shadow-rose-600/20 p-0">

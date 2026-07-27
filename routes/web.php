@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Manager\BackupController;
+use App\Http\Controllers\Student\StudentPlanPrintController;
 use App\Http\Controllers\Teacher\TasmeehDataController;
 use App\Livewire\Auth\Student\Register;
 use App\Livewire\Manager\PendingApprovals;
@@ -277,6 +278,12 @@ Route::middleware(['auth:student', 'approved', 'page.enabled'])->prefix('student
     Route::view('/plan', 'student.my-plan')->name('plan');
     Route::view('/plan/create', 'student.plan-creator')->name('plan-creator');
     Route::view('/plan/show/{id}', 'student.show-plan')->name('show-plan');
+
+    // A printable plan the student can read and hand in, with each graded day
+    // carrying the colour of its grade.
+    Route::get('/plan/{kind}/{id}/print', [StudentPlanPrintController::class, 'show'])
+        ->whereIn('kind', ['quran', 'ode', 'hadith'])
+        ->name('plan.print');
     Route::view('/attendance', 'student.attendance')->name('attendance');
     Route::view('/hifz', 'student.hifz')->name('hifz');
     Route::view('/review', 'student.review')->name('review');
