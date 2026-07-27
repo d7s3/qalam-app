@@ -82,6 +82,10 @@ new class extends Component {
         }
 
         Flux::toast('تم حفظ التقييم', variant: 'success');
+
+        // The button already shows the new grade, and nothing else on screen
+        // depends on it. Re-rendering would resend every day of every plan.
+        $this->skipRender();
     }
 
     public function saveOdeAchievement($pathDayId, $type, $value)
@@ -137,6 +141,9 @@ new class extends Component {
         }
 
         Flux::toast('تم حفظ تقييم المنظومة بنجاح', variant: 'success');
+
+        // Same reason as saveAchievement: the button already shows the grade.
+        $this->skipRender();
     }
 
     public function saveHadithAchievement($pathDayId, $type, $value)
@@ -192,6 +199,9 @@ new class extends Component {
         }
 
         Flux::toast('تم حفظ تقييم الحديث بنجاح', variant: 'success');
+
+        // Same reason as saveAchievement: the button already shows the grade.
+        $this->skipRender();
     }
 
     // --- Path & track enrollment (teacher, permission-gated) -------------------
@@ -796,10 +806,32 @@ new class extends Component {
         </div>
     @endif
 
+    @php
+        /**
+         * The four grades, with the classes for the selected and unselected
+         * states. "لم يسمع" is the null value, which JavaScript compares with
+         * === just as happily as the numbers do.
+         */
+        $gradeChoices = [
+            ['js' => '3', 'label' => __('ممتاز'), 'active' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300', 'inactive' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'],
+            ['js' => '2', 'label' => __('جيد'), 'active' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300', 'inactive' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'],
+            ['js' => '1', 'label' => __('مقبول'), 'active' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300', 'inactive' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'],
+            ['js' => 'null', 'label' => __('لم يسمع'), 'active' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300', 'inactive' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'],
+        ];
+    @endphp
+
     @if($sPlans->isNotEmpty())
         @foreach($days as $day)
             @php $currentDay = $day; @endphp
-            <flux:card wire:key="day-card-{{ $day->id }}" x-show="activeDayId == {{ $day->id }}" x-data="{ syncingTask: null }" class="mt-2 border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveAchievement">
+            {{--
+                The grade lives in Alpine so a tap highlights instantly, and the
+                server skips re-rendering: this component holds every day of every
+                plan, so a re-render ships megabytes for a two-column change.
+            --}}
+            <flux:card wire:key="day-card-{{ $day->id }}" x-show="activeDayId == {{ $day->id }}"
+                x-data="{ syncing: null, hifz: {{ $day->hifz_achievement ?? 'null' }}, review: {{ $day->review_achievement ?? 'null' }} }"
+                x-bind:class="syncing && 'opacity-70'"
+                class="mt-2 border-zinc-200 dark:border-zinc-700 transition-opacity">
 
                 {{-- Day navigation --}}
                 <div class="flex items-center justify-between mb-4 md:mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-3 md:pb-4">
@@ -895,25 +927,12 @@ new class extends Component {
                                 <flux:label class="mb-2 md:mb-3 text-xs md:text-sm font-semibold">{{ __('تقييم الإنجاز (التسميع)') }}</flux:label>
                                 {{-- Four across even on a phone: two rows of grade buttons pushed the review card off-screen. --}}
                                 <div class="grid grid-cols-4 gap-1.5 md:gap-2">
-                                    <button type="button" @click="syncingTask = 'hifz-3'; await $wire.saveAchievement({{ $currentDay->id }}, 'hifz', 3); syncingTask = null"
-                                        :disabled="syncingTask !== null"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
-                                        :class="syncingTask === 'hifz-3' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->hifz_achievement === 3 ? 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">ممتاز</button>
-
-                                    <button type="button" @click="syncingTask = 'hifz-2'; await $wire.saveAchievement({{ $currentDay->id }}, 'hifz', 2); syncingTask = null"
-                                        :disabled="syncingTask !== null"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
-                                        :class="syncingTask === 'hifz-2' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->hifz_achievement === 2 ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">جيد</button>
-
-                                    <button type="button" @click="syncingTask = 'hifz-1'; await $wire.saveAchievement({{ $currentDay->id }}, 'hifz', 1); syncingTask = null"
-                                        :disabled="syncingTask !== null"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
-                                        :class="syncingTask === 'hifz-1' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->hifz_achievement === 1 ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">مقبول</button>
-
-                                    <button type="button" @click="syncingTask = 'hifz-null'; await $wire.saveAchievement({{ $currentDay->id }}, 'hifz', null); syncingTask = null"
-                                        :disabled="syncingTask !== null"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
-                                        :class="syncingTask === 'hifz-null' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->hifz_achievement === null ? 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">لم يسمع</button>
+                                    @foreach ($gradeChoices as $choice)
+                                        <button type="button"
+                                            @click="hifz = {{ $choice['js'] }}; syncing = 'hifz'; $wire.saveAchievement({{ $currentDay->id }}, 'hifz', {{ $choice['js'] }}).finally(() => syncing = null)"
+                                            class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base"
+                                            :class="hifz === {{ $choice['js'] }} ? '{{ $choice['active'] }}' : '{{ $choice['inactive'] }}'">{{ $choice['label'] }}</button>
+                                    @endforeach
                                 </div>
                             </div>
                         </div>
@@ -996,25 +1015,12 @@ new class extends Component {
                                 <flux:label class="mb-2 md:mb-3 text-xs md:text-sm font-semibold">{{ __('تقييم الإنجاز (التسميع)') }}</flux:label>
                                 {{-- Four across even on a phone: two rows of grade buttons pushed the review card off-screen. --}}
                                 <div class="grid grid-cols-4 gap-1.5 md:gap-2">
-                                    <button type="button" @click="syncingTask = 'review-3'; await $wire.saveAchievement({{ $currentDay->id }}, 'review', 3); syncingTask = null"
-                                        :disabled="syncingTask !== null"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
-                                        :class="syncingTask === 'review-3' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->review_achievement === 3 ? 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">ممتاز</button>
-
-                                    <button type="button" @click="syncingTask = 'review-2'; await $wire.saveAchievement({{ $currentDay->id }}, 'review', 2); syncingTask = null"
-                                        :disabled="syncingTask !== null"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
-                                        :class="syncingTask === 'review-2' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->review_achievement === 2 ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">جيد</button>
-
-                                    <button type="button" @click="syncingTask = 'review-1'; await $wire.saveAchievement({{ $currentDay->id }}, 'review', 1); syncingTask = null"
-                                        :disabled="syncingTask !== null"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
-                                        :class="syncingTask === 'review-1' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->review_achievement === 1 ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">مقبول</button>
-
-                                    <button type="button" @click="syncingTask = 'review-null'; await $wire.saveAchievement({{ $currentDay->id }}, 'review', null); syncingTask = null"
-                                        :disabled="syncingTask !== null"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
-                                        :class="syncingTask === 'review-null' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->review_achievement === null ? 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">لم يسمع</button>
+                                    @foreach ($gradeChoices as $choice)
+                                        <button type="button"
+                                            @click="review = {{ $choice['js'] }}; syncing = 'review'; $wire.saveAchievement({{ $currentDay->id }}, 'review', {{ $choice['js'] }}).finally(() => syncing = null)"
+                                            class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base"
+                                            :class="review === {{ $choice['js'] }} ? '{{ $choice['active'] }}' : '{{ $choice['inactive'] }}'">{{ $choice['label'] }}</button>
+                                    @endforeach
                                 </div>
                             </div>
                         </div>
@@ -1077,10 +1083,10 @@ new class extends Component {
                     })->values()->slice(-5)->values();
                 }
             @endphp
-            <div wire:key="ode-day-card-container-{{ $odeDay->id }}" x-show="activeOdeDayId == {{ $odeDay->id }}" class="mt-4" x-data="{ showHifzModal: false, showReviewModal: false, prevHifzCount: 0, prevReviewCount: 0 }">
+            <div wire:key="ode-day-card-container-{{ $odeDay->id }}" x-show="activeOdeDayId == {{ $odeDay->id }}" class="mt-4" x-data="{ showHifzModal: false, showReviewModal: false, prevHifzCount: 0, prevReviewCount: 0, syncing: null, hifz: {{ $odeDay->hifz_achievement ?? 'null' }}, review: {{ $odeDay->review_achievement ?? 'null' }} }">
 
                 {{-- Unified Card --}}
-                <flux:card x-data="{ syncingTask: null }" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveOdeAchievement">
+                <flux:card x-bind:class="syncing && 'opacity-70'" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between transition-opacity">
 
                     {{-- Day navigation --}}
                     <div class="flex items-center justify-between mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-4 shrink-0">
@@ -1165,10 +1171,9 @@ new class extends Component {
                                                     $inactiveClass = $item['inactiveClass'];
                                                 @endphp
                                                 <button type="button" 
-                                                    @click="syncingTask = 'ode-hifz-{{ $val ?? 'null' }}'; await $wire.saveOdeAchievement({{ $odeDay->id }}, 'hifz', {{ $val ?? 'null' }}); syncingTask = null"
-                                                    :disabled="syncingTask !== null"
-                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
-                                                    :class="syncingTask === 'ode-hifz-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $odeDay->hifz_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                    @click="hifz = {{ $val ?? 'null' }}; syncing = 'hifz'; $wire.saveOdeAchievement({{ $odeDay->id }}, 'hifz', {{ $val ?? 'null' }}).finally(() => syncing = null)"
+                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs"
+                                                    :class="hifz === {{ $val ?? 'null' }} ? '{{ $activeClass }}' : '{{ $inactiveClass }}'">
                                                     {{ $lbl }}
                                                 </button>
                                         @endforeach
@@ -1239,10 +1244,9 @@ new class extends Component {
                                                     $inactiveClass = $item['inactiveClass'];
                                                 @endphp
                                                 <button type="button" 
-                                                    @click="syncingTask = 'ode-review-{{ $val ?? 'null' }}'; await $wire.saveOdeAchievement({{ $odeDay->id }}, 'review', {{ $val ?? 'null' }}); syncingTask = null"
-                                                    :disabled="syncingTask !== null"
-                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
-                                                    :class="syncingTask === 'ode-review-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $odeDay->review_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                    @click="review = {{ $val ?? 'null' }}; syncing = 'review'; $wire.saveOdeAchievement({{ $odeDay->id }}, 'review', {{ $val ?? 'null' }}).finally(() => syncing = null)"
+                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs"
+                                                    :class="review === {{ $val ?? 'null' }} ? '{{ $activeClass }}' : '{{ $inactiveClass }}'">
                                                     {{ $lbl }}
                                                 </button>
                                         @endforeach
@@ -1513,10 +1517,10 @@ new class extends Component {
                     ? $allHadiths->slice(0, $firstReviewIdx)->values()
                     : collect();
             @endphp
-            <div wire:key="hadith-day-card-container-{{ $hadithDay->id }}" x-show="activeHadithDayId == {{ $hadithDay->id }}" class="mt-4" x-data="{ showHadithHifzModal: false, showHadithReviewModal: false, hifzPrevCount: 0, reviewPrevCount: 0 }">
+            <div wire:key="hadith-day-card-container-{{ $hadithDay->id }}" x-show="activeHadithDayId == {{ $hadithDay->id }}" class="mt-4" x-data="{ showHadithHifzModal: false, showHadithReviewModal: false, hifzPrevCount: 0, reviewPrevCount: 0, syncing: null, hifz: {{ $hadithDay->hifz_achievement ?? 'null' }}, review: {{ $hadithDay->review_achievement ?? 'null' }} }">
 
                 {{-- Unified Card --}}
-                <flux:card x-data="{ syncingTask: null }" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveHadithAchievement">
+                <flux:card x-bind:class="syncing && 'opacity-70'" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between transition-opacity">
 
                     {{-- Day navigation --}}
                     <div class="flex items-center justify-between mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-4 shrink-0">
@@ -1595,10 +1599,9 @@ new class extends Component {
                                                     $inactiveClass = $item['inactiveClass'];
                                                 @endphp
                                                 <button type="button" 
-                                                    @click="syncingTask = 'hadith-hifz-{{ $val ?? 'null' }}'; await $wire.saveHadithAchievement({{ $hadithDay->id }}, 'hifz', {{ $val ?? 'null' }}); syncingTask = null"
-                                                    :disabled="syncingTask !== null"
-                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
-                                                    :class="syncingTask === 'hadith-hifz-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $hadithDay->hifz_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                    @click="hifz = {{ $val ?? 'null' }}; syncing = 'hifz'; $wire.saveHadithAchievement({{ $hadithDay->id }}, 'hifz', {{ $val ?? 'null' }}).finally(() => syncing = null)"
+                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs"
+                                                    :class="hifz === {{ $val ?? 'null' }} ? '{{ $activeClass }}' : '{{ $inactiveClass }}'">
                                                     {{ $lbl }}
                                                 </button>
                                         @endforeach
@@ -1664,10 +1667,9 @@ new class extends Component {
                                                     $inactiveClass = $item['inactiveClass'];
                                                 @endphp
                                                 <button type="button" 
-                                                    @click="syncingTask = 'hadith-review-{{ $val ?? 'null' }}'; await $wire.saveHadithAchievement({{ $hadithDay->id }}, 'review', {{ $val ?? 'null' }}); syncingTask = null"
-                                                    :disabled="syncingTask !== null"
-                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs disabled:opacity-50 disabled:cursor-wait"
-                                                    :class="syncingTask === 'hadith-review-{{ $val ?? 'null' }}' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $hadithDay->review_achievement === $val ? $activeClass : $inactiveClass }}'">
+                                                    @click="review = {{ $val ?? 'null' }}; syncing = 'review'; $wire.saveHadithAchievement({{ $hadithDay->id }}, 'review', {{ $val ?? 'null' }}).finally(() => syncing = null)"
+                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs"
+                                                    :class="review === {{ $val ?? 'null' }} ? '{{ $activeClass }}' : '{{ $inactiveClass }}'">
                                                     {{ $lbl }}
                                                 </button>
                                         @endforeach

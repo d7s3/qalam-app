@@ -103,3 +103,49 @@ it('keeps the tasmeeh-manager initial render cheap (no per-card plan-day queries
 
     expect($loadedAllPlanDaysWithAyahs)->toBeFalse();
 });
+
+/**
+ * The card holds every day of every plan at once, so a re-render ships
+ * megabytes. Grading a day changes nothing else on screen — the button
+ * highlights itself from Alpine state — so the response must carry no HTML.
+ */
+it('saves a grade without re-rendering the whole card', function () {
+    $day = StudentPlanDay::where('student_plan_id', $this->plan->id)->first();
+
+    $component = Livewire::test('teacher.⚡student-tasmeeh-card', [
+        'student' => $this->student,
+        'sPlans' => StudentPlan::where('student_id', $this->student->id)->latest()->get(),
+        'activePlanId' => $this->plan->id,
+    ])->call('saveAchievement', $day->id, 'hifz', 3);
+
+    expect($component->effects)->not->toHaveKey('html');
+
+    // The grade still lands, and is credited with a grading time.
+    $day->refresh();
+    expect($day->hifz_achievement)->toBe(3)
+        ->and($day->hifz_graded_at)->not->toBeNull();
+});
+
+it('drives the grade highlight from client state so a tap shows at once', function () {
+    $html = Livewire::test('teacher.⚡student-tasmeeh-card', [
+        'student' => $this->student,
+        'sPlans' => StudentPlan::where('student_id', $this->student->id)->latest()->get(),
+        'activePlanId' => $this->plan->id,
+    ])->html();
+
+    // The selected state is bound to Alpine, not baked in by the server.
+    expect($html)->toContain('hifz === 3 ?')
+        ->and($html)->toContain('review === null ?');
+});
+
+it('leaves no grade button waiting on a server round trip to highlight', function () {
+    $html = Livewire::test('teacher.⚡student-tasmeeh-card', [
+        'student' => $this->student,
+        'sPlans' => StudentPlan::where('student_id', $this->student->id)->latest()->get(),
+        'activePlanId' => $this->plan->id,
+    ])->html();
+
+    // The old markup disabled every grade button until the server replied.
+    expect($html)->not->toContain('syncingTask')
+        ->and($html)->not->toContain('disabled:cursor-wait');
+});
