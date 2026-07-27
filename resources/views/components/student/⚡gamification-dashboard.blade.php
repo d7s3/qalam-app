@@ -767,19 +767,28 @@ new class extends Component {
         // Fetch Earliest Pending Missions (one per active approved plan)
         $activeApprovedPlans = \App\Models\StudentPlan::where('student_id', $student->id)->where('status', 'active')->where('is_approved', 1)->get();
 
+        /*
+         * Hifz and review advance at their own pace, so each gets its own
+         * earliest ungraded day. Taking the single earliest day with either
+         * part ungraded showed only whichever was further behind, and hid the
+         * other one entirely. See the same note on the main dashboard.
+         */
         $pendingMissions = [];
         foreach ($activeApprovedPlans as $plan) {
-            $mission = \App\Models\StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah'])
-                ->where('student_plan_id', $plan->id)
-                ->where(function ($q) {
-                    $q->whereNull('hifz_achievement')->orWhereNull('review_achievement');
-                })
-                ->orderBy('date', 'asc')
-                ->first();
+            foreach (['hifz', 'review'] as $part) {
+                $day = \App\Models\StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah'])
+                    ->where('student_plan_id', $plan->id)
+                    ->whereNull($part.'_achievement')
+                    ->orderBy('date', 'asc')
+                    ->first();
 
-            if ($mission) {
-                $mission->setRelation('plan', $plan);
-                $pendingMissions[] = $mission;
+                if (! $day) {
+                    continue;
+                }
+
+                $day->setRelation('plan', $plan);
+                $day->pendingPart = $part;
+                $pendingMissions[] = $day;
             }
         }
 
@@ -2418,7 +2427,7 @@ new class extends Component {
                                 <div>
                                     <div class="flex items-center justify-between mb-1">
                                         <flux:badge color="indigo" size="sm">
-                                            {{ $m->plan->plan_type === 'hifz' ? __('خطة حفظ') : ($m->plan->plan_type === 'review' ? __('خطة مراجعة') : __('خطة حفظ ومراجعة')) }}
+                                            {{ $m->pendingPart === 'review' ? __('مراجعة') : __('حفظ') }}
                                         </flux:badge>
                                         <span class="text-xs text-slate-400">{{ $m->day_name }} ({{ $m->date->format('Y-m-d') }})</span>
                                     </div>
@@ -2430,24 +2439,17 @@ new class extends Component {
                                 @php
                                     $hifzXP = ($activeGamification->settings['hifz_excellent'] ?? 10);
                                     $reviewXP = ($activeGamification->settings['review_excellent'] ?? 5);
-                                    $maxXP = 0;
-                                    if ($m->plan->plan_type === 'hifz') {
-                                        $maxXP = $hifzXP;
-                                    } elseif ($m->plan->plan_type === 'review') {
-                                        $maxXP = $reviewXP;
-                                    } else {
-                                        $maxXP = $hifzXP + $reviewXP;
-                                    }
+                                    $maxXP = $m->pendingPart === 'review' ? $reviewXP : $hifzXP;
                                 @endphp
                                 <div class="flex flex-col sm:flex-row items-stretch gap-4 bg-slate-50/60 rounded-xl p-3 border border-slate-100">
                                     <div class="space-y-3 flex-1">
-                                        @if($m->plan->plan_type === 'hifz' || $m->plan->plan_type === 'hifz_review')
+                                        @if($m->pendingPart === 'hifz')
                                             <div>
                                                 <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">{{ __('مقرر الحفظ:') }}</span>
                                                 <p class="text-slate-800 text-sm font-semibold mt-0.5">{{ $m->formatRange('hifz') ?? 'لا يوجد نص محدد' }}</p>
                                             </div>
                                         @endif
-                                        @if($m->plan->plan_type === 'review' || $m->plan->plan_type === 'hifz_review')
+                                        @if($m->pendingPart === 'review')
                                             <div>
                                                 <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">{{ __('مقرر المراجعة:') }}</span>
                                                 <p class="text-slate-800 text-sm font-semibold mt-0.5">{{ $m->formatRange('review') ?? 'لا يوجد نص محدد' }}</p>

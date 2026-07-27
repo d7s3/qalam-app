@@ -2169,3 +2169,50 @@ it('shows a reached-requirement auto badge as awaiting approval even without an 
         ->assertSee('اكتمل — بانتظار الاعتماد')
         ->assertDontSee('يتبقّى');
 });
+
+/**
+ * Hifz and review advance at their own pace. The dashboard used to take the
+ * single earliest day with either part ungraded, so whichever part was further
+ * behind hid the other one completely.
+ */
+it('shows the next hifz and the next review independently on the gamification dashboard', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة فصل الحفظ عن المراجعة',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(2),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'start_date' => now()->subDays(2)->format('Y-m-d'),
+        'days_count' => 3,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+        'status' => 'active',
+        'plan_type' => 'hifz_review',
+        'is_approved' => 1,
+        'created_by_role' => 'teacher',
+    ]);
+
+    // Hifz graded through day 2, review only through day 1.
+    foreach ([[0, 3, 3], [1, 3, null], [2, null, null]] as [$offset, $hifz, $review]) {
+        StudentPlanDay::create([
+            'student_plan_id' => $plan->id,
+            'date' => now()->subDays(2)->addDays($offset)->format('Y-m-d'),
+            'day_name' => 'الأحد',
+            'hifz_achievement' => $hifz,
+            'review_achievement' => $review,
+        ]);
+    }
+
+    $missions = Livewire::test('student.⚡gamification-dashboard')->viewData('pendingMissions');
+    $byPart = collect($missions)->keyBy('pendingPart');
+
+    expect($missions)->toHaveCount(2)
+        ->and($byPart['review']->date->format('Y-m-d'))->toBe(now()->subDays(1)->format('Y-m-d'))
+        ->and($byPart['hifz']->date->format('Y-m-d'))->toBe(now()->format('Y-m-d'));
+});

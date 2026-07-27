@@ -15,21 +15,37 @@ new class extends Component {
         // Fetch Earliest Pending Missions (one per active approved plan)
         $activeApprovedPlans = \App\Models\StudentPlan::where('student_id', $student->id)->where('status', 'active')->where('is_approved', 1)->get();
 
+        /*
+         * Hifz and review advance at their own pace: a teacher may be several
+         * days ahead on one and behind on the other. Picking the single
+         * earliest day with either part ungraded meant the student saw only
+         * whichever was further behind, and never the other one at all. Each
+         * part gets its own earliest ungraded day, and carries a marker so the
+         * card shows that part alone.
+         */
         $pendingMissions = [];
         foreach ($activeApprovedPlans as $plan) {
-            $mission = StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah'])
-                ->where('student_plan_id', $plan->id)
-                ->where(function ($q) {
-                    $q->whereNull('hifz_achievement')->orWhereNull('review_achievement');
-                })
-                ->orderBy('date', 'asc')
-                ->first();
+            foreach (['hifz', 'review'] as $part) {
+                $day = StudentPlanDay::with(['fromAyah.surah', 'toAyah.surah', 'reviewFromAyah.surah', 'reviewToAyah.surah'])
+                    ->where('student_plan_id', $plan->id)
+                    ->whereNull($part.'_achievement')
+                    ->orderBy('date', 'asc')
+                    ->first();
 
-            if ($mission) {
-                $mission->setRelation('plan', $plan);
-                $pendingMissions[] = $mission;
+                if (! $day) {
+                    continue;
+                }
+
+                $day->setRelation('plan', $plan);
+                $day->pendingPart = $part;
+                $pendingMissions[] = $day;
             }
         }
+
+        // Named so the summary and hero cards never read hifz fields off a
+        // review day, which would show a range the student already recited.
+        $pendingHifzMission = collect($pendingMissions)->firstWhere('pendingPart', 'hifz');
+        $pendingReviewMission = collect($pendingMissions)->firstWhere('pendingPart', 'review');
 
         // Fetch Earliest Pending Hadith Missions (one per active Hadith plan)
         $activeHadithPlans = \App\Models\StudentHadithPlan::where('student_id', $student->id)->where('status', 'active')->get();
@@ -362,6 +378,8 @@ new class extends Component {
             'totalStudyHours' => $student->totalStudyHours(),
             'studentLevel' => $studentLevel,
             'pendingMissions' => $pendingMissions,
+            'pendingHifzMission' => $pendingHifzMission,
+            'pendingReviewMission' => $pendingReviewMission,
             'pendingHadithMissions' => $pendingHadithMissions,
             'excellent' => $excellent,
             'good' => $good,
@@ -607,14 +625,14 @@ new class extends Component {
                                 </div>
                             </div>
 
-                            @if(!empty($pendingMissions))
+                            @if($pendingHifzMission)
                                 <div class="mt-6 pt-5 border-t border-zinc-100 dark:border-zinc-800">
                                     <div class="flex items-center justify-between text-xs mb-2">
                                         <span class="text-zinc-500 dark:text-zinc-400">{{ __('الهدف التالي') }}</span>
                                         <span class="font-bold text-zinc-700 dark:text-zinc-200">{{ round($memorizationPercentage) }}%</span>
                                     </div>
                                     <p class="text-sm font-bold text-zinc-800 dark:text-zinc-100 mb-2">
-                                        {{ $pendingMissions[0]->fromAyah?->surah?->name_arabic }} - {{ __('من الآية :from إلى الآية :to', ['from' => $pendingMissions[0]->fromAyah?->verse_number, 'to' => $pendingMissions[0]->toAyah?->verse_number]) }}
+                                        {{ $pendingHifzMission->fromAyah?->surah?->name_arabic }} - {{ __('من الآية :from إلى الآية :to', ['from' => $pendingHifzMission->fromAyah?->verse_number, 'to' => $pendingHifzMission->toAyah?->verse_number]) }}
                                     </p>
                                     <div class="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                                         <div class="h-full bg-maroon rounded-full" style="width: {{ min(100, round($memorizationPercentage)) }}%"></div>
@@ -649,13 +667,13 @@ new class extends Component {
                     @php
                         $assignmentItems = collect();
                         foreach ($pendingMissions as $mission) {
-                            if (is_null($mission->hifz_achievement) && $mission->fromAyah && $mission->toAyah) {
+                            if ($mission->pendingPart === 'hifz' && $mission->fromAyah && $mission->toAyah) {
                                 $assignmentItems->push([
                                     'title' => __('حفظ آيات جديدة'),
                                     'detail' => $mission->fromAyah->surah->name_arabic.' - '.__('من الآية :from إلى الآية :to', ['from' => $mission->fromAyah->verse_number, 'to' => $mission->toAyah->verse_number]),
                                 ]);
                             }
-                            if (is_null($mission->review_achievement) && $mission->reviewFromAyah && $mission->reviewToAyah) {
+                            if ($mission->pendingPart === 'review' && $mission->reviewFromAyah && $mission->reviewToAyah) {
                                 $assignmentItems->push([
                                     'title' => __('مراجعة الآيات المحفوظة'),
                                     'detail' => $mission->reviewFromAyah->surah->name_arabic.' - '.__('من الآية :from إلى الآية :to', ['from' => $mission->reviewFromAyah->verse_number, 'to' => $mission->reviewToAyah->verse_number]),
@@ -784,7 +802,8 @@ new class extends Component {
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div class="lg:col-span-2 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/20 dark:to-zinc-900 p-6">
                     @php
-                        $heroMission = $pendingMissions[0] ?? null;
+                        // Prefer the next hifz; fall back to the next review when hifz is done.
+                        $heroMission = $pendingHifzMission ?? $pendingReviewMission;
                         $heroHadithMission = $pendingHadithMissions[0] ?? null;
                     @endphp
                     @if($heroMission)
@@ -793,9 +812,9 @@ new class extends Component {
                             {{ __('مهمة اليوم') }}
                         </div>
                         <div class="text-xl font-bold text-zinc-800 dark:text-zinc-100 mb-1">
-                            {{ $heroMission->formatRange('hifz') ?? __('حفظ مقطع جديد') }}
+                            {{ $heroMission->formatRange($heroMission->pendingPart) ?? __('حفظ مقطع جديد') }}
                         </div>
-                        <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{{ __('حفظ') }}</p>
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{{ $heroMission->pendingPart === 'review' ? __('مراجعة') : __('حفظ') }}</p>
                         <flux:button href="#today-mission" variant="primary" icon="play" class="!bg-emerald-600 hover:!bg-emerald-700">
                             {{ __('ابدأ الآن') }}
                         </flux:button>
@@ -1517,7 +1536,7 @@ new class extends Component {
                                                 </div>
 
                                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    @if ($pendingMission->from_ayah_id && $pendingMission->to_ayah_id)
+                                                    @if ($pendingMission->pendingPart === 'hifz' && $pendingMission->from_ayah_id && $pendingMission->to_ayah_id)
                                                         <div>
                                                             <div class="flex justify-between items-center mb-1">
                                                                 <div class="text-emerald-100 text-sm">{{ __('مقرر الحفظ') }}</div>
@@ -1604,7 +1623,7 @@ new class extends Component {
                                                         </div>
                                                     @endif
 
-                                                    @if ($pendingMission->review_from_ayah_id && $pendingMission->review_to_ayah_id)
+                                                    @if ($pendingMission->pendingPart === 'review' && $pendingMission->review_from_ayah_id && $pendingMission->review_to_ayah_id)
                                                         <div>
                                                             <div class="flex justify-between items-center mb-1">
                                                                 <div class="text-emerald-100 text-sm">{{ __('مقرر المراجعة') }}</div>
