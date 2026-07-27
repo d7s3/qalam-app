@@ -1,0 +1,289 @@
+<?php
+
+namespace App\Http\Controllers\Teacher;
+
+use App\Http\Controllers\Controller;
+use App\Models\Circle;
+use App\Models\Hadith;
+use App\Models\OdeVerse;
+use App\Models\Student;
+use App\Models\StudentHadithAchievement;
+use App\Models\StudentOdeAchievement;
+use App\Models\StudentPlan;
+use App\Models\StudentPlanDay;
+use App\Models\Surah;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+/**
+ * The tasmeeh card's data, as JSON.
+ *
+ * The card used to arrive as server-rendered HTML carrying every day of every
+ * plan at once — 2.4 MB for one student, two thirds of it the hadith texts
+ * embedded in each day's modal. The same days as JSON are a few kilobytes,
+ * so the browser fetches the days and renders them itself, and the long texts
+ * are only fetched when a teacher actually opens one.
+ *
+ * Range wording and grade values stay server-side and travel pre-formatted, so
+ * the client never reimplements how a range reads.
+ */
+class TasmeehDataController extends Controller
+{
+    /**
+     * Every plan day of one student, across Quran, odes and mutun.
+     */
+    public function days(Student $student): JsonResponse
+    {
+        $this->authorizeStudent($student);
+
+        return response()->json([
+            'student' => ['id' => $student->id, 'name' => $student->name],
+            'quran_plans' => $this->quranPlans($student),
+            'ode_days' => $this->odeDays($student),
+            'hadith_days' => $this->hadithDays($student),
+        ]);
+    }
+
+    /**
+     * The full text behind a day, fetched only when the teacher opens it.
+     */
+    public function text(Request $request, Student $student): JsonResponse
+    {
+        $this->authorizeStudent($student);
+
+        $validated = $request->validate([
+            'kind' => 'required|in:ode,hadith',
+            'id' => 'required|integer',
+            'part' => 'required|in:hifz,review',
+        ]);
+
+        return response()->json(
+            $validated['kind'] === 'ode'
+                ? $this->odeText($student, (int) $validated['id'], $validated['part'])
+                : $this->hadithText($student, (int) $validated['id'], $validated['part'])
+        );
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function quranPlans(Student $student): array
+    {
+        return StudentPlan::where('student_id', $student->id)
+            ->with(['days' => fn ($q) => $q->orderBy('date')])
+            ->with('days.fromAyah.surah', 'days.toAyah.surah', 'days.reviewFromAyah.surah', 'days.reviewToAyah.surah')
+            ->latest()
+            ->get()
+            ->map(fn (StudentPlan $plan) => [
+                'id' => $plan->id,
+                'type' => $plan->plan_type,
+                'start_date' => $plan->start_date?->format('Y-m-d'),
+                'days' => $plan->days->map(fn (StudentPlanDay $day) => [
+                    'id' => $day->id,
+                    'date' => $day->date?->format('Y-m-d'),
+                    'day_name' => $day->day_name,
+                    'hifz' => [
+                        'range' => $day->formatRange('hifz', false),
+                        'achievement' => $day->hifz_achievement,
+                        'links' => $this->quranLinks($day->fromAyah, $day->toAyah),
+                    ],
+                    'review' => [
+                        'range' => $day->formatRange('review', false),
+                        'achievement' => $day->review_achievement,
+                        'links' => $this->quranLinks($day->reviewFromAyah, $day->reviewToAyah),
+                    ],
+                ])->all(),
+            ])->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function odeDays(Student $student): array
+    {
+        return StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id)->where('status', 'active'))
+            ->with('pathDay')
+            ->get()
+            ->sortBy(fn ($a) => $a->pathDay?->day_number)
+            ->map(fn (StudentOdeAchievement $achievement) => [
+                'id' => $achievement->id,
+                'day_number' => $achievement->pathDay?->day_number,
+                'date' => $achievement->pathDay?->date?->format('Y-m-d'),
+                'day_name' => $achievement->pathDay?->day_name,
+                'hifz' => [
+                    'range' => $achievement->formatOdeRange('hifz'),
+                    'achievement' => $achievement->hifz_achievement,
+                ],
+                'review' => [
+                    'range' => $achievement->formatOdeRange('review'),
+                    'achievement' => $achievement->review_achievement,
+                ],
+            ])->values()->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function hadithDays(Student $student): array
+    {
+        return StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id)->where('status', 'active'))
+            ->with('pathDay')
+            ->get()
+            ->sortBy(fn ($a) => $a->pathDay?->day_number)
+            ->map(fn (StudentHadithAchievement $achievement) => [
+                'id' => $achievement->id,
+                'day_number' => $achievement->pathDay?->day_number,
+                'date' => $achievement->pathDay?->date?->format('Y-m-d'),
+                'day_name' => $achievement->pathDay?->day_name,
+                'hifz' => [
+                    'range' => $achievement->formatHadithRange('hifz'),
+                    'achievement' => $achievement->hifz_achievement,
+                ],
+                'review' => [
+                    'range' => $achievement->formatHadithRange('review'),
+                    'achievement' => $achievement->review_achievement,
+                ],
+            ])->values()->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function odeText(Student $student, int $achievementId, string $part): array
+    {
+        $achievement = StudentOdeAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+            ->with('pathDay', 'plan.path')
+            ->findOrFail($achievementId);
+
+        $day = $achievement->pathDay;
+        $from = $part === 'review' ? $day?->review_from_verse_number : $day?->from_verse_number;
+        $to = $part === 'review' ? $day?->review_to_verse_number : $day?->to_verse_number;
+
+        $verses = ($from && $to)
+            ? OdeVerse::where('ode_id', $achievement->plan?->path?->ode_id)
+                ->whereBetween('verse_number', [min($from, $to), max($from, $to)])
+                ->orderBy('verse_number')
+                ->get(['verse_number', 'sadr', 'ajuz'])
+            : collect();
+
+        return [
+            'title' => $achievement->formatOdeRange($part),
+            'verses' => $verses->map(fn ($v) => [
+                'number' => $v->verse_number,
+                'sadr' => $v->sadr,
+                'ajuz' => $v->ajuz,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function hadithText(Student $student, int $achievementId, string $part): array
+    {
+        $achievement = StudentHadithAchievement::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
+            ->with('pathDay', 'plan.path')
+            ->findOrFail($achievementId);
+
+        $day = $achievement->pathDay;
+        $fromId = $part === 'review' ? $day?->review_from_hadith_id : $day?->from_hadith_id;
+        $toId = $part === 'review' ? $day?->review_to_hadith_id : $day?->to_hadith_id;
+        $fromLine = $part === 'review' ? $day?->review_from_line_number : $day?->from_line_number;
+        $toLine = $part === 'review' ? $day?->review_to_line_number : $day?->to_line_number;
+
+        $hadiths = collect();
+
+        if ($fromId) {
+            $textId = $achievement->plan?->path?->hadith_text_id;
+
+            $ordered = Hadith::with('lines')
+                ->where(function ($query) use ($textId) {
+                    $query->where('hadith_text_id', $textId)
+                        ->orWhereHas('chapter', fn ($q) => $q->where('hadith_text_id', $textId));
+                })
+                ->orderBy('hadith_chapter_id')
+                ->orderBy('id')
+                ->get();
+
+            $ids = $ordered->pluck('id')->values();
+            $start = $ids->search($fromId);
+            $end = $toId ? $ids->search($toId) : $start;
+
+            if ($start !== false) {
+                $end = $end === false ? $start : $end;
+                $hadiths = $ordered->slice(min($start, $end), abs($end - $start) + 1);
+            }
+        }
+
+        return [
+            'title' => $achievement->formatHadithRange($part),
+            'hadiths' => $hadiths->map(fn (Hadith $hadith) => [
+                'name' => $hadith->name,
+                'sanad' => $hadith->sanad,
+                'ruling' => $hadith->ruling,
+                'lines' => $hadith->lines
+                    ->when($fromLine && $toLine && $hadith->id === $fromId,
+                        fn ($lines) => $lines->whereBetween('line_number', [$fromLine, $toLine]))
+                    ->sortBy('line_number')
+                    ->map(fn ($line) => ['number' => $line->line_number, 'text' => $line->text])
+                    ->values()->all(),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * Quran.com links for a range, one per surah it spans.
+     *
+     * @return array<int, array{name: string, url: string}>
+     */
+    private function quranLinks($from, $to): array
+    {
+        if (! $from) {
+            return [];
+        }
+
+        if (! $to || $from->surah_id === $to->surah_id) {
+            $last = $to?->verse_number ?? $from->surah->verses_count;
+
+            return [[
+                'name' => $from->surah->name_arabic,
+                'url' => 'https://quran.com/ar/'.$from->surah->number.'/'.$from->verse_number.'-'.$last,
+            ]];
+        }
+
+        $low = min($from->surah_id, $to->surah_id);
+        $high = max($from->surah_id, $to->surah_id);
+
+        $surahs = Surah::whereBetween('id', [$low, $high])
+            ->orderBy('id', $from->surah_id <= $to->surah_id ? 'asc' : 'desc')
+            ->get();
+
+        return $surahs->map(function ($surah) use ($from, $to) {
+            $start = $surah->id === $from->surah_id ? $from->verse_number : 1;
+            $end = $surah->id === $to->surah_id ? $to->verse_number : $surah->verses_count;
+
+            return [
+                'name' => $surah->name_arabic,
+                'url' => 'https://quran.com/ar/'.$surah->number.'/'.$start.'-'.$end,
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * A teacher may only reach students in their own circles.
+     */
+    private function authorizeStudent(Student $student): void
+    {
+        $teacher = Auth::guard('teacher')->user();
+
+        abort_unless(
+            $teacher
+            && $student->circle_id
+            && Circle::where('id', $student->circle_id)
+                ->whereHas('teachers', fn ($q) => $q->whereKey($teacher->id))
+                ->exists(),
+            403,
+        );
+    }
+}

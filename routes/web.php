@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Manager\BackupController;
+use App\Http\Controllers\Teacher\TasmeehDataController;
 use App\Livewire\Auth\Student\Register;
 use App\Livewire\Manager\PendingApprovals;
 use App\Livewire\Public\CircleReport as PublicCircleReport;
@@ -213,6 +214,10 @@ Route::middleware(['auth:teacher', 'approved', 'page.enabled'])->prefix('teacher
     Route::get('/student-recitation-log/{studentId}', function ($studentId) {
         return view('teacher.student-recitation-log', ['studentId' => $studentId]);
     })->name('student-recitation-log');
+
+    // The tasmeeh card fetches its days as JSON and renders them in the browser.
+    Route::get('/tasmeeh/{student}/days', [TasmeehDataController::class, 'days'])->name('tasmeeh.days');
+    Route::get('/tasmeeh/{student}/text', [TasmeehDataController::class, 'text'])->name('tasmeeh.text');
 
     // Grading page route will be mapped to a view wrapper soon, for now just use view
     Route::get('/leaderboards/{id}/grade', function ($id) {
