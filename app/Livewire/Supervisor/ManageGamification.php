@@ -634,15 +634,38 @@ class ManageGamification extends Component
     }
 
     /**
-     * Replay every grading in the competition's window through the current
-     * criteria. A gamification competition scores from transactions written at
-     * grading time, so a criterion switched on afterwards leaves the gradings
-     * that came before it unscored until this runs.
+     * The recalculation cursor, or null when nothing is running. Held in the
+     * component so each step is a short request the browser drives — a real
+     * competition has thousands of gradings, minutes of work, which no single
+     * request can finish.
+     *
+     * @var array<string, mixed>|null
      */
-    public function recalculatePoints(): void
-    {
-        $counts = GamificationRecalculator::forCompetition($this->competition);
+    public ?array $recalcCursor = null;
 
+    public function startRecalculation(): void
+    {
+        $this->recalcCursor = GamificationRecalculator::start();
+    }
+
+    /**
+     * Advance the replay by one batch. Called repeatedly by the page until the
+     * cursor reports it is done.
+     */
+    public function recalculateStep(): void
+    {
+        if (! $this->recalcCursor || ($this->recalcCursor['done'] ?? false)) {
+            return;
+        }
+
+        $this->recalcCursor = GamificationRecalculator::step($this->competition, $this->recalcCursor);
+
+        if (! $this->recalcCursor['done']) {
+            return;
+        }
+
+        $counts = $this->recalcCursor['counts'];
+        $this->recalcCursor = null;
         $this->loadCompetition();
 
         if ($counts['students'] === 0) {
@@ -657,6 +680,19 @@ class ManageGamification extends Component
             ."{$counts['hadith']} متن، {$counts['attendance']} حضور.",
             variant: 'success',
         );
+    }
+
+    /** Human label for the stage currently being replayed. */
+    public function recalcStageLabel(): string
+    {
+        return match ($this->recalcCursor['stage'] ?? null) {
+            'quran' => 'تقييمات القرآن',
+            'ode' => 'تقييمات المنظومات',
+            'hadith' => 'تقييمات المتون',
+            'attendance' => 'سجلات الحضور',
+            'students' => 'المستويات والأرصدة والاستريك',
+            default => '',
+        };
     }
 
     public function saveCriteria(): void

@@ -146,9 +146,38 @@ it('lets the supervisor trigger the recalculation from the competition page', fu
         'ode_hifz_excellent_coins' => 10,
     ]]);
 
-    Livewire::test(ManageGamification::class, ['competitionId' => $this->competition->id])
-        ->call('recalculatePoints')
+    $component = Livewire::test(ManageGamification::class, ['competitionId' => $this->competition->id])
+        ->call('startRecalculation')
         ->assertHasNoErrors();
 
-    expect(($this->odeTransactions)()->count())->toBe(1);
+    // The page drives one batch per poll until the cursor reports it is done.
+    for ($i = 0; $i < 10 && $component->get('recalcCursor') !== null; $i++) {
+        $component->call('recalculateStep');
+    }
+
+    expect($component->get('recalcCursor'))->toBeNull()
+        ->and(($this->odeTransactions)()->count())->toBe(1);
+});
+
+it('advances one stage at a time and finishes', function () {
+    $cursor = GamificationRecalculator::start();
+
+    expect($cursor['stage'])->toBe('quran')
+        ->and($cursor['done'])->toBeFalse();
+
+    $stages = [];
+
+    for ($i = 0; $i < 20 && ! $cursor['done']; $i++) {
+        $stages[] = $cursor['stage'];
+        $cursor = GamificationRecalculator::step($this->competition, $cursor);
+    }
+
+    expect($cursor['done'])->toBeTrue()
+        // Every stage is visited, in order, and none is skipped.
+        ->and(array_values(array_unique($stages)))
+        ->toBe(['quran', 'ode', 'hadith', 'attendance', 'students']);
+});
+
+it('keeps each step small enough for a web request', function () {
+    expect(GamificationRecalculator::BATCH)->toBeLessThanOrEqual(200);
 });

@@ -547,13 +547,23 @@
                                 أعِد الاحتساب ليُعاد المرور على كل تقييمات فترة المسابقة. آمن للتكرار ولا يضاعف النقاط.
                             </p>
                         </div>
-                        <flux:button wire:click="recalculatePoints" icon="arrow-path" variant="filled"
-                            class="shrink-0"
-                            wire:confirm="سيُعاد احتساب نقاط كل طلاب المسابقة من تقييماتهم، وقد يتغيّر الترتيب. هل تريد المتابعة؟"
-                            wire:loading.attr="disabled" wire:target="recalculatePoints">
-                            <span wire:loading.remove wire:target="recalculatePoints">إعادة احتساب النقاط</span>
-                            <span wire:loading wire:target="recalculatePoints">جارٍ الاحتساب...</span>
-                        </flux:button>
+                        @if ($recalcCursor)
+                            {{-- Each poll advances one batch; thousands of gradings cannot fit in one request. --}}
+                            <div class="shrink-0 flex items-center gap-2 text-sm font-bold text-amber-900 dark:text-amber-200"
+                                wire:poll.750ms="recalculateStep">
+                                <flux:icon.arrow-path class="size-4 animate-spin" />
+                                <span>
+                                    {{ __('جارٍ الاحتساب') }}: {{ $this->recalcStageLabel() }}
+                                    ({{ array_sum($recalcCursor['counts']) }})
+                                </span>
+                            </div>
+                        @else
+                            <flux:button wire:click="startRecalculation" icon="arrow-path" variant="filled"
+                                class="shrink-0"
+                                wire:confirm="سيُعاد احتساب نقاط كل طلاب المسابقة من تقييماتهم، وقد يتغيّر الترتيب. قد تستغرق العملية دقيقة أو أكثر — لا تغلق الصفحة. هل تريد المتابعة؟">
+                                إعادة احتساب النقاط
+                            </flux:button>
+                        @endif
                     </div>
                 </div>
 
