@@ -42,6 +42,46 @@ new class extends Component
     }
 
     /**
+     * Render a log day the way the academy reads dates: the Arabic weekday and
+     * the Umm al-Qura date, with the Gregorian one kept alongside for anyone
+     * cross-referencing another system.
+     *
+     * Returns null for the undated group, whose key is a label rather than a date.
+     *
+     * @return array{weekday: string, hijri: string, gregorian: string}|null
+     */
+    public function formatLogDate(string|CarbonInterface|null $date): ?array
+    {
+        if ($date === null) {
+            return null;
+        }
+
+        try {
+            $carbon = $date instanceof CarbonInterface ? $date : Carbon::parse($date);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return [
+            'weekday' => $this->hijriFormatter('EEEE')->format($carbon),
+            'hijri' => $this->hijriFormatter('d MMMM yyyy')->format($carbon),
+            'gregorian' => $carbon->format('Y-m-d'),
+        ];
+    }
+
+    private function hijriFormatter(string $pattern): \IntlDateFormatter
+    {
+        return new \IntlDateFormatter(
+            'ar_SA@calendar=islamic-umalqura',
+            \IntlDateFormatter::FULL,
+            \IntlDateFormatter::NONE,
+            'Asia/Riyadh',
+            \IntlDateFormatter::TRADITIONAL,
+            $pattern,
+        );
+    }
+
+    /**
      * Move a single grading (hifz/review of a quran/ode/hadith record) to a new
      * date, keeping its original time of day, then re-sync the student's points,
      * competitions and streak — which are all credited by the grading date.
@@ -141,13 +181,13 @@ new class extends Component
             ->whereHas('plan', fn ($q) => $q->where('student_id', $this->studentId))
             ->where(fn ($q) => $q->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'))
             ->get()
-            ->each(fn ($ach) => $this->pushParts($entries, 'ode', __('منظومة'), 'purple', $ach, null, fn ($r, $p) => $r->formatOdeRange($p)));
+            ->each(fn ($ach) => $this->pushParts($entries, 'ode', __('منظومة'), 'purple', $ach, $ach->pathDay?->date, fn ($r, $p) => $r->formatOdeRange($p)));
 
         StudentHadithAchievement::with('plan', 'pathDay')
             ->whereHas('plan', fn ($q) => $q->where('student_id', $this->studentId))
             ->where(fn ($q) => $q->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'))
             ->get()
-            ->each(fn ($ach) => $this->pushParts($entries, 'hadith', __('متن'), 'teal', $ach, null, fn ($r, $p) => $r->formatHadithRange($p)));
+            ->each(fn ($ach) => $this->pushParts($entries, 'hadith', __('متن'), 'teal', $ach, $ach->pathDay?->date, fn ($r, $p) => $r->formatHadithRange($p)));
 
         $grouped = $entries
             ->sortByDesc(fn ($e) => optional($e['graded_at'] ?? $e['scheduled'])->getTimestamp() ?? 0)
@@ -179,7 +219,7 @@ new class extends Component
     <div class="space-y-6">
         @forelse ($grouped as $dateStr => $dayEntries)
             @php
-                $carbonDate = \Carbon\Carbon::parse($dateStr);
+                $logDate = $this->formatLogDate($dateStr);
             @endphp
             <flux:card class="p-0 overflow-hidden shadow-sm">
                 <div class="bg-zinc-50/80 dark:bg-zinc-900/50 px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
@@ -187,9 +227,15 @@ new class extends Component
                         <div class="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
                             <flux:icon.calendar size="sm" />
                         </div>
-                        <div>
-                            <span class="font-bold text-zinc-800 dark:text-zinc-100">{{ $carbonDate->format('Y-m-d') }}</span>
-                            <span class="text-sm text-zinc-500 dark:text-zinc-400 mr-2">{{ $carbonDate->translatedFormat('l') }}</span>
+                        <div class="flex flex-col">
+                            @if ($logDate)
+                                <span class="font-bold text-zinc-800 dark:text-zinc-100">
+                                    {{ $logDate['weekday'] }}، {{ $logDate['hijri'] }} هـ
+                                </span>
+                                <span class="text-xs text-zinc-400 dark:text-zinc-500" dir="ltr">{{ $logDate['gregorian'] }}</span>
+                            @else
+                                <span class="font-bold text-zinc-800 dark:text-zinc-100">{{ $dateStr }}</span>
+                            @endif
                         </div>
                     </div>
                     <flux:badge size="sm" variant="subtle" color="indigo">{{ $dayEntries->count() }} {{ __('تقييمات') }}</flux:badge>
@@ -213,6 +259,24 @@ new class extends Component
                             <span class="font-semibold text-sm text-zinc-800 dark:text-zinc-200">
                                 {{ $entry['range'] ?? __('لا يوجد مقرر') }}
                             </span>
+
+                            @php
+                                $planDate = $this->formatLogDate($entry['scheduled'] ?? null);
+                            @endphp
+                            @if ($planDate)
+                                <div class="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                    <flux:icon.calendar-days class="size-3.5 shrink-0" />
+                                    <span>{{ __('يوم الخطة:') }}</span>
+                                    <span class="font-medium text-zinc-600 dark:text-zinc-300">
+                                        {{ $planDate['weekday'] }}، {{ $planDate['hijri'] }} هـ
+                                    </span>
+                                    <span class="text-zinc-400 dark:text-zinc-500" dir="ltr">({{ $planDate['gregorian'] }})</span>
+                                    {{-- The grading may have been credited to a different day than the plan scheduled. --}}
+                                    @if ($entry['graded_at'] && $planDate['gregorian'] !== $entry['graded_at']->format('Y-m-d'))
+                                        <flux:badge size="sm" variant="subtle" color="amber">{{ __('قُيّم في يوم آخر') }}</flux:badge>
+                                    @endif
+                                </div>
+                            @endif
 
                             @if($editKey === $entry['key'])
                                 <div class="flex flex-col gap-2 pt-1">
