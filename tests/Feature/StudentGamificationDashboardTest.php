@@ -2216,3 +2216,46 @@ it('shows the next hifz and the next review independently on the gamification da
         ->and($byPart['review']->date->format('Y-m-d'))->toBe(now()->subDays(1)->format('Y-m-d'))
         ->and($byPart['hifz']->date->format('Y-m-d'))->toBe(now()->format('Y-m-d'));
 });
+
+/**
+ * This dashboard replaces the plain one whenever a competition is running, so
+ * anything the plain one offers has to exist here too. The plan links were
+ * added to the plain dashboard only, which hid them from three quarters of the
+ * students.
+ */
+it('offers the plan links on the gamification dashboard as well', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة روابط الخطط',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(2),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'start_date' => now()->subDay()->format('Y-m-d'),
+        'days_count' => 1,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+        'status' => 'active',
+        'plan_type' => 'hifz_review',
+        'is_approved' => 1,
+        'created_by_role' => 'teacher',
+    ]);
+
+    StudentPlanDay::create([
+        'student_plan_id' => $plan->id,
+        'date' => now()->format('Y-m-d'),
+        'day_name' => 'الأحد',
+    ]);
+
+    $this->get(route('student.dashboard'))
+        ->assertOk()
+        // The gamification dashboard really is the one being served.
+        ->assertSee('مسابقة روابط الخطط')
+        ->assertSee('عرض وطباعة')
+        ->assertSee(route('student.plan.print', ['kind' => 'quran', 'id' => $plan->id]), false);
+});

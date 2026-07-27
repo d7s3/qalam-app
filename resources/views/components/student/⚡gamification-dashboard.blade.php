@@ -794,6 +794,9 @@ new class extends Component {
 
         // Fetch Earliest Pending Hadith Missions (one per active Hadith plan)
         $activeHadithPlans = \App\Models\StudentHadithPlan::where('student_id', $student->id)->where('status', 'active')->get();
+
+        $activeOdePlans = \App\Models\StudentOdePlan::where('student_id', $student->id)
+            ->where('status', 'active')->with('path.ode')->get();
         $pendingHadithMissions = [];
         foreach ($activeHadithPlans as $plan) {
             $mission = \App\Models\HadithPathDay::with(['fromHadith', 'toHadith', 'reviewFromHadith', 'reviewToHadith'])
@@ -957,6 +960,9 @@ new class extends Component {
             'pendingRewards' => $activeGamification ? \App\Services\GamificationService::getPendingRewards($student->id, $activeGamification->id) : collect(),
             'pendingMissions' => $pendingMissions,
             'pendingHadithMissions' => $pendingHadithMissions,
+            'activeApprovedPlans' => $activeApprovedPlans,
+            'activeHadithPlans' => $activeHadithPlans,
+            'activeOdePlans' => $activeOdePlans,
             'teamStandings' => $teamStandings,
             'teamStudents' => $teamStudents,
             'teamStudentStates' => $teamStudentStates,
@@ -2416,6 +2422,30 @@ new class extends Component {
                     </svg>
                     {{ __('المهام والخطط') }}
                 </flux:heading>
+
+                {{--
+                    This dashboard replaces the plain one whenever a competition is
+                    running, so the plan links have to exist here too or most students
+                    never see them.
+                --}}
+                @php
+                    $planLinks = collect()
+                        ->concat($activeApprovedPlans->map(fn ($p) => ['kind' => 'quran', 'id' => $p->id, 'label' => __('خطة الحفظ والمراجعة')]))
+                        ->concat($activeHadithPlans->map(fn ($p) => ['kind' => 'hadith', 'id' => $p->id, 'label' => __('خطة المتن')]))
+                        ->concat($activeOdePlans->map(fn ($p) => ['kind' => 'ode', 'id' => $p->id, 'label' => $p->path?->ode?->name ?? __('خطة المنظومة')]));
+                @endphp
+
+                @if($planLinks->isNotEmpty())
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($planLinks as $link)
+                            <a href="{{ route('student.plan.print', ['kind' => $link['kind'], 'id' => $link['id']]) }}"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold shadow-sm hover:bg-slate-50 transition-colors">
+                                <flux:icon icon="printer" class="size-4" />
+                                {{ __('عرض وطباعة') }}: {{ $link['label'] }}
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
                 @if(empty($pendingMissions))
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 text-center shadow-sm">
                         <p class="text-sm text-slate-500">{{ __('لا توجد مهام قرآنية معلقة حالياً') }}</p>
