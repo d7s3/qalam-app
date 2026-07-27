@@ -41,7 +41,22 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+
+            /*
+             * Root-relative on purpose. Building this from APP_URL meant every
+             * uploaded image carried whatever host and scheme that variable
+             * happened to hold: an APP_URL still saying http, or localhost, or
+             * the wrong domain, produced <img> tags the browser could not load
+             * — and mixed http content on an https page is blocked outright —
+             * while `storage:link` was perfectly fine, which sends you looking
+             * in the wrong place. A leading slash resolves against whatever
+             * origin actually served the page, so it cannot disagree with it.
+             *
+             * These files are only ever shown in web pages. Anything rendered
+             * outside a request (mail, PDFs) needs an absolute URL and should
+             * wrap this in url(), not undo this default.
+             */
+            'url' => '/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
