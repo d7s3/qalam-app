@@ -104,6 +104,49 @@ it('does not flag a rating graded on its own plan day', function () {
         ->assertDontSee('قُيّم في يوم آخر');
 });
 
+it('moves a grading back onto its plan day in one click', function () {
+    [$teacher, $student, $day] = makeGradedHifzDay(); // planned 2026-07-05, graded 2026-07-08 09:30
+
+    $this->actingAs($teacher, 'teacher');
+
+    Livewire::test('teacher.student-recitation-log', ['studentId' => $student->id])
+        ->assertSee('إرجاعه ليوم الخطة')
+        ->call('matchPlanDate', "quran:{$day->id}:hifz")
+        ->assertHasNoErrors();
+
+    $fresh = $day->fresh();
+
+    expect($fresh->hifz_graded_at->format('Y-m-d'))->toBe('2026-07-05')   // now on the plan day
+        ->and($fresh->hifz_graded_at->format('H:i:s'))->toBe('09:30:00'); // original time kept
+});
+
+it('offers no plan-day shortcut once the grading already sits on it', function () {
+    [$teacher, $student, $day] = makeGradedHifzDay();
+
+    $day->update(['hifz_graded_at' => '2026-07-05 09:30:00']);
+
+    $this->actingAs($teacher, 'teacher');
+
+    Livewire::test('teacher.student-recitation-log', ['studentId' => $student->id])
+        ->assertDontSee('إرجاعه ليوم الخطة');
+});
+
+it('forbids moving a grading to the plan day for a student not in the teacher circle', function () {
+    [$owner, $student, $day] = makeGradedHifzDay();
+    $intruder = Teacher::factory()->create();
+
+    $this->actingAs($intruder, 'teacher');
+
+    try {
+        Livewire::test('teacher.student-recitation-log', ['studentId' => $student->id])
+            ->call('matchPlanDate', "quran:{$day->id}:hifz");
+    } catch (HttpException $e) {
+        expect($e->getStatusCode())->toBe(403);
+    }
+
+    expect($day->fresh()->hifz_graded_at->format('Y-m-d'))->toBe('2026-07-08');
+});
+
 it('falls back to the group label for undated entries', function () {
     [$teacher, $student, $day] = makeGradedHifzDay();
 

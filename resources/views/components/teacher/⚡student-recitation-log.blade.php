@@ -93,19 +93,47 @@ new class extends Component
             ['editDate.required' => __('يرجى اختيار تاريخ.'), 'editDate.date' => __('تاريخ غير صالح.')],
         );
 
-        [$kind, $id, $part] = array_pad(explode(':', (string) $this->editKey), 3, null);
+        $this->moveGrading((string) $this->editKey, $this->editDate);
+
+        $this->cancelEdit();
+    }
+
+    /**
+     * Put a grading back on the day its plan scheduled it for — the common
+     * correction when a teacher records a session a day or two late.
+     */
+    public function matchPlanDate(string $key): void
+    {
+        $record = $this->resolveRecord($key);
+        $planDate = $this->planDateOf($record);
+
+        if (! $planDate) {
+            Flux::toast(__('لا يوجد يوم خطة لهذا التقييم.'), variant: 'warning');
+
+            return;
+        }
+
+        $this->moveGrading($key, $planDate->format('Y-m-d'));
+
+        // The edit form may be open on this very entry; its date is now stale.
+        if ($this->editKey === $key) {
+            $this->cancelEdit();
+        }
+    }
+
+    /**
+     * Apply a new grading date, keeping the original time of day, then re-sync
+     * the student's points, competitions and streak — which are all credited by
+     * the grading date rather than the scheduled one.
+     */
+    protected function moveGrading(string $key, ?string $date): void
+    {
+        [$kind, , $part] = array_pad(explode(':', $key), 3, null);
         $field = $part === 'review' ? 'review_graded_at' : 'hifz_graded_at';
 
-        $record = match ($kind) {
-            'quran' => StudentPlanDay::with('plan.student')->find($id),
-            'ode' => StudentOdeAchievement::with('plan.student', 'pathDay')->find($id),
-            'hadith' => StudentHadithAchievement::with('plan.student', 'pathDay')->find($id),
-            default => null,
-        };
+        $record = $this->resolveRecord($key);
 
-        if (! $record || $record->{$field} === null) {
-            $this->cancelEdit();
-
+        if (! $record || $record->{$field} === null || blank($date)) {
             return;
         }
 
@@ -116,18 +144,47 @@ new class extends Component
         }
 
         $original = $record->{$field};
-        $record->{$field} = Carbon::parse($this->editDate)->setTimeFromTimeString($original->format('H:i:s'));
+        $record->{$field} = Carbon::parse($date)->setTimeFromTimeString($original->format('H:i:s'));
         $record->save();
 
         match ($kind) {
             'quran' => GamificationService::syncStudentPlanDayXP($record->fresh('plan.student')),
             'ode' => GamificationService::syncStudentOdeAchievementXP($record->fresh(['plan.student', 'pathDay'])),
             'hadith' => GamificationService::syncStudentHadithAchievementXP($record->fresh(['plan.student', 'pathDay'])),
+            default => null,
         };
 
-        $this->cancelEdit();
-
         Flux::toast(__('تم تحديث تاريخ التقييم وإعادة احتساب النقاط والاستريك.'), variant: 'success');
+    }
+
+    /**
+     * Resolve an entry key such as "quran:123:hifz" to its underlying record.
+     */
+    protected function resolveRecord(string $key): mixed
+    {
+        [$kind, $id] = array_pad(explode(':', $key), 3, null);
+
+        return match ($kind) {
+            'quran' => StudentPlanDay::with('plan.student')->find($id),
+            'ode' => StudentOdeAchievement::with('plan.student', 'pathDay')->find($id),
+            'hadith' => StudentHadithAchievement::with('plan.student', 'pathDay')->find($id),
+            default => null,
+        };
+    }
+
+    /**
+     * The day the plan scheduled this record for: a Quran plan day carries its
+     * own date, while odes and mutun take theirs from the shared path day.
+     */
+    protected function planDateOf(mixed $record): ?CarbonInterface
+    {
+        if (! $record) {
+            return null;
+        }
+
+        return $record instanceof StudentPlanDay
+            ? $record->date
+            : $record->pathDay?->date;
     }
 
     protected function teacherOwns(Student $student): bool
@@ -274,6 +331,12 @@ new class extends Component
                                     {{-- The grading may have been credited to a different day than the plan scheduled. --}}
                                     @if ($entry['graded_at'] && $planDate['gregorian'] !== $entry['graded_at']->format('Y-m-d'))
                                         <flux:badge size="sm" variant="subtle" color="amber">{{ __('قُيّم في يوم آخر') }}</flux:badge>
+                                        <flux:button
+                                            wire:click="matchPlanDate('{{ $entry['key'] }}')"
+                                            wire:confirm="{{ __('نقل هذا التقييم إلى يوم الخطة؟ ستُعاد احتساب النقاط والاستريك.') }}"
+                                            size="xs" variant="ghost" icon="arrow-uturn-right">
+                                            {{ __('إرجاعه ليوم الخطة') }}
+                                        </flux:button>
                                     @endif
                                 </div>
                             @endif
