@@ -802,14 +802,14 @@ new class extends Component {
             <flux:card wire:key="day-card-{{ $day->id }}" x-show="activeDayId == {{ $day->id }}" x-data="{ syncingTask: null }" class="mt-2 border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50 pointer-events-none transition-opacity duration-200" wire:target="saveAchievement">
 
                 {{-- Day navigation --}}
-                <div class="flex items-center justify-between mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-4">
+                <div class="flex items-center justify-between mb-4 md:mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-3 md:pb-4">
                     <flux:button type="button" @click="prevDay()" x-bind:disabled="!hasPrevDay()" icon="chevron-right" variant="subtle" size="sm">
                         {{ __('اليوم السابق') }}
                     </flux:button>
 
                     <div class="text-center">
-                        <div class="font-bold text-lg">{{ $day->day_name }}</div>
-                        <div class="text-zinc-500 text-sm dir-ltr">{{ $day->date->format('Y/m/d') }}</div>
+                        <div class="font-bold text-base md:text-lg">{{ $day->day_name }}</div>
+                        <div class="text-zinc-500 text-xs md:text-sm dir-ltr">{{ $day->date->format('Y/m/d') }}</div>
                     </div>
 
                     <flux:button type="button" @click="nextDay()" x-bind:disabled="!hasNextDay()" icon-trailing="chevron-left" variant="subtle" size="sm">
@@ -817,13 +817,13 @@ new class extends Component {
                     </flux:button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-8">
                     {{-- Hifz Section --}}
                     @if($currentDay->plan->plan_type === 'hifz' || $currentDay->plan->plan_type === 'hifz_review')
-                        <div class="bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20 p-5 space-y-5">
+                        <div class="bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20 p-3.5 md:p-5 space-y-3 md:space-y-5">
                             <div>
-                                <flux:heading size="lg" class="text-indigo-600 dark:text-indigo-400 mb-2">{{ __('الحفظ') }}</flux:heading>
-                                <p class="text-zinc-700 dark:text-zinc-300 font-medium text-lg leading-relaxed">
+                                <flux:heading size="lg" class="text-indigo-600 dark:text-indigo-400 mb-1 md:mb-2">{{ __('الحفظ') }}</flux:heading>
+                                <p class="text-zinc-700 dark:text-zinc-300 font-medium text-base md:text-lg leading-snug md:leading-relaxed">
                                     {{ $currentDay->formatRange('hifz') ?? 'لا يوجد نص محدد' }}
                                 </p>
                                 @php
@@ -892,26 +892,27 @@ new class extends Component {
                             <flux:separator />
 
                             <div>
-                                <flux:label class="mb-3 font-semibold">{{ __('تقييم الإنجاز (التسميع)') }}</flux:label>
-                                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <flux:label class="mb-2 md:mb-3 text-xs md:text-sm font-semibold">{{ __('تقييم الإنجاز (التسميع)') }}</flux:label>
+                                {{-- Four across even on a phone: two rows of grade buttons pushed the review card off-screen. --}}
+                                <div class="grid grid-cols-4 gap-1.5 md:gap-2">
                                     <button type="button" @click="syncingTask = 'hifz-3'; await $wire.saveAchievement({{ $currentDay->id }}, 'hifz', 3); syncingTask = null"
                                         :disabled="syncingTask !== null"
-                                        class="p-3 rounded-xl border-2 transition-colors font-bold text-center disabled:opacity-50 disabled:cursor-wait"
+                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
                                         :class="syncingTask === 'hifz-3' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->hifz_achievement === 3 ? 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">ممتاز</button>
 
                                     <button type="button" @click="syncingTask = 'hifz-2'; await $wire.saveAchievement({{ $currentDay->id }}, 'hifz', 2); syncingTask = null"
                                         :disabled="syncingTask !== null"
-                                        class="p-3 rounded-xl border-2 transition-colors font-bold text-center disabled:opacity-50 disabled:cursor-wait"
+                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
                                         :class="syncingTask === 'hifz-2' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->hifz_achievement === 2 ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">جيد</button>
 
                                     <button type="button" @click="syncingTask = 'hifz-1'; await $wire.saveAchievement({{ $currentDay->id }}, 'hifz', 1); syncingTask = null"
                                         :disabled="syncingTask !== null"
-                                        class="p-3 rounded-xl border-2 transition-colors font-bold text-center disabled:opacity-50 disabled:cursor-wait"
+                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
                                         :class="syncingTask === 'hifz-1' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->hifz_achievement === 1 ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">مقبول</button>
 
                                     <button type="button" @click="syncingTask = 'hifz-null'; await $wire.saveAchievement({{ $currentDay->id }}, 'hifz', null); syncingTask = null"
                                         :disabled="syncingTask !== null"
-                                        class="p-3 rounded-xl border-2 transition-colors font-bold text-center disabled:opacity-50 disabled:cursor-wait"
+                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
                                         :class="syncingTask === 'hifz-null' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->hifz_achievement === null ? 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">لم يسمع</button>
                                 </div>
                             </div>
@@ -920,10 +921,10 @@ new class extends Component {
 
                     {{-- Review Section --}}
                     @if($currentDay->plan->plan_type === 'review' || $currentDay->plan->plan_type === 'hifz_review')
-                        <div class="bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 p-5 space-y-5">
+                        <div class="bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 p-3.5 md:p-5 space-y-3 md:space-y-5">
                             <div>
-                                <flux:heading size="lg" class="text-emerald-600 dark:text-emerald-400 mb-2">{{ __('المراجعة') }}</flux:heading>
-                                <p class="text-zinc-700 dark:text-zinc-300 font-medium text-lg leading-relaxed">
+                                <flux:heading size="lg" class="text-emerald-600 dark:text-emerald-400 mb-1 md:mb-2">{{ __('المراجعة') }}</flux:heading>
+                                <p class="text-zinc-700 dark:text-zinc-300 font-medium text-base md:text-lg leading-snug md:leading-relaxed">
                                     {{ $currentDay->formatRange('review') ?? 'لا يوجد نص محدد' }}
                                 </p>
                                 @php
@@ -992,26 +993,27 @@ new class extends Component {
                             <flux:separator />
 
                             <div>
-                                <flux:label class="mb-3 font-semibold">{{ __('تقييم الإنجاز (التسميع)') }}</flux:label>
-                                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <flux:label class="mb-2 md:mb-3 text-xs md:text-sm font-semibold">{{ __('تقييم الإنجاز (التسميع)') }}</flux:label>
+                                {{-- Four across even on a phone: two rows of grade buttons pushed the review card off-screen. --}}
+                                <div class="grid grid-cols-4 gap-1.5 md:gap-2">
                                     <button type="button" @click="syncingTask = 'review-3'; await $wire.saveAchievement({{ $currentDay->id }}, 'review', 3); syncingTask = null"
                                         :disabled="syncingTask !== null"
-                                        class="p-3 rounded-xl border-2 transition-colors font-bold text-center disabled:opacity-50 disabled:cursor-wait"
+                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
                                         :class="syncingTask === 'review-3' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->review_achievement === 3 ? 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">ممتاز</button>
 
                                     <button type="button" @click="syncingTask = 'review-2'; await $wire.saveAchievement({{ $currentDay->id }}, 'review', 2); syncingTask = null"
                                         :disabled="syncingTask !== null"
-                                        class="p-3 rounded-xl border-2 transition-colors font-bold text-center disabled:opacity-50 disabled:cursor-wait"
+                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
                                         :class="syncingTask === 'review-2' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->review_achievement === 2 ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">جيد</button>
 
                                     <button type="button" @click="syncingTask = 'review-1'; await $wire.saveAchievement({{ $currentDay->id }}, 'review', 1); syncingTask = null"
                                         :disabled="syncingTask !== null"
-                                        class="p-3 rounded-xl border-2 transition-colors font-bold text-center disabled:opacity-50 disabled:cursor-wait"
+                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
                                         :class="syncingTask === 'review-1' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->review_achievement === 1 ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">مقبول</button>
 
                                     <button type="button" @click="syncingTask = 'review-null'; await $wire.saveAchievement({{ $currentDay->id }}, 'review', null); syncingTask = null"
                                         :disabled="syncingTask !== null"
-                                        class="p-3 rounded-xl border-2 transition-colors font-bold text-center disabled:opacity-50 disabled:cursor-wait"
+                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base disabled:opacity-50 disabled:cursor-wait"
                                         :class="syncingTask === 'review-null' ? 'border-zinc-300 bg-zinc-200 text-zinc-700 dark:border-white dark:bg-white dark:text-zinc-900 scale-105' : '{{ $currentDay->review_achievement === null ? 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300' : 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' }}'">لم يسمع</button>
                                 </div>
                             </div>
@@ -1102,7 +1104,7 @@ new class extends Component {
                     <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {{-- Ode Hifz --}}
                         @if ($odeDay->from_verse_number && $odeDay->to_verse_number)
-                            <div class="bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20 p-4 space-y-4 flex flex-col justify-between">
+                            <div class="bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20 p-3 md:p-4 space-y-2.5 md:space-y-4 flex flex-col justify-between">
                                 <div>
                                     <flux:heading size="sm" class="text-indigo-600 dark:text-indigo-400 mb-1">{{ __('حفظ المنظومة') }}</flux:heading>
                                     <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
@@ -1117,7 +1119,8 @@ new class extends Component {
 
                                 <flux:separator class="opacity-50 shrink-0" />
 
-                                <div class="my-4">
+                                {{-- No margin of its own: the parent's space-y already separates it. --}}
+                                <div>
                                     <flux:button type="button" @click="showHifzModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
                                         {{ __('إظهار نص المنظومة') }}
                                     </flux:button>
@@ -1127,7 +1130,8 @@ new class extends Component {
 
                                 <div class="shrink-0">
                                     <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم الحفظ') }}</flux:label>
-                                    <div class="grid grid-cols-2 gap-1.5">
+                                    {{-- Four across even on a phone, as in the Quran card. --}}
+                                    <div class="grid grid-cols-4 gap-1.5">
                                         @foreach([
                                                 [
                                                     'val' => 3,
@@ -1175,7 +1179,7 @@ new class extends Component {
 
                         {{-- Ode Review --}}
                         @if ($odeDay->review_from_verse_number && $odeDay->review_to_verse_number)
-                            <div class="bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 p-4 space-y-4 flex flex-col justify-between">
+                            <div class="bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 p-3 md:p-4 space-y-2.5 md:space-y-4 flex flex-col justify-between">
                                 <div>
                                     <flux:heading size="sm" class="text-emerald-600 dark:text-emerald-400 mb-1">{{ __('مراجعة المنظومة') }}</flux:heading>
                                     <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
@@ -1190,7 +1194,7 @@ new class extends Component {
 
                                 <flux:separator class="opacity-50 shrink-0" />
 
-                                <div class="my-4">
+                                <div>
                                     <flux:button type="button" @click="showReviewModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
                                         {{ __('إظهار نص المنظومة') }}
                                     </flux:button>
@@ -1200,7 +1204,8 @@ new class extends Component {
 
                                 <div class="shrink-0">
                                     <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم المراجعة') }}</flux:label>
-                                    <div class="grid grid-cols-2 gap-1.5">
+                                    {{-- Four across even on a phone, as in the Quran card. --}}
+                                    <div class="grid grid-cols-4 gap-1.5">
                                         @foreach([
                                                 [
                                                     'val' => 3,
@@ -1535,7 +1540,7 @@ new class extends Component {
                     <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {{-- Hadith Hifz --}}
                         @if ($hadithDay->from_hadith_id)
-                            <div class="bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20 p-4 space-y-4 flex flex-col justify-between">
+                            <div class="bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20 p-3 md:p-4 space-y-2.5 md:space-y-4 flex flex-col justify-between">
                                 <div>
                                     <flux:heading size="sm" class="text-indigo-600 dark:text-indigo-400 mb-1">{{ __('حفظ الحديث') }}</flux:heading>
                                     <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
@@ -1545,7 +1550,7 @@ new class extends Component {
 
                                 <flux:separator class="opacity-50 shrink-0" />
 
-                                <div class="my-4">
+                                <div>
                                     <flux:button type="button" @click="showHadithHifzModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
                                         {{ __('إظهار نص الحديث') }}
                                     </flux:button>
@@ -1555,7 +1560,8 @@ new class extends Component {
 
                                 <div class="shrink-0">
                                     <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم الحفظ') }}</flux:label>
-                                    <div class="grid grid-cols-2 gap-1.5">
+                                    {{-- Four across even on a phone, as in the Quran card. --}}
+                                    <div class="grid grid-cols-4 gap-1.5">
                                         @foreach([
                                                 [
                                                     'val' => 3,
@@ -1603,7 +1609,7 @@ new class extends Component {
 
                         {{-- Hadith Review --}}
                         @if ($hadithDay->review_from_hadith_id)
-                            <div class="bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 p-4 space-y-4 flex flex-col justify-between">
+                            <div class="bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 p-3 md:p-4 space-y-2.5 md:space-y-4 flex flex-col justify-between">
                                 <div>
                                     <flux:heading size="sm" class="text-emerald-600 dark:text-emerald-400 mb-1">{{ __('مراجعة الحديث') }}</flux:heading>
                                     <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
@@ -1613,7 +1619,7 @@ new class extends Component {
 
                                 <flux:separator class="opacity-50 shrink-0" />
 
-                                <div class="my-4">
+                                <div>
                                     <flux:button type="button" @click="showHadithReviewModal = true" icon="book-open" variant="subtle" class="w-full justify-center">
                                         {{ __('إظهار نص الحديث') }}
                                     </flux:button>
@@ -1623,7 +1629,8 @@ new class extends Component {
 
                                 <div class="shrink-0">
                                     <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم المراجعة') }}</flux:label>
-                                    <div class="grid grid-cols-2 gap-1.5">
+                                    {{-- Four across even on a phone, as in the Quran card. --}}
+                                    <div class="grid grid-cols-4 gap-1.5">
                                         @foreach([
                                                 [
                                                     'val' => 3,
