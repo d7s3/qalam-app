@@ -5,6 +5,7 @@ use App\Ai\Tools\getAcademicCalendar;
 use App\Ai\Tools\getAttendanceData;
 use App\Ai\Tools\getCompetitionGroups;
 use App\Ai\Tools\getCompetitions;
+use App\Ai\Tools\getMagicLinks;
 use App\Ai\Tools\getMutunPlans;
 use App\Ai\Tools\getOrganizationStructure;
 use App\Ai\Tools\getPeopleDirectory;
@@ -514,6 +515,7 @@ it('exposes every data tool to the assistant', function () {
         'getDateAndTime',
         'getOrganizationStructure',
         'getPeopleDirectory',
+        'getMagicLinks',
         'getStudentProfile',
         'getAttendanceData',
         'getQuranPlans',
@@ -523,4 +525,65 @@ it('exposes every data tool to the assistant', function () {
         'getAcademicCalendar',
         'getTasks',
     );
+});
+
+/**
+ * A magic link signs its holder into that account with no password, so these
+ * rows are credentials. The manager can already copy them from the students
+ * page; this only saves the walk.
+ */
+it('returns magic login links for the manager to hand out', function () {
+    $this->student->update(['access_token' => 'known-token']);
+
+    $result = runTool(new getMagicLinks, ['role' => 'student', 'search' => 'أنس']);
+
+    expect($result['people'])->toHaveCount(1)
+        ->and($result['people'][0]['name'])->toBe('الطالب أنس')
+        ->and($result['people'][0]['magic_link'])->toBe(route('magic-link', ['token' => 'known-token']))
+        ->and($result['people'][0]['circle'])->toBe('حلقة النور')
+        ->and($result['warning'])->toContain('without a password');
+});
+
+it('issues a link to an account that never had one', function () {
+    $this->student->update(['access_token' => null]);
+
+    $result = runTool(new getMagicLinks, ['role' => 'student', 'search' => 'أنس']);
+
+    $token = $this->student->fresh()->access_token;
+
+    expect($token)->not->toBeEmpty()
+        ->and($result['people'][0]['had_no_link_before'])->toBeTrue()
+        ->and($result['people'][0]['magic_link'])->toBe(route('magic-link', ['token' => $token]));
+});
+
+it('finds who has never been issued a link', function () {
+    $this->student->update(['access_token' => 'has-one']);
+    Student::factory()->create(['name' => 'الطالب بلا رابط', 'circle_id' => $this->circle->id, 'access_token' => null]);
+
+    $result = runTool(new getMagicLinks, ['role' => 'student', 'only_without_link' => true]);
+
+    expect($result['people'])->toHaveCount(1)
+        ->and($result['people'][0]['name'])->toBe('الطالب بلا رابط');
+});
+
+it('uses the right sign-in route for each role', function () {
+    $this->teacher->update(['access_token' => 'teacher-token']);
+    $this->supervisor->update(['access_token' => 'supervisor-token']);
+    $this->guardian->update(['access_token' => 'guardian-token']);
+
+    expect(runTool(new getMagicLinks, ['role' => 'teacher'])['people'][0]['magic_link'])
+        ->toBe(route('teacher.magic-link', ['token' => 'teacher-token']));
+
+    expect(runTool(new getMagicLinks, ['role' => 'supervisor'])['people'][0]['magic_link'])
+        ->toBe(route('supervisor.magic-link', ['token' => 'supervisor-token']));
+
+    expect(runTool(new getMagicLinks, ['role' => 'guardian'])['people'][0]['magic_link'])
+        ->toBe(route('guardian.magic-link', ['token' => 'guardian-token']));
+});
+
+it('refuses a role it has no sign-in route for', function () {
+    $result = runTool(new getMagicLinks, ['role' => 'manager']);
+
+    expect($result['error'])->toContain('Unsupported')
+        ->and($result)->not->toHaveKey('people');
 });
