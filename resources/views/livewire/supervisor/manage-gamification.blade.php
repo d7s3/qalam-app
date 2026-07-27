@@ -530,6 +530,33 @@
                     @endif
                 </div>
 
+                {{--
+                    Points are written when a teacher grades, against the criteria
+                    enabled at that moment — so a criterion switched on here leaves
+                    every earlier grading unscored until this replays them.
+                --}}
+                <div class="mt-6 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50">
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <flux:icon.exclamation-triangle class="size-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <div class="flex-1">
+                            <p class="text-sm font-bold text-amber-900 dark:text-amber-200">
+                                فعّلت بنداً بعد أن قيّم المعلمون؟
+                            </p>
+                            <p class="text-xs text-amber-800/80 dark:text-amber-200/70 mt-0.5">
+                                النقاط تُسجَّل لحظة التقييم حسب البنود المفعّلة وقتها، فالتقييمات الأقدم من التفعيل تبقى بلا نقاط.
+                                أعِد الاحتساب ليُعاد المرور على كل تقييمات فترة المسابقة. آمن للتكرار ولا يضاعف النقاط.
+                            </p>
+                        </div>
+                        <flux:button wire:click="recalculatePoints" icon="arrow-path" variant="filled"
+                            class="shrink-0"
+                            wire:confirm="سيُعاد احتساب نقاط كل طلاب المسابقة من تقييماتهم، وقد يتغيّر الترتيب. هل تريد المتابعة؟"
+                            wire:loading.attr="disabled" wire:target="recalculatePoints">
+                            <span wire:loading.remove wire:target="recalculatePoints">إعادة احتساب النقاط</span>
+                            <span wire:loading wire:target="recalculatePoints">جارٍ الاحتساب...</span>
+                        </flux:button>
+                    </div>
+                </div>
+
                 <div class="flex justify-end pt-4">
                     <flux:button wire:click="saveCriteria" variant="primary" class="bg-purple-600 hover:bg-purple-700 border-none text-white">حفظ التغييرات</flux:button>
                 </div>

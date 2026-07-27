@@ -19,6 +19,7 @@ use App\Models\LeaderboardCriterion;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GamificationNewsService;
+use App\Services\GamificationRecalculator;
 use App\Services\GamificationService;
 use App\Services\GamificationThemeService;
 use App\Services\LeaderboardService;
@@ -630,6 +631,32 @@ class ManageGamification extends Component
     {
         unset($this->criteria[$index]);
         $this->criteria = array_values($this->criteria);
+    }
+
+    /**
+     * Replay every grading in the competition's window through the current
+     * criteria. A gamification competition scores from transactions written at
+     * grading time, so a criterion switched on afterwards leaves the gradings
+     * that came before it unscored until this runs.
+     */
+    public function recalculatePoints(): void
+    {
+        $counts = GamificationRecalculator::forCompetition($this->competition);
+
+        $this->loadCompetition();
+
+        if ($counts['students'] === 0) {
+            Flux::toast('لا يوجد طلاب في نطاق هذه المسابقة', variant: 'warning');
+
+            return;
+        }
+
+        Flux::toast(
+            "تمت إعادة احتساب النقاط لـ {$counts['students']} طالباً: "
+            ."{$counts['quran']} تقييم قرآن، {$counts['ode']} منظومة، "
+            ."{$counts['hadith']} متن، {$counts['attendance']} حضور.",
+            variant: 'success',
+        );
     }
 
     public function saveCriteria(): void
