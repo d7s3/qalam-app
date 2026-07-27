@@ -134,8 +134,25 @@ it('drives the grade highlight from client state so a tap shows at once', functi
     ])->html();
 
     // The selected state is bound to Alpine, not baked in by the server.
-    expect($html)->toContain('hifz === 3 ?')
-        ->and($html)->toContain('review === null ?');
+    expect($html)->toContain('hifz.achievement === 3 ?')
+        ->and($html)->toContain('review.achievement === null ?');
+});
+
+/**
+ * The card used to render all twenty-five days and hide all but one with
+ * x-show. The days now travel as data and the browser renders the one on show.
+ */
+it('sends the quran days as data rather than as twenty-five hidden cards', function () {
+    $html = Livewire::test('teacher.⚡student-tasmeeh-card', [
+        'student' => $this->student,
+        'sPlans' => StudentPlan::where('student_id', $this->student->id)->latest()->get(),
+        'activePlanId' => $this->plan->id,
+    ])->html();
+
+    expect($html)->toContain('quranDays:')
+        ->and($html)->toContain('currentQuranDay()')
+        // One card, not one per day.
+        ->and(substr_count($html, 'تقييم الإنجاز (التسميع)'))->toBe(2);
 });
 
 it('leaves no grade button waiting on a server round trip to highlight', function () {

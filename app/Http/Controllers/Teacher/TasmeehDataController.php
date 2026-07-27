@@ -10,8 +10,7 @@ use App\Models\Student;
 use App\Models\StudentHadithAchievement;
 use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlan;
-use App\Models\StudentPlanDay;
-use App\Models\Surah;
+use App\Support\TasmeehPayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -88,21 +87,7 @@ class TasmeehDataController extends Controller
                 'id' => $plan->id,
                 'type' => $plan->plan_type,
                 'start_date' => $plan->start_date?->format('Y-m-d'),
-                'days' => $plan->days->map(fn (StudentPlanDay $day) => [
-                    'id' => $day->id,
-                    'date' => $day->date?->format('Y-m-d'),
-                    'day_name' => $day->day_name,
-                    'hifz' => [
-                        'range' => $day->formatRange('hifz', false),
-                        'achievement' => $day->hifz_achievement,
-                        'links' => $this->quranLinks($day->fromAyah, $day->toAyah),
-                    ],
-                    'review' => [
-                        'range' => $day->formatRange('review', false),
-                        'achievement' => $day->review_achievement,
-                        'links' => $this->quranLinks($day->reviewFromAyah, $day->reviewToAyah),
-                    ],
-                ])->all(),
+                'days' => TasmeehPayload::quranDays($plan->days),
             ])->all();
     }
 
@@ -257,44 +242,6 @@ class TasmeehDataController extends Controller
             'hadiths' => $hadiths->map($shape)->values()->all(),
             'previous' => $previous->map($shape)->values()->all(),
         ];
-    }
-
-    /**
-     * Quran.com links for a range, one per surah it spans.
-     *
-     * @return array<int, array{name: string, url: string}>
-     */
-    private function quranLinks($from, $to): array
-    {
-        if (! $from) {
-            return [];
-        }
-
-        if (! $to || $from->surah_id === $to->surah_id) {
-            $last = $to?->verse_number ?? $from->surah->verses_count;
-
-            return [[
-                'name' => $from->surah->name_arabic,
-                'url' => 'https://quran.com/ar/'.$from->surah->number.'/'.$from->verse_number.'-'.$last,
-            ]];
-        }
-
-        $low = min($from->surah_id, $to->surah_id);
-        $high = max($from->surah_id, $to->surah_id);
-
-        $surahs = Surah::whereBetween('id', [$low, $high])
-            ->orderBy('id', $from->surah_id <= $to->surah_id ? 'asc' : 'desc')
-            ->get();
-
-        return $surahs->map(function ($surah) use ($from, $to) {
-            $start = $surah->id === $from->surah_id ? $from->verse_number : 1;
-            $end = $surah->id === $to->surah_id ? $to->verse_number : $surah->verses_count;
-
-            return [
-                'name' => $surah->name_arabic,
-                'url' => 'https://quran.com/ar/'.$surah->number.'/'.$start.'-'.$end,
-            ];
-        })->values()->all();
     }
 
     /**
