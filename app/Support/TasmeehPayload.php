@@ -41,6 +41,34 @@ class TasmeehPayload
     }
 
     /**
+     * Hadith path days, identified by path day — the same handle the grading
+     * actions use. The days arrive already carrying the student's achievements.
+     *
+     * @param  Collection<int, \App\Models\HadithPathDay>  $days
+     * @return array<int, array<string, mixed>>
+     */
+    public static function hadithDays(Collection $days): array
+    {
+        return $days->map(fn ($day) => [
+            'id' => $day->id,
+            'date' => $day->date?->format('Y-m-d'),
+            'day_name' => $day->day_name,
+            'from_hadith_name' => $day->fromHadith?->name,
+            'review_hadith_name' => $day->reviewFromHadith?->name ?? $day->fromHadith?->name,
+            'has_hifz' => (bool) $day->from_hadith_id,
+            'has_review' => (bool) $day->review_from_hadith_id,
+            'hifz' => [
+                'range' => $day->formatHadithRange('hifz'),
+                'achievement' => $day->hifz_achievement,
+            ],
+            'review' => [
+                'range' => $day->formatHadithRange('review'),
+                'achievement' => $day->review_achievement,
+            ],
+        ])->values()->all();
+    }
+
+    /**
      * Quran.com links for a range, one per surah it spans.
      *
      * @return array<int, array{name: string, url: string}>
