@@ -190,7 +190,8 @@ class Students extends Component
     {
         $this->validate([
             'bulkStatus' => 'required|in:active,registering,suspended,left',
-            'bulkStatusDate' => 'nullable|date|before_or_equal:today',
+            // Riyadh, not app.timezone: see the note in the student status manager.
+            'bulkStatusDate' => 'nullable|date|before_or_equal:'.now('Asia/Riyadh')->format('Y-m-d'),
         ], [
             'bulkStatusDate.before_or_equal' => __('تاريخ سريان الحالة لا يمكن أن يكون في المستقبل'),
         ]);

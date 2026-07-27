@@ -126,7 +126,11 @@ new class extends Component {
     {
         $this->validate([
             'newStatus' => 'required|in:active,registering,suspended,left',
-            'effectiveDate' => 'required|date|before_or_equal:today',
+            // Pinned to Riyadh, like the default above and the date picker. A bare
+            // "today" resolves against app.timezone (UTC), which is a day behind
+            // Riyadh from 21:00 UTC onward — so between midnight and 3am local the
+            // rule rejected the very date the form had just filled in.
+            'effectiveDate' => 'required|date|before_or_equal:'.now('Asia/Riyadh')->format('Y-m-d'),
             'returnDate' => 'nullable|date',
             'reason' => 'required|string|min:3|max:500',
         ], [

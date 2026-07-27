@@ -81,6 +81,27 @@ it('allows supervisor to bulk change status of students', function () {
     expect($student2->refresh()->status)->toBe('suspended');
 });
 
+/** Same UTC-versus-Riyadh trap as the single status change. */
+it('accepts a Riyadh-dated bulk status change while UTC lags a day behind', function () {
+    $this->travelTo('2026-07-27 22:00:00'); // 01:00 in Riyadh on the 28th
+
+    $student = Student::factory()->create([
+        'circle_id' => $this->circle->id,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(Students::class)
+        ->set('selectedStudentIds', [(string) $student->id])
+        ->set('bulkStatus', 'suspended')
+        ->set('bulkStatusDate', now('Asia/Riyadh')->format('Y-m-d'))
+        ->call('applyBulkStatus')
+        ->assertHasNoErrors();
+
+    expect($student->refresh()->status)->toBe('suspended');
+});
+
 it('allows supervisor to bulk reset access tokens', function () {
     $student1 = Student::factory()->create([
         'circle_id' => $this->circle->id,

@@ -46,6 +46,37 @@ it('changes the student status through the dedicated status manager', function (
     expect($student->refresh()->status)->toBe('suspended');
 });
 
+/**
+ * Riyadh is UTC+3, so from 21:00 UTC the local date is already tomorrow by
+ * UTC's reckoning. The form fills in the Riyadh date, so a validation rule
+ * measured against UTC rejected it as "in the future" — every night between
+ * midnight and 3am local, nobody could change a student's status.
+ */
+it('accepts the Riyadh date when UTC is still on the previous day', function () {
+    $this->travelTo('2026-07-27 22:00:00'); // 01:00 in Riyadh on the 28th
+
+    expect(now()->format('Y-m-d'))->toBe('2026-07-27')
+        ->and(now('Asia/Riyadh')->format('Y-m-d'))->toBe('2026-07-28');
+
+    $manager = Manager::factory()->create();
+    $student = Student::factory()->create([
+        'circle_id' => Circle::factory()->create()->id,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($manager, 'manager');
+
+    Livewire::test('shared.⚡student-status-manager')
+        ->call('open', $student->id)
+        ->assertSet('effectiveDate', '2026-07-28')
+        ->set('newStatus', 'suspended')
+        ->set('reason', 'انقطاع متكرر عن الحضور')
+        ->call('saveStatus')
+        ->assertHasNoErrors();
+
+    expect($student->refresh()->status)->toBe('suspended');
+});
+
 it('builds a copyable text of selected student names and magic links', function () {
     $manager = Manager::factory()->create();
     $circle = Circle::factory()->create();
