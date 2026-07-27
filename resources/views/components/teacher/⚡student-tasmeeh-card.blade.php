@@ -708,6 +708,8 @@ new class extends Component {
     activeOdeDayId: @js($defaultOdeDayId),
     studentOdePlanDayIds: @js($odeDayIds),
     odeDateToDayIdMap: @js($odeDateToDayIdMap),
+    {{-- The ode days as data; the card builds its own markup from these. --}}
+    odeDays: @js(\App\Support\TasmeehPayload::odeDays($odeDays)),
     activeHadithDayId: @js($defaultHadithDayId),
     studentHadithPlanDayIds: @js($hadithDayIds),
     {{-- The hadith days as data; the card builds its own markup from these. --}}
@@ -750,6 +752,9 @@ new class extends Component {
         if (index !== -1 && index < this.studentPlanDayIds.length - 1) {
             this.activeDayId = this.studentPlanDayIds[index + 1];
         }
+    },
+    currentOdeDay() {
+        return this.odeDays.find(day => day.id == this.activeOdeDayId) ?? null;
     },
     hasPrevOdeDay() {
         const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
@@ -947,328 +952,142 @@ new class extends Component {
     @endif
 
     @if($activeOdePlan && $odeDays->isNotEmpty())
-        @foreach($odeDays as $odeDay)
-            <div wire:key="ode-day-card-container-{{ $odeDay->id }}" x-show="activeOdeDayId == {{ $odeDay->id }}" class="mt-4" x-data="{ showHifzModal: false, showReviewModal: false, prevHifzCount: 0, prevReviewCount: 0, syncing: null, textData: null, textLoading: false, textError: null, prevShown: 0, async loadText(kind, id, part) { this.textData = null; this.textError = null; this.prevShown = 0; this.textLoading = true; try { const r = await fetch(`{{ route('teacher.tasmeeh.text', $student) }}?kind=${kind}&id=${id}&part=${part}`, { headers: { 'Accept': 'application/json' } }); if (!r.ok) throw new Error(); this.textData = await r.json(); } catch (e) { this.textError = '{{ __('تعذّر تحميل النص، أعد المحاولة.') }}'; } finally { this.textLoading = false; } }, hifz: {{ $odeDay->hifz_achievement ?? 'null' }}, review: {{ $odeDay->review_achievement ?? 'null' }} }">
+        {{--
+            One card rendered in the browser from the day data, as with the Quran
+            and mutun days. Ten server-rendered days cost 233 KB to show one.
+        --}}
+        <div class="mt-4" x-data="{ syncing: null, showHifzModal: false, showReviewModal: false, textData: null, textLoading: false, textError: null, prevShown: 0, async loadText(part) { const d = this.currentOdeDay(); if (! d) return; this.textData = null; this.textError = null; this.prevShown = 0; this.textLoading = true; try { const r = await fetch(`{{ route('teacher.tasmeeh.text', $student) }}?kind=ode&id=${d.id}&part=${part}`, { headers: { 'Accept': 'application/json' } }); if (! r.ok) throw new Error(); this.textData = await r.json(); } catch (e) { this.textError = '{{ __('تعذّر تحميل النص، أعد المحاولة.') }}'; } finally { this.textLoading = false; } } }" x-show="currentOdeDay()" x-cloak>
 
-                {{-- Unified Card --}}
-                <flux:card x-bind:class="syncing && 'opacity-70'" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between transition-opacity">
+            <flux:card x-bind:class="syncing && 'opacity-70'" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between transition-opacity">
 
-                    {{-- Day navigation --}}
-                    <div class="flex items-center justify-between mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-4 shrink-0">
-                        <flux:button type="button" @click="prevOdeDay()" x-bind:disabled="!hasPrevOdeDay()" icon="chevron-right" variant="subtle" size="sm">
-                            {{ __('اليوم السابق') }}
-                        </flux:button>
+                {{-- Day navigation --}}
+                <div class="flex items-center justify-between mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-4 shrink-0">
+                    <flux:button type="button" @click="prevOdeDay()" x-bind:disabled="!hasPrevOdeDay()" icon="chevron-right" variant="subtle" size="sm">
+                        {{ __('اليوم السابق') }}
+                    </flux:button>
 
-                        <div class="text-center">
-                            <div class="font-bold text-lg leading-none">{{ $odeDay->day_name }}</div>
-                            <div class="text-zinc-500 text-sm dir-ltr mt-1 leading-none">{{ $odeDay->date->format('Y/m/d') }}</div>
-                            <div class="text-xs text-indigo-600 dark:text-indigo-400 mt-1.5 font-semibold">
-                                {{ __('تسميع المنظومة') }}: {{ $activeOdePlan->path->ode->name }}
-                            </div>
+                    <div class="text-center">
+                        <div class="font-bold text-lg leading-none" x-text="currentOdeDay()?.day_name"></div>
+                        <div class="text-zinc-500 text-sm dir-ltr mt-1 leading-none" x-text="currentOdeDay()?.date"></div>
+                        <div class="text-xs text-indigo-600 dark:text-indigo-400 mt-1.5 font-semibold">
+                            {{ __('تسميع المنظومة') }}: {{ $activeOdePlan->path->ode->name }}
                         </div>
-
-                        <flux:button type="button" @click="nextOdeDay()" x-bind:disabled="!hasNextOdeDay()" icon-trailing="chevron-left" variant="subtle" size="sm">
-                            {{ __('اليوم التالي') }}
-                        </flux:button>
                     </div>
 
-                    <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {{-- Ode Hifz --}}
-                        @if ($odeDay->from_verse_number && $odeDay->to_verse_number)
-                            <div class="bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20 p-3 md:p-4 space-y-2.5 md:space-y-4 flex flex-col justify-between">
-                                <div>
-                                    <flux:heading size="sm" class="text-indigo-600 dark:text-indigo-400 mb-1">{{ __('حفظ المنظومة') }}</flux:heading>
-                                    <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
-                                        {{ $odeDay->formatOdeRange('hifz') }}
-                                    </p>
-                                    @if ($odeDay->hifz_achievement !== null && $odeDay->hifz_graded_at)
-                                        <div class="text-xs text-indigo-600/70 dark:text-indigo-400/70 font-semibold mt-1">
-                                            {{ __('تاريخ الإنجاز') }}: {{ \Carbon\Carbon::parse($odeDay->hifz_graded_at)->format('Y-m-d') }}
-                                        </div>
-                                    @endif
-                                </div>
+                    <flux:button type="button" @click="nextOdeDay()" x-bind:disabled="!hasNextOdeDay()" icon-trailing="chevron-left" variant="subtle" size="sm">
+                        {{ __('اليوم التالي') }}
+                    </flux:button>
+                </div>
 
-                                <flux:separator class="opacity-50 shrink-0" />
+                <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    @foreach ([
+                        ['part' => 'hifz', 'label' => __('حفظ المنظومة'), 'gradeLabel' => __('تقييم الحفظ'), 'has' => 'has_hifz', 'box' => 'bg-indigo-50/50 dark:bg-indigo-500/5 border-indigo-100 dark:border-indigo-500/20', 'heading' => 'text-indigo-600 dark:text-indigo-400', 'date' => 'text-indigo-600/70 dark:text-indigo-400/70', 'modal' => 'showHifzModal'],
+                        ['part' => 'review', 'label' => __('مراجعة المنظومة'), 'gradeLabel' => __('تقييم المراجعة'), 'has' => 'has_review', 'box' => 'bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-500/20', 'heading' => 'text-emerald-600 dark:text-emerald-400', 'date' => 'text-emerald-600/70 dark:text-emerald-400/70', 'modal' => 'showReviewModal'],
+                    ] as $section)
+                        @php $part = $section['part']; @endphp
+                        <div x-show="currentOdeDay()?.{{ $section['has'] }}"
+                            class="{{ $section['box'] }} rounded-xl border p-3 md:p-4 space-y-2.5 md:space-y-4 flex flex-col justify-between">
+                            <div>
+                                <flux:heading size="sm" class="{{ $section['heading'] }} mb-1">{{ $section['label'] }}</flux:heading>
+                                <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm" x-text="currentOdeDay()?.{{ $part }}.range"></p>
+                                <div x-show="currentOdeDay()?.{{ $part }}.graded_on" class="text-xs {{ $section['date'] }} font-semibold mt-1"
+                                    x-text="'{{ __('تاريخ الإنجاز') }}: ' + (currentOdeDay()?.{{ $part }}.graded_on ?? '')"></div>
+                            </div>
 
-                                {{-- No margin of its own: the parent's space-y already separates it. --}}
-                                <div>
-                                    <flux:button type="button" @click="showHifzModal = true; loadText('ode', {{ $odeDay->id }}, 'hifz')" icon="book-open" variant="subtle" class="w-full justify-center">
-                                        {{ __('إظهار نص المنظومة') }}
-                                    </flux:button>
-                                </div>
+                            <flux:separator class="opacity-50 shrink-0" />
 
-                                <flux:separator class="opacity-50 shrink-0" />
+                            <div>
+                                <flux:button type="button" @click="{{ $section['modal'] }} = true; loadText('{{ $part }}')" icon="book-open" variant="subtle" class="w-full justify-center">
+                                    {{ __('إظهار نص المنظومة') }}
+                                </flux:button>
+                            </div>
 
-                                <div class="shrink-0">
-                                    <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم الحفظ') }}</flux:label>
-                                    {{-- Four across even on a phone, as in the Quran card. --}}
-                                    <div class="grid grid-cols-4 gap-1.5">
-                                        @foreach([
-                                                [
-                                                    'val' => 3,
-                                                    'lbl' => 'ممتاز',
-                                                    'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
-                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                                ],
-                                                [
-                                                    'val' => 2,
-                                                    'lbl' => 'جيد',
-                                                    'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
-                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                                ],
-                                                [
-                                                    'val' => 1,
-                                                    'lbl' => 'مقبول',
-                                                    'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
-                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                                ],
-                                                [
-                                                    'val' => null,
-                                                    'lbl' => 'لم يسمع',
-                                                    'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
-                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                                ]
-                                            ] as $item)
-                                                @php
-                                                    $val = $item['val'];
-                                                    $lbl = $item['lbl'];
-                                                    $activeClass = $item['activeClass'];
-                                                    $inactiveClass = $item['inactiveClass'];
-                                                @endphp
-                                                <button type="button" 
-                                                    @click="hifz = {{ $val ?? 'null' }}; syncing = 'hifz'; $wire.saveOdeAchievement({{ $odeDay->id }}, 'hifz', {{ $val ?? 'null' }}).finally(() => syncing = null)"
-                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs"
-                                                    :class="hifz === {{ $val ?? 'null' }} ? '{{ $activeClass }}' : '{{ $inactiveClass }}'">
-                                                    {{ $lbl }}
-                                                </button>
-                                        @endforeach
-                                    </div>
+                            <flux:separator class="opacity-50 shrink-0" />
+
+                            <div class="shrink-0">
+                                <flux:label class="mb-2 text-xs font-semibold">{{ $section['gradeLabel'] }}</flux:label>
+                                <div class="grid grid-cols-4 gap-1.5">
+                                    @foreach ($gradeChoices as $choice)
+                                        <button type="button"
+                                            @click="const d = currentOdeDay(); d.{{ $part }}.achievement = {{ $choice['js'] }}; syncing = '{{ $part }}'; $wire.saveOdeAchievement(d.id, '{{ $part }}', {{ $choice['js'] }}).finally(() => syncing = null)"
+                                            class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs"
+                                            :class="currentOdeDay()?.{{ $part }}.achievement === {{ $choice['js'] }} ? '{{ $choice['active'] }}' : '{{ $choice['inactive'] }}'">{{ $choice['label'] }}</button>
+                                    @endforeach
                                 </div>
                             </div>
-                        @endif
+                        </div>
+                    @endforeach
+                </div>
+            </flux:card>
 
-                        {{-- Ode Review --}}
-                        @if ($odeDay->review_from_verse_number && $odeDay->review_to_verse_number)
-                            <div class="bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 p-3 md:p-4 space-y-2.5 md:space-y-4 flex flex-col justify-between">
-                                <div>
-                                    <flux:heading size="sm" class="text-emerald-600 dark:text-emerald-400 mb-1">{{ __('مراجعة المنظومة') }}</flux:heading>
-                                    <p class="text-zinc-700 dark:text-zinc-300 font-bold text-sm">
-                                        {{ $odeDay->formatOdeRange('review') }}
-                                    </p>
-                                    @if ($odeDay->review_achievement !== null && $odeDay->review_graded_at)
-                                        <div class="text-xs text-emerald-600/70 dark:text-emerald-400/70 font-semibold mt-1">
-                                            {{ __('تاريخ الإنجاز') }}: {{ \Carbon\Carbon::parse($odeDay->review_graded_at)->format('Y-m-d') }}
-                                        </div>
-                                    @endif
-                                </div>
+            @foreach ([
+                ['part' => 'hifz', 'modal' => 'showHifzModal', 'title' => __('حفظ المنظومة'), 'accent' => 'text-indigo-600 dark:text-indigo-400'],
+                ['part' => 'review', 'modal' => 'showReviewModal', 'title' => __('مراجعة المنظومة'), 'accent' => 'text-emerald-600 dark:text-emerald-400'],
+            ] as $modal)
+                @php $part = $modal['part']; @endphp
+                <div x-show="{{ $modal['modal'] }}"
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 translate-y-4"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    x-transition:leave="transition ease-in duration-200"
+                    x-transition:leave-start="opacity-100 translate-y-0"
+                    x-transition:leave-end="opacity-0 translate-y-4"
+                    class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full" x-cloak>
 
-                                <flux:separator class="opacity-50 shrink-0" />
-
-                                <div>
-                                    <flux:button type="button" @click="showReviewModal = true; loadText('ode', {{ $odeDay->id }}, 'review')" icon="book-open" variant="subtle" class="w-full justify-center">
-                                        {{ __('إظهار نص المنظومة') }}
-                                    </flux:button>
-                                </div>
-
-                                <flux:separator class="opacity-50 shrink-0" />
-
-                                <div class="shrink-0">
-                                    <flux:label class="mb-2 text-xs font-semibold">{{ __('تقييم المراجعة') }}</flux:label>
-                                    {{-- Four across even on a phone, as in the Quran card. --}}
-                                    <div class="grid grid-cols-4 gap-1.5">
-                                        @foreach([
-                                                [
-                                                    'val' => 3,
-                                                    'lbl' => 'ممتاز',
-                                                    'activeClass' => 'border-green-500 bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-300',
-                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-green-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                                ],
-                                                [
-                                                    'val' => 2,
-                                                    'lbl' => 'جيد',
-                                                    'activeClass' => 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
-                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                                ],
-                                                [
-                                                    'val' => 1,
-                                                    'lbl' => 'مقبول',
-                                                    'activeClass' => 'border-amber-500 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
-                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-amber-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                                ],
-                                                [
-                                                    'val' => null,
-                                                    'lbl' => 'لم يسمع',
-                                                    'activeClass' => 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300',
-                                                    'inactiveClass' => 'border-zinc-200 dark:border-zinc-700 hover:border-red-200 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
-                                                ]
-                                            ] as $item)
-                                                @php
-                                                    $val = $item['val'];
-                                                    $lbl = $item['lbl'];
-                                                    $activeClass = $item['activeClass'];
-                                                    $inactiveClass = $item['inactiveClass'];
-                                                @endphp
-                                                <button type="button" 
-                                                    @click="review = {{ $val ?? 'null' }}; syncing = 'review'; $wire.saveOdeAchievement({{ $odeDay->id }}, 'review', {{ $val ?? 'null' }}).finally(() => syncing = null)"
-                                                    class="py-2.5 rounded-lg border-2 transition-all font-bold text-center text-xs"
-                                                    :class="review === {{ $val ?? 'null' }} ? '{{ $activeClass }}' : '{{ $inactiveClass }}'">
-                                                    {{ $lbl }}
-                                                </button>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            </div>
-                        @endif
+                    <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                        <div>
+                            <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">{{ $modal['title'] }}</h3>
+                            <p class="text-xs {{ $modal['accent'] }} mt-1 font-semibold" x-text="currentOdeDay()?.{{ $part }}.range"></p>
+                        </div>
+                        <button type="button" @click="{{ $modal['modal'] }} = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                            <flux:icon icon="x-mark" class="size-5" />
+                        </button>
                     </div>
 
-                    {{-- Full-Screen Modal for Hifz --}}
-                    @if ($odeDay->from_verse_number && $odeDay->to_verse_number)
-                        <div x-show="showHifzModal" 
-                             x-transition:enter="transition ease-out duration-300"
-                             x-transition:enter-start="opacity-0 translate-y-4"
-                             x-transition:enter-end="opacity-100 translate-y-0"
-                             x-transition:leave="transition ease-in duration-200"
-                             x-transition:leave-start="opacity-100 translate-y-0"
-                             x-transition:leave-end="opacity-0 translate-y-4"
-                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col w-full h-full"
-                             x-cloak>
+                    {{-- Fetched when the modal opens; see TasmeehDataController::text --}}
+                    <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30">
+                        <div class="max-w-4xl mx-auto space-y-6 text-right">
+                            <template x-if="textLoading">
+                                <p class="text-center text-zinc-400 py-12">{{ __('جارٍ التحميل...') }}</p>
+                            </template>
 
-                            {{-- Modal Header --}}
-                            <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-                                <div>
-                                    <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
-                                        {{ __('حفظ المنظومة') }}
-                                    </h3>
-                                    <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-semibold">
-                                        {{ $activeOdePlan->path->ode->name }} ({{ $odeDay->formatOdeRange('hifz') }})
-                                    </p>
-                                </div>
-                                <button type="button" @click="showHifzModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                                    <flux:icon icon="x-mark" class="size-5" />
-                                </button>
-                            </div>
+                            <template x-if="!textLoading && textError">
+                                <p class="text-center text-red-500 py-12" x-text="textError"></p>
+                            </template>
 
-                            {{-- Fetched when the modal opens; see TasmeehDataController::text --}}
-                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30">
-                                <div class="max-w-4xl mx-auto space-y-6 text-right">
-                                    <template x-if="textLoading">
-                                        <p class="text-center text-zinc-400 py-12">{{ __('جارٍ التحميل...') }}</p>
+                            <template x-if="!textLoading && textData">
+                                <div class="space-y-6">
+                                    <div x-show="textData.previous.length && prevShown < textData.previous.length" class="flex justify-center">
+                                        <flux:button type="button" @click="prevShown++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
+                                            {{ __('إظهار البيت السابق') }}
+                                        </flux:button>
+                                    </div>
+
+                                    <template x-for="(v, i) in textData.previous" :key="'prev-'+v.number">
+                                        <div x-show="prevShown >= textData.previous.length - i" x-cloak
+                                            class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 opacity-60 hover:opacity-100 transition-opacity">
+                                            <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose" x-text="v.sadr"></p>
+                                            <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
+                                        </div>
                                     </template>
 
-                                    <template x-if="!textLoading && textError">
-                                        <p class="text-center text-red-500 py-12" x-text="textError"></p>
-                                    </template>
-
-                                    <template x-if="!textLoading && textData">
-                                        <div class="space-y-6">
-                                            <div x-show="textData.previous.length && prevShown < textData.previous.length" class="flex justify-center">
-                                                <flux:button type="button" @click="prevShown++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
-                                                    {{ __('إظهار البيت السابق') }}
-                                                </flux:button>
-                                            </div>
-
-                                            <template x-for="(v, i) in textData.previous" :key="'prev-'+v.number">
-                                                <div x-show="prevShown >= textData.previous.length - i" x-cloak
-                                                    class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 opacity-60 hover:opacity-100 transition-opacity">
-                                                    <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose" x-text="v.sadr"></p>
-                                                    <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
-                                                </div>
-                                            </template>
-
-                                            <template x-for="v in textData.verses" :key="v.number">
-                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 p-4">
-                                                    <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose" x-text="v.sadr"></p>
-                                                    <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
-                                                </div>
-                                            </template>
+                                    <template x-for="v in textData.verses" :key="v.number">
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 p-4">
+                                            <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose" x-text="v.sadr"></p>
+                                            <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
                                         </div>
                                     </template>
                                 </div>
-                            </div>
-                            {{-- Modal Footer --}}
-                            <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                                <flux:button type="button" @click="showHifzModal = false; prevHifzCount = 0" variant="ghost">
-                                    {{ __('إغلاق') }}
-                                </flux:button>
-                            </div>
+                            </template>
                         </div>
-                    @endif
+                    </div>
 
-                    {{-- Full-Screen Modal for Review --}}
-                    @if ($odeDay->review_from_verse_number && $odeDay->review_to_verse_number)
-                        <div x-show="showReviewModal" 
-                             x-transition:enter="transition ease-out duration-300"
-                             x-transition:enter-start="opacity-0 translate-y-4"
-                             x-transition:enter-end="opacity-100 translate-y-0"
-                             x-transition:leave="transition ease-in duration-200"
-                             x-transition:leave-start="opacity-100 translate-y-0"
-                             x-transition:leave-end="opacity-0 translate-y-4"
-                             class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full"
-                             x-cloak>
-
-                            {{-- Modal Header --}}
-                            <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-                                <div>
-                                    <h3 class="font-bold text-lg text-zinc-900 dark:text-white leading-tight">
-                                        {{ __('مراجعة المنظومة') }}
-                                    </h3>
-                                    <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
-                                        {{ $activeOdePlan->path->ode->name }} ({{ $odeDay->formatOdeRange('review') }})
-                                    </p>
-                                </div>
-                                <button type="button" @click="showReviewModal = false" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                                    <flux:icon icon="x-mark" class="size-5" />
-                                </button>
-                            </div>
-
-                            {{-- Fetched when the modal opens; see TasmeehDataController::text --}}
-                            <div class="flex-1 overflow-y-auto p-6 md:p-12 space-y-6 bg-zinc-50/30 dark:bg-zinc-950/30">
-                                <div class="max-w-4xl mx-auto space-y-6 text-right">
-                                    <template x-if="textLoading">
-                                        <p class="text-center text-zinc-400 py-12">{{ __('جارٍ التحميل...') }}</p>
-                                    </template>
-
-                                    <template x-if="!textLoading && textError">
-                                        <p class="text-center text-red-500 py-12" x-text="textError"></p>
-                                    </template>
-
-                                    <template x-if="!textLoading && textData">
-                                        <div class="space-y-6">
-                                            <div x-show="textData.previous.length && prevShown < textData.previous.length" class="flex justify-center">
-                                                <flux:button type="button" @click="prevShown++" icon="arrow-up" variant="subtle" class="w-full sm:w-auto font-bold">
-                                                    {{ __('إظهار البيت السابق') }}
-                                                </flux:button>
-                                            </div>
-
-                                            <template x-for="(v, i) in textData.previous" :key="'prev-'+v.number">
-                                                <div x-show="prevShown >= textData.previous.length - i" x-cloak
-                                                    class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 opacity-60 hover:opacity-100 transition-opacity">
-                                                    <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose" x-text="v.sadr"></p>
-                                                    <p class="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-200 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
-                                                </div>
-                                            </template>
-
-                                            <template x-for="v in textData.verses" :key="v.number">
-                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 border-r-4 border-r-indigo-500 dark:border-r-indigo-400 p-4">
-                                                    <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose" x-text="v.sadr"></p>
-                                                    <p class="text-lg md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-serif leading-loose sm:text-left" x-text="v.ajuz"></p>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                            {{-- Modal Footer --}}
-                            <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
-                                <flux:button type="button" @click="showReviewModal = false; prevReviewCount = 0" variant="ghost">
-                                    {{ __('إغلاق') }}
-                                </flux:button>
-                            </div>
-                        </div>
-                    @endif
-                </flux:card>
-            </div>
-        @endforeach
+                    <div class="p-4 border-t border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 flex justify-end shrink-0">
+                        <flux:button type="button" @click="{{ $modal['modal'] }} = false" variant="ghost">{{ __('إغلاق') }}</flux:button>
+                    </div>
+                </div>
+            @endforeach
+        </div>
     @elseif($activeOdePlan && $odeDays->isEmpty())
         <flux:card class="mt-4 border-zinc-200 dark:border-zinc-700">
             <div class="flex items-center gap-2 mb-6 pb-4 border-b border-zinc-100 dark:border-zinc-800">

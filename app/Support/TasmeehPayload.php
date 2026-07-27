@@ -2,8 +2,11 @@
 
 namespace App\Support;
 
+use App\Models\HadithPathDay;
+use App\Models\OdePathDay;
 use App\Models\StudentPlanDay;
 use App\Models\Surah;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -44,7 +47,7 @@ class TasmeehPayload
      * Hadith path days, identified by path day — the same handle the grading
      * actions use. The days arrive already carrying the student's achievements.
      *
-     * @param  Collection<int, \App\Models\HadithPathDay>  $days
+     * @param  Collection<int, HadithPathDay>  $days
      * @return array<int, array<string, mixed>>
      */
     public static function hadithDays(Collection $days): array
@@ -64,6 +67,36 @@ class TasmeehPayload
             'review' => [
                 'range' => $day->formatHadithRange('review'),
                 'achievement' => $day->review_achievement,
+            ],
+        ])->values()->all();
+    }
+
+    /**
+     * Ode path days, identified by path day like the mutun ones. The days
+     * arrive already carrying the student's achievements and grading dates.
+     *
+     * @param  Collection<int, OdePathDay>  $days
+     * @return array<int, array<string, mixed>>
+     */
+    public static function odeDays(Collection $days): array
+    {
+        $gradedOn = fn ($value) => $value ? Carbon::parse($value)->format('Y-m-d') : null;
+
+        return $days->map(fn ($day) => [
+            'id' => $day->id,
+            'date' => $day->date?->format('Y-m-d'),
+            'day_name' => $day->day_name,
+            'has_hifz' => (bool) ($day->from_verse_number && $day->to_verse_number),
+            'has_review' => (bool) ($day->review_from_verse_number && $day->review_to_verse_number),
+            'hifz' => [
+                'range' => $day->formatOdeRange('hifz'),
+                'achievement' => $day->hifz_achievement,
+                'graded_on' => $gradedOn($day->hifz_graded_at),
+            ],
+            'review' => [
+                'range' => $day->formatOdeRange('review'),
+                'achievement' => $day->review_achievement,
+                'graded_on' => $gradedOn($day->review_graded_at),
             ],
         ])->values()->all();
     }
