@@ -457,6 +457,20 @@ it('renders both Quranic plan and Ode plan simultaneously in student-tasmeeh-car
         ->and($viewData['defaultOdeDayId'])->toBe($odeDay->id)
         ->and($viewData['odeDateToDayIdMap'])->toBe(['2026-06-18' => $odeDay->id])
         ->and($viewData['quranDateToDayIdMap'])->toBe($expectedQuranMap);
+
+    // Each section's days hang on an element keyed by its own plan. The browser
+    // reads the days once, when it builds that element's scope, so a section
+    // whose plan changed has to be replaced rather than morphed in place.
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $xpath = new DOMXPath($document);
+
+    $holderKey = fn (string $property) => $xpath
+        ->query('//*[contains(@x-data, "'.$property.':")]')
+        ->item(0)?->getAttribute('wire:key');
+
+    expect($holderKey('quranDays'))->toBe('quran-plan-'.$quranicPlan->id)
+        ->and($holderKey('odeDays'))->toBe('ode-plan-'.$odePlan->id);
 });
 
 it('creates gamification transaction when teacher grades ode achievement on active leaderboard', function () {

@@ -700,107 +700,20 @@ new class extends Component {
 };
 ?>
 
-<div x-data="{
-    activeDayId: @js($defaultDayId),
-    studentPlanDayIds: @js($dayIds),
-    {{-- The days themselves, as data: the card builds its own markup from these. --}}
-    quranDays: @js(\App\Support\TasmeehPayload::quranDays($days)),
-    activeOdeDayId: @js($defaultOdeDayId),
-    studentOdePlanDayIds: @js($odeDayIds),
-    odeDateToDayIdMap: @js($odeDateToDayIdMap),
-    {{-- The ode days as data; the card builds its own markup from these. --}}
-    odeDays: @js(\App\Support\TasmeehPayload::odeDays($odeDays)),
-    activeHadithDayId: @js($defaultHadithDayId),
-    studentHadithPlanDayIds: @js($hadithDayIds),
-    {{-- The hadith days as data; the card builds its own markup from these. --}}
-    hadithDays: @js(\App\Support\TasmeehPayload::hadithDays($hadithDays)),
-    hadithDateToDayIdMap: @js($hadithDateToDayIdMap),
-    quranDateToDayIdMap: @js($quranDateToDayIdMap),
+{{--
+    Each section below carries its own day data, in its own Alpine scope, keyed
+    by the plan it is showing.
 
-    init() {
-        this.$watch('$wire.gradedAtDate', (newVal) => {
-            if (this.odeDateToDayIdMap && this.odeDateToDayIdMap[newVal]) {
-                this.activeOdeDayId = this.odeDateToDayIdMap[newVal];
-            }
-            if (this.hadithDateToDayIdMap && this.hadithDateToDayIdMap[newVal]) {
-                this.activeHadithDayId = this.hadithDateToDayIdMap[newVal];
-            }
-            if (this.quranDateToDayIdMap && this.quranDateToDayIdMap[newVal]) {
-                this.activeDayId = this.quranDateToDayIdMap[newVal];
-            }
-        });
-    },
-    currentQuranDay() {
-        return this.quranDays.find(day => day.id == this.activeDayId) ?? null;
-    },
-    hasPrevDay() {
-        const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
-        return index > 0;
-    },
-    hasNextDay() {
-        const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
-        return index !== -1 && index < this.studentPlanDayIds.length - 1;
-    },
-    prevDay() {
-        const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
-        if (index > 0) {
-            this.activeDayId = this.studentPlanDayIds[index - 1];
-        }
-    },
-    nextDay() {
-        const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
-        if (index !== -1 && index < this.studentPlanDayIds.length - 1) {
-            this.activeDayId = this.studentPlanDayIds[index + 1];
-        }
-    },
-    currentOdeDay() {
-        return this.odeDays.find(day => day.id == this.activeOdeDayId) ?? null;
-    },
-    hasPrevOdeDay() {
-        const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
-        return index > 0;
-    },
-    hasNextOdeDay() {
-        const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
-        return index !== -1 && index < this.studentOdePlanDayIds.length - 1;
-    },
-    prevOdeDay() {
-        const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
-        if (index > 0) {
-            this.activeOdeDayId = this.studentOdePlanDayIds[index - 1];
-        }
-    },
-    nextOdeDay() {
-        const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
-        if (index !== -1 && index < this.studentOdePlanDayIds.length - 1) {
-            this.activeOdeDayId = this.studentOdePlanDayIds[index + 1];
-        }
-    },
-    currentHadithDay() {
-        return this.hadithDays.find(day => day.id == this.activeHadithDayId) ?? null;
-    },
-    hasPrevHadithDay() {
-        const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
-        return index > 0;
-    },
-    hasNextHadithDay() {
-        const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
-        return index !== -1 && index < this.studentHadithPlanDayIds.length - 1;
-    },
-    prevHadithDay() {
-        const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
-        if (index > 0) {
-            this.activeHadithDayId = this.studentHadithPlanDayIds[index - 1];
-        }
-    },
-    nextHadithDay() {
-        const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
-        if (index !== -1 && index < this.studentHadithPlanDayIds.length - 1) {
-            this.activeHadithDayId = this.studentHadithPlanDayIds[index + 1];
-        }
-    }
-}"
-    class="space-y-4"
+    It cannot live here on the root. Alpine evaluates x-data once and hands that
+    scope to the children it initialises, and Livewire keys the component root
+    by its wire:id, so the root is morphed in place no matter how much its day
+    data changed. Holding the days here left a student with two plans grading
+    the days of the plan they had switched away from: the section headings came
+    from the server and followed the new plan, the days came from this scope and
+    did not. A key on a child element is honoured, so a section whose plan
+    changed is replaced outright and its scope built again from the new days.
+--}}
+<div class="space-y-4"
     wire:key="student-tasmeeh-container-{{ $student->id }}-{{ $selectedPlanId ?? 'ode-only' }}"
 >
     @if($sPlans->isNotEmpty())
@@ -845,88 +758,131 @@ new class extends Component {
             One card, rendered in the browser from the day data below. Rendering
             all twenty-five days server-side and hiding them with x-show cost
             half a megabyte; the same days as JSON are a few kilobytes.
+
+            The key is the chosen plan, so picking another plan from the select
+            above replaces this element and rebuilds the scope from that plan's
+            days rather than leaving the previous plan's on screen.
         --}}
-        <flux:card x-data="{ syncing: null }" x-bind:class="syncing && 'opacity-70'"
-            x-show="currentQuranDay()"
-            class="mt-2 border-zinc-200 dark:border-zinc-700 transition-opacity" x-cloak>
+        <div class="mt-2" wire:key="quran-plan-{{ $activePlan?->id }}" x-data="{
+            syncing: null,
+            activeDayId: @js($defaultDayId),
+            studentPlanDayIds: @js($dayIds),
+            {{-- The days themselves, as data: the card builds its own markup from these. --}}
+            quranDays: @js(\App\Support\TasmeehPayload::quranDays($days)),
+            quranDateToDayIdMap: @js($quranDateToDayIdMap),
 
-            {{-- Day navigation --}}
-            <div class="flex items-center justify-between mb-4 md:mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-3 md:pb-4">
-                <flux:button type="button" @click="prevDay()" x-bind:disabled="!hasPrevDay()" icon="chevron-right" variant="subtle" size="sm">
-                    {{ __('اليوم السابق') }}
-                </flux:button>
+            init() {
+                this.$watch('$wire.gradedAtDate', (newVal) => {
+                    if (this.quranDateToDayIdMap[newVal]) {
+                        this.activeDayId = this.quranDateToDayIdMap[newVal];
+                    }
+                });
+            },
+            currentQuranDay() {
+                return this.quranDays.find(day => day.id == this.activeDayId) ?? null;
+            },
+            hasPrevDay() {
+                const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
+                return index > 0;
+            },
+            hasNextDay() {
+                const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
+                return index !== -1 && index < this.studentPlanDayIds.length - 1;
+            },
+            prevDay() {
+                const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
+                if (index > 0) {
+                    this.activeDayId = this.studentPlanDayIds[index - 1];
+                }
+            },
+            nextDay() {
+                const index = this.studentPlanDayIds.findIndex(id => id == this.activeDayId);
+                if (index !== -1 && index < this.studentPlanDayIds.length - 1) {
+                    this.activeDayId = this.studentPlanDayIds[index + 1];
+                }
+            }
+        }" x-show="currentQuranDay()" x-cloak>
+            <flux:card x-bind:class="syncing && 'opacity-70'"
+                class="border-zinc-200 dark:border-zinc-700 transition-opacity">
 
-                <div class="text-center">
-                    <div class="font-bold text-base md:text-lg" x-text="currentQuranDay()?.day_name"></div>
-                    <div class="text-zinc-500 text-xs md:text-sm dir-ltr" x-text="currentQuranDay()?.date"></div>
+                {{-- Day navigation --}}
+                <div class="flex items-center justify-between mb-4 md:mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-3 md:pb-4">
+                    <flux:button type="button" @click="prevDay()" x-bind:disabled="!hasPrevDay()" icon="chevron-right" variant="subtle" size="sm">
+                        {{ __('اليوم السابق') }}
+                    </flux:button>
+
+                    <div class="text-center">
+                        <div class="font-bold text-base md:text-lg" x-text="currentQuranDay()?.day_name"></div>
+                        <div class="text-zinc-500 text-xs md:text-sm dir-ltr" x-text="currentQuranDay()?.date"></div>
+                    </div>
+
+                    <flux:button type="button" @click="nextDay()" x-bind:disabled="!hasNextDay()" icon-trailing="chevron-left" variant="subtle" size="sm">
+                        {{ __('اليوم التالي') }}
+                    </flux:button>
                 </div>
 
-                <flux:button type="button" @click="nextDay()" x-bind:disabled="!hasNextDay()" icon-trailing="chevron-left" variant="subtle" size="sm">
-                    {{ __('اليوم التالي') }}
-                </flux:button>
-            </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-8">
+                    @foreach ([
+                        ['part' => 'hifz', 'label' => __('الحفظ'), 'shown' => in_array($planType, ['hifz', 'hifz_review'], true), 'box' => 'bg-indigo-50/50 dark:bg-indigo-500/5 border-indigo-100 dark:border-indigo-500/20', 'heading' => 'text-indigo-600 dark:text-indigo-400', 'chip' => 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-500/30'],
+                        ['part' => 'review', 'label' => __('المراجعة'), 'shown' => in_array($planType, ['review', 'hifz_review'], true), 'box' => 'bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-500/20', 'heading' => 'text-emerald-600 dark:text-emerald-400', 'chip' => 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30'],
+                    ] as $section)
+                        @continue(! $section['shown'])
+                        @php $part = $section['part']; @endphp
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-8">
-                @foreach ([
-                    ['part' => 'hifz', 'label' => __('الحفظ'), 'shown' => in_array($planType, ['hifz', 'hifz_review'], true), 'box' => 'bg-indigo-50/50 dark:bg-indigo-500/5 border-indigo-100 dark:border-indigo-500/20', 'heading' => 'text-indigo-600 dark:text-indigo-400', 'chip' => 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-500/30'],
-                    ['part' => 'review', 'label' => __('المراجعة'), 'shown' => in_array($planType, ['review', 'hifz_review'], true), 'box' => 'bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-500/20', 'heading' => 'text-emerald-600 dark:text-emerald-400', 'chip' => 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30'],
-                ] as $section)
-                    @continue(! $section['shown'])
-                    @php $part = $section['part']; @endphp
+                        <div x-data="{ linksOpen: false }" class="{{ $section['box'] }} rounded-xl border p-3.5 md:p-5 space-y-3 md:space-y-5">
+                            <div>
+                                <flux:heading size="lg" class="{{ $section['heading'] }} mb-1 md:mb-2">{{ $section['label'] }}</flux:heading>
+                                <p class="text-zinc-700 dark:text-zinc-300 font-medium text-base md:text-lg leading-snug md:leading-relaxed"
+                                    x-text="currentQuranDay()?.{{ $part }}.range || '{{ __('لا يوجد نص محدد') }}'"></p>
 
-                    <div x-data="{ linksOpen: false }" class="{{ $section['box'] }} rounded-xl border p-3.5 md:p-5 space-y-3 md:space-y-5">
-                        <div>
-                            <flux:heading size="lg" class="{{ $section['heading'] }} mb-1 md:mb-2">{{ $section['label'] }}</flux:heading>
-                            <p class="text-zinc-700 dark:text-zinc-300 font-medium text-base md:text-lg leading-snug md:leading-relaxed"
-                                x-text="currentQuranDay()?.{{ $part }}.range || '{{ __('لا يوجد نص محدد') }}'"></p>
-
-                            {{-- One surah opens directly; several fold into a list. --}}
-                            <template x-if="currentQuranDay()?.{{ $part }}.links.length === 1">
-                                <a :href="currentQuranDay().{{ $part }}.links[0].url" target="_blank"
-                                    class="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-lg {{ $section['chip'] }} text-xs font-medium transition-colors">
-                                    <flux:icon icon="book-open" class="size-3.5" />
-                                    <span x-text="'{{ __('افتح') }} ' + currentQuranDay().{{ $part }}.links[0].name"></span>
-                                </a>
-                            </template>
-
-                            <template x-if="currentQuranDay()?.{{ $part }}.links.length > 1">
-                                <div class="mt-3">
-                                    <button type="button" @click="linksOpen = ! linksOpen"
-                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg {{ $section['chip'] }} text-xs font-medium transition-colors">
+                                {{-- One surah opens directly; several fold into a list. --}}
+                                <template x-if="currentQuranDay()?.{{ $part }}.links.length === 1">
+                                    <a :href="currentQuranDay().{{ $part }}.links[0].url" target="_blank"
+                                        class="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-lg {{ $section['chip'] }} text-xs font-medium transition-colors">
                                         <flux:icon icon="book-open" class="size-3.5" />
-                                        <span x-text="'{{ __('افتح الآيات في القرآن') }} (' + currentQuranDay().{{ $part }}.links.length + ')'"></span>
-                                        <flux:icon icon="chevron-down" class="size-3.5 transition-transform" x-bind:class="linksOpen ? 'rotate-180' : ''" />
-                                    </button>
-                                    <div x-show="linksOpen" x-collapse class="flex flex-wrap gap-2 mt-2">
-                                        <template x-for="link in currentQuranDay().{{ $part }}.links" :key="link.url">
-                                            <a :href="link.url" target="_blank"
-                                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg {{ $section['chip'] }} text-xs font-medium transition-colors">
-                                                <flux:icon icon="book-open" class="size-3.5" />
-                                                <span x-text="link.name"></span>
-                                            </a>
-                                        </template>
+                                        <span x-text="'{{ __('افتح') }} ' + currentQuranDay().{{ $part }}.links[0].name"></span>
+                                    </a>
+                                </template>
+
+                                <template x-if="currentQuranDay()?.{{ $part }}.links.length > 1">
+                                    <div class="mt-3">
+                                        <button type="button" @click="linksOpen = ! linksOpen"
+                                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg {{ $section['chip'] }} text-xs font-medium transition-colors">
+                                            <flux:icon icon="book-open" class="size-3.5" />
+                                            <span x-text="'{{ __('افتح الآيات في القرآن') }} (' + currentQuranDay().{{ $part }}.links.length + ')'"></span>
+                                            <flux:icon icon="chevron-down" class="size-3.5 transition-transform" x-bind:class="linksOpen ? 'rotate-180' : ''" />
+                                        </button>
+                                        <div x-show="linksOpen" x-collapse class="flex flex-wrap gap-2 mt-2">
+                                            <template x-for="link in currentQuranDay().{{ $part }}.links" :key="link.url">
+                                                <a :href="link.url" target="_blank"
+                                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg {{ $section['chip'] }} text-xs font-medium transition-colors">
+                                                    <flux:icon icon="book-open" class="size-3.5" />
+                                                    <span x-text="link.name"></span>
+                                                </a>
+                                            </template>
+                                        </div>
                                     </div>
+                                </template>
+                            </div>
+
+                            <flux:separator />
+
+                            <div>
+                                <flux:label class="mb-2 md:mb-3 text-xs md:text-sm font-semibold">{{ __('تقييم الإنجاز (التسميع)') }}</flux:label>
+                                <div class="grid grid-cols-4 gap-1.5 md:gap-2">
+                                    @foreach ($gradeChoices as $choice)
+                                        <button type="button"
+                                            @click="const d = currentQuranDay(); d.{{ $part }}.achievement = {{ $choice['js'] }}; syncing = '{{ $part }}'; $wire.saveAchievement(d.id, '{{ $part }}', {{ $choice['js'] }}).finally(() => syncing = null)"
+                                            class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base"
+                                            :class="currentQuranDay()?.{{ $part }}.achievement === {{ $choice['js'] }} ? '{{ $choice['active'] }}' : '{{ $choice['inactive'] }}'">{{ $choice['label'] }}</button>
+                                    @endforeach
                                 </div>
-                            </template>
-                        </div>
-
-                        <flux:separator />
-
-                        <div>
-                            <flux:label class="mb-2 md:mb-3 text-xs md:text-sm font-semibold">{{ __('تقييم الإنجاز (التسميع)') }}</flux:label>
-                            <div class="grid grid-cols-4 gap-1.5 md:gap-2">
-                                @foreach ($gradeChoices as $choice)
-                                    <button type="button"
-                                        @click="const d = currentQuranDay(); d.{{ $part }}.achievement = {{ $choice['js'] }}; syncing = '{{ $part }}'; $wire.saveAchievement(d.id, '{{ $part }}', {{ $choice['js'] }}).finally(() => syncing = null)"
-                                        class="px-1 py-2.5 md:p-3 rounded-lg md:rounded-xl border-2 transition-colors font-bold text-center text-xs md:text-base"
-                                        :class="currentQuranDay()?.{{ $part }}.achievement === {{ $choice['js'] }} ? '{{ $choice['active'] }}' : '{{ $choice['inactive'] }}'">{{ $choice['label'] }}</button>
-                                @endforeach
                             </div>
                         </div>
-                    </div>
-                @endforeach
-            </div>
-        </flux:card>
+                    @endforeach
+                </div>
+            </flux:card>
+        </div>
     @endif
 
     {{-- Ode path enrollment bar (visible when teacher may manage ode paths, or a plan exists) --}}
@@ -955,8 +911,51 @@ new class extends Component {
         {{--
             One card rendered in the browser from the day data, as with the Quran
             and mutun days. Ten server-rendered days cost 233 KB to show one.
+
+            Keyed by the plan, so moving the student to another ode path rebuilds
+            this scope from the new path's days instead of keeping the old ones.
         --}}
-        <div class="mt-4" x-data="{ syncing: null, showHifzModal: false, showReviewModal: false, textData: null, textLoading: false, textError: null, prevShown: 0, async loadText(part) { const d = this.currentOdeDay(); if (! d) return; this.textData = null; this.textError = null; this.prevShown = 0; this.textLoading = true; try { const r = await fetch(`{{ route('teacher.tasmeeh.text', $student) }}?kind=ode&id=${d.id}&part=${part}`, { headers: { 'Accept': 'application/json' } }); if (! r.ok) throw new Error(); this.textData = await r.json(); } catch (e) { this.textError = '{{ __('تعذّر تحميل النص، أعد المحاولة.') }}'; } finally { this.textLoading = false; } } }" x-show="currentOdeDay()" x-cloak>
+        <div class="mt-4" wire:key="ode-plan-{{ $activeOdePlan->id }}" x-data="{
+            syncing: null, showHifzModal: false, showReviewModal: false,
+            textData: null, textLoading: false, textError: null, prevShown: 0,
+            activeOdeDayId: @js($defaultOdeDayId),
+            studentOdePlanDayIds: @js($odeDayIds),
+            odeDateToDayIdMap: @js($odeDateToDayIdMap),
+            {{-- The ode days as data; the card builds its own markup from these. --}}
+            odeDays: @js(\App\Support\TasmeehPayload::odeDays($odeDays)),
+
+            init() {
+                this.$watch('$wire.gradedAtDate', (newVal) => {
+                    if (this.odeDateToDayIdMap[newVal]) {
+                        this.activeOdeDayId = this.odeDateToDayIdMap[newVal];
+                    }
+                });
+            },
+            currentOdeDay() {
+                return this.odeDays.find(day => day.id == this.activeOdeDayId) ?? null;
+            },
+            hasPrevOdeDay() {
+                const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
+                return index > 0;
+            },
+            hasNextOdeDay() {
+                const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
+                return index !== -1 && index < this.studentOdePlanDayIds.length - 1;
+            },
+            prevOdeDay() {
+                const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
+                if (index > 0) {
+                    this.activeOdeDayId = this.studentOdePlanDayIds[index - 1];
+                }
+            },
+            nextOdeDay() {
+                const index = this.studentOdePlanDayIds.findIndex(id => id == this.activeOdeDayId);
+                if (index !== -1 && index < this.studentOdePlanDayIds.length - 1) {
+                    this.activeOdeDayId = this.studentOdePlanDayIds[index + 1];
+                }
+            },
+            async loadText(part) { const d = this.currentOdeDay(); if (! d) return; this.textData = null; this.textError = null; this.prevShown = 0; this.textLoading = true; try { const r = await fetch(`{{ route('teacher.tasmeeh.text', $student) }}?kind=ode&id=${d.id}&part=${part}`, { headers: { 'Accept': 'application/json' } }); if (! r.ok) throw new Error(); this.textData = await r.json(); } catch (e) { this.textError = '{{ __('تعذّر تحميل النص، أعد المحاولة.') }}'; } finally { this.textLoading = false; } }
+        }" x-show="currentOdeDay()" x-cloak>
 
             <flux:card x-bind:class="syncing && 'opacity-70'" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between transition-opacity">
 
@@ -1135,7 +1134,47 @@ new class extends Component {
             One card rendered in the browser from the day data, as with the Quran
             days. Fifteen server-rendered days cost 336 KB to show one.
         --}}
-        <div class="mt-4" x-data="{ syncing: null, showHadithHifzModal: false, showHadithReviewModal: false, textData: null, textLoading: false, textError: null, prevShown: 0, async loadText(part) { const d = this.currentHadithDay(); if (! d) return; this.textData = null; this.textError = null; this.prevShown = 0; this.textLoading = true; try { const r = await fetch(`{{ route('teacher.tasmeeh.text', $student) }}?kind=hadith&id=${d.id}&part=${part}`, { headers: { 'Accept': 'application/json' } }); if (! r.ok) throw new Error(); this.textData = await r.json(); } catch (e) { this.textError = '{{ __('تعذّر تحميل النص، أعد المحاولة.') }}'; } finally { this.textLoading = false; } } }" x-show="currentHadithDay()" x-cloak>
+        <div class="mt-4" wire:key="hadith-plan-{{ $activeHadithPlan->id }}" x-data="{
+            syncing: null, showHadithHifzModal: false, showHadithReviewModal: false,
+            textData: null, textLoading: false, textError: null, prevShown: 0,
+            activeHadithDayId: @js($defaultHadithDayId),
+            studentHadithPlanDayIds: @js($hadithDayIds),
+            hadithDateToDayIdMap: @js($hadithDateToDayIdMap),
+            {{-- The hadith days as data; the card builds its own markup from these. --}}
+            hadithDays: @js(\App\Support\TasmeehPayload::hadithDays($hadithDays)),
+
+            init() {
+                this.$watch('$wire.gradedAtDate', (newVal) => {
+                    if (this.hadithDateToDayIdMap[newVal]) {
+                        this.activeHadithDayId = this.hadithDateToDayIdMap[newVal];
+                    }
+                });
+            },
+            currentHadithDay() {
+                return this.hadithDays.find(day => day.id == this.activeHadithDayId) ?? null;
+            },
+            hasPrevHadithDay() {
+                const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
+                return index > 0;
+            },
+            hasNextHadithDay() {
+                const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
+                return index !== -1 && index < this.studentHadithPlanDayIds.length - 1;
+            },
+            prevHadithDay() {
+                const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
+                if (index > 0) {
+                    this.activeHadithDayId = this.studentHadithPlanDayIds[index - 1];
+                }
+            },
+            nextHadithDay() {
+                const index = this.studentHadithPlanDayIds.findIndex(id => id == this.activeHadithDayId);
+                if (index !== -1 && index < this.studentHadithPlanDayIds.length - 1) {
+                    this.activeHadithDayId = this.studentHadithPlanDayIds[index + 1];
+                }
+            },
+            async loadText(part) { const d = this.currentHadithDay(); if (! d) return; this.textData = null; this.textError = null; this.prevShown = 0; this.textLoading = true; try { const r = await fetch(`{{ route('teacher.tasmeeh.text', $student) }}?kind=hadith&id=${d.id}&part=${part}`, { headers: { 'Accept': 'application/json' } }); if (! r.ok) throw new Error(); this.textData = await r.json(); } catch (e) { this.textError = '{{ __('تعذّر تحميل النص، أعد المحاولة.') }}'; } finally { this.textLoading = false; } }
+        }" x-show="currentHadithDay()" x-cloak>
 
             <flux:card x-bind:class="syncing && 'opacity-70'" class="flex flex-col border-zinc-200 dark:border-zinc-700 min-h-[350px] h-full justify-between transition-opacity">
 

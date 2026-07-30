@@ -155,6 +155,81 @@ it('sends the quran days as data rather than as twenty-five hidden cards', funct
         ->and(substr_count($html, 'تقييم الإنجاز (التسميع)'))->toBe(2);
 });
 
+/**
+ * A student may follow more than one plan at a time, and the select at the top
+ * of the card switches between them.
+ *
+ * Alpine evaluates x-data once and hands that scope to the children it
+ * initialises. Livewire keys a component's root element by its wire:id, so the
+ * root is morphed in place however much its day data changed — day data held
+ * there would go on serving the plan the teacher had just switched away from,
+ * while the server-rendered headings followed the new one. A key on a child
+ * element is honoured, so the section is replaced and its scope rebuilt.
+ */
+it('hangs the quran days on an element keyed by the plan, not on the component root', function () {
+    $html = Livewire::test('teacher.⚡student-tasmeeh-card', [
+        'student' => $this->student,
+        'sPlans' => StudentPlan::where('student_id', $this->student->id)->latest()->get(),
+        'activePlanId' => $this->plan->id,
+    ])->html();
+
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
+
+    $holders = (new DOMXPath($document))->query('//*[contains(@x-data, "quranDays:")]');
+
+    expect($holders->length)->toBe(1)
+        ->and($holders->item(0)->getAttribute('wire:key'))->toBe('quran-plan-'.$this->plan->id);
+});
+
+it('shows the days of the plan the teacher switches to', function () {
+    $other = StudentPlan::create([
+        'student_id' => $this->student->id,
+        'teacher_id' => $this->teacher->id,
+        'start_date' => now()->addDays(10),
+        'days_count' => 3,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+        'description' => 'Second Plan',
+        'status' => 'active',
+        'plan_type' => 'hifz',
+        'direction' => 'forward',
+        'is_approved' => true,
+        'created_by_role' => 'teacher',
+    ]);
+
+    foreach (range(0, 2) as $i) {
+        StudentPlanDay::create([
+            'student_plan_id' => $other->id,
+            'date' => now()->addDays(10 + $i)->format('Y-m-d'),
+            'day_name' => now()->addDays(10 + $i)->dayName,
+            'from_ayah_id' => 1,
+            'to_ayah_id' => 1,
+        ]);
+    }
+
+    $html = Livewire::test('teacher.⚡student-tasmeeh-card', [
+        'student' => $this->student,
+        'sPlans' => StudentPlan::where('student_id', $this->student->id)->latest()->get(),
+        'activePlanId' => $this->plan->id,
+    ])->call('selectPlan', $other->id)->html();
+
+    $firstPlanDayIds = StudentPlanDay::where('student_plan_id', $this->plan->id)->pluck('id');
+    $otherPlanDayIds = StudentPlanDay::where('student_plan_id', $other->id)->pluck('id');
+
+    // The key changes with the plan, which is what makes the browser rebuild
+    // the scope rather than keep the days it already had.
+    expect($html)->toContain('wire:key="quran-plan-'.$other->id.'"')
+        ->and($html)->not->toContain('wire:key="quran-plan-'.$this->plan->id.'"');
+
+    foreach ($otherPlanDayIds as $id) {
+        expect($html)->toContain('\u0022id\u0022:'.$id.',');
+    }
+
+    foreach ($firstPlanDayIds as $id) {
+        expect($html)->not->toContain('\u0022id\u0022:'.$id.',');
+    }
+});
+
 it('leaves no grade button waiting on a server round trip to highlight', function () {
     $html = Livewire::test('teacher.⚡student-tasmeeh-card', [
         'student' => $this->student,
