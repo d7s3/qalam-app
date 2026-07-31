@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance;
 use App\Models\Ayah;
 use App\Models\Circle;
@@ -11,6 +12,7 @@ use App\Models\Student;
 use App\Models\StudentHadithAchievement;
 use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
+use App\Models\StudentStatusHistory;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -97,8 +99,14 @@ class CircleReportService
      * falling back to the plan-day date for legacy rows without a graded_at
      * timestamp.
      *
+     * Attendance is measured against the circle's working days over each
+     * student's own membership, and a day off taken with permission is set
+     * aside from both sides of the ratio: it is neither attendance nor a day
+     * the student was expected. So a student who attended eight of ten working
+     * days and was excused for the other two counts as a full attendance.
+     *
      * @param  EloquentCollection<int, Student>  $students
-     * @return array{totals: array{hifz: array{pages: int, days: int, average: float|null}, review: array{pages: int, days: int, average: float|null}, attendance: array{present: int, late: int, absent: int, excused: int, total: int, rate: int|null}, hadiths: int, verses: int}, perStudent: Collection<int, array<string, mixed>>}
+     * @return array{totals: array{hifz: array{pages: int, days: int, average: float|null}, review: array{pages: int, days: int, average: float|null}, attendance: array{present: int, late: int, absent: int, excused: int, total: int, working_days: int, expected_days: int, rate: int|null}, hadiths: int, verses: int}, perStudent: Collection<int, array<string, mixed>>}
      */
     public static function build(EloquentCollection $students, Carbon $from, Carbon $to): array
     {
@@ -112,6 +120,7 @@ class CircleReportService
                 'hifz_pages' => 0, 'hifz_days' => 0, 'hifz_score_sum' => 0,
                 'review_pages' => 0, 'review_days' => 0, 'review_score_sum' => 0,
                 'present' => 0, 'late' => 0, 'absent' => 0, 'excused' => 0, 'attendance_total' => 0,
+                'working_days' => 0, 'expected_days' => 0,
                 'hadiths' => 0, 'verses' => 0,
             ];
         }
@@ -180,7 +189,9 @@ class CircleReportService
             ->whereRaw(Attendance::activeStatusOnDateSql())
             ->whereDate('attendances.date', '>=', $fromDate)
             ->whereDate('attendances.date', '<=', $toDate)
-            ->get(['attendances.student_id as owner_student_id', 'attendances.status']);
+            ->get(['attendances.student_id as owner_student_id', 'attendances.status', 'attendances.date']);
+
+        $metDays = [];
 
         foreach ($attendanceRows as $row) {
             $sid = $row->owner_student_id;
@@ -189,6 +200,14 @@ class CircleReportService
             }
             $per[$sid][$row->status]++;
             $per[$sid]['attendance_total']++;
+            $metDays[$sid][Carbon::parse($row->date)->format('Y-m-d')] = true;
+        }
+
+        foreach (self::participationDays($students, $fromDate, $toDate, $metDays) as $sid => $days) {
+            $per[$sid]['working_days'] = $days;
+            // Days off with permission are set aside entirely: they neither count
+            // as attendance nor as a day the student was expected.
+            $per[$sid]['expected_days'] = max(0, $days - $per[$sid]['excused']);
         }
 
         foreach (self::completedHadithsByStudent($studentIds, $inRange) as $sid => $count) {
@@ -206,7 +225,10 @@ class CircleReportService
         $totals = [
             'hifz' => ['pages' => 0, 'days' => 0, 'average' => null],
             'review' => ['pages' => 0, 'days' => 0, 'average' => null],
-            'attendance' => ['present' => 0, 'late' => 0, 'absent' => 0, 'excused' => 0, 'total' => 0, 'rate' => null],
+            'attendance' => [
+                'present' => 0, 'late' => 0, 'absent' => 0, 'excused' => 0, 'total' => 0,
+                'working_days' => 0, 'expected_days' => 0, 'rate' => null,
+            ],
             'hadiths' => 0,
             'verses' => 0,
         ];
@@ -225,6 +247,8 @@ class CircleReportService
             $totals['attendance']['absent'] += $row['absent'];
             $totals['attendance']['excused'] += $row['excused'];
             $totals['attendance']['total'] += $row['attendance_total'];
+            $totals['attendance']['working_days'] += $row['working_days'];
+            $totals['attendance']['expected_days'] += $row['expected_days'];
             $totals['hadiths'] += $row['hadiths'];
             $totals['verses'] += $row['verses'];
         }
@@ -235,9 +259,9 @@ class CircleReportService
         if ($totals['review']['days'] > 0) {
             $totals['review']['average'] = round($reviewScoreSum / $totals['review']['days'], 1);
         }
-        if ($totals['attendance']['total'] > 0) {
+        if ($totals['attendance']['expected_days'] > 0) {
             $totals['attendance']['rate'] = (int) round(
-                ($totals['attendance']['present'] + $totals['attendance']['late']) / $totals['attendance']['total'] * 100
+                ($totals['attendance']['present'] + $totals['attendance']['late']) / $totals['attendance']['expected_days'] * 100
             );
         }
 
@@ -247,6 +271,72 @@ class CircleReportService
         ))->values();
 
         return ['totals' => $totals, 'perStudent' => $perStudent];
+    }
+
+    /**
+     * How many circle days each student was there for, within the range.
+     *
+     * Attendance is measured against the days the circle was meant to meet, not
+     * against the days someone remembered to record — otherwise a student who
+     * simply never appears in the register reads as a full attendance. A day
+     * counts for a student only while they belong to the academy: from the day
+     * they joined, and only while their status stood at active, so a student who
+     * arrives mid-term is not judged against the weeks before they came.
+     *
+     * A day the circle actually met counts even if the calendar calls it a day
+     * off — a make-up session is still a day the student was there for, and
+     * without this the attended days could outnumber the expected ones.
+     *
+     * @param  EloquentCollection<int, Student>  $students
+     * @param  array<int, array<string, true>>  $metDays  Dates each student has a record for.
+     * @return array<int, int>
+     */
+    private static function participationDays(EloquentCollection $students, string $fromDate, string $toDate, array $metDays): array
+    {
+        $workingDays = AcademicCalendarEvent::workingDaysBetween($fromDate, $toDate);
+
+        $histories = StudentStatusHistory::whereIn('student_id', $students->pluck('id'))
+            ->whereDate('start_date', '<=', $toDate)
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('student_id');
+
+        $counts = [];
+
+        foreach ($students as $student) {
+            $joinedAt = $student->joined_at ? Carbon::parse($student->joined_at)->format('Y-m-d') : null;
+            $studentHistory = $histories->get($student->id) ?? collect();
+
+            // Every working day, plus any other day the circle met for them.
+            $days = array_unique(array_merge($workingDays, array_keys($metDays[$student->id] ?? [])));
+
+            $counts[$student->id] = count(array_filter(
+                $days,
+                fn (string $day) => ($joinedAt === null || $joinedAt <= $day)
+                    && self::statusOn($studentHistory, $day) === 'active'
+            ));
+        }
+
+        return $counts;
+    }
+
+    /**
+     * The student's status on a date: the most recent change on or before it.
+     * Mirrors Attendance::activeStatusOnDateSql, which the attendance query above
+     * applies in SQL — a student with no history at all counts as active.
+     *
+     * @param  Collection<int, StudentStatusHistory>  $history  Newest first.
+     */
+    private static function statusOn(Collection $history, string $day): string
+    {
+        foreach ($history as $change) {
+            if (Carbon::parse($change->start_date)->format('Y-m-d') <= $day) {
+                return $change->status;
+            }
+        }
+
+        return 'active';
     }
 
     /**

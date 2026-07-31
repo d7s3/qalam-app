@@ -2,6 +2,7 @@
 
 use App\Livewire\Supervisor\CircleReport as SupervisorCircleReport;
 use App\Livewire\Supervisor\StageReport;
+use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance;
 use App\Models\Circle;
 use App\Models\Hadith;
@@ -21,6 +22,7 @@ use App\Models\StudentOdeAchievement;
 use App\Models\StudentOdePlan;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
+use App\Models\StudentStatusHistory;
 use App\Models\Supervisor;
 use App\Models\Surah;
 use App\Models\Teacher;
@@ -47,6 +49,20 @@ beforeEach(function () {
         'status' => 'active',
     ]);
 });
+
+/**
+ * Record one attendance day for the test's student.
+ */
+function attend($test, string $date, string $status): void
+{
+    Attendance::create([
+        'student_id' => $test->student->id,
+        'circle_id' => $test->circle->id,
+        'teacher_id' => $test->teacher->id,
+        'date' => $date,
+        'status' => $status,
+    ]);
+}
 
 it('resolves the date range presets', function () {
     [$from, $to] = CircleReportService::resolveRange('this_week');
@@ -172,12 +188,131 @@ it('aggregates quran, attendance, hadith and ode achievements within the range',
 
     expect($report['totals']['hifz'])->toMatchArray(['pages' => 1, 'days' => 1, 'average' => 3.0]);
     expect($report['totals']['review'])->toMatchArray(['pages' => 2, 'days' => 1, 'average' => 2.0]);
-    expect($report['totals']['attendance'])->toMatchArray(['present' => 1, 'absent' => 1, 'total' => 2, 'rate' => 50]);
+    // The week runs Sat 04 to Wed 08, so Sun-Thu leaves four working days. The
+    // student attended one of them, which is the rate — the days nobody recorded
+    // count against them just as an absence does.
+    expect($report['totals']['attendance'])->toMatchArray([
+        'present' => 1, 'absent' => 1, 'total' => 2,
+        'working_days' => 4, 'expected_days' => 4, 'rate' => 25,
+    ]);
     expect($report['totals']['hadiths'])->toBe(2);
     expect($report['totals']['verses'])->toBe(3);
 
     $row = $report['perStudent']->first(fn ($r) => $r['student']->id === $this->student->id);
     expect($row)->toMatchArray(['hifz_pages' => 1, 'review_pages' => 2, 'hadiths' => 2, 'verses' => 3]);
+});
+
+/**
+ * A day off taken with permission is set aside from both sides: it is neither
+ * attendance nor a day the student was expected. Attending every other working
+ * day therefore reads as a full attendance, where before the excused day sat in
+ * the denominator alone and dragged the rate down exactly like an absence.
+ */
+it('leaves excused days out of both sides of the attendance rate', function () {
+    attend($this, '2026-07-05', 'present');
+    attend($this, '2026-07-06', 'present');
+    attend($this, '2026-07-07', 'excused');
+    attend($this, '2026-07-08', 'excused');
+
+    [$from, $to] = CircleReportService::resolveRange('this_week');
+    $report = CircleReportService::build(CircleReportService::studentsForCircle($this->circle), $from, $to);
+
+    // Four working days, two of them excused: two expected days, both attended.
+    expect($report['totals']['attendance'])->toMatchArray([
+        'present' => 2, 'excused' => 2, 'working_days' => 4, 'expected_days' => 2, 'rate' => 100,
+    ]);
+
+    $row = $report['perStudent']->first(fn ($r) => $r['student']->id === $this->student->id);
+    expect($row)->toMatchArray(['excused' => 2, 'present' => 2, 'working_days' => 4, 'expected_days' => 2]);
+});
+
+it('counts only the working days the student was a member for', function () {
+    $this->student->update(['joined_at' => '2026-07-07']);
+
+    attend($this, '2026-07-07', 'present');
+
+    [$from, $to] = CircleReportService::resolveRange('this_week');
+    $report = CircleReportService::build(CircleReportService::studentsForCircle($this->circle), $from, $to);
+
+    // Sun 05 and Mon 06 are working days, but the student had not joined yet.
+    expect($report['totals']['attendance'])->toMatchArray([
+        'present' => 1, 'working_days' => 2, 'expected_days' => 2, 'rate' => 50,
+    ]);
+});
+
+it('drops the working days a student spent suspended', function () {
+    StudentStatusHistory::create([
+        'student_id' => $this->student->id,
+        'status' => 'suspended',
+        'start_date' => '2026-07-07',
+    ]);
+
+    attend($this, '2026-07-05', 'present');
+    attend($this, '2026-07-06', 'present');
+
+    [$from, $to] = CircleReportService::resolveRange('this_week');
+    $report = CircleReportService::build(CircleReportService::studentsForCircle($this->circle), $from, $to);
+
+    // Tue 07 and Wed 08 fall after the suspension, so only two days are expected.
+    expect($report['totals']['attendance'])->toMatchArray([
+        'present' => 2, 'working_days' => 2, 'expected_days' => 2, 'rate' => 100,
+    ]);
+});
+
+/**
+ * A make-up session on a day the calendar calls off is still a day the student
+ * was there for. Without it the attended days could outnumber the expected ones
+ * and the rate would pass 100%.
+ */
+it('counts a day the circle met even when it is not a working day', function () {
+    attend($this, '2026-07-04', 'present'); // Saturday, outside Sun-Thu.
+    foreach (['2026-07-05', '2026-07-06', '2026-07-07', '2026-07-08'] as $date) {
+        attend($this, $date, 'present');
+    }
+
+    [$from, $to] = CircleReportService::resolveRange('this_week');
+    $report = CircleReportService::build(CircleReportService::studentsForCircle($this->circle), $from, $to);
+
+    expect($report['totals']['attendance'])->toMatchArray([
+        'present' => 5, 'working_days' => 5, 'expected_days' => 5, 'rate' => 100,
+    ]);
+});
+
+it('measures attendance against the calendar attendance period when one covers the range', function () {
+    AcademicCalendarEvent::create([
+        'event_name' => 'فترة دوام الحلقات',
+        'start_date' => '2026-07-01',
+        'end_date' => '2026-07-31',
+        'is_attendance_period' => true,
+        'weekdays' => [1, 2],  // Sunday and Monday only.
+    ]);
+
+    attend($this, '2026-07-05', 'present');
+
+    [$from, $to] = CircleReportService::resolveRange('this_week');
+    $report = CircleReportService::build(CircleReportService::studentsForCircle($this->circle), $from, $to);
+
+    // Only Sun 05 and Mon 06 are circle days that week.
+    expect($report['totals']['attendance'])->toMatchArray([
+        'present' => 1, 'working_days' => 2, 'expected_days' => 2, 'rate' => 50,
+    ]);
+});
+
+it('shows the excused, attended and working days in the student row', function () {
+    attend($this, '2026-07-05', 'present');
+    attend($this, '2026-07-06', 'late');
+    attend($this, '2026-07-07', 'excused');
+
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    Livewire::test(SupervisorCircleReport::class, ['circleId' => $this->circle->id])
+        ->set('preset', 'this_week')
+        ->assertSee('مستأذن / حاضر / أيام الدوام')
+        // One excused, two attended (present + late), four working days.
+        ->assertSee('1 / 2 / 4')
+        // Two of the three days the student was expected: the excused day is out.
+        ->assertSee('67%')
+        ->assertSee('من 3 يوم دوام مطلوب');
 });
 
 it('opens the report page for a circle within the supervisor stages', function () {

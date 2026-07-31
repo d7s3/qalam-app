@@ -48,6 +48,9 @@
             <p class="text-xs text-zinc-400 mt-1">
                 حاضر {{ $totals['attendance']['present'] }} · متأخر {{ $totals['attendance']['late'] }} · غائب {{ $totals['attendance']['absent'] }} · مستأذن {{ $totals['attendance']['excused'] }}
             </p>
+            <p class="text-xs text-zinc-400 mt-0.5">
+                من {{ $totals['attendance']['expected_days'] }} يوم دوام مطلوب · الاستئذان خارج الحساب
+            </p>
         </div>
 
         <div class="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-4">
@@ -79,7 +82,10 @@
                 @endif
                 <flux:table.column class="text-center">صفحات الحفظ</flux:table.column>
                 <flux:table.column class="text-center">صفحات المراجعة</flux:table.column>
-                <flux:table.column class="text-center">الحضور</flux:table.column>
+                <flux:table.column class="text-center">
+                    الحضور
+                    <span class="block text-[10px] font-normal text-zinc-400">مستأذن / حاضر / أيام الدوام</span>
+                </flux:table.column>
                 <flux:table.column class="text-center">الأحاديث</flux:table.column>
                 <flux:table.column class="text-center">الأبيات</flux:table.column>
             </flux:table.columns>
@@ -100,9 +106,15 @@
                             <span class="font-semibold text-blue-600 dark:text-blue-400">{{ $row['review_pages'] }}</span>
                         </flux:table.cell>
                         <flux:table.cell class="text-center">
-                            @if($row['attendance_total'] > 0)
-                                <flux:badge size="sm" :color="($row['present'] + $row['late']) >= $row['attendance_total'] * 0.8 ? 'green' : (($row['present'] + $row['late']) >= $row['attendance_total'] * 0.5 ? 'amber' : 'red')">
-                                    {{ $row['present'] + $row['late'] }} / {{ $row['attendance_total'] }}
+                            @php
+                                // Excused days sit outside the ratio on both sides, so the
+                                // colour reads only the days the student was expected.
+                                $attended = $row['present'] + $row['late'];
+                                $expected = $row['expected_days'];
+                            @endphp
+                            @if($row['working_days'] > 0)
+                                <flux:badge size="sm" :color="$expected === 0 ? 'zinc' : ($attended >= $expected * 0.8 ? 'green' : ($attended >= $expected * 0.5 ? 'amber' : 'red'))">
+                                    {{ $row['excused'] }} / {{ $attended }} / {{ $row['working_days'] }}
                                 </flux:badge>
                             @else
                                 <span class="text-zinc-400">—</span>

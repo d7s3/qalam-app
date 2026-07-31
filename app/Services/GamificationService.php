@@ -1138,52 +1138,11 @@ class GamificationService
      */
     public static function getWorkingDaysForLeaderboard(Leaderboard $leaderboard): array
     {
-        $startDateStr = Carbon::parse($leaderboard->start_date)->format('Y-m-d');
-        $endDateStr = Carbon::parse($leaderboard->end_date)->format('Y-m-d');
-
-        $calendarEvents = AcademicCalendarEvent::where('is_attendance_period', true)
-            ->where('start_date', '<=', $endDateStr)
-            ->where(function ($q) use ($startDateStr) {
-                $q->whereNull('end_date')->orWhere('end_date', '>=', $startDateStr);
-            })
-            ->get();
-
-        $hasCalendarEvents = $calendarEvents->isNotEmpty();
-
-        $currentDate = Carbon::parse($startDateStr)->copy();
-        $endCarbon = Carbon::parse($endDateStr);
-        $workingDays = [];
-
-        while ($currentDate->lte($endCarbon)) {
-            $dateStr = $currentDate->format('Y-m-d');
-            $dayOfWeek = $currentDate->dayOfWeek + 1; // 1=Sun, 2=Mon, 3=Tue, 4=Wed, 5=Thu, 6=Fri, 7=Sat
-
-            $isWorking = false;
-            if ($hasCalendarEvents) {
-                $isWorking = $calendarEvents->some(function ($event) use ($dateStr, $dayOfWeek) {
-                    $eventStart = Carbon::parse($event->start_date)->format('Y-m-d');
-                    $eventEnd = $event->end_date ? Carbon::parse($event->end_date)->format('Y-m-d') : null;
-
-                    if ($dateStr < $eventStart || ($eventEnd && $dateStr > $eventEnd)) {
-                        return false;
-                    }
-
-                    $weekdays = $event->weekdays ?? [];
-
-                    return empty($weekdays) || in_array($dayOfWeek, $weekdays);
-                });
-            } else {
-                $isWorking = in_array($dayOfWeek, [1, 2, 3, 4, 5]);
-            }
-
-            if ($isWorking) {
-                $workingDays[] = $dateStr;
-            }
-
-            $currentDate->addDay();
-        }
-
-        return $workingDays;
+        // An open-ended competition is measured up to today.
+        return AcademicCalendarEvent::workingDaysBetween(
+            Carbon::parse($leaderboard->start_date),
+            Carbon::parse($leaderboard->end_date),
+        );
     }
 
     /**

@@ -2,10 +2,67 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 class AcademicCalendarEvent extends Model
 {
+    /**
+     * The circle's working days between two dates, as Y-m-d strings in order.
+     *
+     * A working day is one covered by an attendance-period event whose weekdays
+     * include it; an event with no weekdays set covers every day it spans. When
+     * no attendance period reaches the range at all the calendar has nothing to
+     * say, so the academy's ordinary Sunday-to-Thursday week stands in.
+     *
+     * This is the one definition of a working day: streak badges count runs of
+     * them, and the circle report measures attendance against them.
+     *
+     * @return array<int, string>
+     */
+    public static function workingDaysBetween(Carbon|string $from, Carbon|string $to): array
+    {
+        $start = Carbon::parse($from)->startOfDay();
+        $end = Carbon::parse($to)->startOfDay();
+
+        if ($start->gt($end)) {
+            return [];
+        }
+
+        $periods = static::where('is_attendance_period', true)
+            ->whereDate('start_date', '<=', $end->toDateString())
+            ->where(function ($query) use ($start) {
+                $query->whereNull('end_date')
+                    ->orWhereDate('end_date', '>=', $start->toDateString());
+            })
+            ->get()
+            ->map(fn (self $event) => [
+                'start' => Carbon::parse($event->start_date)->format('Y-m-d'),
+                'end' => $event->end_date ? Carbon::parse($event->end_date)->format('Y-m-d') : null,
+                // Stored weekdays mix integers and strings, so compare as integers.
+                'weekdays' => array_map('intval', $event->weekdays ?? []),
+            ]);
+
+        $days = [];
+
+        for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
+            $dayString = $day->format('Y-m-d');
+            $weekday = $day->dayOfWeek + 1; // 1=Sunday … 7=Saturday
+
+            $working = $periods->isEmpty()
+                ? in_array($weekday, [1, 2, 3, 4, 5], true)
+                : $periods->contains(fn (array $period) => $dayString >= $period['start']
+                    && (! $period['end'] || $dayString <= $period['end'])
+                    && ($period['weekdays'] === [] || in_array($weekday, $period['weekdays'], true)));
+
+            if ($working) {
+                $days[] = $dayString;
+            }
+        }
+
+        return $days;
+    }
+
     protected $fillable = [
         'event_name',
         'start_date',
