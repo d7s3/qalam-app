@@ -1134,14 +1134,18 @@ class GamificationService
     /**
      * Get all working days for a leaderboard.
      *
+     * A competition may span stages that keep different schedules, so pass the
+     * stage whenever the answer is about one student.
+     *
      * @return array<string> List of date strings (Y-m-d)
      */
-    public static function getWorkingDaysForLeaderboard(Leaderboard $leaderboard): array
+    public static function getWorkingDaysForLeaderboard(Leaderboard $leaderboard, ?int $stageId = null): array
     {
         // An open-ended competition is measured up to today.
         return AcademicCalendarEvent::workingDaysBetween(
             Carbon::parse($leaderboard->start_date),
             Carbon::parse($leaderboard->end_date),
+            $stageId,
         );
     }
 
@@ -1162,7 +1166,7 @@ class GamificationService
         $enthusiasmMap = self::getEnthusiasmMapForRange($student, $startDateStr, $endDateStr, $leaderboard);
 
         // Get working days for the leaderboard
-        $workingDaysDates = self::getWorkingDaysForLeaderboard($leaderboard);
+        $workingDaysDates = self::getWorkingDaysForLeaderboard($leaderboard, $student->effective_stage_id);
 
         // Get all approved purchases of streak freezes with target_date
         $freezesPurchasedDates = GamificationStorePurchase::where('student_id', $student->id)
@@ -2275,7 +2279,7 @@ class GamificationService
         }
 
         // Get all working days for the leaderboard
-        $workingDays = self::getWorkingDaysForLeaderboard($leaderboard);
+        $workingDays = self::getWorkingDaysForLeaderboard($leaderboard, $student->effective_stage_id);
         if (empty($workingDays)) {
             return [];
         }
@@ -3021,16 +3025,18 @@ class GamificationService
     public static function syncStudentBadges(int $studentId, int $leaderboardId): void
     {
         $leaderboard = Leaderboard::find($leaderboardId);
-        if (! $leaderboard) {
+        $student = Student::find($studentId);
+        if (! $leaderboard || ! $student) {
             return;
         }
 
         $badges = GamificationBadge::where('leaderboard_id', $leaderboardId)->get();
 
-        // Ordered circle working days (excludes weekly days off and academic
-        // holidays) so streak badges count consecutive circle days, not calendar
-        // days. Computed once and reused across every streak badge.
-        $workingDays = self::getWorkingDaysForLeaderboard($leaderboard);
+        // Ordered circle working days of the student's own stage (excludes its
+        // weekly days off, its closures, and academy holidays) so streak badges
+        // count consecutive circle days, not calendar days. Computed once and
+        // reused across every streak badge.
+        $workingDays = self::getWorkingDaysForLeaderboard($leaderboard, $student->effective_stage_id);
 
         foreach ($badges as $badge) {
             $value = self::calculateBadgeValue($badge, $studentId, $leaderboard, $workingDays);
@@ -3057,7 +3063,7 @@ class GamificationService
 
                     GamificationNewsService::record($leaderboardId, 'badge', [
                         'student_id' => $studentId,
-                        'student_name' => Student::find($studentId)?->name ?? '',
+                        'student_name' => $student->name,
                         'badge_name' => $badge->name,
                         'badge_icon' => $badge->icon,
                     ]);

@@ -203,25 +203,11 @@ class OdePlanCreator extends Component
             $dayOfWeek = $currentDate->format('l');
             $dateStr = $currentDate->toDateString();
 
-            $isValid = false;
-            if (in_array($dayOfWeek, $this->activeDays)) {
-                if ($hasPeriods) {
-                    $period = $attendancePeriods->first(function ($p) use ($dateStr) {
-                        return $p->start_date->format('Y-m-d') <= $dateStr && $p->end_date->format('Y-m-d') >= $dateStr;
-                    });
-                    if ($period) {
-                        $weekdays = $period->weekdays ?? [];
-                        $periodWeekdays = array_map(fn ($wd) => $mapping[$wd], $weekdays);
-                        if (in_array($dayOfWeek, $periodWeekdays)) {
-                            $isValid = true;
-                        }
-                    } else {
-                        $isValid = true; // schedule outside periods if not mapped
-                    }
-                } else {
-                    $isValid = true;
-                }
-            }
+            // A path is followed by students of any stage, so it is laid out on
+            // the academy-wide calendar: its closures and extra days apply, a
+            // stage's own do not.
+            $isValid = in_array($dayOfWeek, $this->activeDays)
+                && AcademicCalendarEvent::isSchedulable($dateStr);
 
             if ($isValid) {
                 // Calculate Hifz Range for this day

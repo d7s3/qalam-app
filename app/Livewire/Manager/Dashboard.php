@@ -37,23 +37,14 @@ class Dashboard extends Component
 
     // ──────── School-day check ────────
 
-    /** Returns true if $date is a school day per the academic calendar. */
+    /**
+     * Returns true if $date is a school day per the academic calendar. The
+     * manager's dashboard covers the whole academy, so it asks about the
+     * academy-wide periods rather than any one stage's.
+     */
     private function isSchoolDay(string $date): bool
     {
-        $d = Carbon::parse($date);
-        $dayOfWeek = $d->dayOfWeek + 1; // 1=Sun, 2=Mon, 3=Tue, 4=Wed, 5=Thu, 6=Fri, 7=Sat
-
-        return AcademicCalendarEvent::where('is_attendance_period', true)
-            ->where('start_date', '<=', $date)
-            ->where(function ($q) use ($date) {
-                $q->whereNull('end_date')->orWhere('end_date', '>=', $date);
-            })
-            ->get()
-            ->some(function ($event) use ($dayOfWeek) {
-                $weekdays = $event->weekdays ?? [];
-
-                return empty($weekdays) || in_array($dayOfWeek, $weekdays);
-            });
+        return AcademicCalendarEvent::isWorkingDay($date);
     }
 
     // ──────── Date-range resolvers ────────

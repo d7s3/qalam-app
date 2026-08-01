@@ -146,7 +146,7 @@ new class extends Component {
         }
 
         // Validate working days
-        $workingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification);
+        $workingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification, $student->effective_stage_id);
         if (!in_array($this->doublePointsDate, $workingDays)) {
             Flux::toast('خطأ: لا يمكن تفعيل الميزة في يوم إجازة. يجب اختيار يوم من أيام الدوام المعتمدة للحلقة.', variant: 'danger');
             return;
@@ -320,7 +320,7 @@ new class extends Component {
             return [];
         }
 
-        $allWorkingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification);
+        $allWorkingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification, $student->effective_stage_id);
         $tomorrow = \Carbon\Carbon::now('Asia/Riyadh')->addDay();
 
         $upcoming = [];
@@ -487,7 +487,7 @@ new class extends Component {
             // Progress toward each auto-tracked badge (streak/count) so locked badges
             // show how many consecutive/total achievements are done and how many
             // remain. Working days computed once and reused across all badges.
-            $badgeWorkingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification);
+            $badgeWorkingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification, $student->effective_stage_id);
             $badgeProgress = [];
             foreach ($allBadges as $b) {
                 $val = \App\Services\GamificationService::calculateBadgeValue($b, $student->id, $activeGamification, $badgeWorkingDays);
@@ -587,7 +587,7 @@ new class extends Component {
             );
 
             // Get working days using the helper method
-            $workingDaysDates = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification);
+            $workingDaysDates = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification, $student->effective_stage_id);
 
             $hijriDayFormatter = new \IntlDateFormatter(
                 'ar_SA@calendar=islamic-umalqura',

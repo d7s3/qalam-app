@@ -27,6 +27,9 @@ new class extends Component {
 
     public $planDays = [];
     protected ?array $quranReferenceDataCache = null;
+
+    /** @var array<string, mixed> Resolved once per request; never sent to the browser. */
+    protected array $calendarScopeCache = [];
     public $fillDirection = 'reverse';
     public $reviewDirection = 'reverse';
     public $fillTarget = 'hifz';
@@ -165,6 +168,7 @@ new class extends Component {
         $startDateObj = Carbon::parse($this->startDate);
         
         $attendancePeriods = \App\Models\AcademicCalendarEvent::where('is_attendance_period', true)
+            ->forStage($this->planStageId())
             ->where('end_date', '>=', $startDateObj->format('Y-m-d'))
             ->orderBy('start_date', 'asc')
             ->get();
@@ -205,13 +209,9 @@ new class extends Component {
                 $nextPeriod = $attendancePeriods->first(function ($p) use ($tempStr) {
                     return $p->start_date->format('Y-m-d') <= $tempStr && $p->end_date->format('Y-m-d') >= $tempStr;
                 });
-                if ($nextPeriod) {
-                    $weekdays = $nextPeriod->weekdays ?? [];
-                    $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
-                    if (in_array($tempDate->format('l'), $periodWeekdays)) {
-                        $firstWorking = $tempDate->copy();
-                        break;
-                    }
+                if ($nextPeriod && \App\Models\AcademicCalendarEvent::isWorkingDay($tempStr, $this->planStageId())) {
+                    $firstWorking = $tempDate->copy();
+                    break;
                 }
                 $tempDate->addDay();
             }
@@ -229,13 +229,12 @@ new class extends Component {
         // Count remaining working days in the first/active period (if it exists and covers start date)
         $this->remainingWorkingDays = null;
         if ($startPeriod) {
-            $weekdays = $startPeriod->weekdays ?? [];
-            $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
             $count = 0;
             $tempDate = $startDateObj->copy();
             $endDateObj = Carbon::parse($startPeriod->end_date);
             while ($tempDate->lte($endDateObj)) {
-                if (in_array($tempDate->format('l'), $periodWeekdays) && in_array($tempDate->format('l'), $this->activeDays)) {
+                if (in_array($tempDate->format('l'), $this->activeDays)
+                    && \App\Models\AcademicCalendarEvent::isWorkingDay($tempDate, $this->planStageId())) {
                     $count++;
                 }
                 $tempDate->addDay();
@@ -249,27 +248,11 @@ new class extends Component {
             $dateStr = $currentSimDate->format('Y-m-d');
             $dayOfWeek = $currentSimDate->format('l');
 
-            $isValid = false;
-            $period = null;
-            if (in_array($dayOfWeek, $this->activeDays)) {
-                if ($hasPeriods) {
-                    $period = $attendancePeriods->first(function ($p) use ($dateStr) {
-                        return $p->start_date->format('Y-m-d') <= $dateStr && $p->end_date->format('Y-m-d') >= $dateStr;
-                    });
-                    if ($period) {
-                        $weekdays = $period->weekdays ?? [];
-                        $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
-                        if (in_array($dayOfWeek, $periodWeekdays)) {
-                            $isValid = true;
-                        }
-                    } else {
-                        // Date is outside all periods, schedule it anyway as outside working days
-                        $isValid = true;
-                    }
-                } else {
-                    $isValid = true;
-                }
-            }
+            $period = $attendancePeriods->first(function ($p) use ($dateStr) {
+                return $p->start_date->format('Y-m-d') <= $dateStr && $p->end_date->format('Y-m-d') >= $dateStr;
+            });
+            $isValid = in_array($dayOfWeek, $this->activeDays)
+                && \App\Models\AcademicCalendarEvent::isSchedulable($dateStr, $this->planStageId());
 
             if ($isValid) {
                 $pName = $period ? $period->event_name : ($hasPeriods ? 'خارج فترات الدوام' : 'دوام اعتيادي');
@@ -308,6 +291,7 @@ new class extends Component {
 
         $startDateObj = Carbon::parse($this->startDate);
         $attendancePeriod = \App\Models\AcademicCalendarEvent::where('is_attendance_period', true)
+            ->forStage($this->planStageId())
             ->where('start_date', '<=', $startDateObj->format('Y-m-d'))
             ->where('end_date', '>=', $startDateObj->format('Y-m-d'))
             ->first();
@@ -325,6 +309,22 @@ new class extends Component {
 
             $this->activeDays = array_map(fn($wd) => $mapping[$wd], $attendancePeriod->weekdays);
         }
+    }
+
+    /**
+     * The stage whose calendar this plan follows. Stages keep their own working
+     * days, extra days and closures, so the plan is laid out on the student's.
+     */
+    protected function planStageId(): ?int
+    {
+        // Asked once per date while a plan is laid out, so resolved once.
+        if (! array_key_exists('stage', $this->calendarScopeCache)) {
+            $this->calendarScopeCache['stage'] = $this->studentId
+                ? Student::find($this->studentId)?->effective_stage_id
+                : null;
+        }
+
+        return $this->calendarScopeCache['stage'];
     }
 
     public function resetPlan()
@@ -484,26 +484,8 @@ new class extends Component {
             $dayOfWeek = $currentDate->format('l');
             $dateStr = $currentDate->toDateString();
 
-            $isValid = false;
-            if (in_array($dayOfWeek, $this->activeDays)) {
-                if ($hasPeriods) {
-                    $period = $attendancePeriods->first(function ($p) use ($dateStr) {
-                        return $p->start_date->format('Y-m-d') <= $dateStr && $p->end_date->format('Y-m-d') >= $dateStr;
-                    });
-                    if ($period) {
-                        $weekdays = $period->weekdays ?? [];
-                        $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
-                        if (in_array($dayOfWeek, $periodWeekdays)) {
-                            $isValid = true;
-                        }
-                    } else {
-                        // Date is outside all periods, schedule it anyway as outside working days
-                        $isValid = true;
-                    }
-                } else {
-                    $isValid = true;
-                }
-            }
+            $isValid = in_array($dayOfWeek, $this->activeDays)
+                && \App\Models\AcademicCalendarEvent::isSchedulable($dateStr, $this->planStageId());
 
             if ($isValid) {
                 $this->planDays[] = [
@@ -555,26 +537,8 @@ new class extends Component {
                 $dayOfWeek = $currentDate->format('l');
                 $dateStr = $currentDate->toDateString();
 
-                $isValid = false;
-                if (in_array($dayOfWeek, $this->activeDays)) {
-                    if ($hasPeriods) {
-                        $period = $attendancePeriods->first(function ($p) use ($dateStr) {
-                            return $p->start_date->format('Y-m-d') <= $dateStr && $p->end_date->format('Y-m-d') >= $dateStr;
-                        });
-                        if ($period) {
-                            $weekdays = $period->weekdays ?? [];
-                            $periodWeekdays = array_map(fn($wd) => $mapping[$wd], $weekdays);
-                            if (in_array($dayOfWeek, $periodWeekdays)) {
-                                $isValid = true;
-                            }
-                        } else {
-                            // Date is outside all periods, schedule it anyway as outside working days
-                            $isValid = true;
-                        }
-                    } else {
-                        $isValid = true;
-                    }
-                }
+                $isValid = in_array($dayOfWeek, $this->activeDays)
+                    && \App\Models\AcademicCalendarEvent::isSchedulable($dateStr, $this->planStageId());
 
                 if ($isValid) {
                     break;

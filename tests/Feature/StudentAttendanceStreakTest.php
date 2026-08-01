@@ -18,7 +18,7 @@ beforeEach(function () {
     $this->student = Student::factory()->create(['circle_id' => $this->circle->id]);
 });
 
-function markAttendance(Student $student, Teacher $teacher, Circle $circle, string $date, string $status = 'present', ?int $durationMinutes = null): Attendance
+function markAttendance(Student $student, Teacher $teacher, Circle $circle, string $date, string $status = 'present'): Attendance
 {
     return Attendance::create([
         'student_id' => $student->id,
@@ -26,7 +26,6 @@ function markAttendance(Student $student, Teacher $teacher, Circle $circle, stri
         'circle_id' => $circle->id,
         'date' => $date,
         'status' => $status,
-        'duration_minutes' => $durationMinutes,
     ]);
 }
 
@@ -61,18 +60,4 @@ it('returns 0 streak when the last activity was more than a day ago', function (
     markAttendance($this->student, $this->teacher, $this->circle, '2026-06-05');
 
     expect($this->student->currentAttendanceStreakDays())->toBe(0);
-});
-
-it('returns 0.0 study hours when no durations have been recorded', function () {
-    markAttendance($this->student, $this->teacher, $this->circle, '2026-06-10');
-
-    expect($this->student->totalStudyHours())->toBe(0.0);
-});
-
-it('sums recorded session durations into hours', function () {
-    markAttendance($this->student, $this->teacher, $this->circle, '2026-06-08', 'present', 60);
-    markAttendance($this->student, $this->teacher, $this->circle, '2026-06-09', 'late', 90);
-    markAttendance($this->student, $this->teacher, $this->circle, '2026-06-10', 'absent', 45); // excluded — absent
-
-    expect($this->student->totalStudyHours())->toBe(2.5);
 });

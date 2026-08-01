@@ -3,24 +3,70 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 class AcademicCalendarEvent extends Model
 {
     /**
-     * The circle's working days between two dates, as Y-m-d strings in order.
+     * The ordinary week when the calendar holds no period for a stage at all.
+     */
+    private const DEFAULT_WEEKDAYS = [1, 2, 3, 4, 5]; // Sunday to Thursday.
+
+    /**
+     * Where the loaded periods are kept for the rest of the request. The
+     * container rather than a static, so a fresh request — and a fresh test —
+     * starts with nothing remembered.
+     */
+    private const CACHE_KEY = 'academic_attendance_periods';
+
+    /**
+     * Whether the circles of a stage meet on a date.
      *
-     * A working day is one covered by an attendance-period event whose weekdays
-     * include it; an event with no weekdays set covers every day it spans. When
-     * no attendance period reaches the range at all the calendar has nothing to
-     * say, so the academy's ordinary Sunday-to-Thursday week stands in.
+     * The period's weekdays say which days of the week the circles meet; a
+     * period with none set covers every day it spans. On top of that the
+     * calendar may name single dates: an extra day the circles meet outside
+     * their usual week, and an excluded day they do not meet despite it. An
+     * exclusion always wins — it is the manager naming that exact date.
      *
-     * This is the one definition of a working day: streak badges count runs of
-     * them, and the circle report measures attendance against them.
+     * A period bound to stages speaks only for them, so a stage with no period
+     * of its own falls back to the academy's ordinary Sunday-to-Thursday week
+     * rather than losing its calendar entirely.
+     *
+     * This is the one definition of a working day. Plans are laid out on them,
+     * streak badges count runs of them, and the circle report measures
+     * attendance against them.
+     */
+    public static function isWorkingDay(Carbon|string $date, ?int $stageId = null): bool
+    {
+        $day = Carbon::parse($date)->format('Y-m-d');
+        $weekday = Carbon::parse($date)->dayOfWeek + 1; // 1=Sunday … 7=Saturday
+        $periods = self::periodsForStage($stageId);
+
+        if ($periods->contains(fn (array $period) => in_array($day, $period['excluded_dates'], true))) {
+            return false;
+        }
+
+        if ($periods->contains(fn (array $period) => in_array($day, $period['extra_dates'], true))) {
+            return true;
+        }
+
+        if ($periods->isEmpty()) {
+            return in_array($weekday, self::DEFAULT_WEEKDAYS, true);
+        }
+
+        return $periods->contains(fn (array $period) => $day >= $period['start']
+            && (! $period['end'] || $day <= $period['end'])
+            && ($period['weekdays'] === [] || in_array($weekday, $period['weekdays'], true)));
+    }
+
+    /**
+     * The working days of a stage between two dates, as Y-m-d strings in order.
      *
      * @return array<int, string>
      */
-    public static function workingDaysBetween(Carbon|string $from, Carbon|string $to): array
+    public static function workingDaysBetween(Carbon|string $from, Carbon|string $to, ?int $stageId = null): array
     {
         $start = Carbon::parse($from)->startOfDay();
         $end = Carbon::parse($to)->startOfDay();
@@ -29,38 +75,97 @@ class AcademicCalendarEvent extends Model
             return [];
         }
 
-        $periods = static::where('is_attendance_period', true)
-            ->whereDate('start_date', '<=', $end->toDateString())
-            ->where(function ($query) use ($start) {
-                $query->whereNull('end_date')
-                    ->orWhereDate('end_date', '>=', $start->toDateString());
-            })
-            ->get()
-            ->map(fn (self $event) => [
-                'start' => Carbon::parse($event->start_date)->format('Y-m-d'),
-                'end' => $event->end_date ? Carbon::parse($event->end_date)->format('Y-m-d') : null,
-                // Stored weekdays mix integers and strings, so compare as integers.
-                'weekdays' => array_map('intval', $event->weekdays ?? []),
-            ]);
-
         $days = [];
 
         for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
-            $dayString = $day->format('Y-m-d');
-            $weekday = $day->dayOfWeek + 1; // 1=Sunday … 7=Saturday
-
-            $working = $periods->isEmpty()
-                ? in_array($weekday, [1, 2, 3, 4, 5], true)
-                : $periods->contains(fn (array $period) => $dayString >= $period['start']
-                    && (! $period['end'] || $dayString <= $period['end'])
-                    && ($period['weekdays'] === [] || in_array($weekday, $period['weekdays'], true)));
-
-            if ($working) {
-                $days[] = $dayString;
+            if (self::isWorkingDay($day, $stageId)) {
+                $days[] = $day->format('Y-m-d');
             }
         }
 
         return $days;
+    }
+
+    /**
+     * Whether a plan may put one of its days on this date.
+     *
+     * Between terms the calendar holds no period, and a plan laid out across
+     * the gap has always been allowed to run straight through it — that stays.
+     * What does not is a date the manager named as excluded: a closure refuses
+     * the day wherever it falls, inside a period or between two.
+     */
+    public static function isSchedulable(Carbon|string $date, ?int $stageId = null): bool
+    {
+        $day = Carbon::parse($date)->format('Y-m-d');
+        $periods = self::periodsForStage($stageId);
+
+        if ($periods->contains(fn (array $period) => in_array($day, $period['excluded_dates'], true))) {
+            return false;
+        }
+
+        $covered = $periods->contains(fn (array $period) => ($day >= $period['start'] && (! $period['end'] || $day <= $period['end']))
+            || in_array($day, $period['extra_dates'], true));
+
+        return $covered ? self::isWorkingDay($day, $stageId) : true;
+    }
+
+    /**
+     * The working times of the stage on a date, as stored on its period.
+     *
+     * @return array<int, array{from: string, to: string, label: string|null}>
+     */
+    public static function sessionsOn(Carbon|string $date, ?int $stageId = null): array
+    {
+        if (! self::isWorkingDay($date, $stageId)) {
+            return [];
+        }
+
+        $day = Carbon::parse($date)->format('Y-m-d');
+
+        return self::periodsForStage($stageId)
+            ->filter(fn (array $period) => $period['sessions'] !== []
+                && ($day >= $period['start'] || in_array($day, $period['extra_dates'], true))
+                && (! $period['end'] || $day <= $period['end'] || in_array($day, $period['extra_dates'], true)))
+            ->flatMap(fn (array $period) => $period['sessions'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Forget the loaded periods, so the next question reads them again. Call
+     * after saving or deleting a period within the same request.
+     */
+    public static function forgetPeriodCache(): void
+    {
+        app()->forgetInstance(self::CACHE_KEY);
+    }
+
+    /**
+     * The attendance periods that speak for a stage: those bound to it, plus
+     * the academy-wide ones that name no stage at all.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private static function periodsForStage(?int $stageId)
+    {
+        if (! app()->bound(self::CACHE_KEY)) {
+            app()->instance(self::CACHE_KEY, static::where('is_attendance_period', true)
+                ->get()
+                ->map(fn (self $event) => [
+                    'start' => Carbon::parse($event->start_date)->format('Y-m-d'),
+                    'end' => $event->end_date ? Carbon::parse($event->end_date)->format('Y-m-d') : null,
+                    // Stored weekdays mix integers and strings, so compare as integers.
+                    'weekdays' => array_map('intval', $event->weekdays ?? []),
+                    'stage_ids' => array_map('intval', $event->stage_ids ?? []),
+                    'extra_dates' => $event->extra_dates ?? [],
+                    'excluded_dates' => $event->excluded_dates ?? [],
+                    'sessions' => $event->sessions ?? [],
+                ])
+                ->values());
+        }
+
+        return app(self::CACHE_KEY)->filter(fn (array $period) => $period['stage_ids'] === []
+            || ($stageId !== null && in_array($stageId, $period['stage_ids'], true)));
     }
 
     protected $fillable = [
@@ -70,6 +175,10 @@ class AcademicCalendarEvent extends Model
         'color',
         'is_attendance_period',
         'weekdays',
+        'stage_ids',
+        'extra_dates',
+        'excluded_dates',
+        'sessions',
         'description',
         'day_count',
         'created_by_id',
@@ -84,11 +193,43 @@ class AcademicCalendarEvent extends Model
         'end_date' => 'date',
         'is_attendance_period' => 'boolean',
         'weekdays' => 'array',
+        'stage_ids' => 'array',
+        'extra_dates' => 'array',
+        'excluded_dates' => 'array',
+        'sessions' => 'array',
         'day_count' => 'integer',
         'shared_with' => 'array',
         'is_visible' => 'boolean',
         'has_tasks' => 'boolean',
     ];
+
+    /**
+     * Narrow to the periods that speak for a stage: those naming it, and the
+     * academy-wide ones that name no stage at all.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeForStage($query, ?int $stageId)
+    {
+        return $query->where(function ($q) use ($stageId) {
+            $q->whereNull('stage_ids')->orWhereJsonLength('stage_ids', 0);
+
+            if ($stageId !== null) {
+                $q->orWhereJsonContains('stage_ids', $stageId);
+            }
+        });
+    }
+
+    /**
+     * The names of the stages this period speaks for, for display. An empty
+     * stage list means the whole academy.
+     *
+     * @return Collection<int, string>
+     */
+    public function stageNames()
+    {
+        return Stage::whereIn('id', $this->stage_ids ?? [])->orderBy('name')->pluck('name');
+    }
 
     public function createdBy()
     {

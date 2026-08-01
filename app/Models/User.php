@@ -376,19 +376,6 @@ class User extends Authenticatable
         return $streak;
     }
 
-    /**
-     * Total study hours derived from attendance session durations recorded by teachers.
-     * Returns 0.0 for students whose sessions have no recorded duration yet.
-     */
-    public function totalStudyHours(): float
-    {
-        $minutes = $this->attendances()
-            ->whereIn('status', ['present', 'late'])
-            ->sum('duration_minutes');
-
-        return round($minutes / 60, 1);
-    }
-
     public function getMemorizedRange(): ?array
     {
         $latestPlan = StudentPlan::where('student_id', $this->id)
