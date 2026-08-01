@@ -287,13 +287,18 @@ class CircleReportService
      * off — a make-up session is still a day the student was there for, and
      * without this the attended days could outnumber the expected ones.
      *
+     * The working days come from the student's own stage, since a stage may
+     * keep a different week, extra days or closures of its own.
+     *
      * @param  EloquentCollection<int, Student>  $students
      * @param  array<int, array<string, true>>  $metDays  Dates each student has a record for.
      * @return array<int, int>
      */
     private static function participationDays(EloquentCollection $students, string $fromDate, string $toDate, array $metDays): array
     {
-        $workingDays = AcademicCalendarEvent::workingDaysBetween($fromDate, $toDate);
+        // Stages keep their own schedules, so the working days are resolved per
+        // stage and shared by every student of that stage.
+        $workingDaysByStage = [];
 
         $histories = StudentStatusHistory::whereIn('student_id', $students->pluck('id'))
             ->whereDate('start_date', '<=', $toDate)
@@ -307,9 +312,12 @@ class CircleReportService
         foreach ($students as $student) {
             $joinedAt = $student->joined_at ? Carbon::parse($student->joined_at)->format('Y-m-d') : null;
             $studentHistory = $histories->get($student->id) ?? collect();
+            $stageId = $student->effective_stage_id;
+
+            $workingDaysByStage[$stageId] ??= AcademicCalendarEvent::workingDaysBetween($fromDate, $toDate, $stageId);
 
             // Every working day, plus any other day the circle met for them.
-            $days = array_unique(array_merge($workingDays, array_keys($metDays[$student->id] ?? [])));
+            $days = array_unique(array_merge($workingDaysByStage[$stageId], array_keys($metDays[$student->id] ?? [])));
 
             $counts[$student->id] = count(array_filter(
                 $days,

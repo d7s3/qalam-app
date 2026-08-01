@@ -161,10 +161,15 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                     @endif
                 </div>
 
-                @if($selectedCircle)
-                    <div class="w-full sm:w-36">
-                        <flux:input type="number" min="0" step="5" wire:model.live.debounce.500ms="sessionDurationMinutes"
-                            label="مدة الحلقة (دقيقة)" placeholder="مثال: 60" />
+                {{-- Working times as the calendar holds them for this stage. --}}
+                @if($this->todaysSessions)
+                    <div class="flex flex-wrap items-center gap-1.5 self-end pb-1.5">
+                        <flux:icon icon="clock" class="size-4 text-zinc-400" />
+                        @foreach($this->todaysSessions as $session)
+                            <span class="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-medium text-zinc-600 dark:text-zinc-300 dir-ltr">
+                                {{ $session['from'] }}–{{ $session['to'] }}{{ ($session['label'] ?? '') !== '' ? ' · '.$session['label'] : '' }}
+                            </span>
+                        @endforeach
                     </div>
                 @endif
 

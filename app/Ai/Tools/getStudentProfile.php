@@ -83,7 +83,6 @@ class getStudentProfile implements Tool
                 'memorized' => $student->memorizationText(),
                 'memorized_pages' => $student->memorizedPagesCount(),
                 'memorized_percentage' => $student->memorizationPercentage(),
-                'total_study_hours' => $student->totalStudyHours(),
             ],
             'quran_plans' => $this->quranPlans($student),
             'mutun_plans' => $this->hadithPlans($student),

@@ -18,7 +18,6 @@ new class extends Component
             'memorizedJuzCount' => MemorizationJourneyService::memorizedJuzCount($student),
             'memorizationPercentage' => $student->memorizationPercentage(),
             'currentStreak' => $student->currentAttendanceStreakDays(),
-            'totalStudyHours' => $student->totalStudyHours(),
             'scoreTrend' => MemorizationJourneyService::scoreTrend($student, 14),
             'attendanceTrend' => MemorizationJourneyService::attendanceTrend($student, 8),
             'monthlyStats' => MemorizationJourneyService::monthlyAyahsMemorized($student),

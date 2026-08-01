@@ -42,10 +42,26 @@ new class extends Component {
     public $selectAll = false;
 
     // Attendance Period Form
+    public $editingPeriodId = null;
     public $hijriFromDate = '';
     public $hijriToDate = '';
     public $description = '';
     public $selectedWeekdays = [1, 2, 3, 4, 5]; // Default to Sunday-Thursday (1=Sun, 5=Thu)
+
+    /** Stages this period speaks for; empty means the whole academy. */
+    public $periodStageIds = [];
+
+    /** @var array<int, string> Dates the circles meet outside their usual week. */
+    public $periodExtraDates = [];
+
+    /** @var array<int, string> Dates the circles do not meet despite the week. */
+    public $periodExcludedDates = [];
+
+    /** @var array<int, array{from: string, to: string, label: string|null}> */
+    public $periodSessions = [];
+
+    /** The date being added to one of the two lists, and which list. */
+    public $newPeriodDate = '';
 
     public function mount()
     {
@@ -70,6 +86,70 @@ new class extends Component {
     #[Computed]
     public function availableCircles() { return \App\Models\Circle::all(); }
 
+    public function createPeriod()
+    {
+        $this->resetPeriodForm();
+        Flux::modal('attendance-period-modal')->show();
+    }
+
+    public function editPeriod($id)
+    {
+        $period = AcademicCalendarEvent::findOrFail($id);
+
+        $this->editingPeriodId = $period->id;
+        $this->hijriFromDate = $period->start_date->format('Y-m-d');
+        $this->hijriToDate = $period->end_date?->format('Y-m-d') ?? '';
+        $this->description = $period->description ?? '';
+        $this->selectedWeekdays = array_map('intval', $period->weekdays ?? []);
+        $this->periodStageIds = array_map('strval', $period->stage_ids ?? []);
+        $this->periodExtraDates = $period->extra_dates ?? [];
+        $this->periodExcludedDates = $period->excluded_dates ?? [];
+        $this->periodSessions = $period->sessions ?? [];
+
+        Flux::modal('attendance-period-modal')->show();
+    }
+
+    public function addSession()
+    {
+        $this->periodSessions[] = ['from' => '16:00', 'to' => '18:00', 'label' => ''];
+    }
+
+    public function removeSession($index)
+    {
+        unset($this->periodSessions[$index]);
+        $this->periodSessions = array_values($this->periodSessions);
+    }
+
+    /**
+     * Add the picked date to the extra or excluded list. A date cannot be both,
+     * so naming it on one list takes it off the other.
+     */
+    public function addPeriodDate($list)
+    {
+        $this->validate(['newPeriodDate' => 'required|date'], [], ['newPeriodDate' => 'التاريخ']);
+
+        $date = Carbon::parse($this->newPeriodDate)->format('Y-m-d');
+
+        $this->periodExtraDates = array_values(array_diff($this->periodExtraDates, [$date]));
+        $this->periodExcludedDates = array_values(array_diff($this->periodExcludedDates, [$date]));
+
+        if ($list === 'extra') {
+            $this->periodExtraDates[] = $date;
+            sort($this->periodExtraDates);
+        } else {
+            $this->periodExcludedDates[] = $date;
+            sort($this->periodExcludedDates);
+        }
+
+        $this->newPeriodDate = '';
+    }
+
+    public function removePeriodDate($list, $date)
+    {
+        $property = $list === 'extra' ? 'periodExtraDates' : 'periodExcludedDates';
+        $this->{$property} = array_values(array_diff($this->{$property}, [$date]));
+    }
+
     public function saveAttendancePeriod()
     {
         $this->validate([
@@ -77,61 +157,85 @@ new class extends Component {
             'hijriToDate' => 'required|date|after_or_equal:hijriFromDate',
             'selectedWeekdays' => 'required|array|min:1',
             'description' => 'nullable|string|max:500',
+            'periodStageIds' => 'array',
+            'periodStageIds.*' => 'exists:stages,id',
+            'periodSessions' => 'array',
+            'periodSessions.*.from' => 'required|date_format:H:i',
+            'periodSessions.*.to' => 'required|date_format:H:i|after:periodSessions.*.from',
+            'periodSessions.*.label' => 'nullable|string|max:60',
+        ], [
+            'periodSessions.*.from.required' => 'حدد وقت بداية الدوام.',
+            'periodSessions.*.to.required' => 'حدد وقت نهاية الدوام.',
+            'periodSessions.*.to.after' => 'وقت النهاية يجب أن يكون بعد وقت البداية.',
         ]);
 
-        // Calculate day count
-        $count = 0;
-        $start = Carbon::parse($this->hijriFromDate);
-        $end = Carbon::parse($this->hijriToDate);
-        
-        // Use IntlCalendar to get weekday for each date in range
-        $cal = \IntlCalendar::createInstance('Asia/Riyadh', 'ar_SA@calendar=islamic-umalqura');
-        
-        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
-            $cal->setTime($date->timestamp * 1000);
-            $dayOfWeek = $cal->get(\IntlCalendar::FIELD_DAY_OF_WEEK);
-            
-            if (in_array($dayOfWeek, $this->selectedWeekdays)) {
-                $count++;
-            }
-        }
+        $stageIds = array_values(array_map('intval', $this->periodStageIds));
 
-        AcademicCalendarEvent::create([
-            'event_name' => 'فترة دوام الحلقات',
-            'description' => $this->description,
-            'start_date' => $this->hijriFromDate,
-            'end_date' => $this->hijriToDate,
-            'color' => 'emerald',
-            'is_attendance_period' => true,
-            'weekdays' => $this->selectedWeekdays,
-            'day_count' => $count,
-            'created_by_id' => auth()->id(),
-            'created_by_type' => get_class(auth()->user()),
-            'shared_with' => [
-                'all_teachers' => true,
-                'all_students' => true,
-                'all_supervisors' => true,
-                'all_managers' => true,
-            ], // Attendance periods are shared by default
-        ]);
-
-        $this->dispatch('notify', 
-            variant: 'success',
-            title: 'تمت الإضافة',
-            description: "تمت إضافة فترة الدوام بإجمالي $count يوم."
+        $period = AcademicCalendarEvent::updateOrCreate(
+            ['id' => $this->editingPeriodId],
+            [
+                'event_name' => 'فترة دوام الحلقات',
+                'description' => $this->description,
+                'start_date' => $this->hijriFromDate,
+                'end_date' => $this->hijriToDate,
+                'color' => 'emerald',
+                'is_attendance_period' => true,
+                'weekdays' => array_values(array_map('intval', $this->selectedWeekdays)),
+                'stage_ids' => $stageIds,
+                'extra_dates' => array_values($this->periodExtraDates),
+                'excluded_dates' => array_values($this->periodExcludedDates),
+                'sessions' => array_values($this->periodSessions),
+                'created_by_id' => auth()->id(),
+                'created_by_type' => get_class(auth()->user()),
+                'shared_with' => [
+                    'all_teachers' => true,
+                    'all_students' => true,
+                    'all_supervisors' => true,
+                    'all_managers' => true,
+                ], // Attendance periods are shared by default
+            ]
         );
 
-        $this->hijriFromDate = '';
-        $this->hijriToDate = '';
-        $this->description = '';
-        $this->selectedWeekdays = [1, 2, 3, 4, 5];
+        // The count has to come from the same rules everything else reads, or
+        // the card would advertise a number no other page agrees with.
+        AcademicCalendarEvent::forgetPeriodCache();
+        $count = count(AcademicCalendarEvent::workingDaysBetween(
+            $this->hijriFromDate,
+            $this->hijriToDate,
+            $stageIds[0] ?? null,
+        ));
+        $period->update(['day_count' => $count]);
+
+        $this->dispatch('notify',
+            variant: 'success',
+            title: $this->editingPeriodId ? 'تم الحفظ' : 'تمت الإضافة',
+            description: "فترة الدوام بإجمالي $count يوم."
+        );
+
+        $this->resetPeriodForm();
         Flux::modal('attendance-period-modal')->close();
     }
 
     public function deletePeriod($id)
     {
         AcademicCalendarEvent::findOrFail($id)->delete();
+        AcademicCalendarEvent::forgetPeriodCache();
         $this->dispatch('notify', variant: 'success', title: 'تم الحذف', description: 'تم حذف فترة الدوام.');
+    }
+
+    private function resetPeriodForm(): void
+    {
+        $this->editingPeriodId = null;
+        $this->hijriFromDate = now()->format('Y-m-d');
+        $this->hijriToDate = now()->addMonth()->format('Y-m-d');
+        $this->description = '';
+        $this->selectedWeekdays = [1, 2, 3, 4, 5];
+        $this->periodStageIds = [];
+        $this->periodExtraDates = [];
+        $this->periodExcludedDates = [];
+        $this->periodSessions = [];
+        $this->newPeriodDate = '';
+        $this->resetValidation();
     }
 
     public function selectDate($date, $hijriDay, $monthName)
@@ -522,15 +626,27 @@ new class extends Component {
             $gregDate = date('Y-m-d', $dayTimestamp);
 
             $currentDayEvents = $allEvents->filter(function ($event) use ($gregDate, $dayOfWeek) {
+                // A period's extra days sit outside its range, and its excluded
+                // days sit inside it, so both are settled before the range is.
+                if ($event->is_attendance_period) {
+                    if (in_array($gregDate, $event->excluded_dates ?? [], true)) {
+                        return false;
+                    }
+
+                    if (in_array($gregDate, $event->extra_dates ?? [], true)) {
+                        return true;
+                    }
+                }
+
                 $dateMatch = $gregDate >= $event->start_date->format('Y-m-d') &&
                     $gregDate <= $event->end_date->format('Y-m-d');
-                
+
                 if (!$dateMatch) return false;
-                
+
                 if ($event->is_attendance_period && $event->weekdays) {
                     return in_array($dayOfWeek, $event->weekdays);
                 }
-                
+
                 return true;
             });
 
@@ -611,7 +727,7 @@ new class extends Component {
         <div class="flex flex-col gap-7 sm:flex-row items-stretch sm:items-center">
             <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <flux:button wire:click="createNewEvent" icon="plus" size="sm" variant="primary" class="w-full sm:w-auto">إضافة حدث</flux:button>
-                <flux:button x-on:click="$flux.modal('attendance-period-modal').show()" icon="clock" size="sm" variant="outline" class="w-full mt-6 sm:w-auto">إضافة فترة دوام</flux:button>
+                <flux:button wire:click="createPeriod" icon="clock" size="sm" variant="outline" class="w-full mt-6 sm:w-auto">إضافة فترة دوام</flux:button>
             </div>
             
             <div class="flex items-center justify-between sm:justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg w-full sm:w-auto mt-6 sm:mt-0">
@@ -654,14 +770,41 @@ new class extends Component {
                                             <div class="size-2 rounded-full bg-emerald-500"></div>
                                             <span class="font-bold text-sm text-emerald-900 dark:text-emerald-100">{{ $period->event_name }}</span>
                                         </div>
-                                        <flux:button variant="ghost" size="xs" icon="x-mark" class="text-emerald-600 hover:text-red-500" wire:click="deletePeriod({{ $period->id }})" wire:confirm="هل أنت متأكد من حذف فترة الدوام هذه؟" />
+                                        <div class="flex items-center">
+                                            <flux:button variant="ghost" size="xs" icon="pencil-square" class="text-emerald-600" wire:click="editPeriod({{ $period->id }})" />
+                                            <flux:button variant="ghost" size="xs" icon="x-mark" class="text-emerald-600 hover:text-red-500" wire:click="deletePeriod({{ $period->id }})" wire:confirm="هل أنت متأكد من حذف فترة الدوام هذه؟" />
+                                        </div>
                                     </div>
-                                    
+
                                     @if($period->description)
                                         <p class="text-xs text-emerald-700/70 dark:text-emerald-400/70 mb-3 leading-relaxed">
                                             {{ $period->description }}
                                         </p>
                                     @endif
+
+                                    @php
+                                        $periodStages = $period->stageNames();
+                                    @endphp
+                                    <div class="flex flex-wrap gap-1 mb-3">
+                                        <span class="px-1.5 py-0.5 rounded text-[0.6rem] font-medium bg-emerald-100 dark:bg-emerald-800/60 text-emerald-700 dark:text-emerald-300">
+                                            {{ $periodStages->isEmpty() ? 'كل المراحل' : $periodStages->implode('، ') }}
+                                        </span>
+                                        @foreach($period->sessions ?? [] as $session)
+                                            <span class="px-1.5 py-0.5 rounded text-[0.6rem] font-medium bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-emerald-100 dark:border-emerald-800 dir-ltr">
+                                                {{ $session['from'] }}–{{ $session['to'] }}{{ ($session['label'] ?? '') !== '' ? ' · '.$session['label'] : '' }}
+                                            </span>
+                                        @endforeach
+                                        @if(! empty($period->extra_dates))
+                                            <span class="px-1.5 py-0.5 rounded text-[0.6rem] font-medium bg-emerald-100 dark:bg-emerald-800/60 text-emerald-700 dark:text-emerald-300">
+                                                +{{ count($period->extra_dates) }} يوم إضافي
+                                            </span>
+                                        @endif
+                                        @if(! empty($period->excluded_dates))
+                                            <span class="px-1.5 py-0.5 rounded text-[0.6rem] font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
+                                                −{{ count($period->excluded_dates) }} يوم مستثنى
+                                            </span>
+                                        @endif
+                                    </div>
 
                                     <div class="mt-auto flex items-center justify-between border-t border-emerald-100 dark:border-emerald-800 pt-3">
                                         <div class="text-[0.6rem] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
@@ -1019,19 +1162,36 @@ new class extends Component {
     </flux:modal>
 
     {{-- Attendance Period Modal --}}
-    <flux:modal name="attendance-period-modal" class="max-w-md">
+    <flux:modal name="attendance-period-modal" class="max-w-lg">
         <form wire:submit="saveAttendancePeriod" class="space-y-6">
             <div>
-                <flux:heading size="lg">إضافة فترة دوام الحلقات</flux:heading>
-                <flux:subheading>حدد تاريخ بداية ونهاية فترة دوام الحلقات (بالهجري).</flux:subheading>
+                <flux:heading size="lg">{{ $editingPeriodId ? 'تعديل فترة دوام الحلقات' : 'إضافة فترة دوام الحلقات' }}</flux:heading>
+                <flux:subheading>حدد المدة، والمراحل التي تتبعها، وأيام الأسبوع وأوقات الدوام.</flux:subheading>
             </div>
 
-            <div class="space-y-4">
+            <div class="space-y-5 max-h-[65vh] overflow-y-auto pe-1">
                 <flux:textarea wire:model="description" label="وصف الفترة" placeholder="مثال: الفصل الدراسي الأول" rows="2" />
-                
+
                 <div class="grid grid-cols-1 gap-4">
                     <livewire:shared.hijri-datepicker wire:model="hijriFromDate" label="من تاريخ (هجري)" />
                     <livewire:shared.hijri-datepicker wire:model="hijriToDate" label="إلى تاريخ (هجري)" />
+                </div>
+
+                {{-- Stages: none chosen means the whole academy follows this period. --}}
+                <div class="space-y-2">
+                    <flux:label>المراحل التي تتبع هذه الفترة</flux:label>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($this->availableStages as $stage)
+                            <label class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                                <input type="checkbox" wire:model="periodStageIds" value="{{ $stage->id }}" class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm">{{ $stage->name }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                    <flux:text class="text-xs text-zinc-500">
+                        اترك الجميع دون تحديد لتسري الفترة على المجمع كله.
+                    </flux:text>
+                    <flux:error name="periodStageIds" />
                 </div>
 
                 <div class="space-y-2">
@@ -1046,21 +1206,74 @@ new class extends Component {
                             6 => 'الجمعة',
                             7 => 'السبت'
                         ] as $value => $label)
-                            <label class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800   s">
+                            <label class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800">
                                 <input type="checkbox" wire:model="selectedWeekdays" value="{{ $value }}" class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500">
                                 <span class="text-sm">{{ $label }}</span>
                             </label>
                         @endforeach
                     </div>
+                    <flux:error name="selectedWeekdays" />
                 </div>
-                
-                <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/40">
-                    <div class="flex gap-3">
-                        <flux:icon icon="information-circle" variant="solid" class="text-blue-500 shrink-0" />
-                        <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                            سيتم إضافة هذا النطاق كحدث مستمر في التقويم تحت مسمى "فترة دوام الحلقات" وباللون الزمردي المميز.
-                        </p>
+
+                {{-- Single dates that override the weekly pattern in either direction. --}}
+                <div class="space-y-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                    <flux:label>أيام محددة</flux:label>
+                    <div class="flex flex-wrap items-end gap-2">
+                        <div class="flex-1 min-w-[10rem]">
+                            <livewire:shared.hijri-datepicker wire:model="newPeriodDate" label="اختر التاريخ" />
+                        </div>
+                        <flux:button type="button" size="sm" variant="filled" icon="plus" wire:click="addPeriodDate('extra')">
+                            يوم دوام إضافي
+                        </flux:button>
+                        <flux:button type="button" size="sm" variant="filled" icon="minus" wire:click="addPeriodDate('excluded')">
+                            يوم مستثنى
+                        </flux:button>
                     </div>
+                    <flux:error name="newPeriodDate" />
+
+                    @foreach([
+                        ['list' => 'extra', 'dates' => $periodExtraDates, 'title' => 'أيام دوام إضافية', 'tone' => 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'],
+                        ['list' => 'excluded', 'dates' => $periodExcludedDates, 'title' => 'أيام مستثناة من الدوام', 'tone' => 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'],
+                    ] as $group)
+                        @continue(empty($group['dates']))
+                        <div class="space-y-1.5">
+                            <p class="text-xs font-medium text-zinc-500">{{ $group['title'] }}</p>
+                            <div class="flex flex-wrap gap-1.5">
+                                @foreach($group['dates'] as $date)
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs {{ $group['tone'] }}">
+                                        <span class="dir-ltr">{{ $date }}</span>
+                                        <button type="button" wire:click="removePeriodDate('{{ $group['list'] }}', '{{ $date }}')" class="opacity-60 hover:opacity-100">
+                                            <flux:icon icon="x-mark" class="size-3.5" />
+                                        </button>
+                                    </span>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <flux:text class="text-xs text-zinc-500">
+                        اليوم المستثنى يُلغي الدوام دائماً، حتى لو وافق يوماً من أيام الأسبوع المحددة.
+                    </flux:text>
+                </div>
+
+                {{-- Working times, for display: a circle may meet more than once a day. --}}
+                <div class="space-y-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                    <div class="flex items-center justify-between">
+                        <flux:label>أوقات الدوام</flux:label>
+                        <flux:button type="button" size="xs" variant="ghost" icon="plus" wire:click="addSession">إضافة وقت</flux:button>
+                    </div>
+
+                    @forelse($periodSessions as $index => $session)
+                        <div class="flex items-end gap-2" wire:key="session-{{ $index }}">
+                            <flux:input type="time" wire:model="periodSessions.{{ $index }}.from" label="من" class="w-28" />
+                            <flux:input type="time" wire:model="periodSessions.{{ $index }}.to" label="إلى" class="w-28" />
+                            <flux:input wire:model="periodSessions.{{ $index }}.label" label="التسمية (اختياري)" placeholder="الفترة الصباحية" class="flex-1" />
+                            <flux:button type="button" size="sm" variant="subtle" icon="trash" wire:click="removeSession({{ $index }})" />
+                        </div>
+                        <flux:error name="periodSessions.{{ $index }}.to" />
+                    @empty
+                        <flux:text class="text-xs text-zinc-500">لم تُحدَّد أوقات. يمكن إضافة أكثر من وقت في اليوم الواحد.</flux:text>
+                    @endforelse
                 </div>
             </div>
 

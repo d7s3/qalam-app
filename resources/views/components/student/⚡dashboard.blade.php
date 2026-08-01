@@ -380,7 +380,6 @@ new class extends Component {
             'recentActivity' => $recentActivity,
             'teamTaskAssignment' => $teamTaskAssignment,
             'currentStreak' => $currentStreak,
-            'totalStudyHours' => $student->totalStudyHours(),
             'studentLevel' => $studentLevel,
             'pendingMissions' => $pendingMissions,
             'pendingHifzMission' => $pendingHifzMission,

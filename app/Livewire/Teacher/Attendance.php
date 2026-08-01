@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Teacher;
 
+use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance as AttendanceModel;
+use App\Models\Circle;
 use App\Models\GamificationTransaction;
 use App\Models\Setting;
 use App\Models\Student;
@@ -10,6 +12,7 @@ use App\Services\GamificationService;
 use App\Services\GuardianNotificationService;
 use Carbon\Carbon;
 use Flux\Flux;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -23,8 +26,6 @@ class Attendance extends Component
 
     #[Url]
     public string $date = '';
-
-    public ?int $sessionDurationMinutes = null;
 
     public $students;
 
@@ -62,17 +63,6 @@ class Attendance extends Component
         $this->loadStudents();
     }
 
-    public function updatedSessionDurationMinutes(): void
-    {
-        if (! $this->selectedCircle) {
-            return;
-        }
-
-        AttendanceModel::where('circle_id', $this->selectedCircle)
-            ->whereDate('date', $this->date)
-            ->update(['duration_minutes' => $this->sessionDurationMinutes]);
-    }
-
     #[On('student-list-updated')]
     public function loadStudents(): void
     {
@@ -80,16 +70,10 @@ class Attendance extends Component
             $this->students = collect();
             $this->records = [];
             $this->studentOrder = [];
-            $this->sessionDurationMinutes = null;
             $this->dispatch('studentsLoaded');
 
             return;
         }
-
-        $this->sessionDurationMinutes = AttendanceModel::where('circle_id', $this->selectedCircle)
-            ->whereDate('date', $this->date)
-            ->whereNotNull('duration_minutes')
-            ->value('duration_minutes');
 
         $studentsQuery = Student::where('circle_id', $this->selectedCircle)
             ->whereRoleState(fn ($q) => $q->where('is_approved', true))
@@ -176,7 +160,6 @@ class Attendance extends Component
                     'teacher_id' => $teacher->id,
                     'circle_id' => $this->selectedCircle,
                     'status' => 'present',
-                    'duration_minutes' => $this->sessionDurationMinutes,
                 ]
             );
 
@@ -258,7 +241,6 @@ class Attendance extends Component
                 'teacher_id' => $teacher->id,
                 'circle_id' => $this->selectedCircle,
                 'status' => $status,
-                'duration_minutes' => $this->sessionDurationMinutes,
             ]);
         } else {
             $existing = AttendanceModel::create([
@@ -267,7 +249,6 @@ class Attendance extends Component
                 'teacher_id' => $teacher->id,
                 'circle_id' => $this->selectedCircle,
                 'status' => $status,
-                'duration_minutes' => $this->sessionDurationMinutes,
             ]);
         }
 
@@ -485,6 +466,26 @@ class Attendance extends Component
         );
 
         return $formatter->format(strtotime($this->date));
+    }
+
+    /**
+     * The working times the calendar holds for this circle's stage today, so
+     * the teacher sees when the circle is due rather than being asked to type
+     * how long it ran.
+     *
+     * @return array<int, array{from: string, to: string, label: string|null}>
+     */
+    #[Computed]
+    public function todaysSessions(): array
+    {
+        if (! $this->selectedCircle || ! $this->date) {
+            return [];
+        }
+
+        return AcademicCalendarEvent::sessionsOn(
+            $this->date,
+            Circle::find($this->selectedCircle)?->stage_id,
+        );
     }
 
     public function render()
