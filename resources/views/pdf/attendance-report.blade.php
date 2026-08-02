@@ -100,9 +100,8 @@
         <img src="{{ public_path('images/altag_logo.png') }}" alt="Logo">
         <h1>تقرير الحضور والغياب للحلقات</h1>
         @php
-            $fmtFull = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'd MMMM yyyy');
-        @endphp
-        <p>الفترة من: {{ $fmtFull->format(strtotime($fromDate)) }} إلى {{ $fmtFull->format(strtotime($toDate)) }}</p>
+            @endphp
+        <p>الفترة من: {{ \App\Support\HijriDate::full($fromDate) }} إلى {{ \App\Support\HijriDate::full($toDate) }}</p>
     </div>
 
     <table>
@@ -114,8 +113,7 @@
                     $monthGroups = [];
                     $prevMonth = null;
                     foreach ($dates as $d) {
-                        $mFmt = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMM yyyy');
-                        $m = $mFmt->format(strtotime($d));
+                        $m = \App\Support\HijriDate::format($d, 'MMM yyyy');
                         if ($m === $prevMonth) {
                             $monthGroups[count($monthGroups) - 1]['span']++;
                         } else {
@@ -133,10 +131,8 @@
             <tr>
                 @foreach($dates as $date)
                     @php
-                        $dayNumFmt  = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'd');
-                        $dayNameFmt = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'E');
-                        $dayNum  = $dayNumFmt->format(strtotime($date));
-                        $dayName = $dayNameFmt->format(strtotime($date));
+                        $dayNum  = \App\Support\HijriDate::format($date, 'd');
+                        $dayName = \App\Support\HijriDate::format($date, 'E');
                     @endphp
                     <th style="font-size: 8px; max-width: 28px;">{{ $dayNum }}<br>{{ $dayName }}</th>
                 @endforeach

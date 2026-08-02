@@ -95,7 +95,7 @@ new class extends Component {
                                         <div class="font-bold text-zinc-900 dark:text-zinc-100">{{ $challenge->student->name }}</div>
                                         <div class="text-xs text-zinc-500">
                                             @if($challenge->start_date)
-                                                {{ __('البداية: ') }} {{ $challenge->start_date->format('Y/m/d') }}
+                                                {{ __('البداية: ') }} <x-hijri-date :date="$challenge->start_date" />
                                             @endif
                                         </div>
                                     </div>
@@ -203,7 +203,7 @@ new class extends Component {
                                                             {{ __('تنبيه: تم تسجيل غياب وتوقف العداد') }}
                                                         </div>
                                                         <div class="text-xs text-red-700 dark:text-red-400 mt-1">
-                                                            {{ __('تغيب الطالب في يوم:') }} {{ $unignored->first()->date->format('Y/m/d') }}
+                                                            {{ __('تغيب الطالب في يوم:') }} <x-hijri-date :date="$unignored->first()->date" />
                                                         </div>
                                                         <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-3">
                                                             <flux:button size="sm" variant="danger" wire:click="markChallengeStatus({{ $challenge->id }}, 'failed')">

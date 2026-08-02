@@ -16,9 +16,9 @@
                     <flux:subheading class="text-zinc-500">
                         {{ $attDates['label'] }}
                         @if($attDates['from'] !== $attDates['to'])
-                            &nbsp;·&nbsp; {{ \Carbon\Carbon::parse($attDates['from'])->format('Y-m-d') }} → {{ \Carbon\Carbon::parse($attDates['to'])->format('Y-m-d') }}
+                            &nbsp;·&nbsp; <x-hijri-date :date="\Carbon\Carbon::parse($attDates['from'])" /> → <x-hijri-date :date="\Carbon\Carbon::parse($attDates['to'])" />
                         @else
-                            &nbsp;·&nbsp; {{ \Carbon\Carbon::parse($attDates['from'])->format('Y-m-d') }}
+                            &nbsp;·&nbsp; <x-hijri-date :date="\Carbon\Carbon::parse($attDates['from'])" />
                         @endif
                     </flux:subheading>
                 </div>
@@ -177,9 +177,9 @@
                     <flux:subheading class="text-zinc-500">
                         {{ $quranDates['label'] }}
                         @if($quranDates['from'] !== $quranDates['to'])
-                            &nbsp;·&nbsp; {{ \Carbon\Carbon::parse($quranDates['from'])->format('Y-m-d') }} → {{ \Carbon\Carbon::parse($quranDates['to'])->format('Y-m-d') }}
+                            &nbsp;·&nbsp; <x-hijri-date :date="\Carbon\Carbon::parse($quranDates['from'])" /> → <x-hijri-date :date="\Carbon\Carbon::parse($quranDates['to'])" />
                         @else
-                            &nbsp;·&nbsp; {{ \Carbon\Carbon::parse($quranDates['from'])->format('Y-m-d') }}
+                            &nbsp;·&nbsp; <x-hijri-date :date="\Carbon\Carbon::parse($quranDates['from'])" />
                         @endif
                     </flux:subheading>
                 </div>

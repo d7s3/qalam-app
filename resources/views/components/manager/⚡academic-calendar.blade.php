@@ -570,8 +570,7 @@ new class extends Component {
         $monthLength = $cal->getActualMaximum(\IntlCalendar::FIELD_DAY_OF_MONTH);
         $startDayOfWeek = $cal->get(\IntlCalendar::FIELD_DAY_OF_WEEK); // 1 = Sunday
 
-        $monthNameFormatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMMM');
-        $monthName = $monthNameFormatter->format($cal->getTime() / 1000);
+        $monthName = \App\Support\HijriDate::format($cal->getTime() / 1000, 'MMMM');
 
         // Assign fixed slots to events for this month to ensure visual continuity
         $slottedEvents = [];
@@ -808,7 +807,7 @@ new class extends Component {
 
                                     <div class="mt-auto flex items-center justify-between border-t border-emerald-100 dark:border-emerald-800 pt-3">
                                         <div class="text-[0.6rem] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                                            {{ $period->start_date->format('Y/m/d') }} - {{ $period->end_date->format('Y/m/d') }}
+                                            <x-hijri-date :date="$period->start_date" /> - <x-hijri-date :date="$period->end_date" />
                                         </div>
                                         <div class="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-800 rounded-md">
                                             <span class="text-[0.65rem] font-bold text-emerald-700 dark:text-emerald-300">{{ $period->day_count }} يوم</span>
@@ -893,9 +892,9 @@ new class extends Component {
                                     
                                     <div class="mt-auto flex items-center justify-between">
                                         <div class="text-[0.6rem] text-zinc-500 font-medium tracking-tight">
-                                            {{ $event->start_date->format('Y/m/d') }}
+                                            <x-hijri-date :date="$event->start_date" />
                                             @if($event->start_date != $event->end_date)
-                                                - {{ $event->end_date->format('m/d') }}
+                                                - <x-hijri-date :date="$event->end_date" style="dayMonth" />
                                             @endif
                                         </div>
                                         @php
@@ -1079,8 +1078,8 @@ new class extends Component {
                 <flux:input wire:model="eventName" label="اسم الحدث" placeholder="مثال: إجازة مطولة" required />
                 
                 <div class="grid grid-cols-2 gap-4">
-                    <flux:input type="date" wire:model="startDate" label="تاريخ البداية" required />
-                    <flux:input type="date" wire:model="endDate" label="تاريخ النهاية" required />
+                    <livewire:shared.hijri-datepicker wire:model="startDate" label="تاريخ البداية (هجري)" />
+                    <livewire:shared.hijri-datepicker wire:model="endDate" label="تاريخ النهاية (هجري)" />
                 </div>
 
                 <div class="space-y-2">

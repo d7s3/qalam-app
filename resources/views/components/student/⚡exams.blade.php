@@ -70,7 +70,7 @@ new class extends Component
                     @forelse($exams as $exam)
                         <flux:table.row>
                             <flux:table.cell class="font-medium whitespace-nowrap">
-                                {{ $exam->date_time->translatedFormat('l, d F Y - h:i A') }}
+                                <x-hijri-date :date="$exam->date_time" style="withTime" />
                             </flux:table.cell>
                             <flux:table.cell>{{ $exam->examLevel?->name ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ $exam->location ?? '-' }}</flux:table.cell>

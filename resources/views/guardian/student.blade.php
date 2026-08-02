@@ -234,7 +234,7 @@
                         <div class="flex justify-between text-sm">
                             <span class="text-zinc-500">تاريخ البدء</span>
                             <span
-                                class="font-medium text-zinc-800 dark:text-zinc-200">{{ $activePlan->start_date->format('Y/m/d') }}</span>
+                                class="font-medium text-zinc-800 dark:text-zinc-200"><x-hijri-date :date="$activePlan->start_date" /></span>
                         </div>
                         <div class="flex justify-between text-sm">
                             <span class="text-zinc-500">عدد الأيام</span>
@@ -311,7 +311,7 @@
                                     };
                                 @endphp
                                 <tr>
-                                    <td class="py-3 text-zinc-600 dark:text-zinc-400">{{ $day->date->format('Y/m/d') }}
+                                    <td class="py-3 text-zinc-600 dark:text-zinc-400"><x-hijri-date :date="$day->date" />
                                     </td>
                                     <td class="py-3 text-zinc-800 dark:text-zinc-200">
                                         @if($day->fromAyah)

@@ -67,7 +67,7 @@
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="hidden md:table-cell text-xs text-zinc-400">
-                            {{ $guardian->created_at?->format('Y-m-d') }}
+                            <x-hijri-date :date="$guardian->created_at" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2" @click.stop>
@@ -170,7 +170,7 @@
                             </div>
                             <div class="text-right">
                                 <div class="font-medium text-sm">{{ __('تاريخ الإضافة') }}</div>
-                                <div class="text-xs text-zinc-500 mt-1">{{ $viewingGuardian->created_at?->format('Y-m-d') }}
+                                <div class="text-xs text-zinc-500 mt-1"><x-hijri-date :date="$viewingGuardian->created_at" />
                                 </div>
                             </div>
                         </div>

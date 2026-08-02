@@ -208,7 +208,7 @@ new class extends Component {
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell class="first:ps-3" >
-                                <div class="text-sm">{{ $exam->date_time->format('Y-m-d') }}</div>
+                                <div class="text-sm"><x-hijri-date :date="$exam->date_time" /></div>
                                 <div class="text-xs text-zinc-500">{{ $exam->date_time->format('h:i A') }}</div>
                             </flux:table.cell>
                             <flux:table.cell class="first:ps-3" >

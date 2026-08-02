@@ -60,7 +60,7 @@
                             <flux:badge size="sm" variant="neutral">{{ $stage->circles_count }}</flux:badge>
                         </flux:table.cell>
                         <flux:table.cell class="text-center text-xs text-zinc-400">
-                            {{ $stage->created_at?->format('Y-m-d') }}
+                            <x-hijri-date :date="$stage->created_at" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2">

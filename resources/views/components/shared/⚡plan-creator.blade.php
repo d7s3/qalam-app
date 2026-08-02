@@ -926,16 +926,7 @@ new class extends Component {
 
     protected function getHijriLabel(\DateTimeInterface $date)
     {
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMMM yyyy'
-        );
-
-        return $formatter->format($date->getTimestamp());
+        return \App\Support\HijriDate::full($date->getTimestamp());
     }
 
     protected function translateDay($day)
@@ -1203,7 +1194,7 @@ new class extends Component {
                                             @if($firstAvailableWorkingDate)
                                                 <br>
                                                 <span class="font-semibold text-amber-800 dark:text-amber-200">
-                                                    {{ __('أول يوم دوام متاح في الفترة القادمة سيبدأ من: ') }} {{ \Carbon\Carbon::parse($firstAvailableWorkingDate)->format('Y-m-d') }}
+                                                    {{ __('أول يوم دوام متاح في الفترة القادمة سيبدأ من: ') }} <x-hijri-date :date="\Carbon\Carbon::parse($firstAvailableWorkingDate)" />
                                                 </span>
                                             @else
                                                 {{ __('جميع الأيام من التاريخ المحدد وصاعداً ليست ضمن أيام الدوام المعتمدة.') }}

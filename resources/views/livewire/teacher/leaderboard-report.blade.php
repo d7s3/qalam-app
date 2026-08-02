@@ -9,7 +9,7 @@
         </div>
         <div class="bg-white dark:bg-zinc-800 px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm font-semibold flex items-center gap-2">
             <flux:icon icon="calendar" class="size-4 text-zinc-500" />
-            <span>{{ $leaderboard->start_date->format('Y-m-d') }}</span>
+            <span><x-hijri-date :date="$leaderboard->start_date" /></span>
             <span class="text-zinc-400">-</span>
             <span>{{ $leaderboard->end_date ? $leaderboard->end_date->format('Y-m-d') : __('الآن') }}</span>
         </div>

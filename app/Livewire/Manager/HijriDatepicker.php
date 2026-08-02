@@ -4,6 +4,7 @@ namespace App\Livewire\Manager;
 
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
+use App\Support\HijriDate;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Modelable;
@@ -39,16 +40,8 @@ class HijriDatepicker extends Component
         if (! $this->date) {
             return '';
         }
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMMM yyyy'
-        );
 
-        return $formatter->format(strtotime($this->date));
+        return HijriDate::full($this->date);
     }
 
     public function previousMonth()
@@ -87,8 +80,7 @@ class HijriDatepicker extends Component
         $monthLength = $cal->getActualMaximum(\IntlCalendar::FIELD_DAY_OF_MONTH);
         $startDayOfWeek = $cal->get(\IntlCalendar::FIELD_DAY_OF_WEEK); // 1 = Sunday
 
-        $monthNameFormatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMMM yyyy');
-        $monthName = $monthNameFormatter->format($this->currentViewTimestamp);
+        $monthName = HijriDate::monthYear($this->currentViewTimestamp);
 
         // Fetch overall circle count
         $totalCirclesCount = Circle::count();

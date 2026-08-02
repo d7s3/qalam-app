@@ -324,15 +324,6 @@ new class extends Component {
         $tomorrow = \Carbon\Carbon::now('Asia/Riyadh')->addDay();
 
         $upcoming = [];
-        $hijriFormatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'EEEE، d MMMM yyyy'
-        );
-
         for ($i = 0; $i < 20; $i++) {
             $date = $tomorrow->copy()->addDays($i);
             $dateStr = $date->format('Y-m-d');
@@ -340,7 +331,7 @@ new class extends Component {
 
             $upcoming[] = [
                 'date' => $dateStr,
-                'hijri' => $hijriFormatter->format($date->timestamp),
+                'hijri' => \App\Support\HijriDate::format($date, 'EEEE، d MMMM'),
                 'gregorian' => $date->translatedFormat('l، d F Y'),
                 'is_working' => $isWorking,
             ];
@@ -589,24 +580,6 @@ new class extends Component {
             // Get working days using the helper method
             $workingDaysDates = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification, $student->effective_stage_id);
 
-            $hijriDayFormatter = new \IntlDateFormatter(
-                'ar_SA@calendar=islamic-umalqura',
-                \IntlDateFormatter::FULL,
-                \IntlDateFormatter::NONE,
-                'Asia/Riyadh',
-                \IntlDateFormatter::TRADITIONAL,
-                'EEEE'
-            );
-
-            $hijriDateFormatter = new \IntlDateFormatter(
-                'ar_SA@calendar=islamic-umalqura',
-                \IntlDateFormatter::FULL,
-                \IntlDateFormatter::NONE,
-                'Asia/Riyadh',
-                \IntlDateFormatter::TRADITIONAL,
-                'd MMM'
-            );
-
             $multiplierPurchases = \App\Models\GamificationStorePurchase::where('status', 'approved')
                 ->where(function($query) use ($student, $studentTeam) {
                     $query->where('student_id', $student->id);
@@ -671,8 +644,8 @@ new class extends Component {
                 $workingDays[] = [
                     'number' => $dayNumber++,
                     'date' => $dateStr,
-                    'day_name' => $hijriDayFormatter->format($currentDate->timestamp),
-                    'formatted_date' => $hijriDateFormatter->format($currentDate->timestamp),
+                    'day_name' => \App\Support\HijriDate::weekday($currentDate),
+                    'formatted_date' => \App\Support\HijriDate::format($currentDate, 'd MMM'),
                     'is_future' => $isFuture,
                     'is_today' => $dateStr === $todayStr,
                     'has_enthusiasm' => $hasEnthusiasm,
@@ -1289,9 +1262,7 @@ new class extends Component {
     protected function getHijriLabel(\DateTimeInterface|string $date)
     {
         $parsed = is_string($date) ? \Carbon\Carbon::parse($date) : $date;
-        $formatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'd MMMM yyyy');
-
-        return $formatter->format($parsed->getTimestamp());
+        return \App\Support\HijriDate::full($parsed->getTimestamp());
     }
 };
 ?>
@@ -1567,15 +1538,7 @@ new class extends Component {
             @endif
         </div>
         @php
-            $hijriFormatter = new \IntlDateFormatter(
-                'ar_SA@calendar=islamic-umalqura',
-                \IntlDateFormatter::FULL,
-                \IntlDateFormatter::NONE,
-                'Asia/Riyadh',
-                \IntlDateFormatter::TRADITIONAL,
-                'd MMMM yyyy'
-            );
-            $hijriToday = $hijriFormatter->format(now());
+            $hijriToday = \App\Support\HijriDate::format(now(), 'EEEE، d MMMM');
         @endphp
         <div class="flex items-center gap-3">
             <div class="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-2 shadow-sm">
@@ -1860,8 +1823,7 @@ new class extends Component {
                             $formattedMultDate = 'غير محدد';
                             if ($multDateStr) {
                                 $carbonDate = \Carbon\Carbon::parse($multDateStr);
-                                $formatterCompact = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'd MMMM');
-                                $formattedMultDate = $formatterCompact->format($carbonDate->getTimestamp());
+                                $formattedMultDate = \App\Support\HijriDate::dayMonth($carbonDate->getTimestamp());
                             }
                         @endphp
                         <flux:badge size="sm" color="{{ $isTeamMult ? 'indigo' : 'amber' }}" icon="bolt" class="font-bold">
@@ -2222,7 +2184,7 @@ new class extends Component {
                                 @if($item->target_date)
                                     <div class="mt-2.5 text-xs text-team-primary flex items-center gap-1.5 font-bold">
                                         <flux:icon icon="calendar" class="size-3.5" />
-                                        <span>{{ __('تاريخ اليوم المحدد:') }} {{ $item->target_date->format('Y-m-d') }}</span>
+                                        <span>{{ __('تاريخ اليوم المحدد:') }} <x-hijri-date :date="$item->target_date" /></span>
                                     </div>
                                 @endif
 
@@ -2244,7 +2206,7 @@ new class extends Component {
                                 @elseif(in_array($item->item_type, ['multiplier', 'shield']) && !$item->target_date)
                                     <div class="mt-2.5 space-y-1 text-right" dir="rtl">
                                         <label class="text-[11px] text-slate-500 block font-bold">{{ __('تاريخ التفعيل (من الغد فصاعداً):') }}</label>
-                                        <input type="date" wire:model="targetDates.{{ $item->id }}" min="{{ \Carbon\Carbon::now('Asia/Riyadh')->addDay()->format('Y-m-d') }}" class="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-team-primary focus:border-team-primary" />
+                                        <livewire:shared.hijri-datepicker wire:model="targetDates.{{ $item->id }}" label="" :key="'target-date-'.$item->id" />
                                     </div>
                                 @endif
                             </div>
@@ -2459,7 +2421,7 @@ new class extends Component {
                                         <flux:badge color="indigo" size="sm">
                                             {{ $m->pendingPart === 'review' ? __('مراجعة') : __('حفظ') }}
                                         </flux:badge>
-                                        <span class="text-xs text-slate-400">{{ $m->day_name }} ({{ $m->date->format('Y-m-d') }})</span>
+                                        <span class="text-xs text-slate-400">{{ $m->day_name }} (<x-hijri-date :date="$m->date" />)</span>
                                     </div>
                                     <h4 class="font-black text-slate-900 text-lg leading-tight mt-2">
                                         {{ __('المهمة المطلوبة غداً') }}
@@ -2548,7 +2510,7 @@ new class extends Component {
                                         <flux:badge color="rose" size="sm">
                                             {{ $hm->plan->path->name }}
                                         </flux:badge>
-                                        <span class="text-xs text-slate-400">{{ $hm->day_name }} ({{ $hm->date->format('Y-m-d') }})</span>
+                                        <span class="text-xs text-slate-400">{{ $hm->day_name }} (<x-hijri-date :date="$hm->date" />)</span>
                                     </div>
                                     <h4 class="font-black text-slate-900 text-lg leading-tight mt-2">
                                         {{ __('المهمة المطلوبة') }}
@@ -3111,7 +3073,7 @@ new class extends Component {
                                             @if($purchase->target_date)
                                                 <span class="flex items-center gap-1">
                                                     <flux:icon icon="calendar" class="size-3 shrink-0" />
-                                                    {{ \Carbon\Carbon::parse($purchase->target_date)->translatedFormat('j F Y') }}
+                                                    <x-hijri-date :date="\Carbon\Carbon::parse($purchase->target_date)" />
                                                 </span>
                                                 <span class="text-slate-300">·</span>
                                             @endif
@@ -3367,7 +3329,7 @@ new class extends Component {
                                         <svg class="size-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                                         </svg>
-                                        <span>{{ $assignment->start_date->format('Y-m-d') }} {{ __('إلى') }} {{ $assignment->end_date->format('Y-m-d') }}</span>
+                                        <span><x-hijri-date :date="$assignment->start_date" /> {{ __('إلى') }} <x-hijri-date :date="$assignment->end_date" /></span>
                                     </span>
                                 </div>
                             </div>
@@ -3491,15 +3453,7 @@ new class extends Component {
                             
                             $dateColor = isLightColor($activityColor) ? $darkerColor : '#ffffff';
 
-                            $hijriFormatter = new \IntlDateFormatter(
-                                'ar_SA@calendar=islamic-umalqura',
-                                \IntlDateFormatter::FULL,
-                                \IntlDateFormatter::NONE,
-                                'Asia/Riyadh',
-                                \IntlDateFormatter::TRADITIONAL,
-                                'EEEE، d MMMM'
-                            );
-                            $hijriDateStr = $hijriFormatter->format($round->round_date->timestamp);
+                            $hijriDateStr = \App\Support\HijriDate::format($round->round_date, 'EEEE، d MMMM');
 
                             $winner1 = $round->winners->first(function ($w) {
                                 return str_contains($w->rank->name, 'أول') || str_contains($w->rank->name, 'الاول');

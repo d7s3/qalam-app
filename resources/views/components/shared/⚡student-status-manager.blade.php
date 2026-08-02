@@ -234,8 +234,7 @@ new class extends Component {
         $cal->set(\IntlCalendar::FIELD_DAY_OF_MONTH, 1);
         $cal->add(\IntlCalendar::FIELD_MONTH, $this->monthOffset);
 
-        $monthNameFormatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMMM yyyy');
-        $monthName = $monthNameFormatter->format($cal->getTime() / 1000);
+        $monthName = \App\Support\HijriDate::monthYear($cal->getTime() / 1000);
 
         $monthLength = $cal->getActualMaximum(\IntlCalendar::FIELD_DAY_OF_MONTH);
         $startDayOfWeek = $cal->get(\IntlCalendar::FIELD_DAY_OF_WEEK);
@@ -353,8 +352,8 @@ new class extends Component {
                                         <flux:badge color="zinc" size="sm">{{ __('مجدول') }}</flux:badge>
                                     @endif
                                     <span class="text-xs text-zinc-500">
-                                        {{ $history->start_date->format('Y/m/d') }}
-                                        @if($history->end_date) ← {{ $history->end_date->format('Y/m/d') }} @endif
+                                        <x-hijri-date :date="$history->start_date" />
+                                        @if($history->end_date) ← <x-hijri-date :date="$history->end_date" /> @endif
                                     </span>
                                 </div>
                                 @if($history->notes)

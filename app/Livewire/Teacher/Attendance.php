@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\Student;
 use App\Services\GamificationService;
 use App\Services\GuardianNotificationService;
+use App\Support\HijriDate;
 use Carbon\Carbon;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
@@ -186,13 +187,15 @@ class Attendance extends Component
 
         $circleName = collect($this->circles)->firstWhere('id', $this->selectedCircle)?->name ?? '';
 
-        return response()->streamDownload(function () use ($students, $records, $labels) {
+        $hijri = HijriDate::full($date);
+
+        return response()->streamDownload(function () use ($students, $records, $labels, $hijri) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel renders Arabic correctly
-            fputcsv($out, ['اسم الطالب', 'الحالة']);
+            fputcsv($out, ['التاريخ', 'اسم الطالب', 'الحالة']);
             foreach ($students as $student) {
                 $status = $records[$student->id] ?? '';
-                fputcsv($out, [$student->name, $labels[$status] ?? 'غير مسجل']);
+                fputcsv($out, [$hijri, $student->name, $labels[$status] ?? 'غير مسجل']);
             }
             fclose($out);
         }, "attendance-{$circleName}-{$date}.csv");
@@ -456,16 +459,7 @@ class Attendance extends Component
 
     private function getHijriDate(): string
     {
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMMM yyyy'
-        );
-
-        return $formatter->format(strtotime($this->date));
+        return HijriDate::full($this->date);
     }
 
     /**

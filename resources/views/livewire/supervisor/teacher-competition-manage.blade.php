@@ -5,7 +5,7 @@
             <div>
                 <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">{{ $competition->name }}</flux:heading>
                 <flux:subheading>
-                    {{ $competition->start_date->format('Y-m-d') }} - {{ $competition->end_date->format('Y-m-d') }}
+                    <x-hijri-date :date="$competition->start_date" /> - <x-hijri-date :date="$competition->end_date" />
                     @if($competition->isCurrentlyActive())
                         <flux:badge size="sm" color="green" class="ms-2">نشطة الآن</flux:badge>
                     @endif

@@ -2,12 +2,12 @@
 
 namespace App\Jobs;
 
+use App\Support\HijriDate;
 use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use IntlDateFormatter;
 
 class SendWhatsappTasksJob implements ShouldQueue
 {
@@ -157,15 +157,8 @@ class SendWhatsappTasksJob implements ShouldQueue
     {
         try {
             $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
-            $formatter = new IntlDateFormatter(
-                'ar_SA@calendar=islamic-umalqura',
-                IntlDateFormatter::LONG,
-                IntlDateFormatter::NONE,
-                'Asia/Riyadh',
-                IntlDateFormatter::TRADITIONAL
-            );
 
-            return $formatter->format($carbon->timestamp);
+            return HijriDate::full($carbon);
         } catch (\Exception $e) {
             return $date instanceof Carbon ? $date->format('m-d') : (string) $date;
         }

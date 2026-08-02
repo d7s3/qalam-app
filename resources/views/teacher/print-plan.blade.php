@@ -1,13 +1,5 @@
 @php
-    $formatter = new \IntlDateFormatter(
-        'ar_SA@calendar=islamic-umalqura',
-        \IntlDateFormatter::FULL,
-        \IntlDateFormatter::NONE,
-        'Asia/Riyadh',
-        \IntlDateFormatter::TRADITIONAL,
-        'd MMMM yyyy'
-    );
-@endphp
+    @endphp
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
@@ -105,7 +97,7 @@
                 <div class="flexflex-wrap justify-start gap-2 w-full">
                     <div class="">
                         <span class="text-zinc-500 ml-1">التاريخ:</span>
-                        <span>{{ $formatter->format($plan->start_date->timestamp) }}</span>
+                        <span>{{ \App\Support\HijriDate::full($plan->start_date) }}</span>
                     </div>
                 </div>
             </div>
@@ -134,7 +126,7 @@
             <tbody>
                 @foreach($plan->days as $day)
                     <tr class=" @if($day->day_name == 'الأحد') print-sunday @endif">
-                        <td class="py-2 px-1 text-[11px] text-zinc-600 ">{{ $formatter->format($day->date->timestamp) }}
+                        <td class="py-2 px-1 text-[11px] text-zinc-600 ">{{ \App\Support\HijriDate::full($day->date) }}
                         </td>
                         <td class="py-2 px-1 text-[11px] bg-zinc-50/50">{{ $day->day_name }}</td>
 

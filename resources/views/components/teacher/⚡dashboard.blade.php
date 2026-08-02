@@ -371,7 +371,7 @@ new class extends Component {
                                     {{ $assignment->team->name }}
                                 </td>
                                 <td class="py-3 px-4 text-zinc-500">
-                                    {{ $assignment->end_date->format('Y-m-d') }}
+                                    <x-hijri-date :date="$assignment->end_date" />
                                 </td>
                                 <td class="py-3 px-4 text-center">
                                     @if($assignment->status === 'completed')

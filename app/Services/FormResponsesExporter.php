@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Form;
 use App\Models\FormResponse;
+use App\Support\HijriDate;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -34,7 +35,7 @@ class FormResponsesExporter
         $rows = [$header];
 
         foreach ($responses as $response) {
-            $row = [$response->created_at->format('Y-m-d H:i')];
+            $row = [HijriDate::withTime($response->created_at)];
             foreach ($fields as $field) {
                 $answer = $response->answers[$field['id']] ?? '';
                 $row[] = is_array($answer) ? implode('، ', $answer) : (string) $answer;

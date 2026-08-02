@@ -71,7 +71,7 @@ new class extends Component
                     @forelse($days as $day)
                         <flux:table.row>
                             <flux:table.cell class="font-medium whitespace-nowrap">
-                                {{ \Carbon\Carbon::parse($day->date)->translatedFormat('l, d F Y') }}
+                                <x-hijri-date :date="\Carbon\Carbon::parse($day->date)" style="weekday" />
                             </flux:table.cell>
                             <flux:table.cell>{{ $day->formatRange('review') ?? '-' }}</flux:table.cell>
                             <flux:table.cell>

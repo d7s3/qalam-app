@@ -43,7 +43,7 @@
                             </flux:heading>
                             <div class="flex items-center gap-1.5 text-xs text-zinc-500 mt-1">
                                 <flux:icon icon="calendar" class="size-3.5 shrink-0" />
-                                <span dir="ltr">{{ $competition->start_date->format('Y-m-d') }}@if($competition->end_date) – {{ $competition->end_date->format('Y-m-d') }}@endif</span>
+                                <span dir="ltr"><x-hijri-date :date="$competition->start_date" />@if($competition->end_date) – <x-hijri-date :date="$competition->end_date" />@endif</span>
                             </div>
                         </div>
                         <flux:dropdown position="bottom" align="end">

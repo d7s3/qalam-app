@@ -111,7 +111,7 @@ new class extends Component {
                             </div>
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >{{ $plan->path->ode->name ?? '—' }}</flux:table.cell>
-                        <flux:table.cell class="first:ps-3" >{{ $plan->start_date->format('Y-m-d') }}</flux:table.cell>
+                        <flux:table.cell class="first:ps-3" ><x-hijri-date :date="$plan->start_date" /></flux:table.cell>
                         <flux:table.cell class="first:ps-3" >{{ $plan->path->days->count() ?? 0 }}</flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             @if($plan->status === 'active')

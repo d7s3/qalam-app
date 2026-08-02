@@ -4,6 +4,7 @@ namespace App\Livewire\Manager;
 
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
+use App\Support\HijriDate;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
@@ -97,8 +98,7 @@ class YearlyAttendance extends Component
         $monthLength = $cal->getActualMaximum(\IntlCalendar::FIELD_DAY_OF_MONTH);
         $startDayOfWeek = $cal->get(\IntlCalendar::FIELD_DAY_OF_WEEK); // 1 = Sunday
 
-        $monthNameFormatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMMM');
-        $monthName = $monthNameFormatter->format($cal->getTime() / 1000);
+        $monthName = HijriDate::format($cal->getTime() / 1000, 'MMMM');
 
         $days = [];
         $emptySlots = $startDayOfWeek - 1;

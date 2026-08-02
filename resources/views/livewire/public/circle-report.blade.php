@@ -16,7 +16,7 @@
             <div class="flex flex-wrap gap-2 text-xs">
                 <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                     <flux:icon icon="calendar" class="size-3.5" />
-                    {{ $from->format('Y/m/d') }} — {{ $to->format('Y/m/d') }}
+                    <x-hijri-date :date="$from" /> — <x-hijri-date :date="$to" />
                 </span>
                 @if($selectedStudent)
                     <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">

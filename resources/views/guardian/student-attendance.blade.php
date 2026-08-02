@@ -91,7 +91,7 @@
                 </a>
 
                 <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">
-                    {{ $currentMonth->translatedFormat('F Y') }}
+                    <x-hijri-date :date="$currentMonth" style="monthYear" />
                 </h2>
 
                 @if($canGoNext)

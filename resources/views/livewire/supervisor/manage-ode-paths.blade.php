@@ -42,7 +42,7 @@
                             {{ $path->days()->count() }} يوماً
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
-                            {{ $path->start_date->format('Y-m-d') }}
+                            <x-hijri-date :date="$path->start_date" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <flux:dropdown>
