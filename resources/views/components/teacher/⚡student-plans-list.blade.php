@@ -318,7 +318,7 @@ new class extends Component {
                                 <flux:badge color="green" size="sm">{{ __('حفظ') }}</flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell class="first:ps-3" >{{ $plan->start_date->format('Y-m-d') }}</flux:table.cell>
+                        <flux:table.cell class="first:ps-3" ><x-hijri-date :date="$plan->start_date" /></flux:table.cell>
                         <flux:table.cell class="first:ps-3" >{{ $plan->days_count }}</flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             @if(!$plan->is_approved)

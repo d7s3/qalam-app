@@ -485,7 +485,7 @@ new class extends Component {
                                             {{ __('مراجعة') }}
                                         @endif
                                     </span>
-                                    <span class="text-xs text-zinc-500">{{ $plan->start_date->format('Y/m/d') }} •
+                                    <span class="text-xs text-zinc-500"><x-hijri-date :date="$plan->start_date" /> •
                                         {{ $plan->days_count }} يوم</span>
                                 </div>
                                 <flux:button as="a" href="{{ route('teacher.print-plan', $plan->id) }}"
@@ -520,7 +520,7 @@ new class extends Component {
                                         {{ $plan->path->ode->name ?? '—' }}
                                     </span>
                                     <span class="text-xs text-zinc-500">
-                                        {{ $plan->start_date->format('Y/m/d') }} •
+                                        <x-hijri-date :date="$plan->start_date" /> •
                                         {{ $plan->path->days->count() ?? 0 }} يوم •
                                         @if($plan->status === 'active')
                                             <span class="text-green-600 font-semibold">نشطة</span>
@@ -595,9 +595,9 @@ new class extends Component {
                                         <flux:badge color="{{ $hColor }}" size="sm">{{ $hStatusLabels[$history->status] ?? $history->status }}</flux:badge>
                                     </span>
                                     <span class="text-xs text-zinc-500 mt-1">
-                                        {{ $history->start_date->format('Y/m/d') }} 
+                                        <x-hijri-date :date="$history->start_date" /> 
                                         @if($history->end_date)
-                                            - {{ $history->end_date->format('Y/m/d') }}
+                                            - <x-hijri-date :date="$history->end_date" />
                                         @else
                                             - {{ __('الآن') }}
                                         @endif

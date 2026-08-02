@@ -5,6 +5,7 @@ namespace App\Livewire\Manager;
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
 use App\Models\Student;
+use App\Support\HijriDate;
 use Flux\Flux;
 use Livewire\Component;
 
@@ -126,16 +127,7 @@ class StudentAttendanceList extends Component
 
     private function getHijriDate(): string
     {
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMMM yyyy'
-        );
-
-        return $formatter->format(strtotime($this->date));
+        return HijriDate::full($this->date);
     }
 
     public function render()

@@ -146,7 +146,7 @@ new class extends Component
         <flux:card>
             @if($selectedDate)
                 <flux:heading size="sm" class="mb-4">
-                    {{ \Carbon\Carbon::parse($selectedDate)->translatedFormat('l، d F Y') }}
+                    <x-hijri-date :date="\Carbon\Carbon::parse($selectedDate)" style="weekday" />
                 </flux:heading>
 
                 <div class="space-y-4">

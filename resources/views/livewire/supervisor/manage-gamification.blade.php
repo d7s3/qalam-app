@@ -940,7 +940,7 @@
                                 شاشة العرض (بروجكتر)
                             </flux:button>
                         </div>
-                        <flux:input type="date" wire:model.live="standingsDate" label="اليوم" class="sm:w-56" />
+                        <div class="sm:w-56"><livewire:shared.hijri-datepicker wire:model.live="standingsDate" label="اليوم (هجري)" /></div>
                     </div>
                 </div>
 
@@ -1029,7 +1029,7 @@
                         @forelse($achievementsByDay as $day => $items)
                             <div class="space-y-2">
                                 <div class="flex items-center justify-between gap-2">
-                                    <span class="font-bold text-zinc-800 dark:text-zinc-100">{{ \Carbon\Carbon::parse($day)->translatedFormat('l، j F Y') }}</span>
+                                    <span class="font-bold text-zinc-800 dark:text-zinc-100"><x-hijri-date :date="\Carbon\Carbon::parse($day)" style="weekday" /></span>
                                     <flux:badge size="sm" color="emerald">{{ collect($items)->sum('xp') }} نقطة</flux:badge>
                                 </div>
                                 <ul class="space-y-1.5">
@@ -1168,8 +1168,8 @@
                                             </span>
                                         </td>
                                         <td class="px-6 py-4 text-xs font-semibold text-zinc-600 dark:text-zinc-400">
-                                            <div>من: {{ $assignment->start_date->format('Y-m-d') }}</div>
-                                            <div class="mt-0.5">إلى: {{ $assignment->end_date->format('Y-m-d') }}</div>
+                                            <div>من: <x-hijri-date :date="$assignment->start_date" /></div>
+                                            <div class="mt-0.5">إلى: <x-hijri-date :date="$assignment->end_date" /></div>
                                         </td>
                                         <td class="px-6 py-4 text-xs">
                                             <div>+{{ $assignment->task->xp_reward }} XP</div>
@@ -1265,7 +1265,7 @@
                                                     @forelse($activity->rounds as $round)
                                                         <flux:badge size="sm" color="purple" class="flex items-center gap-1">
                                                             <span class="font-bold">{{ $round->name }}:</span>
-                                                            <span class="text-[10px] text-purple-700 dark:text-purple-300">({{ $round->round_date->format('Y-m-d') }})</span>
+                                                            <span class="text-[10px] text-purple-700 dark:text-purple-300">(<x-hijri-date :date="$round->round_date" />)</span>
                                                         </flux:badge>
                                                     @empty
                                                         <span class="text-xs text-zinc-400">لا توجد جولات مجدولة</span>
@@ -1333,7 +1333,7 @@
                                                         @endif
                                                         <span class="inline-flex items-center gap-1 text-zinc-500 dark:text-zinc-400 text-xs font-semibold">
                                                             <flux:icon icon="calendar" class="size-3.5 text-zinc-400" />
-                                                            {{ $round->round_date->format('Y-m-d') }}
+                                                            <x-hijri-date :date="$round->round_date" />
                                                         </span>
                                                     </div>
 
@@ -1607,7 +1607,7 @@
                                             {{ str_replace(['تسوية يدوية (من المشرف): ', 'تسوية يدوية للأسرة (من المشرف): '], '', $adj->description) }}
                                         </td>
                                         <td class="px-6 py-4 text-xs text-zinc-400">
-                                            {{ $adj->created_at->format('Y-m-d H:i') }}
+                                            <x-hijri-date :date="$adj->created_at" style="withTime" />
                                         </td>
                                         <td class="px-6 py-4 text-center">
                                             <flux:button wire:click="deleteAdjustment({{ $adj->id }})" wire:confirm="هل تريد حذف وتراجع هذه التسوية؟" size="xs" variant="ghost" class="text-rose-500 hover:text-rose-600">
@@ -1753,7 +1753,7 @@
                                 <span class="text-xs text-zinc-400">
                                     @if(in_array($item->item_type, ['shield', 'multiplier']))
                                         @if($item->target_date)
-                                            تاريخ اليوم: {{ $item->target_date->format('Y-m-d') }}
+                                            تاريخ اليوم: <x-hijri-date :date="$item->target_date" />
                                         @else
                                             تاريخ التفعيل: محدد عند الشراء
                                         @endif
@@ -1848,7 +1848,7 @@
                                                 @if($purchase->target_date)
                                                     <span class="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
                                                         <flux:icon icon="calendar" class="size-3.5" />
-                                                        {{ \Carbon\Carbon::parse($purchase->target_date)->format('Y-m-d') }}
+                                                        <x-hijri-date :date="\Carbon\Carbon::parse($purchase->target_date)" />
                                                     </span>
                                                 @endif
                                             </div>
@@ -2133,8 +2133,8 @@
             </flux:field>
 
             <div class="grid grid-cols-2 gap-4">
-                <flux:input type="date" wire:model="assignment_start_date" label="تاريخ البدء" required />
-                <flux:input type="date" wire:model="assignment_end_date" label="تاريخ الانتهاء" required />
+                <livewire:shared.hijri-datepicker wire:model="assignment_start_date" label="تاريخ البدء (هجري)" />
+                <livewire:shared.hijri-datepicker wire:model="assignment_end_date" label="تاريخ الانتهاء (هجري)" />
             </div>
             @error('assignment_start_date')
                 <span class="text-xs text-rose-500 mt-1 block">{{ $message }}</span>
@@ -2386,7 +2386,7 @@
 
                 @if($item_type === 'shield' && !$this->isEditingPermanentItem())
                     <div>
-                        <flux:input type="date" wire:model="item_target_date" label="تاريخ اليوم المحدد (اختياري - اتركه فارغاً لتحديد التاريخ عند الشراء)" />
+                        <livewire:shared.hijri-datepicker wire:model="item_target_date" label="تاريخ اليوم المحدد بالهجري (اختياري - اتركه فارغاً لتحديد التاريخ عند الشراء)" />
                     </div>
                 @elseif(in_array($item_type, ['team_attack', 'team_points']) && !$this->isEditingPermanentItem())
                     <div>
@@ -2534,7 +2534,7 @@
                                 <flux:input label="اسم الجولة / المباراة" wire:model="activity_rounds.{{ $index }}.name" required placeholder="الجولة الأولى، مباراة 1، إلخ" />
                             </div>
                             <div class="flex-1">
-                                <flux:input type="date" label="تاريخ الجولة" wire:model="activity_rounds.{{ $index }}.round_date" required />
+                                <livewire:shared.hijri-datepicker wire:model="activity_rounds.{{ $index }}.round_date" label="تاريخ الجولة (هجري)" :key="'round-date-'.$index" />
                             </div>
                             <button type="button" wire:click="removeActivityRound({{ $index }})" class="text-zinc-400 hover:text-rose-500 pb-2 transition-colors" title="حذف الجولة">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
@@ -2561,7 +2561,7 @@
         @if($activeRoundForModal)
             <div>
                 <flux:heading size="lg">رصد وتعديل نتائج الجولة</flux:heading>
-                <flux:subheading>{{ $activeRoundForModal->activity->name }} - {{ $activeRoundForModal->name }} ({{ $activeRoundForModal->round_date->format('Y-m-d') }})</flux:subheading>
+                <flux:subheading>{{ $activeRoundForModal->activity->name }} - {{ $activeRoundForModal->name }} (<x-hijri-date :date="$activeRoundForModal->round_date" />)</flux:subheading>
             </div>
 
             <div class="space-y-4">

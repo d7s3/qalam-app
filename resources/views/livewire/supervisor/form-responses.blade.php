@@ -194,7 +194,7 @@
                                     @endif
                                 </td>
                                 <td class="p-4 whitespace-nowrap text-xs text-zinc-400 dark:text-zinc-500">
-                                    {{ $response->created_at->format('Y-m-d H:i') }}
+                                    <x-hijri-date :date="$response->created_at" style="withTime" />
                                 </td>
                                 @foreach($form->fields as $field)
                                     @php

@@ -105,15 +105,7 @@
 
 <body>
     @php
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMMM yyyy'
-        );
-    @endphp
+        @endphp
 
     <div class="header">
         <div class="logo-container">
@@ -139,7 +131,7 @@
         </tr>
         <tr>
             <td><strong>المعلم:</strong> {{ auth()->guard('teacher')->user()->name }}</td>
-            <td><strong>تاريخ البدء:</strong> {{ $formatter->format($plan->start_date->timestamp) }}</td>
+            <td><strong>تاريخ البدء:</strong> {{ \App\Support\HijriDate::full($plan->start_date) }}</td>
         </tr>
         <tr>
             <td><strong>عدد أيام الخطة:</strong> {{ $plan->days_count }} يومًا</td>
@@ -173,7 +165,7 @@
         <tbody>
             @foreach($plan->days as $day)
                 <tr class="{{ $day->day_name == 'الأحد' ? 'sunday-row' : '' }}">
-                    <td class="date-cell">{{ $formatter->format($day->date->timestamp) }}</td>
+                    <td class="date-cell">{{ \App\Support\HijriDate::full($day->date) }}</td>
                     <td>{{ $day->day_name }}</td>
 
                     @if(in_array($plan->plan_type, ['hifz', 'hifz_review']))

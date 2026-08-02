@@ -12,7 +12,7 @@
             @foreach($responses as $response)
                 <tr class="hover:bg-zinc-50/50 text-zinc-850">
                     <td class="p-4 whitespace-nowrap text-xs text-zinc-450">
-                        {{ $response->created_at->format('Y-m-d H:i') }}
+                        <x-hijri-date :date="$response->created_at" style="withTime" />
                     </td>
                     @foreach($activeFields as $field)
                         @php

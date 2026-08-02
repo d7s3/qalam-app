@@ -29,14 +29,14 @@
                 {{-- Start Date --}}
                 <flux:field>
                     <flux:label class="font-bold">تاريخ البدء</flux:label>
-                    <flux:input type="date" wire:model.live="startDate" />
+                    <livewire:shared.hijri-datepicker wire:model.live="startDate" label="" />
                     <flux:error name="startDate" />
                 </flux:field>
 
                 {{-- End Date (optional cap) --}}
                 <flux:field>
                     <flux:label class="font-bold">تاريخ الانتهاء (اختياري)</flux:label>
-                    <flux:input type="date" wire:model.live="endDate" />
+                    <livewire:shared.hijri-datepicker wire:model.live="endDate" label="" />
                     <flux:description>إذا حُدّد، يتوقف توليد الأيام عند هذا التاريخ حتى لو لم تكتمل المنظومة.</flux:description>
                     <flux:error name="endDate" />
                 </flux:field>

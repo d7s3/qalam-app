@@ -70,7 +70,7 @@
                         </div>
                         <div class="text-left shrink-0">
                             <div class="text-sm font-bold text-red-600">{{ number_format(abs($redemption->amount)) }} {{ __('عملة') }}</div>
-                            <div class="text-xs text-zinc-400 mt-0.5">{{ $redemption->created_at->format('Y/m/d H:i') }}</div>
+                            <div class="text-xs text-zinc-400 mt-0.5"><x-hijri-date :date="$redemption->created_at" style="withTime" /></div>
                         </div>
                     </div>
                 @endforeach

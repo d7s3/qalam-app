@@ -63,22 +63,10 @@ new class extends Component
         }
 
         return [
-            'weekday' => $this->hijriFormatter('EEEE')->format($carbon),
-            'hijri' => $this->hijriFormatter('d MMMM yyyy')->format($carbon),
+            'weekday' => \App\Support\HijriDate::weekday($carbon),
+            'hijri' => \App\Support\HijriDate::full($carbon),
             'gregorian' => $carbon->format('Y-m-d'),
         ];
-    }
-
-    private function hijriFormatter(string $pattern): \IntlDateFormatter
-    {
-        return new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            $pattern,
-        );
     }
 
     /**

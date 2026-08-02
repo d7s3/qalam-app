@@ -96,7 +96,7 @@
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="whitespace-nowrap text-xs text-zinc-500">
-                            {{ \Illuminate\Support\Carbon::parse($row->created_at)->translatedFormat('Y-m-d H:i') }}
+                            <x-hijri-date :date="\Illuminate\Support\Carbon::parse($row->created_at)" style="withTime" />
                         </flux:table.cell>
                         <flux:table.cell>
                             @if($row->is_rejected)

@@ -4,6 +4,7 @@ namespace App\Livewire\Manager;
 
 use App\Models\Attendance;
 use App\Models\Circle;
+use App\Support\HijriDate;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -33,16 +34,8 @@ class AttendanceReports extends Component
         if (! $gregorianDate) {
             return '';
         }
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd'
-        );
 
-        return $formatter->format(is_string($gregorianDate) ? strtotime($gregorianDate) : $gregorianDate);
+        return HijriDate::format(is_string($gregorianDate) ? strtotime($gregorianDate) : $gregorianDate, 'MMM yyyy');
     }
 
     public function formatHijriDayName($gregorianDate): string
@@ -50,16 +43,8 @@ class AttendanceReports extends Component
         if (! $gregorianDate) {
             return '';
         }
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'E'
-        );
 
-        return $formatter->format(is_string($gregorianDate) ? strtotime($gregorianDate) : $gregorianDate);
+        return HijriDate::format(is_string($gregorianDate) ? strtotime($gregorianDate) : $gregorianDate, 'MMM yyyy');
     }
 
     public function formatHijriMonthYear($gregorianDate): string
@@ -67,16 +52,8 @@ class AttendanceReports extends Component
         if (! $gregorianDate) {
             return '';
         }
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'MMM yyyy'
-        );
 
-        return $formatter->format(is_string($gregorianDate) ? strtotime($gregorianDate) : $gregorianDate);
+        return HijriDate::format(is_string($gregorianDate) ? strtotime($gregorianDate) : $gregorianDate, 'MMM yyyy');
     }
 
     public function clearFilters()

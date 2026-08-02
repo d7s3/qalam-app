@@ -99,7 +99,7 @@ new class extends Component {
                     @forelse($attendances as $attendance)
                         <flux:table.row>
                             <flux:table.cell class="font-medium">
-                                {{ \Carbon\Carbon::parse($attendance->date)->translatedFormat('l, d F Y') }}
+                                <x-hijri-date :date="\Carbon\Carbon::parse($attendance->date)" style="weekday" />
                             </flux:table.cell>
                             
                             <flux:table.cell class="first:ps-3" >

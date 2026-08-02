@@ -34,7 +34,7 @@
                             <flux:heading size="lg" class="truncate text-zinc-900 dark:text-zinc-100">{{ $comp->title }}</flux:heading>
                             <div class="flex items-center gap-1.5 text-xs text-zinc-500">
                                 <flux:icon icon="calendar" class="size-3.5 shrink-0" />
-                                <span dir="ltr">{{ $comp->start_date->format('Y-m-d') }}@if ($comp->end_date) – {{ $comp->end_date->format('Y-m-d') }}@endif</span>
+                                <span dir="ltr"><x-hijri-date :date="$comp->start_date" />@if ($comp->end_date) – <x-hijri-date :date="$comp->end_date" />@endif</span>
                             </div>
                         </div>
 
@@ -72,7 +72,7 @@
                             <flux:heading size="lg" class="truncate text-zinc-900 dark:text-zinc-100">{{ $board->title }}</flux:heading>
                             <div class="flex items-center gap-1.5 text-xs text-zinc-500">
                                 <flux:icon icon="calendar" class="size-3.5 shrink-0" />
-                                <span dir="ltr">{{ $board->start_date->format('Y-m-d') }}@if ($board->end_date) – {{ $board->end_date->format('Y-m-d') }}@endif</span>
+                                <span dir="ltr"><x-hijri-date :date="$board->start_date" />@if ($board->end_date) – <x-hijri-date :date="$board->end_date" />@endif</span>
                             </div>
                         </div>
                         <flux:dropdown position="bottom" align="end">

@@ -95,15 +95,7 @@ new class extends Component {
     protected function toHijri(\DateTimeInterface|string $date): string
     {
         $ts = is_string($date) ? strtotime($date) : $date->getTimestamp();
-        $fmt = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMM yyyy'
-        );
-        return $fmt->format($ts);
+        return \App\Support\HijriDate::format($ts, 'd MMM yyyy');
     }
 
     public function saveChallenge($data)
@@ -261,7 +253,7 @@ new class extends Component {
                                     @elseif($plan->plan_type === 'hifz') حفظ
                                     @else مراجعة @endif
                                     <span
-                                        class="text-zinc-400 font-normal">({{ $plan->start_date->format('Y-m-d') }})</span>
+                                        class="text-zinc-400 font-normal">(<x-hijri-date :date="$plan->start_date" />)</span>
                                 </span>
                             </label>
                         @empty

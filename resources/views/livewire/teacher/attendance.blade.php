@@ -157,7 +157,8 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                         <livewire:teacher.hijri-datepicker wire:model.live="date" :circle-id="$selectedCircle"
                             wire:key="datepicker-{{ $selectedCircle }}" />
                     @else
-                        <flux:input type="date" wire:model.live="date" label="تاريخ الجلسة" disabled />
+                        {{-- Until a circle is chosen there is no calendar to pick from. --}}
+                        <flux:input value="{{ \App\Support\HijriDate::full($date) }}" label="تاريخ الجلسة (هجري)" disabled />
                     @endif
                 </div>
 
@@ -581,7 +582,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                                     <div>
                                         <div class="text-sm font-bold text-zinc-800 dark:text-zinc-100">{{ $circles->firstWhere('id', $selectedCircle)?->name }}</div>
                                         <div class="text-xs text-zinc-400">
-                                            {{ \Carbon\Carbon::parse($session['date'])->translatedFormat('Y-m-d') }}
+                                            <x-hijri-date :date="\Carbon\Carbon::parse($session['date'])" />
                                             @if($session['time'])
                                                 - {{ $session['time'] }}
                                             @endif

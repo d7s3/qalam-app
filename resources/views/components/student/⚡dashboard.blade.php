@@ -433,9 +433,7 @@ new class extends Component {
     protected function getHijriLabel(\DateTimeInterface|string $date)
     {
         $parsed = is_string($date) ? \Carbon\Carbon::parse($date) : $date;
-        $formatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'd MMMM yyyy');
-
-        return $formatter->format($parsed->getTimestamp());
+        return \App\Support\HijriDate::full($parsed->getTimestamp());
     }
 
     public function reserveTurn($sessionId)
@@ -1305,7 +1303,7 @@ new class extends Component {
                                             @if ($challenge->end_date)
                                                 <div class="text-xs text-zinc-500 flex items-center gap-1 mt-1">
                                                     <flux:icon icon="clock" class="size-3.5" />
-                                                    {{ __('ينتهي في:') }} {{ $challenge->end_date->format('Y-m-d') }}
+                                                    {{ __('ينتهي في:') }} <x-hijri-date :date="$challenge->end_date" />
                                                 </div>
                                             @endif
                                         </div>
@@ -2345,7 +2343,7 @@ new class extends Component {
                                                                         <div class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
                                                                             <flux:icon icon="calendar" class="size-4" />
                                                                             <span class="text-sm font-medium">{{ __('بدأت في:') }}
-                                                                                {{ $plan->start_date->format('Y-m-d') }}</span>
+                                                                                <x-hijri-date :date="$plan->start_date" /></span>
                                                                         </div>
                                                                     </div>
 

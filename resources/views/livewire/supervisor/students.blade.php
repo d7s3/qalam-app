@@ -288,7 +288,7 @@
                                             @elseif($plan->plan_type === 'hifz') {{ __('حفظ') }}
                                             @else {{ __('مراجعة') }} @endif
                                         </span>
-                                        <span class="text-xs text-zinc-500">{{ $plan->start_date->format('Y/m/d') }} •
+                                        <span class="text-xs text-zinc-500"><x-hijri-date :date="$plan->start_date" /> •
                                             {{ $plan->days_count }} يوم</span>
                                     </div>
                                     <flux:button as="a" href="{{ route('teacher.print-plan', $plan->id) }}" target="_blank"
@@ -320,7 +320,7 @@
                                             {{ $plan->path->ode->name ?? '—' }}
                                         </span>
                                         <span class="text-xs text-zinc-500">
-                                            {{ $plan->start_date->format('Y/m/d') }} •
+                                            <x-hijri-date :date="$plan->start_date" /> •
                                             {{ $plan->path->days->count() ?? 0 }} يوم •
                                             @if($plan->status === 'active')
                                                 <span class="text-green-600 font-semibold">نشطة</span>

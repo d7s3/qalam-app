@@ -4,6 +4,7 @@ namespace App\Livewire\Teacher;
 
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Student;
+use App\Support\HijriDate;
 use Carbon\Carbon;
 use Livewire\Attributes\Modelable;
 use Livewire\Component;
@@ -35,16 +36,7 @@ class HijriDatepicker extends Component
 
     public function getHijriFormattedDateProperty()
     {
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMMM yyyy'
-        );
-
-        return $formatter->format(strtotime($this->date));
+        return HijriDate::full($this->date);
     }
 
     public function previousMonth()
@@ -83,8 +75,7 @@ class HijriDatepicker extends Component
         $monthLength = $cal->getActualMaximum(\IntlCalendar::FIELD_DAY_OF_MONTH);
         $startDayOfWeek = $cal->get(\IntlCalendar::FIELD_DAY_OF_WEEK); // 1 = Sunday
 
-        $monthNameFormatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMMM yyyy');
-        $monthName = $monthNameFormatter->format($this->currentViewTimestamp);
+        $monthName = HijriDate::monthYear($this->currentViewTimestamp);
 
         // Fetch students and attendance
         $totalStudentsCount = Student::where('circle_id', $this->circleId)->whereRoleState(fn ($q) => $q->where('is_approved', true))->count();

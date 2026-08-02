@@ -87,7 +87,7 @@ new class extends Component
             <div class="space-y-2">
                 @foreach($monthlyStats as $stat)
                     <div class="flex items-center justify-between text-sm">
-                        <span class="text-zinc-500 dark:text-zinc-400">{{ \Carbon\Carbon::parse($stat['date'])->translatedFormat('d F') }}</span>
+                        <span class="text-zinc-500 dark:text-zinc-400"><x-hijri-date :date="\Carbon\Carbon::parse($stat['date'])" style="dayMonth" /></span>
                         <span class="font-bold text-zinc-800 dark:text-zinc-100">{{ $stat['count'] }} {{ __('آية') }}</span>
                     </div>
                 @endforeach

@@ -1,13 +1,4 @@
 @php
-    $hijri = new \IntlDateFormatter(
-        'ar_SA@calendar=islamic-umalqura',
-        \IntlDateFormatter::FULL,
-        \IntlDateFormatter::NONE,
-        'Asia/Riyadh',
-        \IntlDateFormatter::TRADITIONAL,
-        'd MMMM yyyy'
-    );
-
     /*
      * One grade, one colour, everywhere on the page: green for ممتاز, blue for
      * جيد, amber for مقبول. The classes are spelled out rather than built from
@@ -108,7 +99,7 @@
                 @if ($startDate)
                     <div>
                         <span class="text-zinc-500 ml-1">تبدأ من:</span>
-                        <span>{{ $hijri->format($startDate->timestamp) }}</span>
+                        <span>{{ \App\Support\HijriDate::full($startDate) }}</span>
                     </div>
                 @endif
             </div>
@@ -140,7 +131,7 @@
                 @forelse ($rows as $row)
                     <tr>
                         <td class="py-2 px-1 text-[11px] text-zinc-600">
-                            {{ $row['date'] ? $hijri->format($row['date']->timestamp) : '—' }}
+                            {{ $row['date'] ? \App\Support\HijriDate::full($row['date']) : '—' }}
                         </td>
                         <td class="py-2 px-1 text-[11px] bg-zinc-50/50">{{ $row['day_name'] ?? '—' }}</td>
 

@@ -11,7 +11,7 @@
                     تقرير الإنجاز — {{ $scope === 'stage' ? 'مرحلة '.$circle->stage->name : 'حلقة '.$circle->name }}
                 </flux:heading>
                 <flux:subheading>
-                    {{ $from->format('Y/m/d') }} إلى {{ $to->format('Y/m/d') }}
+                    <x-hijri-date :date="$from" /> إلى <x-hijri-date :date="$to" />
                     @if($selectedStudent)
                         · الطالب: {{ $selectedStudent->name }}
                     @endif
@@ -50,8 +50,8 @@
 
             @if($preset === 'custom')
                 <div class="grid grid-cols-2 gap-2">
-                    <flux:input type="date" label="من" wire:model.live="fromDate" />
-                    <flux:input type="date" label="إلى" wire:model.live="toDate" />
+                    <livewire:shared.hijri-datepicker wire:model.live="fromDate" label="من (هجري)" />
+                    <livewire:shared.hijri-datepicker wire:model.live="toDate" label="إلى (هجري)" />
                 </div>
             @endif
         </div>

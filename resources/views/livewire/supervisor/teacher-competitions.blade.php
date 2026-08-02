@@ -32,7 +32,7 @@
                             </a>
                         </flux:table.cell>
                         <flux:table.cell class="hidden md:table-cell text-sm text-zinc-500">
-                            {{ $competition->start_date->format('Y-m-d') }} - {{ $competition->end_date->format('Y-m-d') }}
+                            <x-hijri-date :date="$competition->start_date" /> - <x-hijri-date :date="$competition->end_date" />
                         </flux:table.cell>
                         <flux:table.cell class="text-center">
                             <flux:badge size="sm" variant="neutral">{{ $competition->participants_count }}</flux:badge>
@@ -75,8 +75,8 @@
 
             <div class="space-y-4">
                 <flux:input label="اسم المسابقة" wire:model="name" placeholder="مثال: مسابقة التميز التعليمي" required />
-                <flux:input type="date" label="تاريخ البداية" wire:model="start_date" required />
-                <flux:input type="date" label="تاريخ النهاية" wire:model="end_date" required />
+                <livewire:shared.hijri-datepicker wire:model="start_date" label="تاريخ البداية (هجري)" />
+                <livewire:shared.hijri-datepicker wire:model="end_date" label="تاريخ النهاية (هجري)" />
             </div>
 
             <div class="flex gap-2 justify-end">

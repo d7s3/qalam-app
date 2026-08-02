@@ -74,8 +74,8 @@
             <flux:heading size="sm">إعدادات العرض</flux:heading>
 
             <div class="grid grid-cols-2 gap-3">
-                <flux:input type="date" wire:model.live="endDate" label="آخر يوم محسوب" />
-                <flux:input type="date" wire:model.live="attendanceStart" label="بداية فترة الدوام" />
+                <livewire:shared.hijri-datepicker wire:model.live="endDate" label="آخر يوم محسوب (هجري)" />
+                <livewire:shared.hijri-datepicker wire:model.live="attendanceStart" label="بداية فترة الدوام (هجري)" />
             </div>
 
             <div>

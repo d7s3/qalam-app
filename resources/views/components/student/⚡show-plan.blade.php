@@ -41,16 +41,7 @@ new class extends Component {
     protected function getHijriLabel(\DateTimeInterface|string $date)
     {
         $parsed = is_string($date) ? \Carbon\Carbon::parse($date) : $date;
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMMM yyyy'
-        );
-
-        return $formatter->format($parsed->getTimestamp());
+        return \App\Support\HijriDate::full($parsed->getTimestamp());
     }
     
     // Helper mapper for badges

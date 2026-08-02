@@ -37,15 +37,7 @@ new class extends Component {
     {
         if (!$this->date)
             return '';
-        $formatter = new \IntlDateFormatter(
-            'ar_SA@calendar=islamic-umalqura',
-            \IntlDateFormatter::FULL,
-            \IntlDateFormatter::NONE,
-            'Asia/Riyadh',
-            \IntlDateFormatter::TRADITIONAL,
-            'd MMMM yyyy'
-        );
-        return $formatter->format(strtotime($this->date));
+        return \App\Support\HijriDate::full($this->date);
     }
 
     public function previousMonth()
@@ -107,9 +99,7 @@ new class extends Component {
                 <flux:icon icon="chevron-right" class="size-5" />
             </button>
             <div class="font-bold text-zinc-800 dark:text-zinc-100 text-sm">
-                {{ (new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL,
-                \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMMM
-                yyyy'))->format($currentViewTimestamp) }}
+                {{ \App\Support\HijriDate::monthYear($currentViewTimestamp) }}
             </div>
             <button wire:click="nextMonth" type="button"
                 class="p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500">

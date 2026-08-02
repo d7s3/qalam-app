@@ -9,6 +9,7 @@ use App\Models\GuardianNotification;
 use App\Models\Leaderboard;
 use App\Models\Setting;
 use App\Models\Student;
+use App\Support\HijriDate;
 use Carbon\Carbon;
 
 class GuardianNotificationService
@@ -164,16 +165,7 @@ class GuardianNotificationService
     public static function formatHijriDayMonth(string $date): string
     {
         try {
-            $formatter = new \IntlDateFormatter(
-                'ar_SA@calendar=islamic-umalqura',
-                \IntlDateFormatter::FULL,
-                \IntlDateFormatter::NONE,
-                'Asia/Riyadh',
-                \IntlDateFormatter::TRADITIONAL,
-                'EEEE d MMMM'
-            );
-
-            return $formatter->format(Carbon::parse($date, 'Asia/Riyadh')->timestamp);
+            return HijriDate::format(Carbon::parse($date, 'Asia/Riyadh'), 'EEEE d MMMM');
         } catch (\Exception $e) {
             return $date;
         }

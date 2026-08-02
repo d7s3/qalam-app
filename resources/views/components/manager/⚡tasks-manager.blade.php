@@ -60,15 +60,13 @@ new class extends Component {
     {
         $events = $this->availableEvents->sortBy('start_date');
         $cal = \IntlCalendar::createInstance('Asia/Riyadh', 'ar_SA@calendar=islamic-umalqura');
-        $monthNameFormatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMMM');
-
         $grouped = [];
 
         foreach ($events as $event) {
             $cal->setTime($event->start_date->timestamp * 1000);
             $year = $cal->get(\IntlCalendar::FIELD_YEAR);
             $monthNum = $cal->get(\IntlCalendar::FIELD_MONTH);
-            $monthName = $monthNameFormatter->format($cal->getTime() / 1000);
+            $monthName = \App\Support\HijriDate::format($cal->getTime() / 1000, 'MMMM');
 
             if (!isset($grouped[$year])) {
                 $grouped[$year] = [];
@@ -424,8 +422,7 @@ new class extends Component {
         $monthLength = $cal->getActualMaximum(\IntlCalendar::FIELD_DAY_OF_MONTH);
         $startDayOfWeek = $cal->get(\IntlCalendar::FIELD_DAY_OF_WEEK); // 1 = Sunday
 
-        $monthNameFormatter = new \IntlDateFormatter('ar_SA@calendar=islamic-umalqura', \IntlDateFormatter::FULL, \IntlDateFormatter::NONE, 'Asia/Riyadh', \IntlDateFormatter::TRADITIONAL, 'MMMM');
-        $monthName = $monthNameFormatter->format($cal->getTime() / 1000);
+        $monthName = \App\Support\HijriDate::format($cal->getTime() / 1000, 'MMMM');
 
         // Assign fixed slots to events for this month to ensure visual continuity
         $slottedEvents = [];
@@ -685,7 +682,7 @@ new class extends Component {
                             <div class="size-3 rounded-full bg-{{ $group['event']->color ?? 'zinc' }}-500"></div>
                             <h3 class="font-bold text-lg">{{ $group['event']->event_name }}</h3>
                             <span class="text-xs text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
-                                {{ $group['event']->start_date->format('Y/m/d') }}
+                                <x-hijri-date :date="$group['event']->start_date" />
                             </span>
                         @endif
                     </div>
@@ -903,7 +900,7 @@ new class extends Component {
                                                     <flux:icon icon="calendar" class="size-4" />
                                                     @if ($task->due_date)
                                                         <span
-                                                            class="text-xs mr-1 {{ $task->due_date->isPast() && $task->status !== 'completed' ? 'text-red-500 font-bold' : '' }}">{{ $task->due_date->format('n/j') }}</span>
+                                                            class="text-xs mr-1 {{ $task->due_date->isPast() && $task->status !== 'completed' ? 'text-red-500 font-bold' : '' }}"><x-hijri-date :date="$task->due_date" style="dayMonth" /></span>
                                                     @endif
                                                 </x-flux::button>
                                             </div>

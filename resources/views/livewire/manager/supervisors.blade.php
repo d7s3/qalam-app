@@ -187,7 +187,7 @@
                             <div class="text-right">
                                 <div class="font-medium text-sm">{{ __('تاريخ الإضافة') }}</div>
                                 <div class="text-xs text-zinc-500 mt-1">
-                                    {{ $viewingSupervisor->created_at?->format('Y-m-d') }}</div>
+                                    <x-hijri-date :date="$viewingSupervisor->created_at" /></div>
                             </div>
                         </div>
 

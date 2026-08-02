@@ -391,7 +391,7 @@
                             </div>
                             <div class="text-right">
                                 <div class="font-medium text-sm">{{ __('تاريخ الإضافة') }}</div>
-                                <div class="text-xs text-zinc-500 mt-1">{{ $viewingTeacher->created_at?->format('Y-m-d') }}
+                                <div class="text-xs text-zinc-500 mt-1"><x-hijri-date :date="$viewingTeacher->created_at" />
                                 </div>
                             </div>
                         </div>
