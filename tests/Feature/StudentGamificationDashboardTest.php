@@ -501,6 +501,105 @@ it('allows teachers to approve badges and students to claim them', function () {
     expect($coins)->toBe(170); // 150 (initial) + 20 (reward)
 });
 
+/**
+ * The reward used to be posted to whichever competition happened to be running
+ * for the student, which is a different question from which competition issued
+ * the badge. Once the competition's window closed there was no running one at
+ * all, so the badge was marked taken, the student was congratulated, and
+ * nothing was granted — a competition left active past its end date could
+ * quietly swallow every badge reward claimed after it.
+ */
+it('pays a badge from the competition that issued it, even after the competition has ended', function () {
+    $ended = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة منتهية',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(30),
+        'end_date' => now()->subDays(2),   // Closed, but still flagged active.
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $ended->circles()->attach($this->circle->id);
+
+    // Nothing is running today, which is what used to lose the reward.
+    expect(GamificationService::getActiveLeaderboards($this->student))->toBeEmpty();
+
+    $badge = GamificationBadge::create([
+        'leaderboard_id' => $ended->id,
+        'name' => 'وسام الانضباط',
+        'icon' => 'star',
+        'badge_type' => 'manual',
+        'requirement_value' => 0,
+        'reward_xp' => 100,
+        'reward_coins' => 100,
+    ]);
+
+    DB::table('gamification_badge_student')->insert([
+        'badge_id' => $badge->id,
+        'student_id' => $this->student->id,
+        'status' => 'approved',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $this->actingAs($this->student, 'student');
+
+    Livewire::test('student.gamification-dashboard')
+        ->call('claimBadge', $badge->id)
+        ->assertHasNoErrors();
+
+    $reward = GamificationTransaction::where('student_id', $this->student->id)
+        ->where('reference_type', GamificationBadge::class)
+        ->where('reference_id', $badge->id)
+        ->first();
+
+    expect($reward)->not->toBeNull()
+        ->and($reward->leaderboard_id)->toBe($ended->id)
+        ->and($reward->xp_amount)->toBe(100)
+        ->and($reward->amount)->toBe(100)
+        ->and(DB::table('gamification_badge_student')->where('badge_id', $badge->id)->value('status'))->toBe('claimed');
+});
+
+it('pays a badge only once even if the claim is repeated', function () {
+    $leaderboard = Leaderboard::create([
+        'circle_id' => $this->circle->id,
+        'title' => 'مسابقة جارية',
+        'competition_type' => 'gamification',
+        'start_date' => now()->subDays(2),
+        'end_date' => now()->addDays(2),
+        'is_active' => true,
+        'settings' => [],
+    ]);
+    $leaderboard->circles()->attach($this->circle->id);
+
+    $badge = GamificationBadge::create([
+        'leaderboard_id' => $leaderboard->id,
+        'name' => 'وسام المثابرة',
+        'icon' => 'star',
+        'badge_type' => 'manual',
+        'requirement_value' => 0,
+        'reward_xp' => 40,
+        'reward_coins' => 40,
+    ]);
+
+    foreach (['approved', 'approved'] as $status) {
+        DB::table('gamification_badge_student')->updateOrInsert(
+            ['badge_id' => $badge->id, 'student_id' => $this->student->id],
+            ['status' => $status, 'created_at' => now(), 'updated_at' => now()],
+        );
+
+        $this->actingAs($this->student, 'student');
+        Livewire::test('student.gamification-dashboard')->call('claimBadge', $badge->id);
+    }
+
+    $rewards = GamificationTransaction::where('student_id', $this->student->id)
+        ->where('reference_type', GamificationBadge::class)
+        ->where('reference_id', $badge->id)
+        ->count();
+
+    expect($rewards)->toBe(1);
+});
+
 it('allows student to buy individual custom items and streak freeze cards', function () {
     // 1. Create active gamification leaderboard
     $leaderboard = Leaderboard::create([

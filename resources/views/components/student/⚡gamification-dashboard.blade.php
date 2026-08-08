@@ -1011,7 +1011,39 @@ new class extends Component {
 
         $badge = \App\Models\GamificationBadge::findOrFail($badgeId);
 
-        // Update status to claimed
+        /**
+         * The reward belongs to the competition that issued the badge.
+         *
+         * It used to go to whichever competition happened to be running for the
+         * student, which is a different question with a different answer: a
+         * student in two competitions would have been paid by the wrong one,
+         * and once the competition ended there was no running one at all — so
+         * the badge was marked taken, the student was congratulated, and
+         * nothing was ever granted.
+         *
+         * The transaction is keyed by the badge, so a retry after a failure
+         * grants it once; and the badge is only marked taken afterwards, so a
+         * failure leaves it claimable rather than spent.
+         */
+        if ($badge->reward_xp > 0 || $badge->reward_coins > 0) {
+            \App\Models\GamificationTransaction::firstOrCreate(
+                [
+                    'leaderboard_id' => $badge->leaderboard_id,
+                    'student_id' => $student->id,
+                    'reference_type' => \App\Models\GamificationBadge::class,
+                    'reference_id' => $badge->id,
+                ],
+                [
+                    'type' => 'earn',
+                    'amount' => $badge->reward_coins,
+                    'xp_amount' => $badge->reward_xp,
+                    'description' => "مكافأة الحصول على وسام: {$badge->name} 🏅 (+{$badge->reward_xp} XP)",
+                ]
+            );
+
+            \App\Services\GamificationService::recalculateStudentState($student->id, $badge->leaderboard_id);
+        }
+
         \Illuminate\Support\Facades\DB::table('gamification_badge_student')
             ->where('student_id', $student->id)
             ->where('badge_id', $badgeId)
@@ -1019,23 +1051,6 @@ new class extends Component {
                 'status' => 'claimed',
                 'updated_at' => now(),
             ]);
-
-        // Reward XP and Coins if greater than 0
-        if ($badge->reward_xp > 0 || $badge->reward_coins > 0) {
-            $leaderboard = \App\Services\GamificationService::getActiveLeaderboards($student)->first();
-            if ($leaderboard) {
-                \App\Models\GamificationTransaction::create([
-                    'leaderboard_id' => $leaderboard->id,
-                    'student_id' => $student->id,
-                    'type' => 'earn',
-                    'amount' => $badge->reward_coins,
-                    'xp_amount' => $badge->reward_xp,
-                    'description' => "مكافأة الحصول على وسام: {$badge->name} 🏅 (+{$badge->reward_xp} XP)",
-                ]);
-
-                \App\Services\GamificationService::recalculateStudentState($student->id, $leaderboard->id);
-            }
-        }
 
         Flux::toast("مبروك! لقد حصلت على وسام {$badge->name}", variant: 'success');
     }
@@ -1060,30 +1075,34 @@ new class extends Component {
             return;
         }
 
-        // Update status to claimed
+        // The same as the badge above: the reward belongs to the competition
+        // that set the milestone, and is keyed by this claim — a student may
+        // reach the same milestone again on a later streak run.
+        if ($milestone->reward_xp > 0 || $milestone->reward_coins > 0) {
+            \App\Models\GamificationTransaction::firstOrCreate(
+                [
+                    'leaderboard_id' => $milestone->leaderboard_id,
+                    'student_id' => $student->id,
+                    'reference_type' => \App\Models\GamificationStreakMilestone::class,
+                    'reference_id' => $claimRecordId,
+                ],
+                [
+                    'type' => 'earn',
+                    'amount' => $milestone->reward_coins,
+                    'xp_amount' => $milestone->reward_xp,
+                    'description' => "مكافأة أيام الحماسة لـ {$milestone->days_required} أيام متتالية: {$milestone->description}",
+                ]
+            );
+
+            \App\Services\GamificationService::recalculateStudentState($student->id, $milestone->leaderboard_id);
+        }
+
         \Illuminate\Support\Facades\DB::table('gamification_claimed_milestones')
             ->where('id', $claimRecordId)
             ->update([
                 'status' => 'claimed',
                 'updated_at' => now(),
             ]);
-
-        // Reward XP and Coins if greater than 0
-        if ($milestone->reward_xp > 0 || $milestone->reward_coins > 0) {
-            $leaderboard = \App\Services\GamificationService::getActiveLeaderboards($student)->first();
-            if ($leaderboard) {
-                \App\Models\GamificationTransaction::create([
-                    'leaderboard_id' => $leaderboard->id,
-                    'student_id' => $student->id,
-                    'type' => 'earn',
-                    'amount' => $milestone->reward_coins,
-                    'xp_amount' => $milestone->reward_xp,
-                    'description' => "مكافأة أيام الحماسة لـ {$milestone->days_required} أيام متتالية: {$milestone->description}",
-                ]);
-
-                \App\Services\GamificationService::recalculateStudentState($student->id, $leaderboard->id);
-            }
-        }
 
         Flux::toast("مبروك! لقد استلمت جائزة الحماسة {$milestone->days_required} أيام بنجاح", variant: 'success');
     }
