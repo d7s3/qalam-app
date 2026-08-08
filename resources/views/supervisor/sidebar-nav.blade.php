@@ -88,7 +88,7 @@
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.yearly-attendance'))
         <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="calendar" :href="route('supervisor.yearly-attendance')"
             :current="request()->routeIs('supervisor.yearly-attendance')" wire:navigate>
-            متابعة الحلقات السنوي
+            متابعة تحضير الحلقات
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.academic-calendar'))
