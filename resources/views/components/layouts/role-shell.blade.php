@@ -32,17 +32,21 @@
          <span>أنت غير متصل بشبكة الإنترنت حالياً. يرجى التحقق من اتصالك.</span>
     </div>
     @php
-        $usesMaroonSidebar = auth('manager')->check() || auth('student')->check()
+        /**
+         * Every role shares this shell, so the sidebar looks the same for all of
+         * them: black at the foot, lifting to a dark grey at the head.
+         */
+        $usesBrandSidebar = auth('manager')->check() || auth('student')->check()
             || auth('teacher')->check() || auth('supervisor')->check() || auth('guardian')->check()
             || auth('staff')->check();
     @endphp
     <flux:sidebar sticky collapsible="mobile"
         @class([
             'self-start border-e relative overflow-hidden',
-            'dark bg-gradient-to-b from-maroon to-burgundy border-transparent' => $usesMaroonSidebar,
-            'bg-white border-zinc-100 dark:border-zinc-800 dark:bg-zinc-900' => ! $usesMaroonSidebar,
+            'dark bg-gradient-to-t from-black via-zinc-900 to-zinc-800 border-transparent' => $usesBrandSidebar,
+            'bg-white border-zinc-100 dark:border-zinc-800 dark:bg-zinc-900' => ! $usesBrandSidebar,
         ])>
-        @if($usesMaroonSidebar)
+        @if($usesBrandSidebar)
             {{-- زخرفة إسلامية خفيفة على خلفية السايدبار --}}
             <div class="absolute inset-0 opacity-[0.06] pointer-events-none">
                 <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -89,7 +93,7 @@
                 </form>
             </flux:sidebar.nav>
 
-            @if($usesMaroonSidebar)
+            @if($usesBrandSidebar)
                 {{-- كارت الدعم الفني --}}
                 <a href="https://wa.me/966500000000" target="_blank" rel="noopener"
                     class="mx-3 mb-3 mt-2 flex items-center gap-3 rounded-xl bg-white/10 hover:bg-white/15 p-3 text-white">

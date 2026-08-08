@@ -101,7 +101,7 @@
     <flux:sidebar.group heading="التحليل" class="grid">
         <flux:sidebar.item icon="sparkles" :href="route('manager.ai-analysis')"
             :current="request()->routeIs('manager.ai-analysis')" wire:navigate>
-            الالتحليل الذكي
+            التحليل الذكي
         </flux:sidebar.item>
     </flux:sidebar.group>
 @endif
