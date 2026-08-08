@@ -1799,3 +1799,134 @@ it('awards a qualifying student immediately when a badge is created or edited', 
         ->where('student_id', $this->student->id)
         ->exists())->toBeTrue();
 });
+
+/**
+ * "توزيع يدوي / مخصص" is the default mechanism in the badge form, and it had
+ * no way to reach a student: the automatic sync skips a badge with no progress
+ * to measure, and nothing else granted one. Only two places ever wrote to the
+ * pivot — that sync, and an enthusiasm milestone's reward badge.
+ */
+it('hands a manual badge to the students the supervisor picks, and they can claim it', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $other = Student::create([
+        'name' => 'طالب آخر', 'email' => 'other-grant@example.com', 'password' => bcrypt('x'),
+        'circle_id' => $this->circle->id, 'is_approved' => true, 'status' => 'active',
+    ]);
+
+    $badge = GamificationBadge::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'وسام حسن الخلق',
+        'icon' => 'star',
+        'badge_type' => 'manual',
+        'requirement_value' => 0,
+        'reward_xp' => 30,
+        'reward_coins' => 30,
+    ]);
+
+    // The automatic sync has nothing to say about a manual badge.
+    GamificationService::syncStudentBadges($this->student->id, $this->leaderboard->id);
+    expect(DB::table('gamification_badge_student')->count())->toBe(0);
+
+    Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->call('openGrantBadge', $badge->id)
+        ->assertSet('showGrantBadgeModal', true)
+        ->set('grantStudentIds', [(string) $this->student->id])
+        ->call('grantBadge')
+        ->assertHasNoErrors()
+        ->assertSet('showGrantBadgeModal', false);
+
+    // Granted to the one picked, and only to them.
+    expect(DB::table('gamification_badge_student')->where('badge_id', $badge->id)->pluck('status', 'student_id')->all())
+        ->toBe([$this->student->id => 'approved']);
+
+    // The student claims it like any other badge, and the reward lands.
+    $this->actingAs($this->student, 'student');
+
+    Livewire::test('student.gamification-dashboard')
+        ->call('claimBadge', $badge->id)
+        ->assertHasNoErrors();
+
+    $reward = GamificationTransaction::where('student_id', $this->student->id)
+        ->where('reference_type', GamificationBadge::class)
+        ->where('reference_id', $badge->id)
+        ->first();
+
+    expect($reward?->xp_amount)->toBe(30)
+        ->and($reward?->leaderboard_id)->toBe($this->leaderboard->id)
+        ->and(DB::table('gamification_badge_student')->where('student_id', $other->id)->count())->toBe(0);
+});
+
+it('does not grant a badge twice, nor to a student outside the competition', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $outsider = Student::create([
+        'name' => 'طالب خارج المسابقة', 'email' => 'outsider@example.com', 'password' => bcrypt('x'),
+        'circle_id' => Circle::create(['name' => 'حلقة أخرى', 'stage_id' => $this->stage->id])->id,
+        'is_approved' => true, 'status' => 'active',
+    ]);
+
+    $badge = GamificationBadge::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'وسام المبادرة', 'icon' => 'star', 'badge_type' => 'manual',
+        'requirement_value' => 0, 'reward_xp' => 10, 'reward_coins' => 10,
+    ]);
+
+    $grant = fn () => Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->call('openGrantBadge', $badge->id)
+        ->set('grantStudentIds', [(string) $this->student->id, (string) $outsider->id])
+        ->call('grantBadge');
+
+    $grant();
+    $grant();
+
+    expect(DB::table('gamification_badge_student')->where('badge_id', $badge->id)->count())->toBe(1)
+        ->and(DB::table('gamification_badge_student')->where('student_id', $outsider->id)->count())->toBe(0);
+});
+
+it('takes back a badge handed out by mistake, unless the student already claimed it', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $badge = GamificationBadge::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'وسام النشاط', 'icon' => 'star', 'badge_type' => 'manual',
+        'requirement_value' => 0, 'reward_xp' => 10, 'reward_coins' => 10,
+    ]);
+
+    $component = Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->call('openGrantBadge', $badge->id)
+        ->set('grantStudentIds', [(string) $this->student->id])
+        ->call('grantBadge');
+
+    $component->call('revokeBadge', $badge->id, $this->student->id);
+    expect(DB::table('gamification_badge_student')->where('badge_id', $badge->id)->count())->toBe(0);
+
+    // A claimed badge has already been paid for, so it stays.
+    DB::table('gamification_badge_student')->insert([
+        'badge_id' => $badge->id, 'student_id' => $this->student->id,
+        'status' => 'claimed', 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $component->call('revokeBadge', $badge->id, $this->student->id);
+    expect(DB::table('gamification_badge_student')->where('badge_id', $badge->id)->count())->toBe(1);
+});
+
+it('offers the hand-out button only on a badge that is handed out by name', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    GamificationBadge::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'وسام يدوي', 'icon' => 'star', 'badge_type' => 'manual', 'requirement_value' => 0,
+    ]);
+    GamificationBadge::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'وسام تلقائي', 'icon' => 'star', 'badge_type' => 'streak_attendance', 'requirement_value' => 5,
+    ]);
+
+    $html = Livewire::test(ManageGamification::class, ['competitionId' => $this->leaderboard->id])
+        ->set('activeTab', 'badges')
+        ->html();
+
+    // Flux renders the call in both wire:click and wire:target, so count buttons.
+    expect(substr_count($html, 'wire:click="openGrantBadge'))->toBe(1);
+});

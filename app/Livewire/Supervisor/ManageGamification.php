@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\ImageManager;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -238,6 +239,16 @@ class ManageGamification extends Component
     public int $badge_reward_xp = 0;
 
     public int $badge_reward_coins = 0;
+
+    // Handing out a manual badge
+    public bool $showGrantBadgeModal = false;
+
+    public ?int $grantingBadgeId = null;
+
+    /** @var array<int, string> Student ids ticked in the hand-out panel. */
+    public array $grantStudentIds = [];
+
+    public string $grantSearch = '';
 
     // Teams State
     public $editingTeamId = null;
@@ -1055,6 +1066,137 @@ class ManageGamification extends Component
     {
         GamificationBadge::findOrFail($id)->delete();
         Flux::toast('تم حذف الوسام', variant: 'success');
+    }
+
+    /**
+     * Open the hand-out panel for a badge.
+     *
+     * A badge whose mechanism is "manual" has no progress to measure, so the
+     * automatic sync never touches it. Until now nothing else did either: the
+     * mechanism could be chosen — it is the default in the badge form — but
+     * the badge could not reach a student by any route.
+     */
+    public function openGrantBadge(int $badgeId): void
+    {
+        $this->grantingBadgeId = $badgeId;
+        $this->grantStudentIds = [];
+        $this->grantSearch = '';
+        $this->showGrantBadgeModal = true;
+    }
+
+    /**
+     * The students of this competition, with whether they already hold the
+     * badge being handed out and how far along they are with it.
+     *
+     * @return array<int, array{student: Student, status: string|null}>
+     */
+    #[Computed]
+    public function grantCandidates(): array
+    {
+        if (! $this->grantingBadgeId) {
+            return [];
+        }
+
+        $held = DB::table('gamification_badge_student')
+            ->where('badge_id', $this->grantingBadgeId)
+            ->pluck('status', 'student_id');
+
+        return $this->getStudents()
+            ->when($this->grantSearch !== '', fn ($students) => $students->filter(
+                fn (Student $student) => str_contains($student->name, $this->grantSearch)
+            ))
+            ->sortBy('name')
+            ->map(fn (Student $student) => [
+                'student' => $student,
+                'status' => $held[$student->id] ?? null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Hand the badge to the chosen students.
+     *
+     * It lands as approved rather than pending: the supervisor choosing a
+     * student by name is the decision an approval would otherwise record. The
+     * student still claims it, so the reward flows through the same path as
+     * every other badge.
+     */
+    public function grantBadge(): void
+    {
+        $this->validate([
+            'grantingBadgeId' => 'required|exists:gamification_badges,id',
+            'grantStudentIds' => 'required|array|min:1',
+            'grantStudentIds.*' => 'exists:users,id',
+        ], [
+            'grantStudentIds.required' => 'اختر طالباً واحداً على الأقل.',
+        ]);
+
+        $badge = GamificationBadge::findOrFail($this->grantingBadgeId);
+        $eligible = $this->getStudents()->pluck('id');
+        $granted = 0;
+
+        foreach ($this->grantStudentIds as $studentId) {
+            $studentId = (int) $studentId;
+
+            // Only students this competition covers, and never over a badge the
+            // student already holds — that would reset a claimed one to unclaimed.
+            if (! $eligible->contains($studentId)) {
+                continue;
+            }
+
+            $exists = DB::table('gamification_badge_student')
+                ->where('badge_id', $badge->id)
+                ->where('student_id', $studentId)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            DB::table('gamification_badge_student')->insert([
+                'badge_id' => $badge->id,
+                'student_id' => $studentId,
+                'status' => 'approved',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            GamificationNewsService::record($this->competitionId, 'badge', [
+                'student_id' => $studentId,
+                'student_name' => Student::find($studentId)?->name ?? '',
+                'badge_name' => $badge->name,
+                'badge_icon' => $badge->icon,
+            ]);
+
+            $granted++;
+        }
+
+        $this->showGrantBadgeModal = false;
+        $this->grantStudentIds = [];
+
+        Flux::toast($granted > 0
+            ? "تم منح الوسام لـ {$granted} طالب، وينتظر استلامهم له."
+            : 'كل من اخترتهم يحملون هذا الوسام بالفعل.',
+            variant: $granted > 0 ? 'success' : 'warning');
+    }
+
+    /**
+     * Take back a badge that was handed out by mistake. A claimed one stays:
+     * its reward has already been paid.
+     */
+    public function revokeBadge(int $badgeId, int $studentId): void
+    {
+        $deleted = DB::table('gamification_badge_student')
+            ->where('badge_id', $badgeId)
+            ->where('student_id', $studentId)
+            ->where('status', '!=', 'claimed')
+            ->delete();
+
+        Flux::toast($deleted
+            ? 'تم سحب الوسام.'
+            : 'لا يمكن سحب وسام استلمه الطالب.',
+            variant: $deleted ? 'success' : 'warning');
     }
 
     // --- Teams Logic ---
