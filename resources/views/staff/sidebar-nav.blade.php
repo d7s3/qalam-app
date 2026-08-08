@@ -11,11 +11,11 @@
         : collect();
 @endphp
 
-<flux:sidebar.item icon="home" :href="route('staff.dashboard')" :current="request()->routeIs('staff.dashboard')"
+<flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('staff.dashboard')" :current="request()->routeIs('staff.dashboard')"
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
-<flux:sidebar.item icon="envelope" :href="route('staff.messages')" :current="request()->routeIs('staff.messages')"
+<flux:sidebar.item class="[&_svg]:bg-[#e11d48] hover:[&_svg]:bg-[#be123c]" icon="envelope" :href="route('staff.messages')" :current="request()->routeIs('staff.messages')"
     :badge="$staffUnreadMessages > 0 ? $staffUnreadMessages : null" badge-color="rose" wire:navigate>
     الرسائل
 </flux:sidebar.item>
