@@ -8,7 +8,7 @@
     </flux:sidebar.item>
     @if(\App\Support\RolePages::isEnabled('student', 'student.plan'))
         <flux:sidebar.item icon="book-open" :href="route('student.plan')" :current="request()->routeIs('student.plan')" wire:navigate>
-            {{ __('مساري القرآني') }}
+            {{ __('خططي القرآنية') }}
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('student', 'student.hifz'))

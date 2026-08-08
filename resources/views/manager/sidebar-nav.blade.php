@@ -69,7 +69,7 @@
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.yearly-attendance'))
         <flux:sidebar.item icon="calendar" :href="route('manager.yearly-attendance')"
             :current="request()->routeIs('manager.yearly-attendance')" wire:navigate>
-            متابعة الحلقات السنوي
+            متابعة تحضير الحلقات
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.academic-calendar'))
@@ -119,7 +119,7 @@
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.settings'))
         <flux:sidebar.item icon="cog" :href="route('manager.settings')" :current="request()->routeIs('manager.settings')"
             wire:navigate>
-            إعدادات الانضباط
+            الانضباط والنسخ الاحتياطي
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.whatsapp-settings'))
