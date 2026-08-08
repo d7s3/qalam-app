@@ -1288,8 +1288,17 @@ new class extends Component {
 
 <div>
 @if($activeGamification)
-<div x-data="{ currentTab: localStorage.getItem('student-gam-tab') || 'leaderboard' }"
+{{--
+    The sidebar's «الإنجازات» and «المتصدرون» point here by fragment. On the
+    plain dashboard those are anchors to scroll to; here the same content lives
+    in a tab, so the fragment opens the tab instead of scrolling to nothing.
+--}}
+<div x-data="{
+        currentTab: ({ '#achievements': 'badges', '#leaderboard-standings': 'leaderboard' })[window.location.hash]
+            || localStorage.getItem('student-gam-tab') || 'leaderboard',
+    }"
     x-on:gamnav-changed.window="currentTab = $event.detail.tab"
+    x-on:hashchange.window="currentTab = ({ '#achievements': 'badges', '#leaderboard-standings': 'leaderboard' })[window.location.hash] || currentTab"
     class="{{ $style['bg'] }} font-sans" dir="rtl" style="background-image: radial-gradient(circle at top left, var(--team-color-10) 0%, transparent 45%), radial-gradient(circle at bottom right, var(--team-color-10) 0%, transparent 45%); background-color: #f8fafc;">
 <style>
     :root {

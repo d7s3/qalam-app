@@ -1,5 +1,5 @@
 <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('supervisor.dashboard')" :current="request()->routeIs('supervisor.dashboard')" wire:navigate>
-    {{ __('Dashboard') }}
+    {{ __('الرئيسية') }}
 </flux:sidebar.item>
 @php
     $supervisorUnreadMessages = \App\Services\MessagingService::unreadCountFor('supervisor', auth('supervisor')->id());
