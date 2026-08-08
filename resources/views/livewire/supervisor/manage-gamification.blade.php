@@ -638,6 +638,10 @@
                                 </div>
                             </div>
                             <div class="flex justify-end gap-2 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                                {{-- A manual badge has no progress to measure, so it is handed out by name. --}}
+                                @if(in_array($badge->badge_type, ['manual', 'custom'], true) && ! $badge->leaderboard_criterion_id)
+                                    <flux:button wire:click="openGrantBadge({{ $badge->id }})" size="xs" variant="filled" icon="user-plus">توزيع</flux:button>
+                                @endif
                                 <flux:button wire:click="editBadge({{ $badge->id }})" size="xs" variant="ghost" icon="pencil-square">تعديل</flux:button>
                                 <flux:button wire:click="deleteBadge({{ $badge->id }})" wire:confirm="هل أنت متأكد من حذف هذا الوسام؟" size="xs" variant="ghost" icon="trash" class="text-rose-500 hover:text-rose-600" />
                             </div>
@@ -2025,6 +2029,61 @@
                     <flux:button wire:click="saveBadge" variant="primary" class="bg-purple-600 hover:bg-purple-700 border-none text-white">حفظ</flux:button>
                 </div>
             @endif
+        </div>
+    </flux:modal>
+
+    {{-- MODAL: HAND OUT A MANUAL BADGE --}}
+    <flux:modal wire:model="showGrantBadgeModal" class="md:w-[560px]">
+        <div class="space-y-5 text-right" dir="rtl">
+            <div>
+                <flux:heading size="lg" class="font-bold text-zinc-950 dark:text-white">توزيع الوسام</flux:heading>
+                <flux:subheading class="text-zinc-500">
+                    اختر الطلاب الذين يستحقون الوسام. يصلهم معتمداً، ويظهر لهم زر الاستلام في لوحتهم.
+                </flux:subheading>
+            </div>
+
+            <flux:input wire:model.live.debounce.300ms="grantSearch" placeholder="ابحث باسم الطالب" icon="magnifying-glass" />
+
+            <div class="max-h-[45vh] overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 divide-y divide-zinc-100 dark:divide-zinc-800">
+                @forelse($this->grantCandidates as $row)
+                    @php
+                        $student = $row['student'];
+                        $status = $row['status'];
+                    @endphp
+                    <label class="flex items-center justify-between gap-3 px-3 py-2.5 {{ $status ? 'opacity-60' : 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50' }}"
+                        wire:key="grant-{{ $student->id }}">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <input type="checkbox" wire:model="grantStudentIds" value="{{ $student->id }}"
+                                @disabled($status)
+                                class="rounded border-zinc-300 text-purple-600 focus:ring-purple-500 shrink-0">
+                            <span class="text-sm text-zinc-800 dark:text-zinc-100 truncate">{{ $student->name }}</span>
+                        </div>
+
+                        @if($status === 'claimed')
+                            <flux:badge size="sm" color="green">استلمه</flux:badge>
+                        @elseif($status)
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <flux:badge size="sm" color="amber">بانتظار الاستلام</flux:badge>
+                                <flux:button type="button" size="xs" variant="ghost" icon="x-mark" class="text-rose-500"
+                                    wire:click="revokeBadge({{ $grantingBadgeId }}, {{ $student->id }})" />
+                            </div>
+                        @endif
+                    </label>
+                @empty
+                    <div class="px-3 py-10 text-center text-sm text-zinc-400">لا يوجد طلاب مطابقون</div>
+                @endforelse
+            </div>
+
+            <flux:error name="grantStudentIds" />
+
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">إلغاء</flux:button>
+                </flux:modal.close>
+                <flux:button wire:click="grantBadge" variant="primary" class="bg-purple-600 hover:bg-purple-700 border-none text-white">
+                    منح الوسام
+                </flux:button>
+            </div>
         </div>
     </flux:modal>
 
