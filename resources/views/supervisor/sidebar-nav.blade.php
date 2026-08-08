@@ -5,7 +5,7 @@
     $supervisorUnreadMessages = \App\Services\MessagingService::unreadCountFor('supervisor', auth('supervisor')->id());
 @endphp
 @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.messages'))
-    <flux:sidebar.item icon="envelope" :href="route('supervisor.messages')" :current="request()->routeIs('supervisor.messages')"
+    <flux:sidebar.item class="[&_svg]:bg-[#e11d48] hover:[&_svg]:bg-[#be123c]" icon="envelope" :href="route('supervisor.messages')" :current="request()->routeIs('supervisor.messages')"
         :badge="$supervisorUnreadMessages > 0 ? $supervisorUnreadMessages : null" badge-color="rose" wire:navigate>
         {{ __('الرسائل') }}
     </flux:sidebar.item>

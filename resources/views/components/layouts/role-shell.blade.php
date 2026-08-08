@@ -71,11 +71,11 @@
 
             <flux:sidebar.nav>
                 @if(auth('student')->check())
-                    <flux:sidebar.item icon="cog" :href="route('student.settings')" :current="request()->routeIs('student.settings')" wire:navigate>
+                    <flux:sidebar.item class="[&_svg]:bg-[#71717a] hover:[&_svg]:bg-[#52525b]" icon="cog" :href="route('student.settings')" :current="request()->routeIs('student.settings')" wire:navigate>
                         {{ __('إعدادات الحساب') }}
                     </flux:sidebar.item>
                 @else
-                    <flux:sidebar.item icon="cog" :href="route('profile.edit')" :current="request()->routeIs('profile.edit')" wire:navigate>
+                    <flux:sidebar.item class="[&_svg]:bg-[#71717a] hover:[&_svg]:bg-[#52525b]" icon="cog" :href="route('profile.edit')" :current="request()->routeIs('profile.edit')" wire:navigate>
                         {{ __('إعدادات الحساب') }}
                     </flux:sidebar.item>
                 @endif
@@ -87,7 +87,7 @@
                 @endif
                     @csrf
                     <flux:sidebar.item as="button" type="submit" icon="arrow-right-start-on-rectangle"
-                        class="w-full cursor-pointer">
+                        class="[&_svg]:bg-[#71717a] hover:[&_svg]:bg-[#52525b] w-full cursor-pointer">
                         {{ __('تسجيل الخروج') }}
                     </flux:sidebar.item>
                 </form>

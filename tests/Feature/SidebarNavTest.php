@@ -60,3 +60,33 @@ it('calls the student plans page by what it lists', function () {
     expect($sidebar)->toContain('خططي القرآنية')
         ->and($sidebar)->not->toContain('مساري القرآني');
 });
+
+/**
+ * The coloured square behind a sidebar icon is drawn by a global rule on the
+ * svg; the colour itself comes from the item. Only the supervisor's items
+ * carried one, so every other role showed a white icon on nothing.
+ */
+it('gives every sidebar icon a coloured square', function () {
+    $files = array_merge(
+        glob(resource_path('views/*/sidebar-nav.blade.php')),
+        [resource_path('views/components/layouts/role-shell.blade.php')],
+    );
+
+    foreach ($files as $file) {
+        $markup = file_get_contents($file);
+        preg_match_all('/<flux:sidebar\.item\b((?:[^>]|->)*?)(?<!-)>/s', $markup, $items);
+
+        $uncoloured = array_filter($items[1], fn ($attrs) => ! str_contains($attrs, '[&_svg]:bg-'));
+
+        expect($uncoloured)->toBe([], basename(dirname($file)).'/'.basename($file));
+    }
+});
+
+it('draws the square itself for every role, not only the supervisor', function () {
+    $css = file_get_contents(resource_path('css/app.css'));
+
+    // Padding, radius and a white glyph — the rule is on the item, so it holds
+    // for whichever role is looking at it.
+    expect($css)->toContain('[data-flux-sidebar-item] svg')
+        ->and($css)->toContain('border-radius: 8px');
+});
