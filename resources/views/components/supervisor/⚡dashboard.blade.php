@@ -66,31 +66,35 @@ new class extends Component
     </div>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <x-student.partials.stat-card icon="rectangle-stack" :label="__('المراحل التعليمية')" :value="$stagesCount" accent-class="bg-indigo-500/10 text-indigo-600" />
-        <x-student.partials.stat-card icon="circle-stack" :label="__('الحلقات')" :value="$circlesCount" accent-class="bg-teal-500/10 text-teal-600" />
-        <x-student.partials.stat-card icon="users" :label="__('المعلمون')" :value="$teachersCount" accent-class="bg-blue-500/10 text-blue-600" />
-        <x-student.partials.stat-card icon="academic-cap" :label="__('الطلاب')" :value="$studentsCount" accent-class="bg-purple-500/10 text-purple-600" />
+        <x-student.partials.stat-card icon="rectangle-stack" :label="__('المراحل التعليمية')" :value="$stagesCount" accent-class="bg-indigo-500/10 text-indigo-600" :href="route('supervisor.circles')" />
+        <x-student.partials.stat-card icon="circle-stack" :label="__('الحلقات')" :value="$circlesCount" accent-class="bg-teal-500/10 text-teal-600" :href="route('supervisor.circles')" />
+        <x-student.partials.stat-card icon="users" :label="__('المعلمون')" :value="$teachersCount" accent-class="bg-blue-500/10 text-blue-600" :href="route('supervisor.teachers')" />
+        <x-student.partials.stat-card icon="academic-cap" :label="__('الطلاب')" :value="$studentsCount" accent-class="bg-purple-500/10 text-purple-600" :href="route('supervisor.students')" />
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <div class="text-2xl font-black text-emerald-600">{{ $weeklyAttendancePercentage }}%</div>
-                    <div class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{{ __('نسبة الحضور هذا الأسبوع') }}</div>
+        <a href="{{ route('supervisor.yearly-attendance') }}" wire:navigate class="block">
+            <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-emerald-300 transition-colors">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-2xl font-black text-emerald-600">{{ $weeklyAttendancePercentage }}%</div>
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{{ __('نسبة الحضور هذا الأسبوع') }}</div>
+                    </div>
+                    <flux:icon icon="chart-bar" class="size-8 text-emerald-500" />
                 </div>
-                <flux:icon icon="chart-bar" class="size-8 text-emerald-500" />
             </div>
-        </div>
-        <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <div class="text-2xl font-black text-amber-600">{{ $upcomingExamsCount }}</div>
-                    <div class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{{ __('اختبارات قادمة') }}</div>
+        </a>
+        <a href="{{ route('supervisor.students') }}" wire:navigate class="block">
+            <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-amber-300 transition-colors">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-2xl font-black text-amber-600">{{ $upcomingExamsCount }}</div>
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{{ __('اختبارات قادمة') }}</div>
+                    </div>
+                    <flux:icon icon="academic-cap" class="size-8 text-amber-500" />
                 </div>
-                <flux:icon icon="academic-cap" class="size-8 text-amber-500" />
             </div>
-        </div>
+        </a>
         <a href="{{ route('supervisor.competitions') }}" wire:navigate class="block">
             <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-rose-300 transition-colors">
                 <div class="flex items-center justify-between">

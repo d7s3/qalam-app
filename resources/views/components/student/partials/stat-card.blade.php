@@ -6,9 +6,19 @@
     'accentClass' => 'bg-maroon/10 text-maroon',
     'empty' => false,
     'emptyText' => null,
+    'href' => null,
 ])
 
-<div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-5 flex items-center gap-4">
+@php
+    $cardClasses = 'bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-5 flex items-center gap-4'
+        . ($href ? ' hover:border-maroon/30 dark:hover:border-white/20 transition-colors' : '');
+@endphp
+
+@if($href)
+<a href="{{ $href }}" wire:navigate class="{{ $cardClasses }}">
+@else
+<div class="{{ $cardClasses }}">
+@endif
     <div class="shrink-0 size-12 rounded-xl flex items-center justify-center {{ $accentClass }}">
         <flux:icon :icon="$icon" variant="solid" class="size-6" />
     </div>
@@ -25,4 +35,8 @@
             </div>
         @endif
     </div>
+@if($href)
+</a>
+@else
 </div>
+@endif
