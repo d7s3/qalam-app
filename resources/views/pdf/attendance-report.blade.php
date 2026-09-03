@@ -97,11 +97,11 @@
 
 <body>
     <div class="header">
-        <img src="{{ public_path('images/altag_logo.png') }}" alt="Logo">
+        <img src="{{ public_path(config('brand.logo')) }}" alt="Logo">
         <h1>تقرير الحضور والغياب للحلقات</h1>
         @php
             @endphp
-        <p>الفترة من: {{ \App\Support\HijriDate::full($fromDate) }} إلى {{ \App\Support\HijriDate::full($toDate) }}</p>
+        <p>الفترة من: {{ \App\Support\HijriDate::withGregorian($fromDate) }} إلى {{ \App\Support\HijriDate::withGregorian($toDate) }}</p>
     </div>
 
     <table>

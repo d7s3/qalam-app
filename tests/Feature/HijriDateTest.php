@@ -38,36 +38,70 @@ it('gives an empty string for a missing or unreadable date', function () {
         ->and(HijriDate::gregorian(null))->toBe('');
 });
 
-it('keeps the Gregorian date for the hover', function () {
+it('keeps the Gregorian reading of a date', function () {
     expect(HijriDate::gregorian('2026-08-01'))->toBe('2026-08-01');
 });
 
-it('renders the Hijri date and carries the Gregorian in the title', function () {
+it('renders the Hijri date with the Gregorian one visible beside it', function () {
+    // The Gregorian date used to ride in the title, seen only on hover. The
+    // academy reckons in Hijri, but nearly everything it deals with outside —
+    // a term, a bank, a parent's phone — reckons by the other, and reading a
+    // date twice is slower than seeing both at once.
     $html = Blade::render('<x-hijri-date :date="$date" />', ['date' => '2026-08-01']);
 
     expect($html)->toContain('١٨ صفر ١٤٤٨')
-        ->and($html)->toContain('title="2026-08-01 م"');
+        ->and($html)->toContain('2026-08-01')
+        ->and(strip_tags($html))->toContain('2026-08-01');
+});
+
+it('sets the second date aside rather than letting it crowd the first', function () {
+    $html = Blade::render('<x-hijri-date :date="$date" />', ['date' => '2026-08-01']);
+
+    expect($html)->toContain('dir="ltr"')
+        ->and($html)->toContain('tabular-nums');
+});
+
+it('drops the second date when it is asked to', function () {
+    $html = Blade::render('<x-hijri-date :date="$date" :gregorian="false" />', ['date' => '2026-08-01']);
+
+    expect($html)->toContain('١٨ صفر ١٤٤٨')
+        ->and($html)->not->toContain('2026-08-01');
+});
+
+it('says no Gregorian date beside a weekday, which names none', function () {
+    $html = Blade::render('<x-hijri-date :date="$date" style="weekdayOnly" />', ['date' => '2026-08-01']);
+
+    expect($html)->not->toContain('2026-08-01');
+});
+
+it('pairs a Hijri month with a Gregorian month, not a whole date', function () {
+    $html = Blade::render('<x-hijri-date :date="$date" style="monthYear" />', ['date' => '2026-08-01']);
+
+    expect(strip_tags($html))->toContain('2026-08')
+        ->and(strip_tags($html))->not->toContain('2026-08-01');
 });
 
 it('falls back rather than showing an empty cell', function () {
     $html = Blade::render('<x-hijri-date :date="null" />');
 
-    expect(trim(strip_tags($html)))->toBe('—')
-        ->and($html)->not->toContain('title=');
+    expect(trim(strip_tags($html)))->toBe('—');
 });
 
 it('takes an ICU pattern of its own when the named styles do not fit', function () {
     $html = Blade::render('<x-hijri-date :date="$date" style="MMMM" />', ['date' => '2026-08-01']);
 
-    expect(trim(strip_tags($html)))->toBe('صفر');
+    expect(strip_tags($html))->toContain('صفر')
+        ->and(strip_tags($html))->toContain('2026-08-01');
 });
 
-/**
- * The Gregorian date was showing on screen in a hundred places, each building
- * its own formatter. These guard the two halves of the fix: that a page reads
- * its dates in Hijri, and that the Gregorian still rides along for anyone who
- * needs it.
- */
+it('gives the same reading as plain text where markup cannot go', function () {
+    // A select option, a printed sheet, a message to a parent: the two must
+    // never tell a person different things.
+    expect(HijriDate::withGregorian('2026-08-01'))->toBe('١٨ صفر ١٤٤٨ (2026-08-01)')
+        ->and(HijriDate::withGregorian('2026-08-01', 'monthYear'))->toBe('صفر ١٤٤٨ (2026-08)')
+        ->and(HijriDate::withGregorian(null))->toBe('');
+});
+
 it('shows dates in Hijri on the manager pages, Gregorian only on hover', function () {
     Carbon::setTestNow('2026-08-01 10:00:00');
 
@@ -80,12 +114,10 @@ it('shows dates in Hijri on the manager pages, Gregorian only on hover', functio
     foreach (['/manager/stages', '/manager/circles', '/manager/guardians'] as $page) {
         $html = $this->get($page)->assertOk()->getContent();
 
+        // The Hijri date leads, and the Gregorian one is readable beside it
+        // rather than hidden behind a hover nobody finds on a phone.
         expect($html)->toContain('١٨ صفر ١٤٤٨')
-            ->and($html)->toContain('title="2026-08-01 م"');
-
-        // No bare Gregorian date left in the text of the page.
-        $text = strip_tags($html);
-        expect($text)->not->toMatch('/\b2026-08-01\b/');
+            ->and(strip_tags($html))->toContain('2026-08-01');
     }
 });
 

@@ -722,11 +722,11 @@ new class extends Component {
                 @foreach($sPlans as $plan)
                     <flux:select.option value="{{ $plan->id }}" :selected="$selectedPlanId == $plan->id">
                         @if($plan->plan_type === 'hifz')
-                            {{ __('حفظ (تبدأ من ' . $plan->start_date->format('Y/m/d') . ')') }}
+                            {{ __('حفظ') }} ({{ __('تبدأ من') }} {{ \App\Support\HijriDate::withGregorian($plan->start_date) }})
                         @elseif($plan->plan_type === 'review')
-                            {{ __('مراجعة (تبدأ من ' . $plan->start_date->format('Y/m/d') . ')') }}
+                            {{ __('مراجعة') }} ({{ __('تبدأ من') }} {{ \App\Support\HijriDate::withGregorian($plan->start_date) }})
                         @else
-                            {{ __('حفظ ومراجعة (تبدأ من ' . $plan->start_date->format('Y/m/d') . ')') }}
+                            {{ __('حفظ ومراجعة') }} ({{ __('تبدأ من') }} {{ \App\Support\HijriDate::withGregorian($plan->start_date) }})
                         @endif
                     </flux:select.option>
                 @endforeach

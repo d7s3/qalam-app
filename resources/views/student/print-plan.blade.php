@@ -78,7 +78,7 @@
         <div class="flex flex-wrap justify-between gap-2 text-xs font-semibold">
             <div class="flex justify-center items-end border border-zinc-200 rounded-3xl p-5 pt-3">
                 <div class="flex justify-start items-end w-26">
-                    <img src="{{ asset('images/altag_logo.png') }}" alt="Logo" class="h-24 object-contain" />
+                    <img src="{{ asset(config('brand.logo')) }}" alt="Logo" class="h-24 object-contain" />
                 </div>
                 <div class="flex flex-col items-start">
                     <h1 class="text-lg mb-2">{{ $title }}</h1>
@@ -99,7 +99,7 @@
                 @if ($startDate)
                     <div>
                         <span class="text-zinc-500 ml-1">تبدأ من:</span>
-                        <span>{{ \App\Support\HijriDate::full($startDate) }}</span>
+                        <span><x-hijri-date :date="$startDate" /></span>
                     </div>
                 @endif
             </div>
@@ -131,7 +131,7 @@
                 @forelse ($rows as $row)
                     <tr>
                         <td class="py-2 px-1 text-[11px] text-zinc-600">
-                            {{ $row['date'] ? \App\Support\HijriDate::full($row['date']) : '—' }}
+                            <x-hijri-date :date="$row['date']" />
                         </td>
                         <td class="py-2 px-1 text-[11px] bg-zinc-50/50">{{ $row['day_name'] ?? '—' }}</td>
 
@@ -158,8 +158,7 @@
     </div>
 
     <hr class="my-4">
-    <p class="text-center text-xs text-zinc-500">جدة - حي الواحة - جامع الزبيدي - حلقات التاج القرآنية التابعة لجمعية
-        خيركم لتعليم القرآن الكريم</p>
+    <p class="text-center text-xs text-zinc-500">{{ config('brand.address') }}</p>
 </body>
 
 </html>

@@ -1,58 +1,50 @@
 <?php
 
 use App\Services\MemorizationJourneyService;
+use App\Support\HijriDate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 new class extends Component
 {
+    /** The Hijri month on view — the academy's own month, not a Gregorian one. */
     public int $month;
 
     public int $year;
 
     public function mount(): void
     {
-        $this->month = (int) now()->format('n');
-        $this->year = (int) now()->format('Y');
+        ['year' => $this->year, 'month' => $this->month] = HijriDate::yearMonthOf(now());
     }
 
     public function previousMonth(): void
     {
-        $date = Carbon::create($this->year, $this->month, 1)->subMonth();
-        $this->month = (int) $date->format('n');
-        $this->year = (int) $date->format('Y');
+        ['year' => $this->year, 'month' => $this->month] = HijriDate::shiftMonth($this->year, $this->month, -1);
     }
 
     public function nextMonth(): void
     {
-        $date = Carbon::create($this->year, $this->month, 1)->addMonth();
-        $this->month = (int) $date->format('n');
-        $this->year = (int) $date->format('Y');
+        ['year' => $this->year, 'month' => $this->month] = HijriDate::shiftMonth($this->year, $this->month, 1);
     }
-
-    protected const ARABIC_MONTHS = [
-        1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل', 5 => 'مايو', 6 => 'يونيو',
-        7 => 'يوليو', 8 => 'أغسطس', 9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر',
-    ];
 
     public function with(): array
     {
         $student = Auth::guard('student')->user();
-        $activityDates = MemorizationJourneyService::activityDatesForMonth($student, $this->year, $this->month);
+        $grid = HijriDate::monthGrid($this->year, $this->month);
 
-        $firstOfMonth = Carbon::create($this->year, $this->month, 1);
-        $daysInMonth = $firstOfMonth->daysInMonth;
-        // Saturday-first week to match the Arabic calendar convention used elsewhere in the app.
-        $leadingBlanks = (int) $firstOfMonth->copy()->startOfWeek(Carbon::SATURDAY)->diffInDays($firstOfMonth);
+        // A Hijri month runs across two Gregorian ones, so the activity is asked
+        // for over its span rather than for a month.
+        $activityDates = MemorizationJourneyService::activityDatesBetween(
+            $student,
+            Carbon::parse($grid['first'])->startOfDay(),
+            Carbon::parse($grid['last'])->endOfDay(),
+        );
 
         return [
-            'monthLabel' => self::ARABIC_MONTHS[$this->month].' '.$this->year,
-            'daysInMonth' => $daysInMonth,
-            'leadingBlanks' => $leadingBlanks,
+            'grid' => $grid,
             'activityDates' => $activityDates,
             'todayStr' => now()->toDateString(),
-            'yearMonth' => sprintf('%04d-%02d', $this->year, $this->month),
         ];
     }
 };
@@ -68,7 +60,10 @@ new class extends Component
         <button wire:click="previousMonth" class="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
             <flux:icon icon="chevron-right" class="size-4 text-zinc-400" />
         </button>
-        <span class="text-sm font-bold text-zinc-700 dark:text-zinc-200">{{ $monthLabel }}</span>
+        <span class="flex flex-col items-center leading-tight">
+            <span class="text-sm font-bold text-zinc-700 dark:text-zinc-200">{{ $grid['label'] }}</span>
+            <span dir="ltr" class="text-[9px] font-medium tabular-nums text-zinc-400">{{ $grid['span'] }}</span>
+        </span>
         <button wire:click="nextMonth" class="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
             <flux:icon icon="chevron-left" class="size-4 text-zinc-400" />
         </button>
@@ -81,21 +76,24 @@ new class extends Component
     </div>
 
     <div class="grid grid-cols-7 gap-1 text-center text-xs">
-        @for($i = 0; $i < $leadingBlanks; $i++)
+        @for($i = 0; $i < $grid['leadingBlanks']; $i++)
             <div></div>
         @endfor
-        @for($day = 1; $day <= $daysInMonth; $day++)
+        @foreach($grid['days'] as $cell)
             @php
-                $dateStr = $yearMonth.'-'.str_pad($day, 2, '0', STR_PAD_LEFT);
+                $dateStr = $cell['date'];
                 $isToday = $dateStr === $todayStr;
                 $hasActivity = in_array($dateStr, $activityDates, true);
             @endphp
-            <div class="relative flex flex-col items-center justify-center h-8 rounded-lg {{ $isToday ? 'bg-maroon text-white font-bold' : 'text-zinc-600 dark:text-zinc-300' }}">
-                {{ $day }}
+            {{-- The square is too small for a second number, so the Gregorian
+                 date rides in the title here rather than crowding it out. --}}
+            <div title="{{ $dateStr }}"
+                class="relative flex flex-col items-center justify-center h-8 rounded-lg leading-none {{ $isToday ? 'bg-maroon text-white font-bold' : 'text-zinc-600 dark:text-zinc-300' }}">
+                <span>{{ $cell['hijri'] }}</span>
                 @if($hasActivity && !$isToday)
                     <span class="absolute bottom-0.5 size-1 rounded-full bg-emerald-500"></span>
                 @endif
             </div>
-        @endfor
+        @endforeach
     </div>
 </div>

@@ -4,6 +4,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Student;
 use App\Models\Circle;
+use App\Support\Scope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -70,7 +71,7 @@ new class extends Component {
             return;
         }
 
-        $teacherCircles = $teacher->circles()->pluck('id')->toArray();
+        $teacherCircles = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id')->toArray();
         if (!in_array($this->viewingStudent->circle_id, $teacherCircles)) {
             abort(403);
         }
@@ -137,7 +138,7 @@ new class extends Component {
     public function viewStudent($studentId)
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $this->viewingStudent = Student::with([
             'circle',
@@ -200,7 +201,7 @@ new class extends Component {
     public function resetToken($studentId)
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $student = Student::whereIn('circle_id', $circleIds)->findOrFail($studentId);
         $student->update([
@@ -213,7 +214,7 @@ new class extends Component {
     public function with()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circles = $teacher->circles;
+        $circles = Scope::forRoute()->applyToCircles(Circle::query())->orderBy('name')->get();
         $circleIds = $circles->pluck('id');
 
         $students = Student::whereIn('circle_id', $circleIds)
@@ -300,7 +301,7 @@ new class extends Component {
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
-                            {{ $student->joined_at ? $student->joined_at->format('Y-m-d') : '-' }}
+                            <x-hijri-date :date="$student->joined_at" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             @php
@@ -423,7 +424,7 @@ new class extends Component {
                         <div>
                             <div class="text-xs text-zinc-500 mb-1">{{ __('تاريخ الالتحاق') }}</div>
                             <div class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mt-1">
-                                {{ $viewingStudent->joined_at?->format('Y-m-d') ?? '—' }}
+                                <x-hijri-date :date="$viewingStudent->joined_at" />
                             </div>
                         </div>
                         @endif

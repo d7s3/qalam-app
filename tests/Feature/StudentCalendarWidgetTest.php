@@ -7,6 +7,7 @@ use App\Models\Stage;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\MemorizationJourneyService;
+use App\Support\HijriDate;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -29,31 +30,33 @@ beforeEach(function () {
     $this->actingAs($this->student, 'student');
 });
 
-it('renders the current month by default with today highlighted', function () {
+it('opens on the current Hijri month, with the Gregorian months it spans', function () {
+    // 15 July 2026 falls in Safar 1448, a month running across July and August.
     Livewire::test('student.calendar-widget')
-        ->assertSee('يوليو 2026')
-        ->assertSet('month', 7)
-        ->assertSet('year', 2026);
+        ->assertSee('صفر ١٤٤٨')
+        ->assertSee('2026-07 — 2026-08')
+        ->assertSet('month', 2)
+        ->assertSet('year', 1448);
 });
 
-it('navigates to the previous and next month', function () {
+it('steps a Hijri month at a time', function () {
     Livewire::test('student.calendar-widget')
         ->call('previousMonth')
-        ->assertSet('month', 6)
-        ->assertSet('year', 2026)
+        ->assertSet('month', 1)
+        ->assertSet('year', 1448)
         ->call('nextMonth')
         ->call('nextMonth')
-        ->assertSet('month', 8)
-        ->assertSet('year', 2026);
+        ->assertSet('month', 3)
+        ->assertSet('year', 1448);
 });
 
-it('wraps correctly across a year boundary', function () {
+it('wraps correctly across the Hijri year boundary', function () {
     Livewire::test('student.calendar-widget')
         ->set('month', 1)
-        ->set('year', 2026)
+        ->set('year', 1448)
         ->call('previousMonth')
         ->assertSet('month', 12)
-        ->assertSet('year', 2025);
+        ->assertSet('year', 1447);
 });
 
 it('marks days with attendance activity', function () {
@@ -61,11 +64,22 @@ it('marks days with attendance activity', function () {
         'student_id' => $this->student->id,
         'teacher_id' => $this->teacher->id,
         'circle_id' => $this->circle->id,
-        'date' => '2026-07-10',
+        // Safar 1448 runs from 15 July to 13 August, so this day sits inside
+        // the month on view but in the Gregorian month after it — exactly what
+        // reading activity by Gregorian month used to miss.
+        'date' => '2026-08-05',
         'status' => 'present',
     ]);
 
-    $dates = MemorizationJourneyService::activityDatesForMonth($this->student, 2026, 7);
+    $grid = HijriDate::monthGrid(1448, 2);
+    $dates = MemorizationJourneyService::activityDatesBetween(
+        $this->student,
+        Carbon\Carbon::parse($grid['first'])->startOfDay(),
+        Carbon\Carbon::parse($grid['last'])->endOfDay(),
+    );
 
-    expect($dates)->toContain('2026-07-10');
+    expect($dates)->toContain('2026-08-05')
+        // And the old reading, by the Gregorian month the day is not in, misses it.
+        ->and(MemorizationJourneyService::activityDatesForMonth($this->student, 2026, 7))
+        ->not->toContain('2026-08-05');
 });

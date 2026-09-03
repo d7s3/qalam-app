@@ -4,42 +4,34 @@ use App\Models\Attendance;
 use App\Models\StudentExam;
 use App\Models\StudentPlanDay;
 use App\Services\MemorizationJourneyService;
+use App\Support\HijriDate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 new class extends Component
 {
+    /** The Hijri month on view — the academy's own month, not a Gregorian one. */
     public int $month;
 
     public int $year;
 
     public ?string $selectedDate = null;
 
-    protected const ARABIC_MONTHS = [
-        1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل', 5 => 'مايو', 6 => 'يونيو',
-        7 => 'يوليو', 8 => 'أغسطس', 9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر',
-    ];
-
     public function mount(): void
     {
-        $this->month = (int) now()->format('n');
-        $this->year = (int) now()->format('Y');
+        ['year' => $this->year, 'month' => $this->month] = HijriDate::yearMonthOf(now());
         $this->selectedDate = now()->toDateString();
     }
 
     public function previousMonth(): void
     {
-        $date = Carbon::create($this->year, $this->month, 1)->subMonth();
-        $this->month = (int) $date->format('n');
-        $this->year = (int) $date->format('Y');
+        ['year' => $this->year, 'month' => $this->month] = HijriDate::shiftMonth($this->year, $this->month, -1);
     }
 
     public function nextMonth(): void
     {
-        $date = Carbon::create($this->year, $this->month, 1)->addMonth();
-        $this->month = (int) $date->format('n');
-        $this->year = (int) $date->format('Y');
+        ['year' => $this->year, 'month' => $this->month] = HijriDate::shiftMonth($this->year, $this->month, 1);
     }
 
     public function selectDay(string $date): void
@@ -50,11 +42,15 @@ new class extends Component
     public function with(): array
     {
         $student = Auth::guard('student')->user();
-        $activityDates = MemorizationJourneyService::activityDatesForMonth($student, $this->year, $this->month);
+        $grid = HijriDate::monthGrid($this->year, $this->month);
 
-        $firstOfMonth = Carbon::create($this->year, $this->month, 1);
-        $daysInMonth = $firstOfMonth->daysInMonth;
-        $leadingBlanks = (int) $firstOfMonth->copy()->startOfWeek(Carbon::SATURDAY)->diffInDays($firstOfMonth);
+        // A Hijri month begins and ends in the middle of two Gregorian ones, so
+        // the activity is asked for over its span rather than for a month.
+        $activityDates = MemorizationJourneyService::activityDatesBetween(
+            $student,
+            Carbon::parse($grid['first'])->startOfDay(),
+            Carbon::parse($grid['last'])->endOfDay(),
+        );
 
         $dayDetail = null;
         if ($this->selectedDate) {
@@ -78,12 +74,9 @@ new class extends Component
         }
 
         return [
-            'monthLabel' => self::ARABIC_MONTHS[$this->month].' '.$this->year,
-            'daysInMonth' => $daysInMonth,
-            'leadingBlanks' => $leadingBlanks,
+            'grid' => $grid,
             'activityDates' => $activityDates,
             'todayStr' => now()->toDateString(),
-            'yearMonth' => sprintf('%04d-%02d', $this->year, $this->month),
             'dayDetail' => $dayDetail,
         ];
     }
@@ -106,7 +99,10 @@ new class extends Component
                 <button wire:click="previousMonth" class="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
                     <flux:icon icon="chevron-right" class="size-5 text-zinc-400" />
                 </button>
-                <span class="font-bold text-lg text-zinc-800 dark:text-zinc-100">{{ $monthLabel }}</span>
+                <span class="flex flex-col items-center leading-tight">
+                    <span class="font-bold text-lg text-zinc-800 dark:text-zinc-100">{{ $grid['label'] }}</span>
+                    <span dir="ltr" class="text-[11px] font-medium tabular-nums text-zinc-400">{{ $grid['span'] }}</span>
+                </span>
                 <button wire:click="nextMonth" class="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
                     <flux:icon icon="chevron-left" class="size-5 text-zinc-400" />
                 </button>
@@ -119,12 +115,12 @@ new class extends Component
             </div>
 
             <div class="grid grid-cols-7 gap-1 text-center text-sm">
-                @for($i = 0; $i < $leadingBlanks; $i++)
+                @for($i = 0; $i < $grid['leadingBlanks']; $i++)
                     <div></div>
                 @endfor
-                @for($day = 1; $day <= $daysInMonth; $day++)
+                @foreach($grid['days'] as $cell)
                     @php
-                        $dateStr = $yearMonth.'-'.str_pad($day, 2, '0', STR_PAD_LEFT);
+                        $dateStr = $cell['date'];
                         $isToday = $dateStr === $todayStr;
                         $isSelected = $dateStr === $selectedDate;
                         $hasActivity = in_array($dateStr, $activityDates, true);
@@ -132,14 +128,18 @@ new class extends Component
                     <button
                         wire:click="selectDay('{{ $dateStr }}')"
                         wire:key="day-{{ $dateStr }}"
-                        class="relative flex flex-col items-center justify-center h-11 rounded-lg transition-colors
+                        class="relative flex flex-col items-center justify-center h-14 rounded-lg transition-colors leading-none
                             {{ $isSelected ? 'bg-maroon text-white font-bold' : ($isToday ? 'bg-maroon/10 text-maroon dark:text-red-secondary font-bold' : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800') }}">
-                        {{ $day }}
+                        <span>{{ $cell['hijri'] }}</span>
+                        {{-- The Gregorian day of the same square, for anyone reckoning by it --}}
+                        <span dir="ltr" class="mt-1 text-[10px] font-medium tabular-nums {{ $isSelected ? 'text-white/70' : 'text-zinc-400 dark:text-zinc-500' }}">
+                            {{ substr($dateStr, 5) }}
+                        </span>
                         @if($hasActivity && !$isSelected)
-                            <span class="absolute bottom-1 size-1 rounded-full bg-emerald-500"></span>
+                            <span class="absolute bottom-0.5 size-1 rounded-full bg-emerald-500"></span>
                         @endif
                     </button>
-                @endfor
+                @endforeach
             </div>
         </flux:card>
 
