@@ -4,6 +4,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\StudentOdePlan;
 use App\Models\Circle;
+use App\Support\Scope;
 use Illuminate\Support\Facades\Auth;
 use Flux\Flux;
 
@@ -38,15 +39,7 @@ new class extends Component {
 
     private function getCircleIds()
     {
-        if ($this->role === 'supervisor') {
-            $supervisor = Auth::guard('supervisor')->user();
-            if (!$supervisor) return [];
-            return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
-        } else {
-            $teacher = Auth::guard('teacher')->user();
-            if (!$teacher) return [];
-            return $teacher->circles()->pluck('id')->toArray();
-        }
+        return (Scope::forRole($this->role)->circleIds() ?? collect())->all();
     }
 
     public function with()

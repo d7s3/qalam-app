@@ -7,6 +7,7 @@ use App\Models\OdePath;
 use App\Models\OdePathDay;
 use App\Models\OdeVerse;
 use App\Models\StudentOdeAchievement;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
@@ -56,11 +57,9 @@ class OdePlanCreator extends Component
 
     public function mount(): void
     {
-        if (auth()->guard('supervisor')->check()) {
-            $this->userRole = 'supervisor';
-        } else {
-            $this->userRole = 'teacher';
-        }
+        // Captured once from the page this was opened on, and kept: a Livewire
+        // update names no role, and a person may hold both of these at once.
+        $this->userRole = Scope::resolveRole() === 'supervisor' ? 'supervisor' : 'teacher';
 
         $this->startDate = now()->format('Y-m-d');
 

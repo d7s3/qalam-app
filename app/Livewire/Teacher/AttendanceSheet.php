@@ -12,6 +12,7 @@ use App\Models\Teacher;
 use App\Services\GamificationService;
 use App\Services\GuardianNotificationService;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Flux\Flux;
@@ -452,7 +453,7 @@ class AttendanceSheet extends Component
 
     private function teacherOwnsCircle(Teacher $teacher): bool
     {
-        return $teacher->circles()->whereKey($this->circleId)->exists();
+        return Scope::forRoute()->applyToCircles(Circle::query())->whereKey($this->circleId)->exists();
     }
 
     /**

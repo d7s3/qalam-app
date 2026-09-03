@@ -4,6 +4,7 @@ namespace App\Livewire\Shared;
 
 use App\Models\Setting;
 use App\Models\Student;
+use App\Support\Scope;
 use Livewire\Component;
 
 class ExceededLimits extends Component
@@ -28,16 +29,10 @@ class ExceededLimits extends Component
                 },
             ]);
 
-        // Filter depending on role
-        if (auth()->guard('teacher')->check()) {
-            $circleIds = auth()->guard('teacher')->user()->circles()->pluck('circle_id');
-            $query->whereIn('circle_id', $circleIds);
-        } elseif (auth()->guard('supervisor')->check()) {
-            $stageIds = auth()->guard('supervisor')->user()->stages()->pluck('stage_id');
-            $query->whereHas('circle', function ($q) use ($stageIds) {
-                $q->whereIn('stage_id', $stageIds);
-            });
-        }
+        // Narrowed to the reader's reach, taken from the page he is standing on
+        // rather than by asking the guards in turn — he may be signed in under
+        // more than one, and the first to answer is not necessarily the right one.
+        $query = Scope::forRoute()->applyToStudents($query);
 
         $students = collect();
         if ($query->count() > 0) {

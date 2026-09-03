@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Services\GamificationService;
 use App\Services\GuardianNotificationService;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Carbon\Carbon;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
@@ -45,7 +46,7 @@ class Attendance extends Component
         }
 
         $teacher = auth()->guard('teacher')->user();
-        $this->circles = $teacher->circles()->get();
+        $this->circles = Scope::forRoute()->applyToCircles(Circle::query())->orderBy('name')->get();
 
         if ($this->circles->count() === 1) {
             $this->selectedCircle = $this->circles->first()->id;

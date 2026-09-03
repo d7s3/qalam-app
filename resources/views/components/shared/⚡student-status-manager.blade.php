@@ -6,6 +6,7 @@ use App\Models\Student;
 use App\Models\StudentPlanDay;
 use App\Services\StudentStatusService;
 use Flux\Flux;
+use App\Support\Scope;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -27,15 +28,19 @@ new class extends Component {
 
     public $monthOffset = 0;
 
+    /**
+     * The role this is being used in.
+     *
+     * Was a walk over the guards with the manager first, so a teacher who also
+     * held a manager account reached every student here — and skipped the
+     * teacher permission check below with them, since that check only applies
+     * when the role reads 'teacher'. Taken from the page now, as everywhere else.
+     */
     protected function actingRole(): ?string
     {
-        foreach (['manager', 'supervisor', 'teacher'] as $role) {
-            if (Auth::guard($role)->check()) {
-                return $role;
-            }
-        }
+        $role = Scope::resolveRole();
 
-        return null;
+        return in_array($role, ['manager', 'supervisor', 'teacher'], true) ? $role : null;
     }
 
     /**
@@ -48,15 +53,13 @@ new class extends Component {
             return null;
         }
 
-        return match ($this->actingRole()) {
-            'manager' => Student::find($studentId),
-            'supervisor' => Student::whereHas('circle', function ($q) {
-                $q->whereIn('stage_id', Auth::guard('supervisor')->user()->stages()->pluck('stages.id'));
-            })->find($studentId),
-            'teacher' => Student::whereIn('circle_id', Auth::guard('teacher')->user()->circles()->pluck('circles.id'))
-                ->find($studentId),
-            default => null,
-        };
+        $role = $this->actingRole();
+
+        if (! $role) {
+            return null;
+        }
+
+        return Scope::forRole($role)->applyToStudents(Student::query())->find($studentId);
     }
 
     #[On('open-status-manager')]

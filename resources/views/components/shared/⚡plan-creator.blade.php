@@ -8,6 +8,7 @@ use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Services\QuranPlanService;
 use Illuminate\Support\Carbon;
+use App\Support\Scope;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
@@ -56,7 +57,9 @@ new class extends Component {
 
     public function mount()
     {
-        $this->userLevel = Auth::guard('student')->check() ? 'student' : 'teacher';
+        // From the page rather than the guards: a teacher who followed an
+        // "open as student" link is signed in as both.
+        $this->userLevel = Scope::resolveRole() === 'student' ? 'student' : 'teacher';
 
         $this->bulkStartSurah = 114;
         $this->bulkStartVerse = 1;
@@ -106,9 +109,14 @@ new class extends Component {
         } else {
             $this->startDate = now()->format('Y-m-d');
             if ($this->userLevel === 'teacher') {
-                $teacher = Auth::guard('teacher')->user();
                 if (!$this->studentId) {
-                    $this->studentId = Student::where('circle_id', $teacher->circles()->first()?->id ?? 0)->first()->id ?? null;
+                    // The first student within the reader's reach, whoever he
+                    // is: a supervisor standing in on this screen teaches no
+                    // cohorts of his own to ask about.
+                    $this->studentId = Scope::forRoute()
+                        ->applyToStudents(Student::query())
+                        ->orderBy('name')
+                        ->value('id');
                 }
                 $this->step = 1;
             } else {
@@ -423,10 +431,12 @@ new class extends Component {
     public function with()
     {
         $students = [];
+
         if ($this->userLevel === 'teacher') {
-            $teacher = Auth::guard('teacher')->user();
-            $circleIds = $teacher->circles->pluck('id');
-            $students = Student::whereIn('circle_id', $circleIds)->orderBy('name')->get();
+            $students = Scope::forRoute()
+                ->applyToStudents(Student::query())
+                ->orderBy('name')
+                ->get();
         }
 
         return [
@@ -1215,7 +1225,7 @@ new class extends Component {
                                         <div class="flex justify-between items-center py-1 border-b border-zinc-50 dark:border-zinc-900">
                                             <span>{{ __('تاريخ الانتهاء المتوقع:') }}</span>
                                             <span class="font-bold text-zinc-800 dark:text-zinc-200 dir-ltr text-left">
-                                                {{ $expectedEndDate ? \Carbon\Carbon::parse($expectedEndDate)->format('Y-m-d') : '—' }} 
+                                                <x-hijri-date :date="$expectedEndDate" /> 
                                                 @if($expectedEndDateHijri)
                                                     <span class="text-zinc-500 font-normal">({{ $expectedEndDateHijri }})</span>
                                                 @endif

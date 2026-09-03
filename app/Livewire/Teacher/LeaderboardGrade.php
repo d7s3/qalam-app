@@ -2,12 +2,14 @@
 
 namespace App\Livewire\Teacher;
 
+use App\Models\Circle;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardScore;
 use App\Models\Student;
 use App\Services\GamificationService;
 use App\Services\LeaderboardService;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
@@ -54,7 +56,7 @@ class LeaderboardGrade extends Component
         $leaderboard = Leaderboard::with('circles')->findOrFail($this->leaderboardId);
 
         $teacher = auth()->guard('teacher')->user();
-        $teacherCircleIds = $teacher ? $teacher->circles()->pluck('circles.id') : collect();
+        $teacherCircleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $leaderboardCircleIds = $leaderboard->circles->pluck('id');
         if ($leaderboard->circle_id) {
             $leaderboardCircleIds->push($leaderboard->circle_id);
