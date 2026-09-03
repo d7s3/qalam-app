@@ -13,7 +13,17 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    /**
+     * The organisation's name lives in `brand.name`, and the framework's own
+     * uses of this key — the page title, the label a screen reader announces,
+     * the sender on a notification — must say the same thing.
+     *
+     * `.env` cannot express it. Dotenv substitutes in file order, so an
+     * `APP_NAME="${BRAND_NAME}"` on the first line resolves against a
+     * `BRAND_NAME` not yet defined and is left standing as literal text.
+     * Asking for `BRAND_NAME` here has no order to get wrong.
+     */
+    'name' => env('APP_NAME') ?: env('BRAND_NAME', 'مجمع التاج القرآني'),
 
     /*
     |--------------------------------------------------------------------------

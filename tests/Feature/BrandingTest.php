@@ -93,6 +93,59 @@ it('falls back to the original academy when nothing is configured', function () 
     }
 });
 
+it('names the application after the organisation', function () {
+    // `.env` opened with APP_NAME="${BRAND_NAME}". Dotenv substitutes in file
+    // order, so that reference resolved against a key defined seventy lines
+    // below it and was left standing as text: the page title, and the label a
+    // screen reader announced on every auth screen, read "${BRAND_NAME}".
+    $saved = [];
+
+    foreach (['APP_NAME', 'BRAND_NAME'] as $key) {
+        $saved[$key] = Env::getRepository()->get($key);
+        Env::getRepository()->clear($key);
+    }
+
+    Env::getRepository()->set('BRAND_NAME', 'جمعية نور القرآن');
+
+    try {
+        $app = require config_path('app.php');
+
+        expect($app['name'])->toBe('جمعية نور القرآن');
+    } finally {
+        foreach ($saved as $key => $value) {
+            Env::getRepository()->clear($key);
+
+            if ($value !== null) {
+                Env::getRepository()->set($key, $value);
+            }
+        }
+    }
+});
+
+it('defines every referenced key before it is used', function () {
+    // Dotenv substitutes ${KEY} with what is already defined above it, and says
+    // nothing at all when there is nothing there — the text is simply kept. So
+    // the brand block sits at the head of the file, and must stay there.
+    $seen = [];
+    $unresolved = [];
+
+    foreach (file(base_path('.env.example')) as $number => $line) {
+        preg_match_all('/\$\{(\w+)\}/', $line, $matches);
+
+        foreach ($matches[1] as $referenced) {
+            if (! in_array($referenced, $seen, true)) {
+                $unresolved[] = 'line '.($number + 1).': ${'.$referenced.'}';
+            }
+        }
+
+        if (preg_match('/^(\w+)=/', $line, $defined)) {
+            $seen[] = $defined[1];
+        }
+    }
+
+    expect($unresolved)->toBe([]);
+});
+
 it('borrows the full name when no short name is given', function () {
     expect(config('brand.short_name'))->not->toBeEmpty();
 });
