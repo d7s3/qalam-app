@@ -32,6 +32,12 @@
                 {{ __('إنشاء خطة طالب') }}
             </flux:sidebar.item>
         @endif
+        @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.self-program'))
+            <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="squares-2x2" wire:navigate
+                :href="route('teacher.self-program')" :current="request()->routeIs('teacher.self-program')">
+                {{ __('البرنامج الذاتي') }}
+            </flux:sidebar.item>
+        @endif
         @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.student-plans'))
             <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="clipboard-document-list" wire:navigate
                 :current="request()->routeIs('teacher.student-plans')" href="{{ route('teacher.student-plans') }}">
@@ -115,3 +121,8 @@
         @endif
     </flux:sidebar.group>
 </flux:sidebar.group>
+        @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.reports'))
+            <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="chart-bar-square" :href="route('teacher.reports')" :current="request()->routeIs('teacher.reports')" wire:navigate>
+                {{ __('التقارير') }}
+            </flux:sidebar.item>
+        @endif

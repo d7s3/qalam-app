@@ -4,7 +4,7 @@
     </x-slot:title>
 
     <x-slot:sidebar>
-        @include('teacher.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     <livewire:teacher.student-plans-list />

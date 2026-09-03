@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Circle;
+use App\Support\Scope;
 use Livewire\Component;
 use App\Models\Student;
 use App\Models\StudentPlanDay;
@@ -149,7 +151,7 @@ new class extends Component {
     public function with()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $last30Start = Carbon::now()->subDays(30)->format('Y-m-d');
         $last30End = Carbon::now()->format('Y-m-d');
@@ -259,7 +261,7 @@ new class extends Component {
             {{ __('لوحة تحكم التعليم') }}
         </flux:heading>
         <flux:subheading class="text-zinc-500 dark:text-zinc-400">
-            {{ __('مرحباً بك مجدداً في نظام إدارة مجمع التاج القرآني') }}
+            {{ __('مرحباً بك مجدداً في نظام إدارة').' '.config('brand.name') }}
         </flux:subheading>
     </div>
 

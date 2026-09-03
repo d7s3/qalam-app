@@ -1051,7 +1051,7 @@ new class extends Component {
                                 <template x-if="event.status !== 'completed'">
                                     <flux:button variant="ghost" size="xs" icon="check-circle" x-on:click="$wire.completeTask(event.id)" class="text-zinc-400 hover:text-emerald-500" />
                                 </template>
-                                <flux:button variant="ghost" size="xs" icon="arrow-top-right-on-square" href="{{ route(auth()->guard('manager')->check() ? 'manager.tasks' : 'supervisor.tasks') }}" wire:navigate />
+                                <flux:button variant="ghost" size="xs" icon="arrow-top-right-on-square" href="{{ route(\App\Support\Scope::resolveRole() === 'manager' ? 'manager.tasks' : 'supervisor.tasks') }}" wire:navigate />
                             </div>
                         </template>
                     </div>

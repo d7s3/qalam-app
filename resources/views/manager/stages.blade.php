@@ -4,7 +4,7 @@
     </x-slot:title>
 
     <x-slot:sidebar>
-        @include('manager.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     <livewire:manager.stages />

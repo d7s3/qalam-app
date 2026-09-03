@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Circle;
+use App\Support\Scope;
 use Livewire\Component;
 
 use App\Models\Student;
@@ -59,7 +61,7 @@ new class extends Component {
     public function with()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         // Main table students based on selected date range
         $students = Student::whereIn('circle_id', $circleIds)

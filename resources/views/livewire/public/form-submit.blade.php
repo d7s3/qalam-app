@@ -8,11 +8,11 @@
         @if($form->header_image_path)
             <meta property="og:image" content="{{ asset('storage/' . $form->header_image_path) }}">
         @else
-            <meta property="og:image" content="{{ asset('images/altag_logo.png') }}">
+            <meta property="og:image" content="{{ asset(config('brand.logo')) }}">
         @endif
-        <meta property="og:site_name" content="مجمع التاج القرآني">
+        <meta property="og:site_name" content="{{ config('brand.name') }}">
 
-        <title>{{ $form->title }} - مجمع التاج القرآني</title>
+        <title>{{ $form->title }} - {{ config('brand.name') }}</title>
         
         <script>
             document.documentElement.classList.remove('dark');
@@ -205,8 +205,8 @@
     <div class="w-full max-w-2xl space-y-6" x-data="{ agreed: {{ !empty($form->policy_text) ? 'false' : 'true' }} }">
         <!-- Logo -->
         <div class="flex items-center justify-center gap-3">
-            <img src="{{ asset('images/altag_logo.png') }}" alt="Logo" class="h-12 object-contain">
-            <span class="font-bold text-lg text-zinc-700">مجمع التاج القرآني</span>
+            <img src="{{ asset(config('brand.logo')) }}" alt="Logo" class="h-12 object-contain">
+            <span class="font-bold text-lg text-zinc-700">{{ config('brand.name') }}</span>
         </div>
 
         @if($submitted)

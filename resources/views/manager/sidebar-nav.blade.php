@@ -17,6 +17,11 @@
         المراحل التعليمية
     </flux:sidebar.item>
 @endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-progress'))
+    <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="chart-bar-square" :href="route('manager.self-program-progress')" :current="request()->routeIs('manager.self-program-progress')" wire:navigate>
+        {{ __('تقدّم البرنامج') }}
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.circles'))
     <flux:sidebar.item class="[&_svg]:bg-[#0d9488] hover:[&_svg]:bg-[#0f766e]" icon="circle-stack" :href="route('manager.circles')" :current="request()->routeIs('manager.circles')"
         wire:navigate>
@@ -152,3 +157,16 @@
     @endif
 
 </flux:sidebar.group>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.user-access'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="shield-check" :href="route('manager.user-access')"
+        :current="request()->routeIs('manager.user-access')" wire:navigate>
+        صلاحيات المستخدمين
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.reports'))
+    <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="chart-bar-square" :href="route('manager.reports')" :current="request()->routeIs('manager.reports')" wire:navigate>
+        {{ __('التقارير') }}
+    </flux:sidebar.item>
+@endif
+
+<x-held-screens-nav />

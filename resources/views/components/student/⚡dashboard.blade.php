@@ -853,7 +853,7 @@ new class extends Component {
                         @if($nextExam)
                             <div class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
                                 <flux:icon icon="academic-cap" class="size-4 text-indigo-500 shrink-0" />
-                                {{ __('اختبار قادم: :date', ['date' => $nextExam->date_time->translatedFormat('d F')]) }}
+                                {{ __('اختبار قادم: :date', ['date' => \App\Support\HijriDate::withGregorian($nextExam->date_time, 'dayMonth')]) }}
                             </div>
                         @endif
                         @if($activeSession)

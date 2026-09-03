@@ -22,6 +22,16 @@
             الطلاب
         </flux:sidebar.item>
     @endif
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program'))
+        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="squares-2x2" :href="route('supervisor.self-program')" :current="request()->routeIs('supervisor.self-program')" wire:navigate>
+            {{ __('البرنامج الذاتي') }}
+        </flux:sidebar.item>
+    @endif
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program-progress'))
+        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="chart-bar-square" :href="route('supervisor.self-program-progress')" :current="request()->routeIs('supervisor.self-program-progress')" wire:navigate>
+            {{ __('تقدّم البرنامج') }}
+        </flux:sidebar.item>
+    @endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.teachers'))
         <flux:sidebar.item class="[&_svg]:bg-[#6366f1] hover:[&_svg]:bg-[#4f46e5]" icon="users" :href="route('supervisor.teachers')" :current="request()->routeIs('supervisor.teachers')" wire:navigate>
             المعلمون
@@ -125,3 +135,10 @@
         </flux:sidebar.item>
     @endif
 </flux:sidebar.group>
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.reports'))
+        <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="chart-bar-square" :href="route('supervisor.reports')" :current="request()->routeIs('supervisor.reports')" wire:navigate>
+            {{ __('التقارير') }}
+        </flux:sidebar.item>
+    @endif
+
+<x-held-screens-nav />

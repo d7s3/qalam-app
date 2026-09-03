@@ -6,6 +6,11 @@
     <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('student.dashboard')" :current="request()->routeIs('student.dashboard')" wire:navigate>
         {{ __('الرئيسية') }}
     </flux:sidebar.item>
+    @if(\App\Support\RolePages::isEnabled('student', 'student.self-program'))
+        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="squares-2x2" :href="route('student.self-program')" :current="request()->routeIs('student.self-program')" wire:navigate>
+            {{ __('البرنامج الذاتي') }}
+        </flux:sidebar.item>
+    @endif
     @if(\App\Support\RolePages::isEnabled('student', 'student.plan'))
         <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="book-open" :href="route('student.plan')" :current="request()->routeIs('student.plan')" wire:navigate>
             {{ __('خططي القرآنية') }}

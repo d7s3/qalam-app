@@ -2,7 +2,7 @@
     <x-slot:title>{{ __('لوحة تحكم الموظف') }}</x-slot:title>
 
     <x-slot:sidebar>
-        @include('staff.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     <div class="md:p-8 space-y-4">

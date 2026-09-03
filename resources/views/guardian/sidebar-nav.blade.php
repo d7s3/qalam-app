@@ -30,3 +30,13 @@
         </flux:sidebar.item>
     @endforeach
 </flux:sidebar.group>
+    @if(\App\Support\RolePages::isEnabled('guardian', 'guardian.self-program-progress'))
+        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="chart-bar-square" :href="route('guardian.self-program-progress')" :current="request()->routeIs('guardian.self-program-progress')" wire:navigate>
+            {{ __('البرنامج الذاتي') }}
+        </flux:sidebar.item>
+    @endif
+    @if(\App\Support\RolePages::isEnabled('guardian', 'guardian.reports'))
+        <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="chart-bar-square" :href="route('guardian.reports')" :current="request()->routeIs('guardian.reports')" wire:navigate>
+            {{ __('التقارير') }}
+        </flux:sidebar.item>
+    @endif

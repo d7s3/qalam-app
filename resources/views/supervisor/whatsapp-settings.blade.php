@@ -4,7 +4,7 @@
     </x-slot:title>
 
     <x-slot:sidebar>
-        @include('supervisor.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     <div class="space-y-8">

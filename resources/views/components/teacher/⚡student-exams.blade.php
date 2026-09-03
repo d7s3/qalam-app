@@ -4,6 +4,8 @@ use App\Models\StudentExam;
 use App\Models\Student;
 use App\Models\ExamLevel;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Circle;
+use App\Support\Scope;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Carbon;
@@ -40,7 +42,7 @@ new class extends Component {
     public function mount()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('circles.id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $this->students = Student::whereIn('circle_id', $circleIds)->orderBy('name')->get();
         $this->examLevels = ExamLevel::orderBy('name')->get();
         $this->dateTime = now()->format('Y-m-d\TH:i');
@@ -60,7 +62,7 @@ new class extends Component {
         $this->resetValidation();
 
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('circles.id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $exam = StudentExam::whereHas('student', function ($q) use ($circleIds) {
             $q->whereIn('circle_id', $circleIds);
@@ -84,7 +86,7 @@ new class extends Component {
 
         // Ensure student belongs to teacher
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('circles.id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $student = Student::whereIn('circle_id', $circleIds)->findOrFail($this->studentId);
 
         $wasCreate = ! $this->editingId;
@@ -130,7 +132,7 @@ new class extends Component {
     public function delete($id)
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('circles.id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $exam = StudentExam::whereHas('student', function ($q) use ($circleIds) {
             $q->whereIn('circle_id', $circleIds);
@@ -143,7 +145,7 @@ new class extends Component {
     public function with()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('circles.id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $exams = StudentExam::with(['student', 'examLevel'])
             ->whereHas('student', function ($query) use ($circleIds) {
