@@ -11,6 +11,8 @@ use App\Livewire\Public\CoinRedemption as PublicCoinRedemption;
 use App\Livewire\Public\FormReport;
 use App\Livewire\Public\FormSubmit;
 use App\Livewire\Public\ResultsDisplay as PublicResultsDisplay;
+use App\Models\Circle;
+use App\Models\FormAssignment;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\StudentPlan;
@@ -147,6 +149,10 @@ Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager
             ->name('reports.'.$report);
     }
     Route::view('/staff-members', 'manager.staff-members')->name('staff-members');
+    Route::view('/forms', 'manager.forms')->name('forms');
+    Route::get('/forms/create', fn () => view('manager.form-create'))->name('forms.create');
+    Route::get('/forms/{id}/edit', fn ($id) => view('manager.form-edit', ['formId' => $id]))->name('forms.edit');
+    Route::get('/forms/{id}/responses', fn ($id) => view('manager.form-responses', ['formId' => $id]))->name('forms.responses');
     Route::view('/guide', 'shared.guide')->name('guide');
 });
 
@@ -164,7 +170,7 @@ Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manage
     Route::get('/backup/download', [BackupController::class, 'downloadCurrent'])->name('backup.download');
     Route::get('/backup/download/{filename}', [BackupController::class, 'downloadStored'])->name('backup.download.stored');
 });
-Route::middleware(['auth:supervisor', 'approved', 'page.enabled'])->prefix('supervisor')->name('supervisor.')->group(function () {
+Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.required'])->prefix('supervisor')->name('supervisor.')->group(function () {
     Route::get('/dashboard', fn () => view('supervisor.dashboard'))->name('dashboard');
     Route::view('/teachers', 'supervisor.teachers')->name('teachers');
     Route::view('/odes', 'supervisor.odes')->name('odes');
@@ -218,7 +224,7 @@ Route::middleware(['auth:supervisor', 'approved', 'page.enabled'])->prefix('supe
 
     Route::view('/guide', 'shared.guide')->name('guide');
 });
-Route::middleware(['auth:teacher', 'approved', 'page.enabled'])->prefix('teacher')->name('teacher.')->group(function () {
+Route::middleware(['auth:teacher', 'approved', 'page.enabled', 'surveys.required'])->prefix('teacher')->name('teacher.')->group(function () {
     $appShellRoute = function ($tab) {
         return function () use ($tab) {
             return view('teacher.app-shell', ['initialTab' => $tab]);
@@ -256,6 +262,10 @@ Route::middleware(['auth:teacher', 'approved', 'page.enabled'])->prefix('teacher
     Route::view('/pairs', 'teacher.pairs')->name('pairs');
     Route::view('/student-exams', 'teacher.student-exams')->name('student-exams');
     Route::view('/messages', 'teacher.messages')->name('messages');
+    Route::view('/forms', 'teacher.forms')->name('forms');
+    Route::get('/forms/create', fn () => view('teacher.form-create'))->name('forms.create');
+    Route::get('/forms/{id}/edit', fn ($id) => view('teacher.form-edit', ['formId' => $id]))->name('forms.edit');
+    Route::get('/forms/{id}/responses', fn ($id) => view('teacher.form-responses', ['formId' => $id]))->name('forms.responses');
     Route::view('/guide', 'shared.guide')->name('guide');
 
     Route::get('/student-recitation-log/{studentId}', function ($studentId) {
@@ -319,7 +329,7 @@ Route::middleware(['auth:teacher', 'approved', 'page.enabled'])->prefix('teacher
         ]);
     })->name('download-plan-pdf');
 });
-Route::middleware(['auth:student', 'approved', 'page.enabled'])->prefix('student')->name('student.')->group(function () {
+Route::middleware(['auth:student', 'approved', 'page.enabled', 'surveys.required'])->prefix('student')->name('student.')->group(function () {
     Route::get('/dashboard', fn () => view('student.dashboard'))->name('dashboard');
     Route::view('/self-program', 'student.self-program')->name('self-program');
     Route::view('/plan', 'student.my-plan')->name('plan');
@@ -352,7 +362,7 @@ Route::middleware(['auth:student', 'approved', 'page.enabled'])->prefix('student
 });
 Route::view('/student/complete-profile', 'student.complete-profile')->middleware(['auth:student'])->name('student.complete-profile');
 Route::view('/teacher/complete-profile', 'teacher.complete-profile')->middleware(['auth:teacher'])->name('teacher.complete-profile');
-Route::middleware(['auth:guardian', 'approved', 'page.enabled'])->prefix('parent')->name('guardian.')->group(function () {
+Route::middleware(['auth:guardian', 'approved', 'page.enabled', 'surveys.required'])->prefix('parent')->name('guardian.')->group(function () {
     Route::get('/dashboard', fn () => view('guardian.dashboard'))->name('dashboard');
     Route::get('/student/{id}', fn ($id) => view('guardian.student', ['studentId' => $id]))->name('student');
     Route::get('/student/{id}/attendance', fn ($id) => view('guardian.student-attendance', ['studentId' => $id]))->name('student.attendance');
@@ -374,7 +384,7 @@ Route::middleware(['auth:guardian', 'approved', 'page.enabled'])->prefix('parent
     Route::view('/guide', 'shared.guide')->name('guide');
 });
 
-Route::middleware(['auth:staff', 'approved', 'page.enabled'])->prefix('staff')->name('staff.')->group(function () {
+Route::middleware(['auth:staff', 'approved', 'page.enabled', 'surveys.required'])->prefix('staff')->name('staff.')->group(function () {
     Route::view('/dashboard', 'staff.dashboard')->name('dashboard');
     Route::view('/messages', 'staff.messages')->name('messages');
     Route::view('/guide', 'shared.guide')->name('guide');
@@ -435,6 +445,29 @@ Route::get('/magic/{token}/login-as', function ($token) {
 
 Route::get('/f/{slug}', FormSubmit::class)->name('forms.submit');
 Route::get('/f/{slug}/{token}', FormReport::class)->name('forms.report');
+
+// Where the survey gate sends anyone who owes a blocking survey. Reachable from
+// behind the gate by design — it is the way through it.
+Route::get('/surveys/required', function () {
+    $user = collect(['manager', 'supervisor', 'teacher', 'student', 'guardian', 'staff'])
+        ->map(fn ($guard) => auth()->guard($guard)->user())
+        ->first(fn ($candidate) => $candidate !== null);
+
+    abort_unless($user, 403);
+
+    $assignments = FormAssignment::owedBy($user->id)
+        ->with('form')
+        ->get()
+        ->filter(fn ($a) => $a->form?->blocksTheApp())
+        ->values();
+
+    // Nothing owed any more — the gate is open, so do not sit on it.
+    if ($assignments->isEmpty()) {
+        return redirect('/');
+    }
+
+    return view('surveys.required', ['assignments' => $assignments]);
+})->middleware('auth:manager,supervisor,teacher,student,guardian,staff')->name('surveys.required');
 Route::get('/r/circle-report', PublicCircleReport::class)->name('reports.circle')->middleware('signed');
 Route::get('/r/coin-redemption', PublicCoinRedemption::class)->name('redemption.circle')->middleware('signed');
 Route::get('/r/results-display', PublicResultsDisplay::class)->name('results.display')->middleware('signed');
