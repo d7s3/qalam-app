@@ -13,6 +13,7 @@ use App\Models\StudentHadithAchievement;
 use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
 use App\Models\StudentStatusHistory;
+use App\Support\MushafPages;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -382,8 +383,7 @@ class CircleReportService
             }
         }
 
-        $pageByAyah = Ayah::whereBetween('id', [$envelopeMin, $envelopeMax])
-            ->pluck('page_number', 'id');
+        $pageByAyah = MushafPages::pageByAyah($envelopeMin, $envelopeMax);
 
         $counts = [];
         foreach ($rangesByStudent as $sid => $ranges) {

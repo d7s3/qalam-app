@@ -10,11 +10,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'description', 'stage_id'])]
+#[Fillable(['name', 'description', 'stage_id', 'is_quranic', 'self_program_unlock_on_completion'])]
 class Circle extends Model
 {
     /** @use HasFactory<CircleFactory> */
     use HasFactory;
+
+    /**
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'is_quranic' => 'boolean',
+        'self_program_unlock_on_completion' => 'boolean',
+    ];
 
     /** @return BelongsTo<Stage, $this> */
     public function stage(): BelongsTo
