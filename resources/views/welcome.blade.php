@@ -4,19 +4,30 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>بوابة مجمع التاج القرآني الرقمية</title>
+    <title>بوابة {{ config('brand.name') }} الرقمية</title>
 
     <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="icon" href="{{ asset(config('brand.favicon')) }}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{{ asset(config('brand.apple_icon')) }}">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    {{-- After @vite, so the organisation's palette overrides the compiled tokens. --}}
+    @include('partials.brand-theme')
+
+    {{--
+        This page builds its own head rather than including partials.head, and so
+        used to miss the appearance script: a visitor who had chosen dark got it
+        only when arriving through wire:navigate, and a light page on a direct
+        visit to the very same URL.
+    --}}
+    @fluxAppearance
 
     <style>
         @keyframes fadeInUp {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(24px);
             }
             to {
                 opacity: 1;
@@ -25,256 +36,212 @@
         }
         .animate-fade-in-up {
             opacity: 0;
-            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation: fadeInUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         .delay-100 { animation-delay: 100ms; }
-        .delay-150 { animation-delay: 150ms; }
         .delay-200 { animation-delay: 200ms; }
-        .delay-250 { animation-delay: 250ms; }
         .delay-300 { animation-delay: 300ms; }
         .delay-400 { animation-delay: 400ms; }
-        .delay-500 { animation-delay: 500ms; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .animate-fade-in-up {
+                opacity: 1;
+                animation: none;
+            }
+        }
     </style>
 </head>
 
-<body class="bg-white dark:bg-accent-dark text-[#1b1b18] dark:text-[#EDEDEC] font-sans antialiased overflow-x-hidden selection:bg-maroon selection:text-white">
+<body class="bg-[#fdfaf5] dark:bg-accent-dark text-[#1b1b18] dark:text-[#EDEDEC] font-sans antialiased overflow-x-hidden selection:bg-gold selection:text-accent-dark">
 
     <x-site-header />
 
-    {{-- ============================== قسم الترحيب والبوابات ============================== --}}
-    <div class="relative bg-gradient-to-b from-[#f7efe0] via-[#faf5ea] to-white dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950 px-5 py-14 md:py-20 overflow-hidden">
-        {{-- زخرفة إسلامية خفيفة --}}
-        <div class="absolute inset-0 opacity-[0.04] dark:opacity-[0.06] pointer-events-none">
-            <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-                <pattern id="islamic-pattern" width="80" height="80" patternUnits="userSpaceOnUse">
-                    <path d="M40 0 L80 40 L40 80 L0 40 Z M40 10 L70 40 L40 70 L10 40 Z" fill="none" stroke="currentColor" stroke-width="1"/>
-                    <circle cx="40" cy="40" r="8" fill="none" stroke="currentColor" stroke-width="0.75"/>
-                </pattern>
-                <rect width="100%" height="100%" fill="url(#islamic-pattern)"/>
-            </svg>
-        </div>
+    {{-- ============================== البوابة ============================== --}}
+    <section class="relative overflow-hidden bg-gradient-to-bl from-accent-dark via-burgundy to-maroon px-5 py-16 md:py-24">
+        <x-brand-ornament class="text-gold opacity-[0.07]" />
 
-        {{-- فانوس معلّق أعلى اليسار --}}
-        <svg viewBox="0 0 120 220" class="hidden md:block absolute top-6 left-6 lg:left-16 w-20 lg:w-28 h-auto opacity-90 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none">
-            <path d="M60 0v20" stroke="#a9762f" stroke-width="2" stroke-linecap="round" />
-            <path d="M60 20c-14 0-24 8-24 8h48s-10-8-24-8Z" stroke="#a9762f" stroke-width="2" stroke-linejoin="round" />
-            <rect x="38" y="28" width="44" height="70" rx="6" stroke="#c68a2e" stroke-width="2" />
-            <path d="M38 40h44M38 86h44" stroke="#c68a2e" stroke-width="1.5" />
-            <circle cx="60" cy="63" r="14" fill="#f6d98a" opacity="0.55" />
-            <path d="M50 98h20l6 14H44l6-14Z" stroke="#a9762f" stroke-width="2" stroke-linejoin="round" />
-            <circle cx="60" cy="118" r="3" fill="#a9762f" />
-        </svg>
+        {{-- توهّج ذهبي ناعم يمنح العمق --}}
+        <div class="pointer-events-none absolute -top-24 right-1/4 size-[26rem] rounded-full bg-gold/20 blur-[100px]"></div>
+        <div class="pointer-events-none absolute -bottom-32 left-0 size-[22rem] rounded-full bg-gold/10 blur-[90px]"></div>
 
-        {{-- مصحف على رحلة + مسبحة أسفل اليمين --}}
-        <svg viewBox="0 0 220 140" class="hidden md:block absolute bottom-4 right-6 lg:right-16 w-40 lg:w-56 h-auto opacity-90 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none">
-            <g stroke="#8a6a3c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 110h100" />
-                <path d="M30 110l14-16h20v-2h20v2h20l14 16" />
-                <path d="M64 75v17M84 75v17" />
-                <path d="M43 94c8-3 16-3 21 0M85 94c8-3 16-3 21 0" />
-                <path d="M20 110l6 8h132l6-8" />
-            </g>
-            <g fill="#c68a2e" opacity="0.8">
-                <circle cx="175" cy="60" r="2.6" />
-                <circle cx="183" cy="68" r="2.6" />
-                <circle cx="187" cy="79" r="2.6" />
-                <circle cx="184" cy="90" r="2.6" />
-                <circle cx="175" cy="96" r="2.8" />
-            </g>
-            <path d="M175 60v-14" stroke="#c68a2e" stroke-width="1.6" stroke-linecap="round" />
-        </svg>
+        <div class="relative max-w-6xl mx-auto grid lg:grid-cols-[1.05fr_.95fr] gap-12 lg:gap-16 items-center">
 
-        <div class="relative max-w-6xl mx-auto">
-            {{-- الشعار والترحيب --}}
-            <div class="animate-fade-in-up max-w-xl mx-auto text-center">
-                <img src="{{ asset('images/altag_logo.png') }}" alt="مجمع التاج القرآني" class="h-16 md:h-20 object-contain mx-auto mb-3 drop-shadow-sm" />
-                <h1 class="text-xl md:text-2xl font-extrabold text-maroon dark:text-white">مجمع التاج القرآني</h1>
-                <p class="text-xs md:text-sm text-neutral-grey dark:text-zinc-400 font-medium mt-1">منصة رقمية متكاملة لتحفيظ القرآن الكريم</p>
+            {{-- النص والدخول --}}
+            <div class="animate-fade-in-up text-center lg:text-start">
+                <span class="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-4 py-1.5 text-[11px] md:text-xs font-bold text-gold">
+                    <flux:icon icon="sparkles" class="size-3.5" />
+                    {{ config('brand.tagline') }}
+                </span>
 
-                <h2 class="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-white leading-relaxed mt-6">
-                    أهلاً بكم في بوابة <span class="text-maroon dark:text-red-secondary">مجمع التاج القرآني</span>
-                </h2>
-                <p class="text-xs md:text-sm text-neutral-grey dark:text-zinc-400 mt-2">سجّل دخولك ببريدك وكلمة المرور، وهيتعرّف النظام تلقائياً على نوع حسابك ويوجّهك لصفحتك الخاصة</p>
+                <h1 class="mt-6 text-3xl md:text-4xl lg:text-5xl font-extrabold text-white leading-[1.35] text-balance">
+                    بوابة <span class="text-gold">{{ config('brand.name') }}</span> الرقمية
+                </h1>
 
-                <div class="flex items-center gap-2 mt-6 w-full max-w-[200px] mx-auto">
-                    <span class="h-px flex-1 bg-maroon/20 dark:bg-white/20"></span>
-                    <flux:icon icon="sparkles" class="size-4 text-maroon/60 dark:text-white/60" />
-                    <span class="h-px flex-1 bg-maroon/20 dark:bg-white/20"></span>
-                </div>
-            </div>
+                <p class="mt-5 text-sm md:text-base text-white/70 leading-loose max-w-xl mx-auto lg:mx-0">
+                    سجّل الدخول ببريدك الإلكتروني وكلمة المرور، ليتعرّف النظام على نوع حسابك
+                    ويوجّهك إلى صفحتك الخاصة مباشرة.
+                </p>
 
-            {{-- زر الدخول الموحّد --}}
-            <div class="animate-fade-in-up delay-100 max-w-sm mx-auto mt-10 flex flex-col items-center gap-3">
-                <flux:button href="{{ route('login') }}" variant="primary" wire:navigate class="w-full !bg-maroon hover:!bg-burgundy !text-base !py-3">
-                    <flux:icon icon="arrow-left" class="size-4" />
-                    تسجيل الدخول
-                </flux:button>
-                <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                    ليس لديك حساب؟
-                    <flux:link :accent="false" :href="route('register')" wire:navigate>إنشاء حساب جديد</flux:link>
-                </div>
-            </div>
-
-            {{-- شريط المساعدة --}}
-            <div class="animate-fade-in-up delay-500 mt-12 text-center">
-                <p class="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-5">هل لديك مشكلة في تسجيل الدخول؟</p>
-                <div class="flex items-center justify-center gap-10 md:gap-16">
-                    <a href="#contact" class="group flex flex-col items-center gap-1.5">
-                        <flux:icon icon="envelope" class="size-5 text-rose-500 group-hover:scale-110 transition-transform" />
-                        <span class="text-xs font-bold text-zinc-700 dark:text-zinc-300">تواصل معنا</span>
+                <div class="mt-9 flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-3">
+                    <a href="{{ route('login') }}" wire:navigate
+                       class="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gold px-8 py-3.5 text-sm md:text-base font-extrabold text-accent-dark shadow-lg shadow-black/25 transition-all hover:brightness-110 hover:-translate-y-0.5">
+                        تسجيل الدخول
+                        <flux:icon icon="arrow-left" class="size-4 transition-transform group-hover:-translate-x-1" />
                     </a>
-                    <a href="#contact" class="group flex flex-col items-center gap-1.5">
-                        <flux:icon icon="lifebuoy" class="size-5 text-amber-500 group-hover:scale-110 transition-transform" />
-                        <span class="text-xs font-bold text-zinc-700 dark:text-zinc-300">الدعم الفني</span>
-                    </a>
-                    <a href="{{ route('password.request') }}" wire:navigate class="group flex flex-col items-center gap-1.5">
-                        <flux:icon icon="lock-closed" class="size-5 text-indigo-500 group-hover:scale-110 transition-transform" />
-                        <span class="text-xs font-bold text-zinc-700 dark:text-zinc-300">نسيت كلمة المرور</span>
+                    <a href="{{ route('register') }}" wire:navigate
+                       class="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/25 px-8 py-3.5 text-sm md:text-base font-bold text-white/90 transition-colors hover:bg-white/10 hover:text-white">
+                        إنشاء حساب جديد
                     </a>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    {{-- ============================== من نحن ============================== --}}
-    <div id="about" class="bg-white dark:bg-zinc-950 px-5 pt-16 md:pt-20">
-        <div class="max-w-3xl mx-auto text-center animate-fade-in-up">
-            <span class="text-xs md:text-sm text-maroon dark:text-red-secondary font-bold tracking-widest uppercase">من نحن</span>
-            <h3 class="text-2xl md:text-3xl font-bold mt-2 mb-4">مجمع التاج القرآني</h3>
-            <p class="text-sm md:text-base text-neutral-grey dark:text-zinc-400 leading-relaxed">
-                مجمع التاج القرآني منصة رقمية متكاملة لتحفيظ القرآن الكريم، بتخدم الطلاب والمعلمين والمشرفين وأولياء الأمور في مكان واحد —
-                من متابعة خطط الحفظ والمراجعة يومياً، لإدارة الحلقات والحضور، لحد تقارير الإنجاز الفورية للأسرة.
-            </p>
-        </div>
-    </div>
-
-    {{-- ============================== قسم لماذا مجمع التاج (الخدمات/البرامج) ============================== --}}
-    <div id="features" class="bg-white dark:bg-zinc-950 px-5 py-16 md:py-20">
-        <div class="max-w-5xl mx-auto">
-            <div class="animate-fade-in-up text-center mb-10">
-                <span class="text-xs md:text-sm text-maroon dark:text-red-secondary font-bold tracking-widest uppercase">لماذا مجمع التاج</span>
-                <h3 class="text-2xl md:text-3xl font-bold mt-2">منصة متكاملة لرحلة الحفظ</h3>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                @foreach([
-                    ['icon' => 'M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25', 'title' => 'خطط حفظ ومراجعة مخصصة', 'desc' => 'متابعة يومية دقيقة لكل طالب بخطة تناسب مستواه واتجاه حفظه.'],
-                    ['icon' => 'M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z', 'title' => 'متابعة حضور وانضباط', 'desc' => 'تسجيل حضور دقيق وتنبيهات فورية عند تجاوز حدود الغياب أو التأخر.'],
-                    ['icon' => 'M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0', 'title' => 'نظام تحفيزي وإنجازات', 'desc' => 'نقاط وأوسمة ولوحات صدارة تحفّز الطالب على الاستمرار والتميز.'],
-                    ['icon' => 'm2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25', 'title' => 'تواصل مباشر مع الأسرة', 'desc' => 'يتابع ولي الأمر إنجاز ابنه أولاً بأول من تطبيق مخصص له.'],
-                ] as $feature)
-                    <div class="p-6 rounded-3xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800/80 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-                        <div class="bg-maroon/10 dark:bg-maroon/20 p-3 rounded-2xl w-fit mb-4 text-maroon dark:text-red-secondary shadow-inner">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="{{ $feature['icon'] }}" />
-                            </svg>
-                        </div>
-                        <h4 class="font-bold text-base mb-1.5 text-zinc-900 dark:text-white">{{ $feature['title'] }}</h4>
-                        <p class="text-xs text-neutral-grey dark:text-zinc-400 leading-relaxed">{{ $feature['desc'] }}</p>
+                {{-- روابط المساعدة --}}
+                <div class="mt-10 pt-8 border-t border-white/10">
+                    <p class="text-xs font-bold text-white/50">هل تواجه مشكلة في تسجيل الدخول؟</p>
+                    <div class="mt-4 flex flex-wrap items-center justify-center lg:justify-start gap-x-8 gap-y-4">
+                        @foreach ([
+                            ['icon' => 'lock-closed', 'label' => 'استعادة كلمة المرور', 'href' => route('password.request'), 'navigate' => true],
+                            ['icon' => 'phone', 'label' => 'الاتصال بالدعم', 'href' => 'tel:'.config('brand.contact.phone'), 'navigate' => false],
+                            ['icon' => 'envelope', 'label' => 'تواصل معنا', 'href' => '#contact', 'navigate' => false],
+                        ] as $link)
+                            <a href="{{ $link['href'] }}" @if ($link['navigate']) wire:navigate @endif
+                               class="group inline-flex items-center gap-2 text-xs font-bold text-white/70 transition-colors hover:text-gold">
+                                <flux:icon :icon="$link['icon']" class="size-4 text-gold/70 transition-colors group-hover:text-gold" />
+                                {{ $link['label'] }}
+                            </a>
+                        @endforeach
                     </div>
+                </div>
+            </div>
+
+            {{-- ميدالية الشعار --}}
+            <div class="animate-fade-in-up delay-200 flex justify-center lg:justify-end">
+                <div class="relative w-full max-w-sm rounded-[2rem] border border-gold/25 bg-gradient-to-b from-[#fdfaf3] to-[#f3e8d6] p-8 md:p-10 text-center shadow-2xl shadow-black/30">
+                    <div class="absolute inset-3 rounded-[1.6rem] border border-gold/25 pointer-events-none"></div>
+
+                    <img src="{{ asset(config('brand.logo')) }}" alt="{{ config('brand.name') }}"
+                         class="relative mx-auto h-28 md:h-32 w-auto object-contain" />
+
+                    <div class="relative mt-6 flex items-center gap-3">
+                        <span class="h-px flex-1 bg-gradient-to-l from-transparent to-gold/50"></span>
+                        <flux:icon icon="sparkles" class="size-3.5 text-gold" />
+                        <span class="h-px flex-1 bg-gradient-to-r from-transparent to-gold/50"></span>
+                    </div>
+
+                    <p class="relative mt-5 font-zain text-lg md:text-xl leading-[1.9] text-maroon text-balance">
+                        «{{ $hadith['text'] }}»
+                    </p>
+
+                    <div class="relative mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                        <span class="text-[11px] font-medium text-maroon/60">{{ $hadith['source'] }}</span>
+                        <span class="inline-flex items-center rounded-full bg-maroon/8 px-2 py-0.5 text-[10px] font-bold text-maroon/70">
+                            {{ $hadith['grade'] }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {{-- ============================== الأسئلة الشائعة ============================== --}}
+    <section id="faq" class="bg-[#fdfaf5] dark:bg-accent-dark px-5 py-16 md:py-24">
+        <div class="max-w-2xl mx-auto">
+            <div class="animate-fade-in-up text-center">
+                <span class="text-[11px] md:text-xs font-bold tracking-[0.2em] text-gold">الأسئلة الشائعة</span>
+                <h2 class="mt-3 text-2xl md:text-3xl font-extrabold text-maroon dark:text-white">إجابات لما قد يشكل عليك</h2>
+            </div>
+
+            <div class="animate-fade-in-up delay-100 mt-10 space-y-3">
+                @foreach ([
+                    [
+                        'q' => 'كيف أُنشئ حساباً جديداً؟',
+                        'a' => 'من زر «إنشاء حساب جديد» في صفحة الدخول: تُدخل بياناتك، فيُحال طلبك مباشرة إلى إدارة '.config('brand.entity').' للمراجعة والموافقة.',
+                    ],
+                    [
+                        'q' => 'كم يستغرق قبول طلب التسجيل؟',
+                        'a' => 'تُراجع إدارة '.config('brand.entity').' الطلبات أولاً بأول، وتصلك رسالة فور قبول طلبك أو رفضه.',
+                    ],
+                    [
+                        'q' => 'نسيت كلمة المرور، فماذا أفعل؟',
+                        'a' => 'اضغط «نسيت كلمة المرور؟» في صفحة تسجيل الدخول، لتصلك رسالة تستعيد بها الوصول إلى حسابك.',
+                    ],
+                    [
+                        'q' => 'أحتاج مساعدة في أمر آخر.',
+                        'a' => 'يسعدنا تواصلك معنا عبر بيانات التواصل الموضّحة أدناه.',
+                    ],
+                ] as $item)
+                    <details class="group rounded-2xl border border-maroon/10 dark:border-white/10 bg-white dark:bg-white/[0.04] px-5 py-4 transition-colors open:border-gold/40 hover:border-gold/30">
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm md:text-base font-bold text-zinc-800 dark:text-white">
+                            {{ $item['q'] }}
+                            <span class="grid size-7 shrink-0 place-items-center rounded-full bg-gold/10 text-gold transition-transform group-open:rotate-180">
+                                <flux:icon icon="chevron-down" class="size-4" />
+                            </span>
+                        </summary>
+                        <p class="mt-3 text-xs md:text-sm leading-loose text-neutral-grey dark:text-white/60">{{ $item['a'] }}</p>
+                    </details>
                 @endforeach
             </div>
+        </div>
+    </section>
 
-            {{-- الإحصاءات الحية --}}
-            <div class="animate-fade-in-up delay-150 mt-14 p-6 md:p-8 rounded-3xl bg-maroon/[0.03] dark:bg-white/[0.02] border border-maroon/10 dark:border-white/5 shadow-sm max-w-3xl mx-auto">
-                <div class="text-center mb-6">
-                    <span class="text-xs md:text-sm text-maroon dark:text-red-secondary font-bold tracking-widest uppercase">نبض الإنجاز الفعلي للمجمع</span>
-                    <h3 class="text-lg md:text-xl font-bold mt-1">إحصاءات حية لإنجاز مجمع التاج</h3>
-                </div>
-
-                <div class="grid grid-cols-3 gap-4 text-center divide-x divide-x-reverse divide-zinc-200/50 dark:divide-zinc-800/40">
-                    <div class="flex flex-col items-center justify-center space-y-2">
-                        <flux:icon icon="academic-cap" class="size-6 text-maroon dark:text-red-secondary" />
-                        <span class="text-3xl md:text-4xl font-black text-maroon dark:text-white font-sans tracking-tight" data-countup="{{ (int) ($stats['teachers'] ?? 0) }}">{{ (int) ($stats['teachers'] ?? 0) }}</span>
-                        <span class="text-[11px] md:text-xs text-neutral-grey dark:text-zinc-400 font-bold">معلمون أكفاء</span>
-                    </div>
-                    <div class="flex flex-col items-center justify-center space-y-2">
-                        <flux:icon icon="user-group" class="size-6 text-maroon dark:text-red-secondary" />
-                        <span class="text-3xl md:text-4xl font-black text-maroon dark:text-white font-sans tracking-tight" data-countup="{{ (int) ($stats['students'] ?? 0) }}">{{ (int) ($stats['students'] ?? 0) }}</span>
-                        <span class="text-[11px] md:text-xs text-neutral-grey dark:text-zinc-400 font-bold">طالباً مستمراً</span>
-                    </div>
-                    <div class="flex flex-col items-center justify-center space-y-2">
-                        <flux:icon icon="globe-alt" class="size-6 text-maroon dark:text-red-secondary" />
-                        <span class="text-3xl md:text-4xl font-black text-maroon dark:text-white font-sans tracking-tight" data-countup="{{ (int) ($stats['circles'] ?? 0) }}">{{ (int) ($stats['circles'] ?? 0) }}</span>
-                        <span class="text-[11px] md:text-xs text-neutral-grey dark:text-zinc-400 font-bold">حلقة نشطة</span>
-                    </div>
-                </div>
+    {{-- ============================== التواصل ============================== --}}
+    <section id="contact" class="bg-white dark:bg-black/20 px-5 py-16 md:py-24 border-y border-maroon/10 dark:border-white/10">
+        <div class="max-w-4xl mx-auto">
+            <div class="animate-fade-in-up text-center">
+                <span class="text-[11px] md:text-xs font-bold tracking-[0.2em] text-gold">تواصل معنا</span>
+                <h2 class="mt-3 text-2xl md:text-3xl font-extrabold text-maroon dark:text-white">نحن في خدمتك</h2>
             </div>
 
-            {{-- الأسئلة الشائعة --}}
-            <div id="faq" class="animate-fade-in-up delay-200 mt-14 pt-10 border-t border-zinc-100 dark:border-zinc-800/80 max-w-2xl mx-auto">
-                <div class="text-center mb-8">
-                    <span class="text-xs md:text-sm text-maroon dark:text-red-secondary font-bold tracking-widest uppercase">الأسئلة الشائعة</span>
-                    <h3 class="text-xl md:text-2xl font-bold mt-2">هل عندك سؤال؟</h3>
-                </div>
-                <div class="space-y-3">
-                    @foreach([
-                        ['q' => 'إزاي أعمل حساب جديد؟', 'a' => 'من زر "إنشاء حساب جديد" في صفحة الدخول — تملأ بياناتك، وطلبك بيتحوّل مباشرة لإدارة المجمع للمراجعة والموافقة.'],
-                        ['q' => 'قد إيه ياخد وقت قبول طلب التسجيل؟', 'a' => 'بيتم مراجعة الطلبات من إدارة المجمع، وهتوصلك رسالة فور قبول أو رفض طلبك.'],
-                        ['q' => 'نسيت كلمة المرور، أعمل إيه؟', 'a' => 'اضغط "نسيت كلمة المرور؟" في صفحة تسجيل الدخول واستعد الوصول لحسابك بسهولة.'],
-                        ['q' => 'محتاج مساعدة تانية؟', 'a' => 'تقدر تتواصل معنا مباشرة من بيانات التواصل تحت.'],
-                    ] as $item)
-                        <details class="group rounded-xl border border-zinc-100 dark:border-zinc-800 p-4 open:bg-zinc-50 dark:open:bg-zinc-900/60">
-                            <summary class="flex items-center justify-between cursor-pointer text-sm font-bold text-zinc-800 dark:text-zinc-100">
-                                {{ $item['q'] }}
-                                <flux:icon icon="chevron-down" class="size-4 text-zinc-400 group-open:rotate-180 transition-transform" />
-                            </summary>
-                            <p class="text-xs text-neutral-grey dark:text-zinc-400 mt-2 leading-relaxed">{{ $item['a'] }}</p>
-                        </details>
-                    @endforeach
-                </div>
-            </div>
-
-            {{-- معلومات التواصل --}}
-            <div id="contact" class="animate-fade-in-up delay-200 grid grid-cols-1 sm:grid-cols-3 gap-6 mt-14 pt-10 border-t border-zinc-100 dark:border-zinc-800/80 max-w-3xl mx-auto">
-                <div class="flex flex-col items-center text-center space-y-2">
-                    <div class="size-11 rounded-2xl bg-maroon/5 dark:bg-maroon/10 border border-maroon/10 dark:border-maroon/20 flex items-center justify-center text-maroon dark:text-red-secondary">
-                        <flux:icon icon="share" class="size-5" />
-                    </div>
-                    <h4 class="font-bold text-sm">شبكات التواصل</h4>
-                    <p class="text-xs text-neutral-grey dark:text-zinc-400 font-medium">altag_jeddah@</p>
-                </div>
-                <div class="flex flex-col items-center text-center space-y-2">
-                    <div class="size-11 rounded-2xl bg-maroon/5 dark:bg-maroon/10 border border-maroon/10 dark:border-maroon/20 flex items-center justify-center text-maroon dark:text-red-secondary">
-                        <flux:icon icon="phone" class="size-5" />
-                    </div>
-                    <h4 class="font-bold text-sm">الاتصال المباشر</h4>
-                    <p class="text-xs text-neutral-grey dark:text-zinc-400 font-medium font-sans">0508822794</p>
-                </div>
-                <div class="flex flex-col items-center text-center space-y-2">
-                    <div class="size-11 rounded-2xl bg-maroon/5 dark:bg-maroon/10 border border-maroon/10 dark:border-maroon/20 flex items-center justify-center text-maroon dark:text-red-secondary">
-                        <flux:icon icon="map-pin" class="size-5" />
-                    </div>
-                    <h4 class="font-bold text-sm">موقع المجمع</h4>
-                    <p class="text-xs text-neutral-grey dark:text-zinc-400 font-medium leading-relaxed">جدة، حي الواحة، خلف هيئة المساحة الجيولوجية</p>
-                </div>
+            <div class="animate-fade-in-up delay-100 mt-12 grid grid-cols-1 sm:grid-cols-3 gap-5">
+                @foreach ([
+                    ['icon' => 'share', 'title' => 'حسابات التواصل', 'value' => config('brand.contact.social'), 'latin' => false],
+                    ['icon' => 'phone', 'title' => 'الاتصال المباشر', 'value' => config('brand.contact.phone'), 'latin' => true],
+                    ['icon' => 'map-pin', 'title' => 'الموقع', 'value' => config('brand.contact.location'), 'latin' => false],
+                ] as $card)
+                    @if (filled($card['value']))
+                        <div class="flex flex-col items-center gap-3 rounded-2xl border border-maroon/10 dark:border-white/10 bg-[#fdfaf5] dark:bg-white/[0.04] p-6 text-center transition-all hover:border-gold/40 hover:-translate-y-1">
+                            <div class="grid size-12 place-items-center rounded-2xl bg-gold/10 text-gold ring-1 ring-gold/20">
+                                <flux:icon :icon="$card['icon']" class="size-5" />
+                            </div>
+                            <h3 class="text-sm font-extrabold text-maroon dark:text-white">{{ $card['title'] }}</h3>
+                            <p @class([
+                                'text-xs font-medium leading-relaxed text-neutral-grey dark:text-white/60',
+                                'font-sans' => $card['latin'],
+                            ])>{{ $card['value'] }}</p>
+                        </div>
+                    @endif
+                @endforeach
             </div>
         </div>
-    </div>
+    </section>
 
-    {{-- تذييل الصفحة --}}
-    <footer class="w-full bg-maroon dark:bg-accent-dark py-5 text-center">
-        <p class="text-xs md:text-sm text-white/80 font-medium">
-            &copy; {{ date('Y') }} مجمع التاج القرآني. جميع الحقوق محفوظة.
-        </p>
+    {{-- ============================== التذييل ============================== --}}
+    <footer class="relative overflow-hidden bg-accent-dark px-5 py-12">
+        <x-brand-ornament class="text-gold opacity-[0.05]" />
+
+        <div class="relative max-w-4xl mx-auto flex flex-col items-center gap-5 text-center">
+            <span class="grid size-20 place-items-center rounded-3xl bg-[#fdfaf3] ring-1 ring-gold/30">
+                <img src="{{ asset(config('brand.logo')) }}" alt="{{ config('brand.name') }}"
+                     class="h-14 w-auto object-contain" />
+            </span>
+
+            <div>
+                <p class="text-sm font-extrabold text-white">{{ config('brand.name') }}</p>
+                <p class="mt-1 text-[11px] text-white/50">{{ config('brand.tagline') }}</p>
+            </div>
+
+            @if (filled(config('brand.license')))
+                <p class="text-[11px] font-medium text-gold/80">
+                    رقم الترخيص: <span class="font-sans">{{ config('brand.license') }}</span>
+                </p>
+            @endif
+
+            <span class="h-px w-24 bg-white/10"></span>
+
+            <p class="text-[11px] text-white/45">
+                &copy; <span class="font-sans">{{ date('Y') }}</span> {{ config('brand.name') }}. جميع الحقوق محفوظة.
+            </p>
+        </div>
     </footer>
-
-    <script>
-        // Progressive enhancement: animate stat numbers from 0 to their real
-        // (already server-rendered) value. No framework dependency, since this
-        // guest page doesn't load Alpine/Livewire.
-        document.querySelectorAll('[data-countup]').forEach((el) => {
-            const target = parseInt(el.getAttribute('data-countup'), 10) || 0;
-            const step = Math.max(1, Math.ceil(target / 40));
-            let current = 0;
-            el.textContent = '0';
-            const timer = setInterval(() => {
-                current = Math.min(target, current + step);
-                el.textContent = current;
-                if (current >= target) clearInterval(timer);
-            }, 25);
-        });
-    </script>
 </body>
 
 </html>
