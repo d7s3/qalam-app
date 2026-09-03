@@ -338,6 +338,51 @@
                         </div>
                     </div>
 
+                    {{-- Self programme: paid by the week, not by the field --}}
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <div class="p-5 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/10 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                                        <flux:icon icon="squares-2x2" class="size-5" />
+                                    </div>
+                                    <span class="font-bold text-zinc-900 dark:text-white">البرنامج الذاتي</span>
+                                </div>
+                                <flux:switch wire:model.live="self_program_enabled" />
+                            </div>
+
+                            @if($self_program_enabled)
+                                <div class="space-y-3 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/80">
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                        تُمنح على الأسبوع لا على كل مجال — الورد في الحلقات القرآنية يأخذ نقاطه من التسميع أصلاً،
+                                        فالمنح لكل مجال يدفع مرتين لنفس العمل.
+                                    </p>
+                                    <div class="grid grid-cols-2 gap-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                        <span>طاقة الخبرة (XP)</span>
+                                        <span>العملات ({{ $theme['currency_name'] }})</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-bold text-zinc-600 dark:text-zinc-300 mb-1.5">بلوغ نصف الأسبوع</div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <flux:input type="number" wire:model="self_program_half_xp" size="sm" />
+                                            <flux:input type="number" wire:model="self_program_half_coins" size="sm" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-bold text-zinc-600 dark:text-zinc-300 mb-1.5">إتمام الأسبوع كاملاً</div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <flux:input type="number" wire:model="self_program_complete_xp" size="sm" />
+                                            <flux:input type="number" wire:model="self_program_complete_coins" size="sm" />
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-zinc-400 dark:text-zinc-500">
+                                        من أتمّ الأسبوع نال الاثنتين معاً، ومن تراجع دون النصف سُحبت منه.
+                                    </p>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
                     {{-- Ode & Hadith automatic settings --}}
                     <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mt-6">
                         <!-- Ode Hifz -->

@@ -14,10 +14,12 @@ use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
 use App\Models\LeaderboardScore;
+use App\Models\SelfProgramWeek;
 use App\Models\Student;
 use App\Models\StudentHadithAchievement;
 use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
+use App\Models\StudentSelfProgramEntry;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -393,6 +395,125 @@ class GamificationService
                         'description' => $desc,
                         'reference_type' => StudentOdeAchievement::class,
                         'reference_id' => $achievement->id,
+                        'claimed_at' => self::resolveClaimedAt($leaderboard, (int) $finalCoins, (int) $finalXP),
+                    ]);
+                }
+            } elseif ($transaction) {
+                $transaction->delete();
+            }
+
+            self::recalculateStudentState($student->id, $leaderboard->id);
+            self::updateStudentStreak($student, $date, $leaderboard);
+            self::syncStudentBadges($student->id, $leaderboard->id);
+        }
+    }
+
+    /**
+     * Sync XP/coins for how far a student is through a week of the self
+     * programme.
+     *
+     * Rewarded by the week rather than by each confirmed field, for two
+     * reasons. The Quran wird of a memorising circle is written from the
+     * recitation his teacher already grades, and that grading pays XP of its
+     * own — paying again per field would hand out the same work twice. And the
+     * programme is built around finishing a week, so that is what is worth
+     * encouraging: half of it opens the enrichment programme, all of it opens
+     * next week early where the teacher allows.
+     *
+     * One transaction per student per week, revised as he advances and removed
+     * if he falls back — the milestone is a fact about the week, not an event.
+     */
+    public static function syncSelfProgramWeekXP(Student $student, SelfProgramWeek $week): void
+    {
+        $week->loadMissing('items');
+
+        $service = app(SelfProgramService::class);
+        $overall = $service->weekProgress($student, $week)['overall'];
+
+        // Dated by the last thing he actually did, so streaks and leaderboard
+        // ranges see the day the milestone was reached rather than the week's
+        // own end.
+        $date = StudentSelfProgramEntry::where('student_id', $student->id)
+            ->whereIn('self_program_item_id', $week->items->pluck('id'))
+            ->max('entry_date');
+
+        if (! $date) {
+            self::clearTransactionsForReference(SelfProgramWeek::class, $week->id);
+
+            return;
+        }
+
+        $leaderboards = self::getActiveLeaderboards($student, $date);
+
+        if ($leaderboards->isEmpty()) {
+            self::clearTransactionsForReference(SelfProgramWeek::class, $week->id);
+
+            return;
+        }
+
+        foreach ($leaderboards as $leaderboard) {
+            $settings = $leaderboard->settings ?? [];
+
+            $xpPoints = 0;
+            $coinPoints = 0;
+            $details = [];
+
+            if ($settings['self_program_enabled'] ?? false) {
+                if ($overall >= SelfProgramService::ENRICHMENT_THRESHOLD) {
+                    $xpPts = (int) ($settings['self_program_half_xp'] ?? 5);
+                    $coinPts = (int) ($settings['self_program_half_coins'] ?? 5);
+                    $xpPoints += $xpPts;
+                    $coinPoints += $coinPts;
+                    $details[] = "نصف البرنامج الذاتي (+{$xpPts} XP، +{$coinPts} عملة)";
+                }
+
+                if ($overall >= 100.0) {
+                    $xpPts = (int) ($settings['self_program_complete_xp'] ?? 15);
+                    $coinPts = (int) ($settings['self_program_complete_coins'] ?? 15);
+                    $xpPoints += $xpPts;
+                    $coinPoints += $coinPts;
+                    $details[] = "إتمام البرنامج الذاتي (+{$xpPts} XP، +{$coinPts} عملة)";
+                }
+            }
+
+            $multiplier = min(2, self::getMultiplierForStudent($student, $leaderboard->id, $date));
+            $finalXP = $xpPoints * $multiplier;
+            $finalCoins = $coinPoints * $multiplier;
+
+            $transaction = GamificationTransaction::where('leaderboard_id', $leaderboard->id)
+                ->where('student_id', $student->id)
+                ->where('reference_type', SelfProgramWeek::class)
+                ->where('reference_id', $week->id)
+                ->first();
+
+            // Nothing about the milestone changed. The bridge calls this on
+            // every graded day of every student, and recalculating state,
+            // streaks and badges for an unchanged figure is the expensive part.
+            if ($transaction
+                && (int) $transaction->xp_amount === (int) $finalXP
+                && (int) $transaction->amount === (int) $finalCoins) {
+                continue;
+            }
+
+            if ($finalXP > 0 || $finalCoins > 0) {
+                $desc = implode(' و ', $details)." للأسبوع {$week->week_number}";
+
+                if ($multiplier > 1) {
+                    $desc .= ' [مضاعف النقاط نشط!]';
+                }
+
+                if ($transaction) {
+                    $transaction->update(['amount' => $finalCoins, 'xp_amount' => $finalXP, 'description' => $desc]);
+                } else {
+                    GamificationTransaction::create([
+                        'leaderboard_id' => $leaderboard->id,
+                        'student_id' => $student->id,
+                        'type' => 'earn',
+                        'amount' => $finalCoins,
+                        'xp_amount' => $finalXP,
+                        'description' => $desc,
+                        'reference_type' => SelfProgramWeek::class,
+                        'reference_id' => $week->id,
                         'claimed_at' => self::resolveClaimedAt($leaderboard, (int) $finalCoins, (int) $finalXP),
                     ]);
                 }
