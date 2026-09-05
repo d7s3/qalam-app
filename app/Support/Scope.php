@@ -339,6 +339,35 @@ class Scope
     }
 
     /**
+     * Students waiting for a cohort, within reach.
+     *
+     * `applyToStudents` narrows by cohort, so a student who has none falls out
+     * of it altogether — which is how the placement screen came to reach past
+     * the scope entirely and read every unplaced student in the academy, letting
+     * a teacher in one programme take a student who had registered for another.
+     *
+     * The bound that does apply to him is his programme: he is admitted to one
+     * before any teacher can ask for him.
+     *
+     * @param  Builder<Student>  $query
+     * @return Builder<Student>
+     */
+    public function applyToUnplacedStudents(Builder $query): Builder
+    {
+        $query->whereNull('circle_id');
+
+        if ($this->reachesAll()) {
+            return $query;
+        }
+
+        $stages = $this->stageIds();
+
+        return $stages === null
+            ? $query
+            : $query->whereIn('stage_id', $stages);
+    }
+
+    /**
      * Narrow a query over circles to what this person may see.
      *
      * @param  Builder<Circle>  $query

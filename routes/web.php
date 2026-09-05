@@ -171,6 +171,7 @@ Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manage
     Route::get('/backup/download/{filename}', [BackupController::class, 'downloadStored'])->name('backup.download.stored');
 });
 Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.required'])->prefix('supervisor')->name('supervisor.')->group(function () {
+    Route::view('/placement-requests', 'supervisor.placement-requests')->name('placement-requests');
     Route::get('/dashboard', fn () => view('supervisor.dashboard'))->name('dashboard');
     Route::view('/teachers', 'supervisor.teachers')->name('teachers');
     Route::view('/odes', 'supervisor.odes')->name('odes');

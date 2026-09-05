@@ -22,6 +22,11 @@
             الطلاب
         </flux:sidebar.item>
     @endif
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.placement-requests'))
+        <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="user-plus" :href="route('supervisor.placement-requests')" :current="request()->routeIs('supervisor.placement-requests')" wire:navigate>
+            طلبات التسكين
+        </flux:sidebar.item>
+    @endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program'))
         <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="squares-2x2" :href="route('supervisor.self-program')" :current="request()->routeIs('supervisor.self-program')" wire:navigate>
             {{ __('البرنامج الذاتي') }}

@@ -4,6 +4,8 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Student;
 use App\Models\Circle;
+use App\Models\StudentPlacementRequest;
+use App\Services\StudentPlacementService;
 use App\Support\Scope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -28,9 +30,20 @@ new class extends Component {
     // Unassigned students modal state
     public $unassignedSearch = '';
 
+    /** The cohort a request is for — asked when he teaches more than one. */
+    public $requestCircleId = null;
+
+    /**
+     * The students he may ask for.
+     *
+     * This was `Student::whereNull('circle_id')` with no scope at all — every
+     * unplaced student in the academy, including those who had registered for
+     * another programme entirely.
+     */
     public function getUnassignedStudentsProperty()
     {
-        return Student::whereNull('circle_id')
+        return Scope::forRoute()
+            ->applyToUnplacedStudents(Student::query())
             ->when($this->unassignedSearch, function ($query) {
                 $query->where('name', 'like', '%' . $this->unassignedSearch . '%');
             })
@@ -39,27 +52,63 @@ new class extends Component {
             ->get();
     }
 
+    /** The requests he is waiting on, so he does not ask twice. */
+    public function getMyRequestsProperty()
+    {
+        return StudentPlacementRequest::pending()
+            ->with(['student', 'circle'])
+            ->where('requested_by', Auth::guard('teacher')->id())
+            ->latest()
+            ->get();
+    }
+
+    /**
+     * The cohort a request is for: the one he chose, or his only one.
+     *
+     * It used to be `circles()->first()` — a teacher of two cohorts was never
+     * asked, and the student landed in whichever row the database returned.
+     */
+    private function targetCircle(): ?Circle
+    {
+        $circles = Auth::guard('teacher')->user()->circles()->get();
+
+        if ($this->requestCircleId) {
+            return $circles->firstWhere('id', (int) $this->requestCircleId);
+        }
+
+        return $circles->count() === 1 ? $circles->first() : null;
+    }
+
+    /**
+     * Asking the supervisor for a student, rather than taking him.
+     *
+     * The teacher used to write `circle_id` himself, and nothing recorded that
+     * he had. Now the ask is the record, and the supervisor answers it.
+     */
     public function addToCircle($studentId)
     {
         $teacher = Auth::guard('teacher')->user();
 
         if (empty($teacher->effectivePermissions()['can_manage_students'])) {
-            Flux::toast('ليس لديك صلاحية لإضافة الطلاب', variant: 'danger');
+            Flux::toast('ليس لديك صلاحية لطلب تسكين الطلاب', variant: 'danger');
             return;
         }
 
-        $circle = $teacher->circles()->first();
+        $circle = $this->targetCircle();
 
         if (!$circle) {
-            Flux::toast('ليس لديك حلقة لإضافة الطالب إليها', variant: 'danger');
+            Flux::toast('اختر الدفعة التي تطلب الطالب لها', variant: 'danger');
             return;
         }
 
-        $student = Student::whereNull('circle_id')->findOrFail($studentId);
-        $student->update(['circle_id' => $circle->id, 'joined_at' => now()->format('Y-m-d')]);
+        $student = Scope::forRoute()
+            ->applyToUnplacedStudents(Student::query())
+            ->findOrFail($studentId);
+
+        StudentPlacementService::request($student, $circle, $teacher);
 
         $this->dispatch('student-list-updated');
-        Flux::toast('تمت إضافة الطالب للحلقة بنجاح', variant: 'success');
+        Flux::toast('أُرسل الطلب إلى المشرف', variant: 'success');
     }
 
     public function removeFromCircle()
@@ -76,16 +125,17 @@ new class extends Component {
             abort(403);
         }
 
-        $this->viewingStudent->update(['circle_id' => null, 'status' => 'left']);
-        $this->viewingStudent->statusHistories()->create([
-            'status' => 'left',
-            'start_date' => now(),
-            'notes' => 'تمت إزالته من الحلقة عبر إدارة الطلاب',
-        ]);
+        // His name, record, history and programme stay exactly as they are; what
+        // changes is that he is not attending now. He used to be emptied back
+        // into a pool the whole academy could pick him out of.
+        StudentPlacementService::deactivate(
+            $this->viewingStudent,
+            'أُخرج من الدفعة عبر إدارة الطلاب',
+        );
 
         $this->dispatch('student-list-updated');
         Flux::modal('student-details')->close();
-        Flux::toast('تم إزالة الطالب من الحلقة بنجاح', variant: 'success');
+        Flux::toast('صار الطالب غير فعّال، وسجلّه محفوظ', variant: 'success');
     }
 
     public function createStudent()
@@ -102,37 +152,45 @@ new class extends Component {
             'phone' => 'nullable|string|max:20',
         ]);
 
-        $circle = $teacher->circles()->first();
+        $circle = $this->targetCircle();
 
         if (!$circle) {
-            Flux::toast('لا توجد حلقة مرتبطة بك لإضافة الطلاب فيها.', variant: 'danger');
+            Flux::toast('اختر الدفعة التي تطلب الطالب لها', variant: 'danger');
             return;
         }
 
+        // A student who turns up in person and never registered online is a
+        // real case, and the teacher knows him. But he comes in through the
+        // door: created holding nothing — no cohort, no programme, unapproved —
+        // and placed only when the supervisor answers the request below.
+        //
+        // This used to create him approved and inside the cohort outright,
+        // which meant the whole approval chain could be walked around by using
+        // this button instead of asking for an existing student.
         $student = Student::create([
             'name' => $this->name,
             'phone' => $this->phone,
             'email' => 'student_' . Str::random(10) . '@uncompleted.altag.app',
             'password' => Hash::make(Str::random(10)),
-            'circle_id' => $circle->id,
-            'is_approved' => true,
+            'is_approved' => false,
             'access_token' => Str::random(32),
             'is_data_completed' => false,
             'status' => 'registering',
-            'joined_at' => now()->format('Y-m-d'),
         ]);
 
         $student->statusHistories()->create([
             'status' => 'registering',
             'start_date' => now(),
-            'notes' => 'تسجيل جديد',
+            'notes' => 'سجّله المعلّم، بانتظار موافقة المشرف',
         ]);
+
+        StudentPlacementService::request($student, $circle, $teacher);
 
         $this->dispatch('student-list-updated');
         $this->reset(['name', 'phone']);
         $this->resetPage();
 
-        Flux::toast('تم إنشاء حساب الطالب بنجاح', variant: 'success');
+        Flux::toast('أُنشئ الطالب وأُرسل طلب تسكينه إلى المشرف', variant: 'success');
     }
 
     public function viewStudent($studentId)
@@ -627,7 +685,41 @@ new class extends Component {
 
     <!-- Unassigned Students Modal -->
     <flux:modal name="unassigned-students-modal" class="md:w-[600px]">
-        <flux:heading class="mb-4">{{ __('إضافة طالب للحلقة') }}</flux:heading>
+        <flux:heading class="mb-1">{{ __('طلب تسكين طالب') }}</flux:heading>
+        <flux:subheading class="mb-4">
+            {{ __('يصل الطلب مشرفك، ويُسكَّن الطالب حين يوافق. والقائمة تعرض طلاب برنامجك وحدهم.') }}
+        </flux:subheading>
+
+        @php
+            $myCircles = Auth::guard('teacher')->user()?->circles()->get() ?? collect();
+            $myPending = $this->myRequests;
+        @endphp
+
+        @if($myCircles->count() > 1)
+            <flux:field class="mb-4">
+                <flux:label>{{ __('الدفعة التي تطلبه لها') }}</flux:label>
+                <flux:select wire:model="requestCircleId" placeholder="{{ __('اختر الدفعة...') }}">
+                    @foreach($myCircles as $myCircle)
+                        <flux:select.option value="{{ $myCircle->id }}">{{ $myCircle->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </flux:field>
+        @endif
+
+        @if($myPending->isNotEmpty())
+            <div class="mb-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3">
+                <div class="text-xs font-bold text-amber-800 dark:text-amber-300 mb-2">
+                    {{ __('طلبات بانتظار مشرفك') }}
+                </div>
+                <div class="space-y-1">
+                    @foreach($myPending as $pending)
+                        <div class="text-xs text-amber-900 dark:text-amber-200" wire:key="pending-{{ $pending->id }}">
+                            {{ $pending->student?->name }} ← {{ $pending->circle?->name }}
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
 
         <flux:input wire:model.live.debounce.300ms="unassignedSearch" icon="magnifying-glass"
             placeholder="ابحث باسم الطالب..." class="mb-4" />
@@ -642,14 +734,14 @@ new class extends Component {
                     </div>
                     @if(Auth::guard('teacher')->user()?->effectivePermissions()['can_manage_students'] ?? true)
                     <flux:button wire:click="addToCircle({{ $unassignedStudent->id }})" size="sm"
-                        icon="plus" variant="primary">{{ __('إضافة') }}</flux:button>
+                        icon="paper-airplane" variant="primary">{{ __('طلب') }}</flux:button>
                     @else
                     <flux:badge size="sm" variant="neutral">لا تملك صلاحية</flux:badge>
                     @endif
                 </div>
             @empty
                 <div class="text-center text-sm text-zinc-500 py-6 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
-                    {{ __('لا يوجد طلاب غير منضمين لحلقات مطابقين للبحث.') }}
+                    {{ __('لا يوجد في برنامجك طلاب بانتظار التسكين.') }}
                 </div>
             @endforelse
         </div>
