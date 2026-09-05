@@ -2,6 +2,7 @@
 
 use App\Models\AcademicCalendarEvent;
 use App\Models\Circle;
+use App\Models\Compensation;
 use App\Models\OccurrenceAttendance;
 use App\Models\Stage;
 use App\Models\Student;
@@ -124,4 +125,51 @@ it('refuses to finish a task assigned to somebody else', function () {
         ->toThrow(ModelNotFoundException::class);
 
     expect($task->fresh()->isDone())->toBeFalse();
+});
+
+it('shows what he owes and lets him settle it', function () {
+    OccurrenceAttendance::create([
+        'academic_calendar_event_id' => $this->lesson->id,
+        // Yesterday, so opening the day raises it: a debt is what a day that
+        // has already passed left behind.
+        'date' => now()->subDay()->format('Y-m-d'),
+        'user_id' => $this->student->id,
+        'role' => 'student',
+        'status' => OccurrenceAttendance::ABSENT,
+    ]);
+
+    $component = Livewire::actingAs($this->student, 'student')
+        ->test('shared.my-day')
+        ->set('asRole', 'student');
+
+    $debt = Compensation::open()->where('user_id', $this->student->id)->first();
+
+    expect($debt)->not->toBeNull();
+    expect($debt->label)->toBe('درس التفسير');
+
+    $component->call('settle', $debt->id);
+
+    expect($debt->fresh()->status)->toBe('done');
+    expect($debt->fresh()->completed_by)->toBe($this->student->id);
+});
+
+it('refuses to settle somebody else debt', function () {
+    $other = Student::factory()->create(['circle_id' => $this->cohort->id]);
+
+    $debt = Compensation::create([
+        'user_id' => $other->id,
+        'kind' => 'formative',
+        'label' => 'ليس دينه',
+        'source_key' => 'occurrence:9:2026-09-05',
+        'original_date' => '2026-09-05',
+        'status' => 'open',
+    ]);
+
+    expect(fn () => Livewire::actingAs($this->student, 'student')
+        ->test('shared.my-day')
+        ->set('asRole', 'student')
+        ->call('settle', $debt->id))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect($debt->fresh()->status)->toBe('open');
 });

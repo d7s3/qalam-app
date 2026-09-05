@@ -175,3 +175,25 @@ it('drops a track once it is met in full', function () {
     expect(collect(EducationalLossService::scientific($this->student, '2026-09-06', '2026-09-10'))
         ->firstWhere('kind', 'self-program'))->toBeNull();
 });
+
+it('counts the first and last day of the window, not the days between them', function () {
+    // The `date` cast writes `Y-m-d H:i:s`, so a window compared as text drops
+    // its own last day: '2026-09-06 00:00:00' sorts after '2026-09-06'. This
+    // has been got wrong three times in this feature alone, each time silently
+    // — the answer was simply smaller than the truth.
+    OccurrenceAttendance::create([
+        'academic_calendar_event_id' => $this->lesson->id,
+        'date' => '2026-09-06',
+        'user_id' => $this->student->id,
+        'role' => 'student',
+        'status' => OccurrenceAttendance::PRESENT,
+    ]);
+
+    // A window that is exactly the one day he attended must find his answer.
+    expect(EducationalLossService::formative($this->student, 'student', '2026-09-06', '2026-09-06'))
+        ->toBe([]);
+
+    // And the far edge is inside too: the eighth is a lesson day he missed.
+    expect(EducationalLossService::formative($this->student, 'student', '2026-09-08', '2026-09-08'))
+        ->toHaveCount(1);
+});

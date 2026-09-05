@@ -3,6 +3,8 @@
 use App\Models\OccurrenceAttendance;
 use App\Models\Task;
 use App\Services\DayAgendaService;
+use App\Models\Compensation;
+use App\Services\CompensationService;
 use App\Services\EducationalLossService;
 use App\Support\Scope;
 use Illuminate\Support\Carbon;
@@ -26,6 +28,18 @@ new class extends Component
     {
         $this->date = now('Asia/Riyadh')->format('Y-m-d');
         $this->asRole = Scope::resolveRole();
+
+        // Turn the month behind him into what he owes, once on opening rather
+        // than on every render. Raising is idempotent: a debt is keyed to the
+        // miss it came from and a settled one is never reopened.
+        if ($user = $this->reader()) {
+            CompensationService::raiseFor(
+                $user,
+                $this->asRole,
+                Carbon::parse($this->date)->subDays(30)->format('Y-m-d'),
+                Carbon::parse($this->date)->subDay()->format('Y-m-d'),
+            );
+        }
     }
 
     public function shift(int $days): void
@@ -73,6 +87,23 @@ new class extends Component
         Flux::toast(__('سُجّل حضورك'), variant: 'success');
     }
 
+    /**
+     * Settling a debt.
+     *
+     * He marks it himself, as he marks his own attendance — the same trust,
+     * and the same record of who said so and when.
+     */
+    public function settle(int $compensationId): void
+    {
+        $user = $this->reader() ?? abort(403);
+
+        $debt = Compensation::open()->where('user_id', $user->id)->findOrFail($compensationId);
+
+        CompensationService::complete($debt, $user);
+
+        Flux::toast(__('سُجّل التعويض'), variant: 'success');
+    }
+
     public function finish(int $taskId): void
     {
         $user = $this->reader() ?? abort(403);
@@ -89,10 +120,15 @@ new class extends Component
         $user = $this->reader();
 
         if (! $user) {
-            return ['agenda' => ['occurrences' => [], 'tasks' => collect(), 'content' => []], 'losses' => []];
+            return [
+                'agenda' => ['occurrences' => [], 'tasks' => collect(), 'content' => []],
+                'losses' => [],
+                'debts' => collect(),
+            ];
         }
 
         return [
+            'debts' => CompensationService::openFor($user),
             'agenda' => DayAgendaService::forUser($user, $this->asRole, $this->date),
             // The week behind him, so a missed lesson is seen while it can still
             // be made good rather than in a report at the end of term.
@@ -203,6 +239,48 @@ new class extends Component
             <flux:text class="text-zinc-400">{{ __('لا مهام عليك.') }}</flux:text>
         @endforelse
     </flux:card>
+
+    @if($debts->isNotEmpty())
+        <flux:card class="space-y-3 border-amber-200 dark:border-amber-900/50">
+            <div>
+                <flux:heading size="lg">{{ __('عليك تعويضه') }}</flux:heading>
+                <flux:subheading class="text-zinc-500 dark:text-zinc-400">
+                    {{ __('يبقى معك حتى تعوّضه، ولا يُحسب على أسبوعك الحالي.') }}
+                </flux:subheading>
+            </div>
+
+            <div class="divide-y divide-zinc-50 dark:divide-zinc-800/60">
+                @foreach($debts as $debt)
+                    <div class="flex items-center justify-between gap-4 py-3" wire:key="debt-{{ $debt->id }}">
+                        <div class="min-w-0">
+                            <div class="text-sm font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
+                                {{ $debt->label }}
+                                <flux:badge :color="$debt->kind === 'formative' ? 'sky' : 'violet'" size="sm">
+                                    {{ $debt->kind === 'formative' ? __('لقاء') : __('عمل') }}
+                                </flux:badge>
+                            </div>
+                            <div class="text-xs text-zinc-400 flex items-center gap-2 flex-wrap">
+                                <x-hijri-date :date="$debt->original_date" />
+                                @if($debt->detail)
+                                    <span>· {{ $debt->detail }}</span>
+                                @endif
+                                @if($debt->weeksCarried() >= 1)
+                                    <flux:badge color="amber" size="sm">
+                                        {{ trans_choice('{1} أسبوع|{2} أسبوعان|[3,*] :count أسابيع', $debt->weeksCarried(), ['count' => $debt->weeksCarried()]) }}
+                                    </flux:badge>
+                                @endif
+                            </div>
+                        </div>
+
+                        <flux:button size="sm" variant="primary" class="!bg-maroon hover:!bg-burgundy shrink-0"
+                            wire:click="settle({{ $debt->id }})">
+                            {{ __('عوّضته') }}
+                        </flux:button>
+                    </div>
+                @endforeach
+            </div>
+        </flux:card>
+    @endif
 
     @if($losses !== [])
         <flux:card class="space-y-3">

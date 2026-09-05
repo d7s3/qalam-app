@@ -103,8 +103,12 @@ class EducationalLossService
     /** @return array<string, string> keyed "eventId|date" */
     private static function answersFor(User $user, string $from, string $to): array
     {
+        // Compared as dates and not as text: the `date` cast writes
+        // `Y-m-d H:i:s`, so a plain BETWEEN drops the last day of the window —
+        // '2026-09-06 00:00:00' sorts after '2026-09-06'.
         return OccurrenceAttendance::where('user_id', $user->id)
-            ->whereBetween('date', [$from, $to])
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to)
             ->get(['academic_calendar_event_id', 'date', 'status'])
             ->mapWithKeys(fn (OccurrenceAttendance $row) => [
                 $row->academic_calendar_event_id.'|'.$row->date->format('Y-m-d') => $row->status,
@@ -127,7 +131,7 @@ class EducationalLossService
             ->all();
 
         return HadithPathDay::whereIn('hadith_path_id', $planIds->keys())
-            ->whereBetween('date', [$from, $to])
+            ->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)
             ->whereNotIn('id', $graded)
             ->orderBy('date')
             ->get()
@@ -156,7 +160,7 @@ class EducationalLossService
             ->all();
 
         return OdePathDay::whereIn('ode_path_id', $planIds->keys())
-            ->whereBetween('date', [$from, $to])
+            ->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)
             ->whereNotIn('id', $graded)
             ->orderBy('date')
             ->get()
@@ -174,7 +178,7 @@ class EducationalLossService
     private static function quranShortfall(Student $student, string $from, string $to): array
     {
         return StudentPlanDay::whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
-            ->whereBetween('date', [$from, $to])
+            ->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)
             ->whereNull('hifz_achievement')
             ->orderBy('date')
             ->get()
