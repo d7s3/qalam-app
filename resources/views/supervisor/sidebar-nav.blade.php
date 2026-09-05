@@ -1,6 +1,11 @@
 <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('supervisor.dashboard')" :current="request()->routeIs('supervisor.dashboard')" wire:navigate>
     {{ __('الرئيسية') }}
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program-tracks'))
+    <flux:sidebar.item class="[&_svg]:bg-[#14b8a6] hover:[&_svg]:bg-[#0d9488]" icon="adjustments-horizontal" :href="route('supervisor.self-program-tracks')" :current="request()->routeIs('supervisor.self-program-tracks')" wire:navigate>
+        مجالات البرنامج الذاتي
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.period-values'))
     <flux:sidebar.item class="[&_svg]:bg-[#d946ef] hover:[&_svg]:bg-[#c026d3]" icon="sparkles" :href="route('supervisor.period-values')" :current="request()->routeIs('supervisor.period-values')" wire:navigate>
         قيم الفترة

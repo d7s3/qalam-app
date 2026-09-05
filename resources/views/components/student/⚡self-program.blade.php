@@ -3,7 +3,7 @@
 use App\Models\SelfProgramItem;
 use App\Models\SelfProgramWeek;
 use App\Services\SelfProgramService;
-use App\Support\SelfProgramTrack;
+use App\Models\SelfProgramTrack;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -90,7 +90,7 @@ new class extends Component
      */
     private function bridged(SelfProgramItem $item): bool
     {
-        return $item->track === SelfProgramTrack::QuranWird
+        return $item->track?->isQuranWird()
             && (bool) Auth::guard('student')->user()->circle?->is_quranic;
     }
 
@@ -343,6 +343,13 @@ new class extends Component
                                 <div class="font-bold text-zinc-900 dark:text-white">{{ $item->track->label() }}</div>
                                 <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                     {{ $item->description ?: __('لم يُحدَّد محتوى') }}
+                                    @if ($item->content_url)
+                                        <a href="{{ $item->content_url }}" target="_blank" rel="noopener noreferrer"
+                                            class="inline-flex items-center gap-1 mt-1 text-xs font-bold text-maroon dark:text-red-secondary hover:underline">
+                                            <flux:icon name="arrow-top-right-on-square" class="size-3" />
+                                            {{ $item->contentLinkLabel() }}
+                                        </a>
+                                    @endif
                                 </div>
                             </div>
                         </div>

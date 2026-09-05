@@ -4,12 +4,12 @@ use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Manager;
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Services\SelfProgramService;
-use App\Support\SelfProgramTrack;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -41,7 +41,7 @@ beforeEach(function () {
     ]);
     $this->wird = SelfProgramItem::create([
         'self_program_week_id' => $this->week->id,
-        'track' => SelfProgramTrack::QuranWird->value,
+        'track' => SelfProgramTrack::QURAN_WIRD,
         'target_amount' => 10,
         'unit' => 'صفحة',
     ]);

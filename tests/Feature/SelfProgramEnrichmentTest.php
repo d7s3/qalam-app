@@ -3,12 +3,12 @@
 use App\Models\Circle;
 use App\Models\SelfProgramDayOverride;
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\SelfProgramService;
-use App\Support\SelfProgramTrack;
 use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -39,7 +39,7 @@ beforeEach(function () {
     ]);
     $this->wird = SelfProgramItem::create([
         'self_program_week_id' => $this->selfWeek->id,
-        'track' => SelfProgramTrack::QuranWird->value,
+        'track' => SelfProgramTrack::QURAN_WIRD,
         'target_amount' => 10,
         'unit' => 'صفحة',
     ]);
@@ -53,7 +53,7 @@ beforeEach(function () {
     ]);
     $this->extra = SelfProgramItem::create([
         'self_program_week_id' => $this->enrichmentWeek->id,
-        'track' => SelfProgramTrack::Mahfoudh->value,
+        'track' => SelfProgramTrack::MAHFOUDH,
         'description' => 'خمسة أحاديث',
         'target_amount' => 5,
         'unit' => 'حديث',

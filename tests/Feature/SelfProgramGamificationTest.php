@@ -4,11 +4,11 @@ use App\Models\Circle;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Services\SelfProgramService;
-use App\Support\SelfProgramTrack;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -55,9 +55,9 @@ beforeEach(function () {
     ]);
 
     $this->one = SelfProgramItem::create(['self_program_week_id' => $this->week->id,
-        'track' => SelfProgramTrack::QuranWird->value, 'target_amount' => 10, 'unit' => 'صفحة']);
+        'track' => SelfProgramTrack::QURAN_WIRD, 'target_amount' => 10, 'unit' => 'صفحة']);
     $this->two = SelfProgramItem::create(['self_program_week_id' => $this->week->id,
-        'track' => SelfProgramTrack::Masmou->value, 'target_amount' => 10, 'unit' => 'درس']);
+        'track' => SelfProgramTrack::MASMOU, 'target_amount' => 10, 'unit' => 'درس']);
 
     $this->service = app(SelfProgramService::class);
 });

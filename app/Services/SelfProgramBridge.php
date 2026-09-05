@@ -3,12 +3,12 @@
 namespace App\Services;
 
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Student;
 use App\Models\StudentPlanDay;
 use App\Models\StudentSelfProgramEntry;
 use App\Support\MushafPages;
-use App\Support\SelfProgramTrack;
 
 /**
  * What a recitation writes into the self programme.
@@ -120,6 +120,6 @@ class SelfProgramBridge
             ->whereDate('ends_on', '>=', $day->date)
             ->first();
 
-        return $week?->items()->where('track', SelfProgramTrack::QuranWird->value)->first();
+        return $week?->items()->where('track', SelfProgramTrack::QURAN_WIRD)->first();
     }
 }

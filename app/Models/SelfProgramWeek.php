@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Services\GamificationService;
-use App\Support\SelfProgramTrack;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -81,7 +80,9 @@ class SelfProgramWeek extends Model
      */
     public function ensureAllTracks(): void
     {
-        foreach (SelfProgramTrack::ordered() as $track) {
+        // Only the fields running for this programme now: one set aside for the
+        // term is not created empty and then shown as unmet.
+        foreach (SelfProgramTrack::orderedFor($this->stage_id, $this->starts_on?->format('Y-m-d')) as $track) {
             $this->items()->firstOrCreate(
                 ['track' => $track->value],
                 ['target_amount' => 0, 'unit' => $track->defaultUnit()],

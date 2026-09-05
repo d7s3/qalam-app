@@ -4,12 +4,12 @@ use App\Models\AcademicCalendarEvent;
 use App\Models\Circle;
 use App\Models\OccurrenceAttendance;
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentSelfProgramEntry;
 use App\Services\EducationalLossService;
-use App\Support\SelfProgramTrack;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -127,7 +127,7 @@ it('reads a self programme shortfall as work left, not a day missed', function (
 
     $item = SelfProgramItem::create([
         'self_program_week_id' => $week->id,
-        'track' => SelfProgramTrack::Maqrou,
+        'track' => SelfProgramTrack::MAQROU,
         'target_amount' => 20,
         'unit' => 'صفحة',
     ]);
@@ -160,7 +160,7 @@ it('drops a track once it is met in full', function () {
 
     $item = SelfProgramItem::create([
         'self_program_week_id' => $week->id,
-        'track' => SelfProgramTrack::Maqrou,
+        'track' => SelfProgramTrack::MAQROU,
         'target_amount' => 20,
         'unit' => 'صفحة',
     ]);

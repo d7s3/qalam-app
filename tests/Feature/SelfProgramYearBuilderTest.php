@@ -1,11 +1,11 @@
 <?php
 
 use App\Models\AcademicCalendarEvent;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Services\SelfProgramYearBuilder;
 use App\Support\SelfProgramSheet;
-use App\Support\SelfProgramTrack;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -73,7 +73,7 @@ it('copies one week across the rest, leaving the source alone', function () {
 
     $weeks = SelfProgramWeek::with('items')->orderBy('week_number')->get();
     $source = $weeks->first();
-    $source->items()->where('track', SelfProgramTrack::QuranWird->value)
+    $source->items()->where('track', SelfProgramTrack::QURAN_WIRD)
         ->update(['description' => 'سورة الملك', 'target_amount' => 20]);
 
     $written = $this->builder->copyAcross($source->fresh('items'), $weeks);
@@ -81,7 +81,7 @@ it('copies one week across the rest, leaving the source alone', function () {
     expect($written)->toBe(2);
 
     foreach ($weeks as $week) {
-        $wird = $week->fresh('items')->items->firstWhere('track', SelfProgramTrack::QuranWird);
+        $wird = $week->fresh('items')->items->firstWhere('track.key', SelfProgramTrack::QURAN_WIRD);
         expect((float) $wird->target_amount)->toBe(20.0)
             ->and($wird->description)->toBe('سورة الملك');
     }
@@ -92,10 +92,10 @@ it('divides a yearly total across the weeks without losing the remainder', funct
     $weeks = SelfProgramWeek::orderBy('week_number')->get();
 
     // 100 over three weeks: 33.33, 33.33, then the rest.
-    $this->builder->distribute([SelfProgramTrack::QuranWird->value => 100], $weeks);
+    $this->builder->distribute([SelfProgramTrack::QURAN_WIRD => 100], $weeks);
 
     $amounts = SelfProgramWeek::with('items')->orderBy('week_number')->get()
-        ->map(fn ($w) => (float) $w->items->firstWhere('track', SelfProgramTrack::QuranWird)->target_amount);
+        ->map(fn ($w) => (float) $w->items->firstWhere('track.key', SelfProgramTrack::QURAN_WIRD)->target_amount);
 
     expect($amounts->all())->toBe([33.33, 33.33, 33.34])
         ->and(round($amounts->sum(), 2))->toBe(100.0);
@@ -124,8 +124,8 @@ describe('importing a sheet', function () {
 
         $first = SelfProgramWeek::with('items')->where('week_number', 1)->first();
 
-        expect((float) $first->items->firstWhere('track', SelfProgramTrack::QuranWird)->target_amount)->toBe(20.0)
-            ->and($first->items->firstWhere('track', SelfProgramTrack::Masmou)->description)->toBe('درس التجويد');
+        expect((float) $first->items->firstWhere('track.key', SelfProgramTrack::QURAN_WIRD)->target_amount)->toBe(20.0)
+            ->and($first->items->firstWhere('track.key', SelfProgramTrack::MASMOU)->description)->toBe('درس التجويد');
     });
 
     it('names the row when a field is not recognised', function () {
@@ -165,7 +165,7 @@ describe('importing a sheet', function () {
         $this->builder->import($this->path, $this->stage->id);
 
         expect(SelfProgramWeek::with('items')->where('week_number', 1)->first()
-            ->items->firstWhere('track', SelfProgramTrack::QuranWird)->unit)
+            ->items->firstWhere('track.key', SelfProgramTrack::QURAN_WIRD)->unit)
             ->toBe('صفحة');
     });
 

@@ -6,7 +6,7 @@ use App\Models\SelfProgramDayOverride;
 use App\Models\SelfProgramWeek;
 use App\Models\Student;
 use App\Services\SelfProgramService;
-use App\Support\SelfProgramTrack;
+use App\Models\SelfProgramTrack;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -192,7 +192,7 @@ new class extends Component
         unset($this->week);
 
         foreach (SelfProgramTrack::ordered() as $track) {
-            $item = $week->items->firstWhere('track', $track);
+            $item = $week->items->firstWhere('track.key', $track->key);
 
             $this->rows[$track->value] = [
                 'description' => $item?->description ?? '',

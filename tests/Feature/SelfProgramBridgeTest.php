@@ -3,6 +3,7 @@
 use App\Models\AcademicCalendarEvent;
 use App\Models\Circle;
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Models\Student;
@@ -11,7 +12,6 @@ use App\Models\StudentPlanDay;
 use App\Models\StudentSelfProgramEntry;
 use App\Models\Teacher;
 use App\Services\SelfProgramService;
-use App\Support\SelfProgramTrack;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -74,7 +74,7 @@ beforeEach(function () {
 
     $this->wird = SelfProgramItem::create([
         'self_program_week_id' => $this->week->id,
-        'track' => SelfProgramTrack::QuranWird->value,
+        'track' => SelfProgramTrack::QURAN_WIRD,
         'target_amount' => 10,
         'unit' => 'صفحة',
     ]);
@@ -311,7 +311,7 @@ describe('arrears', function () {
 
         SelfProgramItem::create([
             'self_program_week_id' => $this->week->id,
-            'track' => SelfProgramTrack::Masmou->value,
+            'track' => SelfProgramTrack::MASMOU,
             'target_amount' => 0,
             'unit' => 'درس',
         ]);

@@ -2,6 +2,7 @@
 
 namespace App\Services\Reports;
 
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Student;
 use App\Models\StudentSelfProgramEntry;
@@ -9,7 +10,6 @@ use App\Services\Reports\Concerns\GathersRows;
 use App\Services\Reports\Concerns\GroupsByStudent;
 use App\Services\SelfProgramService;
 use App\Support\HijriDate;
-use App\Support\SelfProgramTrack;
 use Illuminate\Support\Collection;
 
 /**

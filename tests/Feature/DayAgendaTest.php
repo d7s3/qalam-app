@@ -5,6 +5,7 @@ use App\Models\Circle;
 use App\Models\Manager;
 use App\Models\OccurrenceAttendance;
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Models\Student;
@@ -12,7 +13,6 @@ use App\Models\Task;
 use App\Models\Teacher;
 use App\Services\DayAgendaService;
 use App\Support\CalendarVisibility;
-use App\Support\SelfProgramTrack;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -55,7 +55,7 @@ it('lays the appointment and the work of the day side by side', function () {
 
     SelfProgramItem::create([
         'self_program_week_id' => $week->id,
-        'track' => SelfProgramTrack::Maqrou,
+        'track' => SelfProgramTrack::MAQROU,
         'target_amount' => 20,
         'unit' => 'صفحة',
     ]);

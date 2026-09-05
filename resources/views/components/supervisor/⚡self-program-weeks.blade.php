@@ -4,7 +4,7 @@ use App\Models\SelfProgramWeek;
 use App\Services\SelfProgramYearBuilder;
 use App\Models\Stage;
 use App\Support\SelfProgramSheet;
-use App\Support\SelfProgramTrack;
+use App\Models\SelfProgramTrack;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -127,10 +127,11 @@ new class extends Component
         unset($this->week);
 
         foreach (SelfProgramTrack::ordered() as $track) {
-            $item = $week->items->firstWhere('track', $track);
+            $item = $week->items->firstWhere('track.key', $track->key);
 
             $this->rows[$track->value] = [
                 'description' => $item?->description ?? '',
+                'content_url' => $item?->content_url ?? '',
                 'target_amount' => $item ? (float) $item->target_amount : 0,
                 'unit' => $track->fixedUnit() ?? ($item?->unit ?: $track->defaultUnit()),
             ];
@@ -181,6 +182,7 @@ new class extends Component
             'rows.*.description' => ['nullable', 'string', 'max:500'],
             'rows.*.target_amount' => ['nullable', 'numeric', 'min:0', 'max:9999'],
             'rows.*.unit' => ['nullable', 'string', 'max:30'],
+            'rows.*.content_url' => ['nullable', 'url', 'max:2048'],
         ]);
 
         foreach (SelfProgramTrack::ordered() as $track) {
@@ -194,6 +196,11 @@ new class extends Component
                 ['track' => $track->value],
                 [
                     'description' => $row['description'] ?: null,
+                    // The Quran is in the application already; a link out of it
+                    // would be a step backwards, so the wird never carries one.
+                    'content_url' => $track->isQuranWird()
+                        ? null
+                        : (($row['content_url'] ?? '') ?: null),
                     'target_amount' => (float) ($row['target_amount'] ?: 0),
                     // The wird is measured in pages and nothing else, so the
                     // recitation bridge can write into it.
@@ -520,6 +527,13 @@ new class extends Component
                                 <flux:input wire:model="rows.{{ $track->value }}.description"
                                     placeholder="{{ __('المحتوى، مثل: سورة الملك') }}" />
                                 <flux:error name="rows.{{ $track->value }}.description" />
+
+                                @unless ($track->isQuranWird())
+                                    <flux:input class="mt-2" type="url" dir="ltr"
+                                        wire:model="rows.{{ $track->value }}.content_url"
+                                        placeholder="{{ __('رابط المحتوى نفسه (اختياري)') }}" />
+                                    <flux:error name="rows.{{ $track->value }}.content_url" />
+                                @endunless
                             </div>
 
                             <div class="md:col-span-2">

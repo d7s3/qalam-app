@@ -3,13 +3,13 @@
 use App\Models\Circle;
 use App\Models\SelfProgramDayOverride;
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentSelfProgramEntry;
 use App\Models\Supervisor;
 use App\Services\SelfProgramService;
-use App\Support\SelfProgramTrack;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -41,19 +41,22 @@ beforeEach(function () {
     $this->service = app(SelfProgramService::class);
 });
 
-function track(SelfProgramWeek $week, SelfProgramTrack $track, float $target): SelfProgramItem
+/** The fields are keys now rather than enum cases, so the helper takes one. */
+function track(SelfProgramWeek $week, string $key, float $target): SelfProgramItem
 {
+    $track = SelfProgramTrack::findByKey($key);
+
     return SelfProgramItem::create([
         'self_program_week_id' => $week->id,
-        'track' => $track->value,
+        'track' => $key,
         'description' => 'محتوى الأسبوع',
         'target_amount' => $target,
-        'unit' => $track->defaultUnit(),
+        'unit' => $track?->defaultUnit() ?? 'وحدة',
     ]);
 }
 
 it('spreads a week across its working days only', function () {
-    $item = track($this->week, SelfProgramTrack::QuranWird, 20);
+    $item = track($this->week, SelfProgramTrack::QURAN_WIRD, 20);
 
     $plan = $this->service->dailyPlan($item, $this->student);
 
@@ -65,7 +68,7 @@ it('spreads a week across its working days only', function () {
 });
 
 it('raises the remaining days when a student falls behind', function () {
-    $item = track($this->week, SelfProgramTrack::QuranWird, 20);
+    $item = track($this->week, SelfProgramTrack::QURAN_WIRD, 20);
 
     // Sunday passes with nothing done.
     $plan = $this->service->dailyPlan($item, $this->student);
@@ -83,7 +86,7 @@ it('raises the remaining days when a student falls behind', function () {
 });
 
 it('never asks for more than the week holds', function () {
-    $item = track($this->week, SelfProgramTrack::QuranWird, 20);
+    $item = track($this->week, SelfProgramTrack::QURAN_WIRD, 20);
 
     $this->service->record($this->student, $item, 20, Carbon::parse('2026-09-06'));
 
@@ -93,7 +96,7 @@ it('never asks for more than the week holds', function () {
 });
 
 it('lets a teacher overrule the split for one student', function () {
-    $item = track($this->week, SelfProgramTrack::QuranWird, 20);
+    $item = track($this->week, SelfProgramTrack::QURAN_WIRD, 20);
 
     SelfProgramDayOverride::create([
         'self_program_item_id' => $item->id,
@@ -116,11 +119,11 @@ it('lets a teacher overrule the split for one student', function () {
 
 it('reads a week as the mean of its tracks, not the sum of their amounts', function () {
     // Pages, lessons and hadiths do not add up; their percentages do.
-    $wird = track($this->week, SelfProgramTrack::QuranWird, 20);
-    $maqrou = track($this->week, SelfProgramTrack::Maqrou, 30);
-    $masmou = track($this->week, SelfProgramTrack::Masmou, 4);
-    track($this->week, SelfProgramTrack::Tahdheer, 3);
-    track($this->week, SelfProgramTrack::Mahfoudh, 5);
+    $wird = track($this->week, SelfProgramTrack::QURAN_WIRD, 20);
+    $maqrou = track($this->week, SelfProgramTrack::MAQROU, 30);
+    $masmou = track($this->week, SelfProgramTrack::MASMOU, 4);
+    track($this->week, SelfProgramTrack::TAHDHEER, 3);
+    track($this->week, SelfProgramTrack::MAHFOUDH, 5);
 
     $this->service->record($this->student, $wird, 18);
     $this->service->record($this->student, $maqrou, 30);
@@ -133,8 +136,8 @@ it('reads a week as the mean of its tracks, not the sum of their amounts', funct
 });
 
 it('caps a track at full, so one cannot cover for another', function () {
-    $wird = track($this->week, SelfProgramTrack::QuranWird, 10);
-    track($this->week, SelfProgramTrack::Maqrou, 10);
+    $wird = track($this->week, SelfProgramTrack::QURAN_WIRD, 10);
+    track($this->week, SelfProgramTrack::MAQROU, 10);
 
     // Triple the wird; it still counts once.
     $this->service->record($this->student, $wird, 30);
@@ -145,8 +148,8 @@ it('caps a track at full, so one cannot cover for another', function () {
 });
 
 it('leaves a track the supervisor did not set out of the reckoning', function () {
-    $wird = track($this->week, SelfProgramTrack::QuranWird, 10);
-    track($this->week, SelfProgramTrack::Maqrou, 0);
+    $wird = track($this->week, SelfProgramTrack::QURAN_WIRD, 10);
+    track($this->week, SelfProgramTrack::MAQROU, 0);
 
     $this->service->record($this->student, $wird, 10);
 
@@ -155,8 +158,8 @@ it('leaves a track the supervisor did not set out of the reckoning', function ()
 });
 
 it('opens the enrichment programme at half the week', function () {
-    $wird = track($this->week, SelfProgramTrack::QuranWird, 10);
-    $maqrou = track($this->week, SelfProgramTrack::Maqrou, 10);
+    $wird = track($this->week, SelfProgramTrack::QURAN_WIRD, 10);
+    $maqrou = track($this->week, SelfProgramTrack::MAQROU, 10);
 
     $this->service->record($this->student, $wird, 4);
     expect($this->service->enrichmentUnlocked($this->student, $this->week->fresh('items')))->toBeFalse();
@@ -166,7 +169,7 @@ it('opens the enrichment programme at half the week', function () {
 });
 
 it('clears the day when a student unticks it rather than storing a nought', function () {
-    $item = track($this->week, SelfProgramTrack::QuranWird, 20);
+    $item = track($this->week, SelfProgramTrack::QURAN_WIRD, 20);
 
     $this->service->record($this->student, $item, 4);
     expect(StudentSelfProgramEntry::count())->toBe(1);
@@ -184,7 +187,7 @@ describe('opening a week', function () {
             'starts_on' => '2026-09-13',
             'ends_on' => '2026-09-19',
         ]);
-        track($this->week, SelfProgramTrack::QuranWird, 10);
+        track($this->week, SelfProgramTrack::QURAN_WIRD, 10);
     });
 
     it('holds the next week shut until its date', function () {
@@ -217,10 +220,10 @@ describe('opening a week', function () {
 
 describe('the student page', function () {
     beforeEach(function () {
-        $this->item = track($this->week, SelfProgramTrack::QuranWird, 20);
+        $this->item = track($this->week, SelfProgramTrack::QURAN_WIRD, 20);
         // A field the student records for himself, whatever kind of circle he
         // is in — the wird of a memorising circle is his teacher's to write.
-        $this->manual = track($this->week, SelfProgramTrack::Masmou, 8);
+        $this->manual = track($this->week, SelfProgramTrack::MASMOU, 8);
     });
 
     it('shows the week and its suggested share for today', function () {
@@ -290,7 +293,7 @@ describe('the student page', function () {
             'starts_on' => '2026-09-06',
             'ends_on' => '2026-09-12',
         ]);
-        $foreign = track($otherWeek, SelfProgramTrack::Masmou, 20);
+        $foreign = track($otherWeek, SelfProgramTrack::MASMOU, 20);
 
         Livewire::actingAs($this->student, 'student')
             ->test('student.self-program')
@@ -339,7 +342,7 @@ describe('the year tools', function () {
             ->call('copyAcrossYear');
 
         $written = SelfProgramWeek::with('items')->where('stage_id', $this->stage->id)->get()
-            ->filter(fn ($w) => (float) $w->items->firstWhere('track', SelfProgramTrack::QuranWird)?->target_amount === 20.0);
+            ->filter(fn ($w) => (float) $w->items->firstWhere('track.key', SelfProgramTrack::QURAN_WIRD)?->target_amount === 20.0);
 
         expect($written)->toHaveCount(3);
     });
@@ -356,7 +359,7 @@ describe('the year tools', function () {
 
         $amounts = SelfProgramWeek::with('items')->where('stage_id', $this->stage->id)
             ->orderBy('week_number')->get()
-            ->map(fn ($w) => (float) $w->items->firstWhere('track', SelfProgramTrack::QuranWird)->target_amount);
+            ->map(fn ($w) => (float) $w->items->firstWhere('track.key', SelfProgramTrack::QURAN_WIRD)->target_amount);
 
         expect($amounts->sum())->toBe(60.0);
     });
@@ -409,7 +412,7 @@ describe('the year tools', function () {
 
 describe('arrears on the student page', function () {
     beforeEach(function () {
-        $this->item = track($this->week, SelfProgramTrack::QuranWird, 20);
+        $this->item = track($this->week, SelfProgramTrack::QURAN_WIRD, 20);
         $this->service->record($this->student, $this->item, 5, Carbon::parse('2026-09-08'));
 
         // A fortnight on, so the week above is behind him.
@@ -487,7 +490,7 @@ describe('the supervisor editor', function () {
             ->set('rows.quran_wird.target_amount', 10)
             ->call('save');
 
-        expect($this->week->fresh('items')->items->firstWhere('track', SelfProgramTrack::QuranWird)->unit)
+        expect($this->week->fresh('items')->items->firstWhere('track.key', SelfProgramTrack::QURAN_WIRD)->unit)
             ->toBe('صفحة');
     });
 

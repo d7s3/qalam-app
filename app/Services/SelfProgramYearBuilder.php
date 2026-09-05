@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Models\AcademicCalendarEvent;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Support\SelfProgramSheet;
-use App\Support\SelfProgramTrack;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -126,7 +126,7 @@ class SelfProgramYearBuilder
         }
 
         foreach ($annualByTrack as $trackValue => $annual) {
-            $track = SelfProgramTrack::tryFrom((string) $trackValue);
+            $track = SelfProgramTrack::findByKey((string) $trackValue);
             $annual = (float) $annual;
 
             if (! $track || $annual <= 0) {

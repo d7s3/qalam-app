@@ -2,6 +2,11 @@
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-tracks'))
+    <flux:sidebar.item class="[&_svg]:bg-[#14b8a6] hover:[&_svg]:bg-[#0d9488]" icon="adjustments-horizontal" :href="route('manager.self-program-tracks')" :current="request()->routeIs('manager.self-program-tracks')" wire:navigate>
+        مجالات البرنامج الذاتي
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.period-values'))
     <flux:sidebar.item class="[&_svg]:bg-[#d946ef] hover:[&_svg]:bg-[#c026d3]" icon="sparkles" :href="route('manager.period-values')" :current="request()->routeIs('manager.period-values')" wire:navigate>
         قيم الفترة
