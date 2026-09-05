@@ -6,6 +6,9 @@ use App\Models\Role;
 use App\Models\RoleScreenPermission;
 use App\Models\Screen;
 use App\Models\Staff;
+use App\Models\Supervisor;
+use App\Support\Access;
+use App\Support\RoleHierarchy;
 use Livewire\Livewire;
 
 it('lets a manager create a custom role, grant it a screen, create a staff account, and open that screen', function () {
@@ -72,4 +75,43 @@ it('lets a manager create a custom role, grant it a screen, create a staff accou
         ->assertForbidden();
 
     $this->get(route('staff.messages'))->assertSuccessful();
+});
+
+it('lets a flavoured supervisor carry the supervisor and open his pages', function () {
+    // "مشرف علمي" and "مشرف تربوي" are the same office wearing different names
+    // and holding different pages. Neither needs a guard, a route file or a line
+    // of code: the role is created here, told what it carries, and the screens
+    // it does not need are taken off it.
+    $manager = Manager::factory()->create();
+    $this->actingAs($manager, 'manager');
+
+    Livewire::test('manager.role-permissions')
+        ->set('newRoleLabel', 'مشرف علمي')
+        ->call('createRole');
+
+    $role = Role::where('label', 'مشرف علمي')->firstOrFail();
+
+    RoleHierarchy::set(array_merge(RoleHierarchy::map(), [$role->key => ['supervisor']]));
+
+    $staff = Staff::factory()->create(['staff_role_id' => $role->id, 'is_approved' => true]);
+
+    // A page granted to the supervisor centrally, which he now holds by carrying
+    // the office rather than by being granted it a second time.
+    $screen = Screen::where('route_name', 'supervisor.forms')->firstOrFail();
+
+    expect(Access::canSee($staff, 'staff', $screen->route_name))->toBeTrue();
+
+    $this->actingAs($staff, 'staff')
+        ->get(route('staff.held', ['screen' => $screen->route_name]))
+        ->assertSuccessful();
+
+    // And taking one page off this flavour leaves every other supervisor alone.
+    Livewire::actingAs($manager, 'manager')
+        ->test('manager.role-permissions')
+        ->call('setActiveRole', $role->id)
+        ->call('toggle', $role->id, $screen->id);
+
+    Access::forget();
+
+    expect(Access::canSee(Supervisor::factory()->create(), 'supervisor', $screen->route_name))->toBeTrue();
 });
