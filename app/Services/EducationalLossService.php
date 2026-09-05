@@ -15,6 +15,7 @@ use App\Models\StudentOdePlan;
 use App\Models\StudentPlanDay;
 use App\Models\StudentSelfProgramEntry;
 use App\Models\User;
+use App\Support\CalendarVisibility;
 use App\Support\Scope;
 use Illuminate\Support\Collection;
 
@@ -57,7 +58,8 @@ class EducationalLossService
             ->filter(fn (AcademicCalendarEvent $event) => $stageIds === null
                 ? true
                 : $stageIds->contains(fn ($id) => $event->appliesToStage((int) $id))
-                    || ($event->stage_ids ?? []) === []);
+                    || ($event->stage_ids ?? []) === [])
+            ->filter(fn (AcademicCalendarEvent $event) => CalendarVisibility::visibleTo($event, $role, $user));
 
         $answered = self::answersFor($user, $from, $to);
         $losses = [];

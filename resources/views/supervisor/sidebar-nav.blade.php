@@ -1,6 +1,11 @@
 <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('supervisor.dashboard')" :current="request()->routeIs('supervisor.dashboard')" wire:navigate>
     {{ __('الرئيسية') }}
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.event-visibility'))
+    <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="eye" :href="route('supervisor.event-visibility')" :current="request()->routeIs('supervisor.event-visibility')" wire:navigate>
+        رؤية الأحداث
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.my-day'))
     <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('supervisor.my-day')" :current="request()->routeIs('supervisor.my-day')" wire:navigate>
         {{ __('يومي') }}

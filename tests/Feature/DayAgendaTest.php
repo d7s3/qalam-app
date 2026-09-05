@@ -2,6 +2,7 @@
 
 use App\Models\AcademicCalendarEvent;
 use App\Models\Circle;
+use App\Models\Manager;
 use App\Models\OccurrenceAttendance;
 use App\Models\SelfProgramItem;
 use App\Models\SelfProgramWeek;
@@ -10,6 +11,7 @@ use App\Models\Student;
 use App\Models\Task;
 use App\Models\Teacher;
 use App\Services\DayAgendaService;
+use App\Support\CalendarVisibility;
 use App\Support\SelfProgramTrack;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -126,4 +128,37 @@ it('shows nothing on a day the appointment does not fall', function () {
     $agenda = DayAgendaService::forUser($this->student, 'student', '2026-09-07');
 
     expect($agenda['occurrences'])->toBe([]);
+});
+
+it('keeps an event out of a day it was never handed down to', function () {
+    $manager = Manager::factory()->create();
+
+    $meeting = AcademicCalendarEvent::create([
+        'event_name' => 'لقاء المشرفين',
+        'start_date' => '2026-09-06',
+        'end_date' => '2026-09-06',
+        'stage_ids' => [$this->programme->id],
+        'is_attendance_period' => false,
+        'created_by_id' => $manager->id,
+        'created_by_type' => Manager::class,
+    ]);
+
+    $teacher = Teacher::factory()->create();
+    $teacher->circles()->attach($this->cohort->id);
+
+    // Ungoverned: nobody has started handing it down, so it behaves as every
+    // event did before the chain existed.
+    expect(collect(DayAgendaService::occurrences($teacher, 'teacher', '2026-09-06'))
+        ->pluck('event.event_name'))->toContain('لقاء المشرفين');
+
+    // The manager hands it to the supervisor and to nobody else. The chain now
+    // governs the event, and the teacher was not in it.
+    CalendarVisibility::grant($meeting, 'manager', 'supervisor', $manager);
+
+    expect(collect(DayAgendaService::occurrences($teacher, 'teacher', '2026-09-06'))
+        ->pluck('event.event_name'))->not->toContain('لقاء المشرفين');
+
+    // And his own lesson is untouched by somebody else's meeting.
+    expect(collect(DayAgendaService::occurrences($teacher, 'teacher', '2026-09-06'))
+        ->pluck('event.event_name'))->toContain('درس التفسير');
 });

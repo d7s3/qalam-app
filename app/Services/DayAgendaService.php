@@ -13,6 +13,7 @@ use App\Models\StudentOdePlan;
 use App\Models\StudentPlanDay;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\CalendarVisibility;
 use App\Support\Scope;
 use Illuminate\Support\Collection;
 
@@ -68,6 +69,7 @@ class DayAgendaService
             ->filter(fn (AcademicCalendarEvent $event) => $stageIds === null
                 || ($event->stage_ids ?? []) === []
                 || $stageIds->contains(fn ($id) => $event->appliesToStage((int) $id)))
+            ->filter(fn (AcademicCalendarEvent $event) => CalendarVisibility::visibleTo($event, $role, $user))
             ->filter(fn (AcademicCalendarEvent $event) => $event->datesBetween($date, $date) !== [])
             ->map(fn (AcademicCalendarEvent $event) => [
                 'event' => $event,
