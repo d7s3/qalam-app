@@ -6,6 +6,11 @@
     <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('guardian.dashboard')" :current="request()->routeIs('guardian.dashboard')" wire:navigate>
         {{ __('الرئيسية') }}
     </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('guardian', 'guardian.child-day'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('guardian.child-day')" :current="request()->routeIs('guardian.child-day')" wire:navigate>
+        يوم ابني
+    </flux:sidebar.item>
+@endif
     @if(\App\Support\RolePages::isEnabled('guardian', 'guardian.messages'))
         <flux:sidebar.item class="[&_svg]:bg-[#e11d48] hover:[&_svg]:bg-[#be123c]" icon="envelope" :href="route('guardian.messages')" :current="request()->routeIs('guardian.messages')"
             :badge="$guardianUnreadMessages > 0 ? $guardianUnreadMessages : null" badge-color="rose" wire:navigate>

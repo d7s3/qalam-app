@@ -5,6 +5,9 @@ use App\Models\StudentExam;
 use App\Models\StudentPlanDay;
 use App\Services\MemorizationJourneyService;
 use App\Support\HijriDate;
+use App\Support\HijriSeasons;
+use App\Services\DayAgendaService;
+use App\Models\PeriodValue;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -52,6 +55,25 @@ new class extends Component
             Carbon::parse($grid['last'])->endOfDay(),
         );
 
+        // The days of this month that hold an appointment, gathered once rather
+        // than a query per square.
+        $occurrenceDates = [];
+
+        foreach (DayAgendaService::eventsFor($student, 'student', $grid['first'], $grid['last']) as $event) {
+            foreach ($event->datesBetween($grid['first'], $grid['last']) as $date) {
+                $occurrenceDates[$date] = true;
+            }
+        }
+
+        // Seasons are a rule and cost nothing to ask of every square.
+        $seasonDates = [];
+
+        foreach ($grid['days'] as $cell) {
+            if (HijriSeasons::on($cell['date']) !== []) {
+                $seasonDates[$cell['date']] = true;
+            }
+        }
+
         $dayDetail = null;
         if ($this->selectedDate) {
             $attendance = Attendance::where('student_id', $student->id)->whereDate('date', $this->selectedDate)->first();
@@ -74,6 +96,12 @@ new class extends Component
         }
 
         return [
+            'occurrenceDates' => $occurrenceDates,
+            'seasonDates' => $seasonDates,
+            'daySeasons' => $this->selectedDate ? HijriSeasons::on($this->selectedDate) : [],
+            'dayValues' => $this->selectedDate
+                ? PeriodValue::runningOn($this->selectedDate, $student->stage_id, $student->circle_id)->get()
+                : collect(),
             'grid' => $grid,
             'activityDates' => $activityDates,
             'todayStr' => now()->toDateString(),
@@ -124,6 +152,8 @@ new class extends Component
                         $isToday = $dateStr === $todayStr;
                         $isSelected = $dateStr === $selectedDate;
                         $hasActivity = in_array($dateStr, $activityDates, true);
+                        $hasAppointment = isset($occurrenceDates[$dateStr]);
+                        $inSeason = isset($seasonDates[$dateStr]);
                     @endphp
                     <button
                         wire:click="selectDay('{{ $dateStr }}')"
@@ -135,8 +165,21 @@ new class extends Component
                         <span dir="ltr" class="mt-1 text-[10px] font-medium tabular-nums {{ $isSelected ? 'text-white/70' : 'text-zinc-400 dark:text-zinc-500' }}">
                             {{ substr($dateStr, 5) }}
                         </span>
-                        @if($hasActivity && !$isSelected)
-                            <span class="absolute bottom-0.5 size-1 rounded-full bg-emerald-500"></span>
+                        {{-- Three different things a square can hold, so the month
+                             is read at a glance: work done, an appointment, and
+                             a season of the Hijri year. --}}
+                        @if(! $isSelected)
+                            <span class="absolute bottom-0.5 flex items-center gap-0.5">
+                                @if($hasActivity)
+                                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                                @endif
+                                @if($hasAppointment)
+                                    <span class="size-1 rounded-full bg-sky-500"></span>
+                                @endif
+                            </span>
+                        @endif
+                        @if($inSeason && ! $isSelected)
+                            <span class="absolute top-0.5 left-0.5 size-1.5 rounded-full bg-amber-400"></span>
                         @endif
                     </button>
                 @endforeach
@@ -148,6 +191,22 @@ new class extends Component
                 <flux:heading size="sm" class="mb-4">
                     <x-hijri-date :date="\Carbon\Carbon::parse($selectedDate)" style="weekday" />
                 </flux:heading>
+
+                @foreach($daySeasons as $season)
+                    <div class="mb-3 rounded-lg bg-amber-50/70 dark:bg-amber-950/20 p-3" wire:key="s-{{ $season['key'] }}">
+                        <div class="text-xs font-bold text-amber-900 dark:text-amber-200">{{ $season['label'] }}</div>
+                        <div class="text-[11px] text-amber-800/80 dark:text-amber-300/80">{{ $season['purpose'] }}</div>
+                    </div>
+                @endforeach
+
+                @foreach($dayValues as $value)
+                    <div class="mb-3 rounded-lg border border-maroon/20 p-3" wire:key="v-{{ $value->id }}">
+                        <div class="text-xs font-bold text-maroon dark:text-red-secondary">{{ $value->title }}</div>
+                        @if($value->practice)
+                            <div class="text-[11px] text-zinc-600 dark:text-zinc-300">{{ $value->practice }}</div>
+                        @endif
+                    </div>
+                @endforeach
 
                 <div class="space-y-4">
                     <div class="flex items-center justify-between">

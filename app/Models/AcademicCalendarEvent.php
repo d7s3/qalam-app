@@ -180,6 +180,7 @@ class AcademicCalendarEvent extends Model
         'excluded_dates',
         'sessions',
         'description',
+        'formative_note',
         'day_count',
         'created_by_id',
         'created_by_type',

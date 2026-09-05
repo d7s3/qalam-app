@@ -44,6 +44,8 @@ new class extends Component {
     // Attendance Period Form
     public $hijriFromDate = '';
     public $hijriToDate = '';
+    public $formativeNote = '';
+
     public $description = '';
     public $selectedWeekdays = [1, 2, 3, 4, 5]; // Default to Sunday-Thursday (1=Sun, 5=Thu)
 
@@ -77,6 +79,7 @@ new class extends Component {
             'hijriToDate' => 'required|date|after_or_equal:hijriFromDate',
             'selectedWeekdays' => 'required|array|min:1',
             'description' => 'nullable|string|max:500',
+            'formativeNote' => 'nullable|string|max:1000',
         ]);
 
         // Calculate day count
@@ -99,6 +102,7 @@ new class extends Component {
         AcademicCalendarEvent::create([
             'event_name' => 'فترة دوام الدفعات',
             'description' => $this->description,
+                'formative_note' => $this->formativeNote ?: null,
             'start_date' => $this->hijriFromDate,
             'end_date' => $this->hijriToDate,
             'color' => 'emerald',
@@ -124,6 +128,7 @@ new class extends Component {
         $this->hijriFromDate = '';
         $this->hijriToDate = '';
         $this->description = '';
+        $this->formativeNote = '';
         $this->selectedWeekdays = [1, 2, 3, 4, 5];
         Flux::modal('attendance-period-modal')->close();
     }

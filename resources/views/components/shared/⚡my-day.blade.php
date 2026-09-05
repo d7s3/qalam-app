@@ -207,7 +207,9 @@ new class extends Component
                  wire:key="occ-{{ $row['event']->id }}">
                 <div class="min-w-0">
                     <div class="text-sm font-bold text-zinc-800 dark:text-zinc-100">{{ $row['event']->event_name }}</div>
-                    @if($row['event']->description)
+                    @if($row['event']->formative_note)
+                        <div class="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">{{ $row['event']->formative_note }}</div>
+                    @elseif($row['event']->description)
                         <div class="text-xs text-zinc-400 truncate">{{ $row['event']->description }}</div>
                     @endif
                 </div>

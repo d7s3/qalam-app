@@ -372,6 +372,7 @@ Route::middleware(['auth:student', 'approved', 'page.enabled', 'surveys.required
 Route::view('/student/complete-profile', 'student.complete-profile')->middleware(['auth:student'])->name('student.complete-profile');
 Route::view('/teacher/complete-profile', 'teacher.complete-profile')->middleware(['auth:teacher'])->name('teacher.complete-profile');
 Route::middleware(['auth:guardian', 'approved', 'page.enabled', 'surveys.required'])->prefix('parent')->name('guardian.')->group(function () {
+    Route::view('/child-day', 'guardian.child-day')->name('child-day');
     Route::get('/dashboard', fn () => view('guardian.dashboard'))->name('dashboard');
     Route::get('/student/{id}', fn ($id) => view('guardian.student', ['studentId' => $id]))->name('student');
     Route::get('/student/{id}/attendance', fn ($id) => view('guardian.student-attendance', ['studentId' => $id]))->name('student.attendance');

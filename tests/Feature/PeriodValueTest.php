@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AcademicCalendarEvent;
 use App\Models\Circle;
 use App\Models\Manager;
 use App\Models\PeriodValue;
@@ -145,4 +146,32 @@ it('refuses to end a value before it begins', function () {
         ->assertHasErrors('endsOn');
 
     expect(PeriodValue::count())->toBe(0);
+});
+
+it('marks the month with its seasons and its appointments', function () {
+    $event = AcademicCalendarEvent::create([
+        'event_name' => 'درس التفسير',
+        'start_date' => now()->startOfMonth()->format('Y-m-d'),
+        'end_date' => now()->endOfMonth()->format('Y-m-d'),
+        'stage_ids' => [$this->programme->id],
+        'is_attendance_period' => false,
+    ]);
+
+    PeriodValue::create([
+        'title' => 'الصدق',
+        'practice' => 'لا يمرّ يومٌ بكذبة.',
+        'stage_id' => $this->programme->id,
+        'starts_on' => now()->subDay()->format('Y-m-d'),
+        'ends_on' => now()->addDays(5)->format('Y-m-d'),
+    ]);
+
+    $component = Livewire::actingAs($this->student, 'student')
+        ->test('student.calendar')
+        ->call('selectDay', now()->format('Y-m-d'));
+
+    // The square carries the appointment, and the panel carries what the day is
+    // about — Monday and Thursday alone put a season on most weeks.
+    expect($component->viewData('occurrenceDates'))->toHaveKey(now()->format('Y-m-d'));
+
+    $component->assertSee('الصدق')->assertSee('لا يمرّ يومٌ بكذبة');
 });

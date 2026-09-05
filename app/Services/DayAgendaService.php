@@ -54,22 +54,12 @@ class DayAgendaService
      */
     public static function occurrences(User $user, string $role, string $date): array
     {
-        $stageIds = Scope::for($user, $role)->stageIds();
-
         $answered = OccurrenceAttendance::where('user_id', $user->id)
             ->whereDate('date', $date)
             ->pluck('status', 'academic_calendar_event_id')
             ->all();
 
-        return AcademicCalendarEvent::query()
-            ->where('is_attendance_period', false)
-            ->whereDate('start_date', '<=', $date)
-            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $date))
-            ->get()
-            ->filter(fn (AcademicCalendarEvent $event) => $stageIds === null
-                || ($event->stage_ids ?? []) === []
-                || $stageIds->contains(fn ($id) => $event->appliesToStage((int) $id)))
-            ->filter(fn (AcademicCalendarEvent $event) => CalendarVisibility::visibleTo($event, $role, $user))
+        return self::eventsFor($user, $role, $date, $date)
             ->filter(fn (AcademicCalendarEvent $event) => $event->datesBetween($date, $date) !== [])
             ->map(fn (AcademicCalendarEvent $event) => [
                 'event' => $event,
@@ -77,6 +67,30 @@ class DayAgendaService
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * The appointments in reach across a span, before they are expanded to days.
+     *
+     * A month view wants them once and asks each which squares it occupies;
+     * asking per square would be one query a day.
+     *
+     * @return Collection<int, AcademicCalendarEvent>
+     */
+    public static function eventsFor(User $user, string $role, string $from, string $to): Collection
+    {
+        $stageIds = Scope::for($user, $role)->stageIds();
+
+        return AcademicCalendarEvent::query()
+            ->where('is_attendance_period', false)
+            ->whereDate('start_date', '<=', $to)
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $from))
+            ->get()
+            ->filter(fn (AcademicCalendarEvent $event) => $stageIds === null
+                || ($event->stage_ids ?? []) === []
+                || $stageIds->contains(fn ($id) => $event->appliesToStage((int) $id)))
+            ->filter(fn (AcademicCalendarEvent $event) => CalendarVisibility::visibleTo($event, $role, $user))
+            ->values();
     }
 
     /**

@@ -45,6 +45,8 @@ new class extends Component {
     public $editingPeriodId = null;
     public $hijriFromDate = '';
     public $hijriToDate = '';
+    public $formativeNote = '';
+
     public $description = '';
     public $selectedWeekdays = [1, 2, 3, 4, 5]; // Default to Sunday-Thursday (1=Sun, 5=Thu)
 
@@ -100,6 +102,7 @@ new class extends Component {
         $this->hijriFromDate = $period->start_date->format('Y-m-d');
         $this->hijriToDate = $period->end_date?->format('Y-m-d') ?? '';
         $this->description = $period->description ?? '';
+        $this->formativeNote = $period->formative_note ?? '';
         $this->selectedWeekdays = array_map('intval', $period->weekdays ?? []);
         $this->periodStageIds = array_map('strval', $period->stage_ids ?? []);
         $this->periodExtraDates = $period->extra_dates ?? [];
@@ -157,6 +160,7 @@ new class extends Component {
             'hijriToDate' => 'required|date|after_or_equal:hijriFromDate',
             'selectedWeekdays' => 'required|array|min:1',
             'description' => 'nullable|string|max:500',
+            'formativeNote' => 'nullable|string|max:1000',
             'periodStageIds' => 'array',
             'periodStageIds.*' => 'exists:stages,id',
             'periodSessions' => 'array',
@@ -176,6 +180,7 @@ new class extends Component {
             [
                 'event_name' => 'فترة دوام الدفعات',
                 'description' => $this->description,
+                'formative_note' => $this->formativeNote ?: null,
                 'start_date' => $this->hijriFromDate,
                 'end_date' => $this->hijriToDate,
                 'color' => 'emerald',
@@ -229,6 +234,7 @@ new class extends Component {
         $this->hijriFromDate = now()->format('Y-m-d');
         $this->hijriToDate = now()->addMonth()->format('Y-m-d');
         $this->description = '';
+        $this->formativeNote = '';
         $this->selectedWeekdays = [1, 2, 3, 4, 5];
         $this->periodStageIds = [];
         $this->periodExtraDates = [];
@@ -1170,6 +1176,8 @@ new class extends Component {
 
             <div class="space-y-5 max-h-[65vh] overflow-y-auto pe-1">
                 <flux:textarea wire:model="description" label="وصف الفترة" placeholder="مثال: الفصل الدراسي الأول" rows="2" />
+                <flux:textarea wire:model="formativeNote" label="أثرها التربوي" rows="2"
+                    placeholder="ما يقرؤه الطالب عن هذه الأيام — لماذا هي، وما يُصنع فيها." />
 
                 <div class="grid grid-cols-1 gap-4">
                     <livewire:shared.hijri-datepicker wire:model="hijriFromDate" label="من تاريخ (هجري)" />
