@@ -3,6 +3,11 @@
         href="{{ route('teacher.dashboard') }}">
         {{ __('الرئيسية') }}
     </flux:sidebar.item>
+    @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.my-day'))
+        <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('teacher.my-day')" :current="request()->routeIs('teacher.my-day')" wire:navigate>
+            {{ __('يومي') }}
+        </flux:sidebar.item>
+    @endif
     @php
         $teacherUnreadMessages = \App\Services\MessagingService::unreadCountFor('teacher', auth('teacher')->id());
     @endphp

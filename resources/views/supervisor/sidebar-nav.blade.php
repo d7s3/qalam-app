@@ -1,6 +1,11 @@
 <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('supervisor.dashboard')" :current="request()->routeIs('supervisor.dashboard')" wire:navigate>
     {{ __('الرئيسية') }}
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.my-day'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('supervisor.my-day')" :current="request()->routeIs('supervisor.my-day')" wire:navigate>
+        {{ __('يومي') }}
+    </flux:sidebar.item>
+@endif
 @php
     $supervisorUnreadMessages = \App\Services\MessagingService::unreadCountFor('supervisor', auth('supervisor')->id());
 @endphp

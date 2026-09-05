@@ -2,6 +2,11 @@
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.my-day'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('manager.my-day')" :current="request()->routeIs('manager.my-day')" wire:navigate>
+        {{ __('يومي') }}
+    </flux:sidebar.item>
+@endif
 @php
     $managerUnreadMessages = \App\Services\MessagingService::unreadCountFor('manager', auth('manager')->id());
 @endphp

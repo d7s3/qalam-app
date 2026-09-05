@@ -51,8 +51,8 @@ class EducationalLossService
             // Attendance periods say which days are working days; they are the
             // frame the appointments sit in, not appointments themselves.
             ->where('is_attendance_period', false)
-            ->where('start_date', '<=', $to)
-            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', $from))
+            ->whereDate('start_date', '<=', $to)
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $from))
             ->get()
             ->filter(fn (AcademicCalendarEvent $event) => $stageIds === null
                 ? true
@@ -196,8 +196,8 @@ class EducationalLossService
     private static function selfProgramShortfall(Student $student, string $from, string $to): array
     {
         $items = SelfProgramItem::whereHas('week', fn ($q) => $q
-            ->where('starts_on', '<=', $to)
-            ->where('ends_on', '>=', $from)
+            ->whereDate('starts_on', '<=', $to)
+            ->whereDate('ends_on', '>=', $from)
             ->where(fn ($w) => $w->where('circle_id', $student->circle_id)
                 ->orWhere('stage_id', $student->stage_id)))
             ->with('week')
