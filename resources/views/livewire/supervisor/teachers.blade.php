@@ -117,7 +117,17 @@
                         x-on:click="$flux.modal('teacher-modal').show(); $wire.edit({{ $teacher->id }})">
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex flex-col">
-                                <span class="font-bold text-zinc-900 dark:text-white">{{ $teacher->name }}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-zinc-900 dark:text-white">{{ $teacher->name }}</span>
+                                    @if($teacher->is_recitation_only)
+                                        <flux:badge size="sm" color="teal">{{ __('قرآني') }}</flux:badge>
+                                    @elseif(\App\Support\RecitationOnlyTeacher::suggests($teacher))
+                                        <button x-on:click.stop="$wire.toggleRecitationOnly({{ $teacher->id }})"
+                                            class="text-[11px] text-teal-600 hover:underline">
+                                            {{ __('اجعله قرآنياً؟') }}
+                                        </button>
+                                    @endif
+                                </div>
                                 <div class="flex gap-2">
                                     <span class="text-xs text-zinc-500">{{ $teacher->email }}</span>
                                     @if ($teacher->phone)

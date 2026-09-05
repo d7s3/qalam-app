@@ -60,6 +60,13 @@ class Access
             return true;
         }
 
+        // A teacher of Quranic circles only is there for the memorisation and
+        // the review, and is not shown his student's work beyond them. Asked
+        // before the grants, because it is a narrowing his role cannot undo.
+        if ($role === 'teacher' && RecitationOnlyTeacher::withholds($user, $routeName)) {
+            return false;
+        }
+
         $role = self::heldRole($user, $role);
 
         $screen = self::screenFor($routeName);
