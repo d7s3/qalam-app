@@ -1,11 +1,13 @@
 <?php
 
 use App\Models\Circle;
+use App\Models\Manager;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentPlacementRequest;
 use App\Models\Supervisor;
 use App\Models\Teacher;
+use App\Services\StudentPlacementService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -96,11 +98,7 @@ it('lets the supervisor place him from his queue', function () {
 });
 
 it('keeps another supervisor out of that queue', function () {
-    Livewire::actingAs($this->teacher, 'teacher')
-        ->test('teacher.student-manager')
-        ->call('addToCircle', $this->mine->id);
-
-    $request = StudentPlacementRequest::pending()->firstOrFail();
+    $request = StudentPlacementService::request($this->mine, $this->cohort, $this->teacher);
 
     $stranger = Supervisor::factory()->create();
     $stranger->stages()->attach($this->other->id);
@@ -138,4 +136,24 @@ it('refuses to admit into a programme the supervisor does not hold', function ()
         ->assertStatus(403);
 
     expect($waiting->fresh()->stage_id)->toBeNull();
+});
+
+it('lets the manager answer the queue he carries', function () {
+    // He reaches this page through `manager.held`, signed in on his own guard
+    // and not the supervisor's — so the page must answer for whoever is
+    // reading rather than for the role it was written for.
+    $request = StudentPlacementService::request($this->mine, $this->cohort, $this->teacher);
+    $manager = Manager::factory()->create();
+
+    $this->actingAs($manager, 'manager')
+        ->get(route('manager.held', ['screen' => 'supervisor.placement-requests']))
+        ->assertSuccessful();
+
+    Livewire::actingAs($manager, 'manager')
+        ->test('supervisor.placement-requests')
+        ->set('asRole', 'manager')
+        ->call('approve', $request->id);
+
+    expect($this->mine->fresh()->circle_id)->toBe($this->cohort->id);
+    expect($request->fresh()->decided_by)->toBe($manager->id);
 });

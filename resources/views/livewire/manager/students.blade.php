@@ -5,7 +5,7 @@
         </div>
         <div>
             <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إدارة الطلاب</flux:heading>
-            <flux:subheading>إدارة شؤون الطلاب وتوزيعهم على الحلقات</flux:subheading>
+            <flux:subheading>إدارة شؤون الطلاب وتوزيعهم على الدفعات</flux:subheading>
         </div>
     </div>
 
@@ -21,8 +21,8 @@
             </flux:select>
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الحلقة">
-                <flux:select.option value="">كل الحلقات</flux:select.option>
+            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة">
+                <flux:select.option value="">كل الدفعات</flux:select.option>
                 @foreach ($circles as $circle)
                     <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
                 @endforeach
@@ -73,7 +73,7 @@
                     <flux:checkbox wire:model.live="selectAll" />
                 </flux:table.column>
                 <flux:table.column>{{ __('الطالب') }}</flux:table.column>
-                <flux:table.column class="hidden md:table-cell">{{ __('الحلقة') }}</flux:table.column>
+                <flux:table.column class="hidden md:table-cell">{{ __('الدفعة') }}</flux:table.column>
                 <flux:table.column class="hidden sm:table-cell">{{ __('حالة الطالب') }}</flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
             </flux:table.columns>
@@ -112,7 +112,7 @@
                             @elseif ($student->status === 'suspended')
                                 <flux:badge size="sm" variant="danger">موقوف</flux:badge>
                             @else
-                                <flux:badge size="sm" variant="neutral">غادر الحلقات</flux:badge>
+                                <flux:badge size="sm" variant="neutral">غادر الدفعات</flux:badge>
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
@@ -162,8 +162,8 @@
                         <flux:input wire:model="email" label="{{ __('البريد الإلكتروني') }}" type="email" required />
 
                         <div class="grid grid-cols-2 gap-4">
-                            <flux:select label="الحلقة الدراسية" wire:model="circle_id" placeholder="اختر الحلقة...">
-                                <flux:select.option value="">بدون حلقة (قيد الانتظار)</flux:select.option>
+                            <flux:select label="الدفعة الدراسية" wire:model="circle_id" placeholder="اختر الدفعة...">
+                                <flux:select.option value="">بدون دفعة (قيد الانتظار)</flux:select.option>
                                 @foreach ($circles as $circle)
                                     <flux:select.option :value="$circle->id">{{ $circle->name }} ({{ $circle->stage->name }})
                                     </flux:select.option>
@@ -182,7 +182,7 @@
                             <div>
                                 <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
                                 @php
-                                    $mStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الحلقات'];
+                                    $mStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
                                     $mStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
                                 @endphp
                                 <div class="flex items-center gap-2">

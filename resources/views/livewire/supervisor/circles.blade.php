@@ -5,8 +5,8 @@
                 <flux:icon icon="circle-stack" />
             </div>
             <div>
-                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">حلقات البرنامج</flux:heading>
-                <flux:subheading>الحلقات الواقعة ضمن البرامج التي تشرف عليها</flux:subheading>
+                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">دفعات البرنامج</flux:heading>
+                <flux:subheading>الدفعات الواقعة ضمن البرامج التي تشرف عليها</flux:subheading>
             </div>
         </div>
         @if($stages->isNotEmpty())
@@ -21,14 +21,14 @@
                         @endforeach
                     </flux:menu>
                 </flux:dropdown>
-                <flux:button variant="primary" size="sm" icon="plus" wire:click="create">إضافة حلقة جديدة</flux:button>
+                <flux:button variant="primary" size="sm" icon="plus" wire:click="create">إضافة دفعة جديدة</flux:button>
             </div>
         @endif
     </div>
 
     <div class="flex flex-col md:flex-row gap-4 items-end">
         <div class="flex-1">
-            <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن حلقة..." />
+            <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن دفعة..." />
         </div>
         <div class="w-full md:w-56">
             <flux:select wire:model.live="teacherFilter" placeholder="تصفية حسب المعلم">
@@ -43,7 +43,7 @@
     <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs overflow-hidden">
         <flux:table>
             <flux:table.columns>
-                <flux:table.column>اسم الحلقة</flux:table.column>
+                <flux:table.column>اسم الدفعة</flux:table.column>
                 <flux:table.column class="hidden md:table-cell">البرنامج</flux:table.column>
                 <flux:table.column class="hidden md:table-cell">المعلمون</flux:table.column>
                 <flux:table.column class="text-center">الطلاب</flux:table.column>
@@ -86,7 +86,7 @@
                 @empty
                     <flux:table.row>
                         <flux:table.cell colspan="5" class="text-center py-16">
-                            <flux:text class="text-zinc-400">لا توجد حلقات ضمن صلاحياتك</flux:text>
+                            <flux:text class="text-zinc-400">لا توجد دفعات ضمن صلاحياتك</flux:text>
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse
@@ -98,8 +98,8 @@
     <flux:modal name="circle-modal" class="md:w-[500px]">
         <form wire:submit="save" class="space-y-6">
             <div>
-                <flux:heading size="lg">{{ $editingCircleId ? 'تعديل بيانات الحلقة' : 'إضافة حلقة جديدة' }}</flux:heading>
-                <flux:subheading>يمكنك تحديد اسم الحلقة ووصفها وتعيين المعلمين لها.</flux:subheading>
+                <flux:heading size="lg">{{ $editingCircleId ? 'تعديل بيانات الدفعة' : 'إضافة دفعة جديدة' }}</flux:heading>
+                <flux:subheading>يمكنك تحديد اسم الدفعة ووصفها وتعيين المعلمين لها.</flux:subheading>
             </div>
 
             <div class="space-y-4">
@@ -109,8 +109,8 @@
                         <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>
                     @endforeach
                 </flux:select>
-                <flux:input label="اسم الحلقة" wire:model="name" placeholder="مثال: حلقة ابن كثير" required />
-                <flux:textarea label="وصف الحلقة (اختياري)" wire:model="description" placeholder="وصف موجز للحلقة..." />
+                <flux:input label="اسم الدفعة" wire:model="name" placeholder="مثال: دفعة ابن كثير" required />
+                <flux:textarea label="وصف الدفعة (اختياري)" wire:model="description" placeholder="وصف موجز للدفعة..." />
             </div>
 
             <div class="space-y-2">
@@ -140,7 +140,7 @@
     <flux:modal name="circle-students-modal" class="md:w-[560px]">
         <div class="space-y-4">
             <div>
-                <flux:heading size="lg">طلاب حلقة {{ $viewingCircleName }}</flux:heading>
+                <flux:heading size="lg">طلاب دفعة {{ $viewingCircleName }}</flux:heading>
                 <flux:subheading>{{ $viewingCircleStudents ? $viewingCircleStudents->count() : 0 }} طالب</flux:subheading>
             </div>
 
@@ -158,7 +158,7 @@
                                 @elseif($student['status'] === 'suspended')
                                     <flux:badge size="sm" color="red">موقوف</flux:badge>
                                 @else
-                                    <flux:badge size="sm" variant="neutral">غادر الحلقات</flux:badge>
+                                    <flux:badge size="sm" variant="neutral">غادر الدفعات</flux:badge>
                                 @endif
                             </div>
                         </div>
@@ -179,7 +179,7 @@
                         </div>
                     </div>
                 @empty
-                    <p class="text-sm text-zinc-400 text-center py-8">لا يوجد طلاب في هذه الحلقة</p>
+                    <p class="text-sm text-zinc-400 text-center py-8">لا يوجد طلاب في هذه الدفعة</p>
                 @endforelse
             </div>
 

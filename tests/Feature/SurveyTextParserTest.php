@@ -22,7 +22,7 @@ function parseLabels(string $text): array
 
 it('reads a whole pasted satisfaction survey', function () {
     $fields = SurveyTextParser::parse(<<<'TEXT'
-        رضاك عن الحلقة:
+        رضاك عن الدفعة:
         1. ما مدى رضاك عن أداء المعلم؟
         2. هل تواصل معك المعلم هذا الشهر؟
         3. كيف تقيّم مستوى ابنك؟
@@ -33,11 +33,11 @@ it('reads a whole pasted satisfaction survey', function () {
         - جوال
         - حاسب
         - لوحي
-        ٦- اقتراحاتك لتطوير الحلقة
+        ٦- اقتراحاتك لتطوير الدفعة
         TEXT);
 
     expect(collect($fields)->pluck('type')->all())->toBe([
-        'section',   // رضاك عن الحلقة:
+        'section',   // رضاك عن الدفعة:
         'rating',    // ما مدى رضاك
         'yesno',     // هل تواصل
         'rating',    // تقيّم
@@ -48,7 +48,7 @@ it('reads a whole pasted satisfaction survey', function () {
     ]);
 
     expect($fields[6]['options'])->toBe(['جوال', 'حاسب', 'لوحي']);
-    expect($fields[0]['label'])->toBe('رضاك عن الحلقة');
+    expect($fields[0]['label'])->toBe('رضاك عن الدفعة');
     expect($fields[1]['label'])->toBe('ما مدى رضاك عن أداء المعلم؟');
 });
 
@@ -90,7 +90,7 @@ it('reads a list as multiselect when the question invites more than one', functi
 });
 
 it('gives a rating question its default ceiling', function () {
-    $fields = SurveyTextParser::parse('ما مدى رضاك عن الحلقة؟');
+    $fields = SurveyTextParser::parse('ما مدى رضاك عن الدفعة؟');
 
     expect($fields[0]['type'])->toBe('rating');
     expect($fields[0]['max'])->toBe(5);

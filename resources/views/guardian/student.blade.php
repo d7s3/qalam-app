@@ -90,7 +90,7 @@
             </a>
             <div>
                 <h1 class="text-xl font-bold text-zinc-900 dark:text-white">{{ $student->name }}</h1>
-                <p class="text-sm text-zinc-500">{{ $student->circle?->name ?? 'لم تُحدَّد حلقة' }}</p>
+                <p class="text-sm text-zinc-500">{{ $student->circle?->name ?? 'لم تُحدَّد دفعة' }}</p>
             </div>
         </div>
 

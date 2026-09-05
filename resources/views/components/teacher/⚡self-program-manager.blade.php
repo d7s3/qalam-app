@@ -164,7 +164,7 @@ new class extends Component
 
         unset($this->circles, $this->circle);
 
-        Flux::toast(text: 'حُفظت إعدادات الحلقة.', variant: 'success');
+        Flux::toast(text: 'حُفظت إعدادات الدفعة.', variant: 'success');
     }
 
     public function openWeek(int $id): void
@@ -351,11 +351,11 @@ new class extends Component
     @if ($this->circles->isEmpty())
         <flux:card class="text-center py-12">
             <flux:icon icon="exclamation-triangle" class="size-10 mx-auto text-amber-400" />
-            <flux:heading size="lg" class="mt-3">{{ __('لا توجد حلقات مسندة إليك') }}</flux:heading>
+            <flux:heading size="lg" class="mt-3">{{ __('لا توجد دفعات مسندة إليك') }}</flux:heading>
         </flux:card>
     @else
         <flux:field>
-            <flux:label>{{ __('الحلقة') }}</flux:label>
+            <flux:label>{{ __('الدفعة') }}</flux:label>
             <flux:select wire:model.live="circleId">
                 @foreach ($this->circles as $circle)
                     <flux:select.option value="{{ $circle->id }}">{{ $circle->name }}</flux:select.option>
@@ -363,9 +363,9 @@ new class extends Component
             </flux:select>
         </flux:field>
 
-        {{-- إعدادات الحلقة --}}
+        {{-- إعدادات الدفعة --}}
         <flux:card>
-            <flux:heading size="lg">{{ __('إعدادات الحلقة') }}</flux:heading>
+            <flux:heading size="lg">{{ __('إعدادات الدفعة') }}</flux:heading>
             <div class="mt-4 space-y-4">
                 <flux:switch wire:model="isQuranic"
                     label="{{ __('حلقة قرآنية') }}"
@@ -466,13 +466,13 @@ new class extends Component
         <div class="space-y-5">
             @if (! $this->selfWeek)
                 <flux:card class="text-center py-10">
-                    <flux:subheading>{{ __('لا يوجد أسبوع ذاتي جارٍ لبرنامج هذه الحلقة.') }}</flux:subheading>
+                    <flux:subheading>{{ __('لا يوجد أسبوع ذاتي جارٍ لبرنامج هذه الدفعة.') }}</flux:subheading>
                 </flux:card>
             @else
                 <flux:card>
                     <flux:heading size="lg">{{ __('تعديل نصيب يوم') }}</flux:heading>
                     <flux:subheading class="mt-1">
-                        {{ __('يحلّ محلّ المقترح التلقائي. وتعديل الطالب يتقدّم على تعديل الحلقة.') }}
+                        {{ __('يحلّ محلّ المقترح التلقائي. وتعديل الطالب يتقدّم على تعديل الدفعة.') }}
                     </flux:subheading>
 
                     <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-start">
@@ -489,7 +489,7 @@ new class extends Component
                         <flux:field>
                             <flux:label>{{ __('لمن') }}</flux:label>
                             <flux:select wire:model="overrideStudentId">
-                                <flux:select.option value="">{{ __('الحلقة كلها') }}</flux:select.option>
+                                <flux:select.option value="">{{ __('الدفعة كلها') }}</flux:select.option>
                                 @foreach ($this->progress as $row)
                                     <flux:select.option value="{{ $row['student']->id }}">{{ $row['student']->name }}</flux:select.option>
                                 @endforeach
@@ -528,7 +528,7 @@ new class extends Component
                                     @foreach ($this->overrides as $override)
                                         <flux:table.row wire:key="ov-{{ $override->id }}">
                                             <flux:table.cell>{{ $override->item?->track->label() }}</flux:table.cell>
-                                            <flux:table.cell>{{ $override->student?->name ?? __('الحلقة كلها') }}</flux:table.cell>
+                                            <flux:table.cell>{{ $override->student?->name ?? __('الدفعة كلها') }}</flux:table.cell>
                                             <flux:table.cell class="tabular-nums">{{ $override->day_date->toDateString() }}</flux:table.cell>
                                             <flux:table.cell class="tabular-nums">{{ rtrim(rtrim(number_format($override->amount, 2), '0'), '.') }}</flux:table.cell>
                                             <flux:table.cell>
@@ -583,7 +583,7 @@ new class extends Component
                             @empty
                                 <flux:table.row>
                                     <flux:table.cell colspan="3" class="text-center text-zinc-400">
-                                        {{ __('لا طلاب في هذه الحلقة.') }}
+                                        {{ __('لا طلاب في هذه الدفعة.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforelse

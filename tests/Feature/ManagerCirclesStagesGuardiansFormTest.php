@@ -20,12 +20,12 @@ it('creates a new circle from the manager circles page', function () {
 
     Livewire::test(Circles::class)
         ->call('create')
-        ->set('name', 'حلقة جديدة')
+        ->set('name', 'دفعة جديدة')
         ->set('stage_id', $stage->id)
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(Circle::where('name', 'حلقة جديدة')->exists())->toBeTrue();
+    expect(Circle::where('name', 'دفعة جديدة')->exists())->toBeTrue();
 });
 
 it('updates an existing circle', function () {

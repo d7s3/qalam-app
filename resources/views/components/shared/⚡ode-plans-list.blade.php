@@ -100,7 +100,7 @@ new class extends Component {
                         <flux:table.cell class="font-medium">
                             <div class="flex flex-col">
                                 <span class="text-zinc-900 dark:text-white font-semibold">{{ $plan->student->name }}</span>
-                                <span class="text-xs text-zinc-500">{{ $plan->student->circle->name ?? 'بلا حلقة' }}</span>
+                                <span class="text-xs text-zinc-500">{{ $plan->student->circle->name ?? 'بلا دفعة' }}</span>
                             </div>
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >{{ $plan->path->ode->name ?? '—' }}</flux:table.cell>

@@ -20,7 +20,7 @@ uses(RefreshDatabase::class);
 function makeSupervisorWithTeacher(): array
 {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة', 'stage_id' => $stage->id]);
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach($stage->id);
     $teacher = Teacher::factory()->create(['is_approved' => true]);

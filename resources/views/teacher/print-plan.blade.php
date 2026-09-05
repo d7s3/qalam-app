@@ -85,7 +85,7 @@
             <div class="flex flex-col justify-around border border-zinc-200 rounded-4xl py-7 px-3">
                 <div class="flex flex-wrap justify-start items-cend gap-2 w-full">
                     <div class="flex items-end">
-                        <span class="text-zinc-500 ml-1">الحلقة:</span>
+                        <span class="text-zinc-500 ml-1">الدفعة:</span>
                         <span>{{ $plan->student->circle->name ?? 'غير محدد' }}</span>
                     </div>
 

@@ -125,7 +125,7 @@ new class extends Component {
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <flux:heading size="xl" level="1">{{ __('متابعة الانضباط الحضوري') }}</flux:heading>
-            <flux:subheading>{{ __('متابعة وتدقيق أيام حضور وغياب طلاب حلقتك، مع إمكانية الفرز حسب التاريخ.') }}
+            <flux:subheading>{{ __('متابعة وتدقيق أيام حضور وغياب طلاب دفعتك، مع إمكانية الفرز حسب التاريخ.') }}
             </flux:subheading>
         </div>
     </div>
@@ -232,7 +232,7 @@ new class extends Component {
                 @empty
                     <flux:table.row>
                         <flux:table.cell colspan="4" class="text-center text-zinc-500 py-8">
-                            {{ __('لا يوجد طلاب مضافين في هذه الحلقة.') }}
+                            {{ __('لا يوجد طلاب مضافين في هذه الدفعة.') }}
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse

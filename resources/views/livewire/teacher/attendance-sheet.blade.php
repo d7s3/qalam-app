@@ -302,7 +302,7 @@ a reason — enforced here for the prompt, and again on the server for real.
     @if (! $this->circleId)
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-16 text-center">
             <flux:icon icon="table-cells" class="size-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-            <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">اختر حلقة لعرض الجدول</flux:heading>
+            <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">اختر دفعة لعرض الجدول</flux:heading>
         </div>
     @elseif (empty($days))
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-16 text-center">
@@ -313,7 +313,7 @@ a reason — enforced here for the prompt, and again on the server for real.
     @elseif ($students->isEmpty())
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-16 text-center">
             <flux:icon icon="users" class="size-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-            <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">لا يوجد طلاب معتمدون في هذه الحلقة</flux:heading>
+            <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">لا يوجد طلاب معتمدون في هذه الدفعة</flux:heading>
         </div>
     @else
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs overflow-hidden">

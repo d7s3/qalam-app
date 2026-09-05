@@ -110,7 +110,7 @@ class Teachers extends Component
         Teacher::create([
             'name' => $this->quickName,
             'phone' => $this->quickPhone,
-            'email' => 'teacher_'.Str::random(10).'@uncompleted.altag.app',
+            'email' => 'teacher_'.Str::random(10).'@unregistered.invalid',
             'password' => Hash::make(Str::random(10)),
             'is_approved' => true,
             'approved_by' => auth()->id(),

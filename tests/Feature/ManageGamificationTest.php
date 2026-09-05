@@ -44,7 +44,7 @@ beforeEach(function () {
     Carbon::setTestNow('2026-06-16 10:00:00');
 
     $this->stage = Stage::create(['name' => 'مرحلة اختبار التلعيب']);
-    $this->circle = Circle::create(['name' => 'حلقة اختبار التلعيب', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة اختبار التلعيب', 'stage_id' => $this->stage->id]);
 
     $this->supervisor = Supervisor::factory()->create();
     $this->supervisor->stages()->attach($this->stage->id);
@@ -1663,7 +1663,7 @@ it('offers copying all redemption links as one text with a privacy warning', fun
     expect($html)
         ->toContain('روابط صرف العملات — مسابقة')
         ->toContain('يجب عدم مشاركتها مع أي شخص')
-        ->toContain('حلقة '.$this->circle->name);
+        ->toContain('دفعة '.$this->circle->name);
 });
 
 it('lists store purchases and cancels one via the supervisor store tab', function () {
@@ -1862,7 +1862,7 @@ it('does not grant a badge twice, nor to a student outside the competition', fun
 
     $outsider = Student::create([
         'name' => 'طالب خارج المسابقة', 'email' => 'outsider@example.com', 'password' => bcrypt('x'),
-        'circle_id' => Circle::create(['name' => 'حلقة أخرى', 'stage_id' => $this->stage->id])->id,
+        'circle_id' => Circle::create(['name' => 'دفعة أخرى', 'stage_id' => $this->stage->id])->id,
         'is_approved' => true, 'status' => 'active',
     ]);
 

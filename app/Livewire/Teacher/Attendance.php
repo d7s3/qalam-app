@@ -176,7 +176,7 @@ class Attendance extends Component
     public function exportCsv(): ?StreamedResponse
     {
         if (! $this->selectedCircle || $this->students->isEmpty()) {
-            Flux::toast(__('اختر حلقة بها طلاب أولاً'), variant: 'warning');
+            Flux::toast(__('اختر دفعة بها طلاب أولاً'), variant: 'warning');
 
             return null;
         }
@@ -428,7 +428,7 @@ class Attendance extends Component
         $statusText = $status === 'late' ? 'متأخر' : 'غائب';
 
         if ($statusText == 'متأخر') {
-            $statusText = 'حضر الحلقة متأخراً';
+            $statusText = 'حضر الدفعة متأخراً';
         }
         $ordinals = [
             1 => 'الأولى',

@@ -643,13 +643,13 @@ class GamificationService
                     $coinPts = ($settings['attendance_present_coins'] ?? ($settings['attendance_present'] ?? 4));
                     $xpPoints = $xpPts;
                     $coinPoints = $coinPts;
-                    $desc = "حضور الحلقة (+{$xpPts} XP، +{$coinPts} عملة)";
+                    $desc = "حضور الدفعة (+{$xpPts} XP، +{$coinPts} عملة)";
                 } elseif ($attendance->status === 'late') {
                     $xpPts = ($settings['attendance_late_xp'] ?? ($settings['attendance_late'] ?? 2));
                     $coinPts = ($settings['attendance_late_coins'] ?? ($settings['attendance_late'] ?? 2));
                     $xpPoints = $xpPts;
                     $coinPoints = $coinPts;
-                    $desc = "حضور الحلقة متأخراً (+{$xpPts} XP، +{$coinPts} عملة)";
+                    $desc = "حضور الدفعة متأخراً (+{$xpPts} XP، +{$coinPts} عملة)";
                 }
             }
 

@@ -3,6 +3,7 @@
 use App\Models\Circle;
 use App\Models\Stage;
 use App\Models\Student;
+use App\Models\User;
 use App\Models\StudentPlacementRequest;
 use App\Services\StudentPlacementService;
 use App\Support\Scope;
@@ -26,14 +27,40 @@ new class extends Component
 
     public string $search = '';
 
+    /**
+     * The role this page was opened under, kept for the rest of its life.
+     *
+     * Resolving it afresh on every action would read the route, and a Livewire
+     * update's route is `livewire.update` — so a manager who also teaches would
+     * be answered for as a teacher the moment he clicked anything. Tampering
+     * with it from the browser gains nothing: the guard it names still has to
+     * have him signed in, and `decider()` refuses when it does not.
+     */
+    public string $asRole = 'supervisor';
+
     public function mount(): void
     {
+        $this->asRole = Scope::resolveRole();
         $this->admitStage = $this->scope()->stageIds()?->first() ?? Stage::value('id');
     }
 
+    /**
+     * The reach of whoever is reading, not of the role the page was written for.
+     *
+     * The manager carries the supervisor and opens this through `manager.held`,
+     * where he is signed in on his own guard and not on the supervisor's — so
+     * naming that guard here answered for nobody and the page fell over in his
+     * hands.
+     */
     private function scope(): Scope
     {
-        return Scope::forRole('supervisor');
+        return Scope::forRole($this->asRole);
+    }
+
+    /** Whoever is answering, which the service records against the decision. */
+    private function decider(): User
+    {
+        return $this->scope()->user() ?? abort(403);
     }
 
     /** The requests standing for cohorts this supervisor answers for. */
@@ -51,7 +78,7 @@ new class extends Component
     {
         $request = $this->pendingQuery()->whereKey($requestId)->firstOrFail();
 
-        StudentPlacementService::approve($request, Auth::guard('supervisor')->user());
+        StudentPlacementService::approve($request, $this->decider());
 
         Flux::toast(__('تم التسكين'), variant: 'success');
     }
@@ -62,7 +89,7 @@ new class extends Component
 
         StudentPlacementService::reject(
             $request,
-            Auth::guard('supervisor')->user(),
+            $this->decider(),
             $this->notes[$requestId] ?? null,
         );
 
@@ -82,7 +109,7 @@ new class extends Component
         StudentPlacementService::admitToProgramme(
             Student::whereNull('stage_id')->findOrFail($studentId),
             $stage,
-            Auth::guard('supervisor')->user(),
+            $this->decider(),
         );
 
         Flux::toast(__('قُبل الطالب في البرنامج'), variant: 'success');

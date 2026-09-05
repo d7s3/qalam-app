@@ -28,7 +28,7 @@ beforeEach(function () {
 function period(array $attributes): AcademicCalendarEvent
 {
     $period = AcademicCalendarEvent::create(array_merge([
-        'event_name' => 'فترة دوام الحلقات',
+        'event_name' => 'فترة دوام الدفعات',
         'start_date' => '2026-07-01',
         'end_date' => '2026-07-31',
         'is_attendance_period' => true,
@@ -223,7 +223,7 @@ it('shows the working times of the circle on the attendance page', function () {
         ->assertSee('16:00')
         ->assertSee('الفترة المسائية')
         // The session length input is gone with the idea behind it.
-        ->assertDontSee('مدة الحلقة');
+        ->assertDontSee('مدة الدفعة');
 });
 
 it('reopens a period with everything it was saved with', function () {

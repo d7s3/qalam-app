@@ -15,7 +15,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'المرحلة الثانوية']);
-    $this->circle = Circle::create(['name' => 'حلقة الإيمان', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة الإيمان', 'stage_id' => $this->stage->id]);
 
     $this->teacher = Teacher::create([
         'name' => 'معلم تجريبي',
@@ -115,7 +115,7 @@ it('returns circles of teacher', function () {
             'students',
         ])
         ->assertJsonFragment([
-            'name' => 'حلقة الإيمان',
+            'name' => 'دفعة الإيمان',
         ]);
 });
 
@@ -148,7 +148,7 @@ it('returns students in a circle with their attendance status', function () {
 });
 
 it('prevents teachers from accessing other circles', function () {
-    $otherCircle = Circle::create(['name' => 'حلقة أخرى', 'stage_id' => $this->stage->id]);
+    $otherCircle = Circle::create(['name' => 'دفعة أخرى', 'stage_id' => $this->stage->id]);
     $token = $this->teacher->createToken('test')->plainTextToken;
 
     $response = $this->withHeader('Authorization', 'Bearer '.$token)
@@ -156,7 +156,7 @@ it('prevents teachers from accessing other circles', function () {
 
     $response->assertStatus(403)
         ->assertJson([
-            'message' => 'غير مصرح لك بالوصول لهذه الحلقة.',
+            'message' => 'غير مصرح لك بالوصول لهذه الدفعة.',
         ]);
 });
 

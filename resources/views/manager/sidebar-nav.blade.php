@@ -25,7 +25,7 @@
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.circles'))
     <flux:sidebar.item class="[&_svg]:bg-[#0d9488] hover:[&_svg]:bg-[#0f766e]" icon="circle-stack" :href="route('manager.circles')" :current="request()->routeIs('manager.circles')"
         wire:navigate>
-        الحلقات
+        الدفعات
     </flux:sidebar.item>
 @endif
 <flux:sidebar.group heading="المستخدمين" class="grid">
@@ -74,7 +74,7 @@
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.yearly-attendance'))
         <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="calendar" :href="route('manager.yearly-attendance')"
             :current="request()->routeIs('manager.yearly-attendance')" wire:navigate>
-            متابعة تحضير الحلقات
+            متابعة تحضير الدفعات
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.academic-calendar'))

@@ -776,7 +776,7 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <flux:heading size="lg">إدارة وتوزيع فرق التحدي (الأسر)</flux:heading>
-                        <flux:subheading>قسّم طلاب الحلقات المشاركة إلى فرق (أسر) وعيّن القادة والمساعدين والألوان والشعارات المخصصة لكل أسرة.</flux:subheading>
+                        <flux:subheading>قسّم طلاب الدفعات المشاركة إلى فرق (أسر) وعيّن القادة والمساعدين والألوان والشعارات المخصصة لكل أسرة.</flux:subheading>
                     </div>
                     <flux:button wire:click="createTeam" variant="primary" icon="plus" class="bg-purple-600 hover:bg-purple-700 border-none text-white">إنشاء أسرة جديدة</flux:button>
                 </div>
@@ -845,12 +845,12 @@
 
                 {{-- Students Assignment Status --}}
                 <div class="mt-8">
-                    <flux:heading size="lg" class="mb-2">حالة توزيع الطلاب بالحلقات</flux:heading>
-                    <flux:subheading class="mb-4">استعراض لجميع طلاب الحلقات المشاركة وتوزيعهم الحالي على الأسر.</flux:subheading>
+                    <flux:heading size="lg" class="mb-2">حالة توزيع الطلاب بالدفعات</flux:heading>
+                    <flux:subheading class="mb-4">استعراض لجميع طلاب الدفعات المشاركة وتوزيعهم الحالي على الأسر.</flux:subheading>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         @php
-                                            $studentsGrouped = $students->groupBy(fn($std) => $std->circle->name ?? 'بدون حلقة');
+                                            $studentsGrouped = $students->groupBy(fn($std) => $std->circle->name ?? 'بدون دفعة');
                         @endphp
                         @foreach($studentsGrouped as $circleName => $circleStudents)
                             <div class="p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm space-y-4">
@@ -882,7 +882,7 @@
                                             </div>
                                         </div>
                                     @empty
-                                        <div class="text-zinc-500 text-xs py-4 text-center">لا يوجد طلاب في هذه الحلقة.</div>
+                                        <div class="text-zinc-500 text-xs py-4 text-center">لا يوجد طلاب في هذه الدفعة.</div>
                                     @endforelse
                                 </div>
                             </div>
@@ -946,7 +946,7 @@
                     <div>
                         <flux:heading size="sm" class="mb-2">تسكين الطلاب</flux:heading>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto p-2 border border-zinc-200 dark:border-zinc-700 rounded-lg">
-                            @php $trackGrouped = $students->groupBy(fn($s) => $s->circle->name ?? 'بدون حلقة'); @endphp
+                            @php $trackGrouped = $students->groupBy(fn($s) => $s->circle->name ?? 'بدون دفعة'); @endphp
                             @forelse($trackGrouped as $circleName => $circleStudents)
                                 <div class="sm:col-span-2 text-xs font-bold text-zinc-400 mt-1">{{ $circleName }}</div>
                                 @foreach($circleStudents as $std)
@@ -956,7 +956,7 @@
                                     </label>
                                 @endforeach
                             @empty
-                                <span class="text-xs text-zinc-400 col-span-2 text-center py-3">لا يوجد طلاب في الحلقات المشاركة.</span>
+                                <span class="text-xs text-zinc-400 col-span-2 text-center py-3">لا يوجد طلاب في الدفعات المشاركة.</span>
                             @endforelse
                         </div>
                     </div>
@@ -1504,7 +1504,7 @@
                             <select wire:model="adjStudentId" class="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5 text-zinc-800 dark:text-zinc-200 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm">
                                 <option value="">اختر طالباً...</option>
                                 @foreach($studentsGrouped as $circleName => $circleStudents)
-                                    <optgroup label="حلقة: {{ $circleName }}">
+                                    <optgroup label="دفعة: {{ $circleName }}">
                                         @foreach($circleStudents as $std)
                                             <option value="{{ $std->id }}">{{ $std->name }}</option>
                                         @endforeach
@@ -1616,7 +1616,7 @@
                                             @if($adj->student)
                                                 <div class="flex flex-col">
                                                     <span>{{ $adj->student->name }}</span>
-                                                    <span class="text-[10px] text-zinc-400 font-medium">حلقة: {{ $adj->student->circle?->name ?? 'بدون حلقة' }}</span>
+                                                    <span class="text-[10px] text-zinc-400 font-medium">دفعة: {{ $adj->student->circle?->name ?? 'بدون دفعة' }}</span>
                                                 </div>
                                             @elseif($adj->team)
                                                 <div class="flex items-center gap-1.5">
@@ -1692,10 +1692,10 @@
                 ]);
 
                 $allRedemptionLinksText = "🪙 روابط صرف العملات — مسابقة {$competition->title}\n"
-                    ."كل رابط أدناه خاص بحلقة واحدة: يفتح منه معلم الحلقة قائمة طلابه وأرصدتهم من العملات، ويصرف لهم عملاتهم مقابل الجوائز والعلامات الورقية.\n"
-                    ."أرسِل لكل معلم رابط حلقته فقط.\n\n"
-                    .$redemptionLinks->map(fn ($link) => "⦿ حلقة {$link['circle']->name}:\n{$link['url']}")->implode("\n\n")
-                    ."\n\n⚠️ تنبيه مهم: هذه الروابط خاصة وتتيح الصرف من أرصدة الطلاب مباشرة، لذلك يجب عدم مشاركتها مع أي شخص غير معلم الحلقة المعني.";
+                    ."كل رابط أدناه خاص بدفعة واحدة: يفتح منه معلم الدفعة قائمة طلابه وأرصدتهم من العملات، ويصرف لهم عملاتهم مقابل الجوائز والعلامات الورقية.\n"
+                    ."أرسِل لكل معلم رابط دفعته فقط.\n\n"
+                    .$redemptionLinks->map(fn ($link) => "⦿ دفعة {$link['circle']->name}:\n{$link['url']}")->implode("\n\n")
+                    ."\n\n⚠️ تنبيه مهم: هذه الروابط خاصة وتتيح الصرف من أرصدة الطلاب مباشرة، لذلك يجب عدم مشاركتها مع أي شخص غير معلم الدفعة المعني.";
             @endphp
 
             <div class="space-y-6">
@@ -1703,7 +1703,7 @@
                     <div>
                         <flux:heading size="lg">روابط صرف العملات</flux:heading>
                         <flux:subheading>
-                            لكل حلقة رابط خاص أرسله لمعلمها؛ يفتح المعلم الرابط فيرى طلاب حلقته وأرصدتهم من العملات،
+                            لكل دفعة رابط خاص أرسله لمعلمها؛ يفتح المعلم الرابط فيرى طلاب دفعته وأرصدتهم من العملات،
                             ويصرف لأي طالب عملاته مقابل جائزة أو علامات ورقية يسلّمها له.
                         </flux:subheading>
                     </div>
@@ -1733,7 +1733,7 @@
                             <div class="flex items-center gap-2 shrink-0" x-data>
                                 <flux:button size="sm" variant="primary" icon="link"
                                     class="bg-purple-600 hover:bg-purple-700 border-none text-white"
-                                    @click="navigator.clipboard.writeText(@js($redemptionUrl)); $dispatch('toast', { message: 'تم نسخ رابط صرف حلقة {{ $circle->name }}', variant: 'success' })">
+                                    @click="navigator.clipboard.writeText(@js($redemptionUrl)); $dispatch('toast', { message: 'تم نسخ رابط صرف دفعة {{ $circle->name }}', variant: 'success' })">
                                     نسخ الرابط
                                 </flux:button>
                                 <flux:button size="sm" variant="ghost" icon="arrow-top-right-on-square"
@@ -1744,7 +1744,7 @@
                         </div>
                     @empty
                         <div class="text-center py-10 text-sm text-zinc-500">
-                            لا توجد حلقات مرتبطة بهذه المسابقة. اربط الحلقات بالمسابقة أولاً ثم عد إلى هنا.
+                            لا توجد دفعات مرتبطة بهذه المسابقة. اربط الدفعات بالمسابقة أولاً ثم عد إلى هنا.
                         </div>
                     @endforelse
                 </div>
@@ -2050,7 +2050,7 @@
                     @if($badge_mechanism !== 'manual')
                         <flux:select label="نوع الإنجاز" wire:model.live="badge_achievement_type">
                             <flux:select.option value="">اختر نوع الإنجاز...</flux:select.option>
-                            <flux:select.option value="attendance">حضور الحلقة</flux:select.option>
+                            <flux:select.option value="attendance">حضور الدفعة</flux:select.option>
                             <flux:select.option value="hifz">حفظ القرآن</flux:select.option>
                             <flux:select.option value="review">مراجعة القرآن</flux:select.option>
                             <flux:select.option value="criterion">بند تقييم مخصص</flux:select.option>
@@ -2389,7 +2389,7 @@
                         <flux:select label="اختيار قائد الأسرة (Leader)" wire:model="team_leader_id" placeholder="اختر طالباً ليكون قائداً للأسرة...">
                             <flux:select.option value="">-- بدون قائد --</flux:select.option>
                             @foreach($students as $std)
-                                <flux:select.option value="{{ $std->id }}">{{ $std->name }} ({{ $std->circle->name ?? 'بدون حلقة' }})</flux:select.option>
+                                <flux:select.option value="{{ $std->id }}">{{ $std->name }} ({{ $std->circle->name ?? 'بدون دفعة' }})</flux:select.option>
                             @endforeach
                         </flux:select>
                         
@@ -2397,7 +2397,7 @@
                             <flux:select.option value="">-- بدون نائب --</flux:select.option>
                             @foreach($students as $std)
                                 @if($std->id != $team_leader_id)
-                                    <flux:select.option value="{{ $std->id }}">{{ $std->name }} ({{ $std->circle->name ?? 'بدون حلقة' }})</flux:select.option>
+                                    <flux:select.option value="{{ $std->id }}">{{ $std->name }} ({{ $std->circle->name ?? 'بدون دفعة' }})</flux:select.option>
                                 @endif
                             @endforeach
                         </flux:select>
@@ -2407,11 +2407,11 @@
                 @if($team_step === 4)
                     <!-- Step 4: Grouped Students List -->
                     <div class="space-y-4">
-                        <label class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 block">حدد طلاب الأسرة (مجمعين حسب الحلقات):</label>
+                        <label class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 block">حدد طلاب الأسرة (مجمعين حسب الدفعات):</label>
                         
                         <div class="space-y-6 max-h-[300px] overflow-y-auto pr-1">
                             @php
-                                $studentsByCircle = $students->groupBy(fn($std) => $std->circle->name ?? 'بدون حلقة');
+                                $studentsByCircle = $students->groupBy(fn($std) => $std->circle->name ?? 'بدون دفعة');
                             @endphp
                             @foreach($studentsByCircle as $circleName => $circleStudents)
                                 <div class="space-y-2.5">

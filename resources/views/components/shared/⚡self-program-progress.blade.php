@@ -129,7 +129,7 @@ new class extends Component
             <flux:table>
                 <flux:table.columns>
                     <flux:table.column>{{ __('الطالب') }}</flux:table.column>
-                    <flux:table.column>{{ __('الحلقة') }}</flux:table.column>
+                    <flux:table.column>{{ __('الدفعة') }}</flux:table.column>
                     <flux:table.column>{{ __('تقدّم الأسبوع') }}</flux:table.column>
                     <flux:table.column>{{ __('المجالات') }}</flux:table.column>
                     <flux:table.column>{{ __('متأخرات') }}</flux:table.column>

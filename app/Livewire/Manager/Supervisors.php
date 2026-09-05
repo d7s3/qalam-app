@@ -112,7 +112,7 @@ class Supervisors extends Component
         Supervisor::create([
             'name' => $this->quickName,
             'phone' => $this->quickPhone,
-            'email' => 'supervisor_'.Str::random(10).'@uncompleted.altag.app',
+            'email' => 'supervisor_'.Str::random(10).'@unregistered.invalid',
             'password' => Hash::make(Str::random(10)),
             'is_approved' => true,
             'approved_by' => auth()->id(),

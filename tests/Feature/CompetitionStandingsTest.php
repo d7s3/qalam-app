@@ -14,7 +14,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $this->circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $this->stage->id]);
 
     $this->supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $this->supervisor->stages()->attach($this->stage->id);

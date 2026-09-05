@@ -2584,7 +2584,7 @@ class ManageGamification extends Component
         $studentsGrouped = Student::with('circle')
             ->whereIn('circle_id', $circleIds)
             ->get()
-            ->groupBy(fn ($s) => $s->circle?->name ?? 'بدون حلقة');
+            ->groupBy(fn ($s) => $s->circle?->name ?? 'بدون دفعة');
 
         $dbAdjustments = GamificationTransaction::with(['student', 'team'])
             ->where('leaderboard_id', $this->competitionId)

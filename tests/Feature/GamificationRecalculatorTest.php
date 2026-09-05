@@ -18,7 +18,7 @@ use Livewire\Livewire;
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'مرحلة إعادة الاحتساب']);
-    $this->circle = Circle::create(['name' => 'حلقة إعادة الاحتساب', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة إعادة الاحتساب', 'stage_id' => $this->stage->id]);
     $this->student = Student::factory()->create(['circle_id' => $this->circle->id, 'status' => 'active']);
 
     $this->competition = Leaderboard::create([

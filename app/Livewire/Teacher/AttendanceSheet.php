@@ -282,7 +282,7 @@ class AttendanceSheet extends Component
         $teacher = auth()->guard('teacher')->user();
 
         if (! $teacher || ! $this->circleId || ! $this->teacherOwnsCircle($teacher)) {
-            Flux::toast('لا تملك صلاحية التعديل على هذه الحلقة', variant: 'danger');
+            Flux::toast('لا تملك صلاحية التعديل على هذه الدفعة', variant: 'danger');
 
             return false;
         }
@@ -527,7 +527,7 @@ class AttendanceSheet extends Component
     public function exportCsv(): ?StreamedResponse
     {
         if (! $this->circleId || $this->students->isEmpty()) {
-            Flux::toast('اختر حلقة بها طلاب أولاً', variant: 'warning');
+            Flux::toast('اختر دفعة بها طلاب أولاً', variant: 'warning');
 
             return null;
         }

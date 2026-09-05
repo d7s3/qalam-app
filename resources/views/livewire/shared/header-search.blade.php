@@ -5,7 +5,7 @@
             type="text"
             wire:model.live.debounce.300ms="query"
             x-on:focus="open = true"
-            placeholder="{{ __('ابحث عن طالب أو حلقة...') }}"
+            placeholder="{{ __('ابحث عن طالب أو دفعة...') }}"
             class="w-full rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 py-2 pr-9 pl-4 text-sm text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-maroon/30"
         />
     </div>
@@ -31,7 +31,7 @@
             @endif
 
             @if($results['circles']->isNotEmpty())
-                <div class="px-3 pt-2 pb-1 text-xs font-bold text-zinc-400 border-t border-zinc-100 dark:border-zinc-800">{{ __('الحلقات') }}</div>
+                <div class="px-3 pt-2 pb-1 text-xs font-bold text-zinc-400 border-t border-zinc-100 dark:border-zinc-800">{{ __('الدفعات') }}</div>
                 @foreach($results['circles'] as $circle)
                     <a href="{{ $this->circleUrl($circle) }}" wire:navigate
                         class="flex items-center gap-2 px-4 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200">

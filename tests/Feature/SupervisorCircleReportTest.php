@@ -280,7 +280,7 @@ it('counts a day the circle met even when it is not a working day', function () 
 
 it('measures attendance against the calendar attendance period when one covers the range', function () {
     AcademicCalendarEvent::create([
-        'event_name' => 'فترة دوام الحلقات',
+        'event_name' => 'فترة دوام الدفعات',
         'start_date' => '2026-07-01',
         'end_date' => '2026-07-31',
         'is_attendance_period' => true,
@@ -335,7 +335,7 @@ it('rejects a circle outside the supervisor stages', function () {
 
 it('includes circle-less stage students when scoped to the whole stage', function () {
     Student::factory()->create([
-        'name' => 'طالب بلا حلقة',
+        'name' => 'طالب بلا دفعة',
         'circle_id' => null,
         'stage_id' => $this->stage->id,
         'status' => 'active',
@@ -345,7 +345,7 @@ it('includes circle-less stage students when scoped to the whole stage', functio
 
     Livewire::test(SupervisorCircleReport::class, ['circleId' => $this->circle->id])
         ->set('scope', 'stage')
-        ->assertSee('طالب بلا حلقة')
+        ->assertSee('طالب بلا دفعة')
         ->assertSee('طالب التقرير');
 });
 
@@ -385,7 +385,7 @@ it('rejects a stage report outside the supervisor stages', function () {
 it('narrows the stage report to a single circle', function () {
     $secondCircle = Circle::factory()->create(['stage_id' => $this->stage->id]);
     Student::factory()->create([
-        'name' => 'طالب الحلقة الثانية',
+        'name' => 'طالب الدفعة الثانية',
         'circle_id' => $secondCircle->id,
         'status' => 'active',
     ]);
@@ -393,10 +393,10 @@ it('narrows the stage report to a single circle', function () {
     $this->actingAs($this->supervisor, 'supervisor');
 
     Livewire::test(StageReport::class, ['stageId' => $this->stage->id])
-        ->assertSee('طالب الحلقة الثانية')
+        ->assertSee('طالب الدفعة الثانية')
         ->set('circleId', (string) $this->circle->id)
         ->assertSee('طالب التقرير')
-        ->assertDontSee('طالب الحلقة الثانية');
+        ->assertDontSee('طالب الدفعة الثانية');
 });
 
 it('keeps the shared public report light-only while supervisor reports follow the theme', function () {

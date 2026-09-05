@@ -13,7 +13,7 @@ use Livewire\Livewire;
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $this->circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $this->stage->id]);
 
     $this->student = Student::create([
         'name' => 'أحمد علي',
@@ -64,12 +64,12 @@ it('shows circle students with their coin balances on a signed link', function (
     $this->get(redemptionUrl($this->leaderboard->id, $this->circle->id))
         ->assertOk()
         ->assertSee('أحمد علي')
-        ->assertSee('حلقة النور')
+        ->assertSee('دفعة النور')
         ->assertSee('150');
 });
 
 it('rejects a circle that does not belong to the competition', function () {
-    $otherCircle = Circle::create(['name' => 'حلقة أخرى', 'stage_id' => $this->stage->id]);
+    $otherCircle = Circle::create(['name' => 'دفعة أخرى', 'stage_id' => $this->stage->id]);
 
     $this->get(redemptionUrl($this->leaderboard->id, $otherCircle->id))
         ->assertNotFound();

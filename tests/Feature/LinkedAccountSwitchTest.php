@@ -22,7 +22,7 @@ it('shows the other role as a switch button in the header dropdown', function ()
     $this->get(route('manager.dashboard'))
         ->assertSuccessful()
         ->assertSee('التبديل بين أدوارك')
-        ->assertSee('معلم حلقة');
+        ->assertSee('معلم دفعة');
 });
 
 it('switches into another role for the same account without a password and keeps both guards authenticated', function () {
@@ -84,5 +84,5 @@ it('shows the correct active role after switching back and forth, even once ever
 
     $this->get(route('teacher.dashboard'))
         ->assertSuccessful()
-        ->assertSee('<div class="text-xs text-zinc-400">معلم حلقة</div>', false);
+        ->assertSee('<div class="text-xs text-zinc-400">معلم دفعة</div>', false);
 });

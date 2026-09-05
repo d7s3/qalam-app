@@ -38,7 +38,7 @@ beforeEach(function () {
 
     $this->manager = Manager::factory()->create(['name' => 'المدير']);
 
-    $this->category = TaskCategory::create(['name' => 'متابعة الحلقات', 'color' => '#7a2727']);
+    $this->category = TaskCategory::create(['name' => 'متابعة الدفعات', 'color' => '#7a2727']);
 });
 
 function makeTask(User $for, ?string $due, ?string $completedOn, ?int $categoryId = null): Task
@@ -131,7 +131,7 @@ it('gathers by the kind of work', function () {
 
     $names = array_column(tasksFor($this->manager, 'manager', TasksReport::BY_CATEGORY), 'name');
 
-    expect($names)->toEqualCanonicalizing(['متابعة الحلقات', 'بلا تصنيف']);
+    expect($names)->toEqualCanonicalizing(['متابعة الدفعات', 'بلا تصنيف']);
 });
 
 it('gathers by the office held', function () {

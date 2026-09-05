@@ -170,7 +170,7 @@ new class extends Component {
         $student = Student::create([
             'name' => $this->name,
             'phone' => $this->phone,
-            'email' => 'student_' . Str::random(10) . '@uncompleted.altag.app',
+            'email' => 'student_' . Str::random(10) . '@unregistered.invalid',
             'password' => Hash::make(Str::random(10)),
             'is_approved' => false,
             'access_token' => Str::random(32),
@@ -293,7 +293,7 @@ new class extends Component {
 <div class="space-y-6">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-            <flux:heading size="xl" level="1">{{ __('إدارة طلاب الحلقة') }}</flux:heading>
+            <flux:heading size="xl" level="1">{{ __('إدارة طلاب الدفعة') }}</flux:heading>
             <flux:subheading>{{ __('قم بإنشاء حسابات سريعة لطلابك باستخدام روابط الدخول السحرية وإدارة بياناتهم.') }}
             </flux:subheading>
         </div>
@@ -316,7 +316,7 @@ new class extends Component {
         </form>
         <flux:button wire:click="$set('unassignedSearch', '')"
             x-on:click="$flux.modal('unassigned-students-modal').show()" icon="magnifying-glass-plus" class="w-full md:w-auto mt-3">
-            {{ __('إضافة طالب غير مرتبط بحلقة') }}
+            {{ __('إضافة طالب غير مرتبط بدفعة') }}
         </flux:button>
     </flux:card>
     @endif
@@ -373,7 +373,7 @@ new class extends Component {
                                     'active' => 'مشارك',
                                     'registering' => 'تحت التسجيل',
                                     'suspended' => 'موقوف',
-                                    'left' => 'غادر الحلقات',
+                                    'left' => 'غادر الدفعات',
                                 ];
                                 $stColor = $statusColors[$student->status] ?? 'zinc';
                                 $stLabel = $statusLabels[$student->status] ?? $student->status;
@@ -459,7 +459,7 @@ new class extends Component {
                         <div>
                             <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
                             @php
-                                $tStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الحلقات'];
+                                $tStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
                                 $tStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
                             @endphp
                             <div class="flex items-center gap-2">
@@ -642,7 +642,7 @@ new class extends Component {
                                                 'active' => 'مشارك',
                                                 'registering' => 'تحت التسجيل',
                                                 'suspended' => 'موقوف',
-                                                'left' => 'غادر الحلقات',
+                                                'left' => 'غادر الدفعات',
                                             ];
                                             $hColor = [
                                                 'active' => 'green',
@@ -675,8 +675,8 @@ new class extends Component {
             <div class="flex justify-between pt-6">
                 @if(Auth::guard('teacher')->user()?->effectivePermissions()['can_manage_students'] ?? true)
                 <flux:button wire:click="removeFromCircle"
-                    wire:confirm="{{ __('هل أنت متأكد من إزالة الطالب من الحلقة؟ (لن يتم حذف بياناته، بل سيتم فصله عن حلقتك فقط)') }}"
-                    variant="ghost" size="sm" icon="user-minus">{{ __('إزالة من الحلقة') }}</flux:button>
+                    wire:confirm="{{ __('هل أنت متأكد من إزالة الطالب من الدفعة؟ (لن يتم حذف بياناته، بل سيتم فصله عن دفعتك فقط)') }}"
+                    variant="ghost" size="sm" icon="user-minus">{{ __('إزالة من الدفعة') }}</flux:button>
                 @endif
             </div>
             @endif

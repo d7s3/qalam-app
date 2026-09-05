@@ -26,7 +26,7 @@ it('finds or creates a single 1:1 conversation between two participants', functi
 
 it('only surfaces people the searcher actually has a relationship with', function () {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
 
     $teacherInCircle = Teacher::factory()->create(['name' => 'أحمد المعلم']);
     $teacherInCircle->circles()->attach($circle->id);
@@ -77,8 +77,8 @@ it('allows a guardian to message only their own child, not other students', func
 it('allows a supervisor to message teachers and students only within their supervised stages', function () {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
     $otherStage = Stage::create(['name' => 'المرحلة الثانية']);
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
-    $otherCircle = Circle::create(['name' => 'حلقة أخرى', 'stage_id' => $otherStage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
+    $otherCircle = Circle::create(['name' => 'دفعة أخرى', 'stage_id' => $otherStage->id]);
 
     $supervisor = Supervisor::factory()->create();
     $supervisor->stages()->attach($stage->id);
@@ -94,7 +94,7 @@ it('allows a supervisor to message teachers and students only within their super
 });
 
 it('sends a message and reflects it as unread for the other participant', function () {
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => Stage::create(['name' => 'المرحلة الأولى'])->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => Stage::create(['name' => 'المرحلة الأولى'])->id]);
     $student = Student::factory()->create(['circle_id' => $circle->id]);
     $teacher = Teacher::factory()->create();
     $teacher->circles()->attach($circle->id);

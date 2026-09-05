@@ -32,7 +32,7 @@ it('hides a disabled page from the supervisor sidebar', function () {
         ->get(route('supervisor.dashboard'))
         ->assertSuccessful()
         ->assertDontSee('إدارة النماذج')
-        ->assertSee('الحلقات');
+        ->assertSee('الدفعات');
 });
 
 it('hides a disabled page from the guardian sidebar', function () {

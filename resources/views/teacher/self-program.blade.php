@@ -6,7 +6,7 @@
             </div>
             <div>
                 <flux:heading size="lg">البرنامج الذاتي والإثرائي</flux:heading>
-                <flux:subheading>إعدادات حلقتك، ومحتواها الإثرائي، وتوزيعها اليومي، وتقدّم طلابها</flux:subheading>
+                <flux:subheading>إعدادات دفعتك، ومحتواها الإثرائي، وتوزيعها اليومي، وتقدّم طلابها</flux:subheading>
             </div>
         </div>
     </x-slot>

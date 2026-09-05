@@ -177,12 +177,12 @@ class Teachers extends Component
             'quickPhone' => 'nullable|string|max:20',
             'quickCircleId' => 'required|integer',
         ], [
-            'quickCircleId.required' => 'يجب تحديد حلقة للمعلم الجديد حتى يظهر في قائمتك.',
+            'quickCircleId.required' => 'يجب تحديد دفعة للمعلم الجديد حتى يظهر في قائمتك.',
         ]);
 
         $circleIds = $this->getSupervisorCircleIds();
         if (! in_array($this->quickCircleId, $circleIds)) {
-            Flux::toast(__('الحلقة المحددة ليست ضمن صلاحياتك'), variant: 'danger');
+            Flux::toast(__('الدفعة المحددة ليست ضمن صلاحياتك'), variant: 'danger');
 
             return;
         }
@@ -190,7 +190,7 @@ class Teachers extends Component
         $teacher = Teacher::create([
             'name' => $this->quickName,
             'phone' => $this->quickPhone,
-            'email' => 'teacher_'.Str::random(10).'@uncompleted.altag.app',
+            'email' => 'teacher_'.Str::random(10).'@unregistered.invalid',
             'password' => Hash::make(Str::random(10)),
             'is_approved' => true,
             'approved_by' => auth('manager')->id(),

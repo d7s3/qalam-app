@@ -277,7 +277,7 @@ new class extends Component
             <flux:icon icon="calendar" class="size-10 mx-auto text-zinc-300 dark:text-zinc-600" />
             <flux:heading size="lg" class="mt-3">{{ __('لا يوجد أسبوع مفتوح') }}</flux:heading>
             <flux:subheading class="mt-1">
-                {{ __('لم يضع مشرف مرحلتك محتوى لهذا الأسبوع بعد.') }}
+                {{ __('لم يضع مشرف برنامجك محتوى لهذا الأسبوع بعد.') }}
             </flux:subheading>
         </flux:card>
     @else
@@ -414,7 +414,7 @@ new class extends Component
                         <div>
                             <flux:heading size="lg">{{ __('البرنامج الإثرائي') }}</flux:heading>
                             <flux:subheading class="mt-0.5">
-                                {{ __('فُتح لك لبلوغك نصف برنامجك الذاتي — من معلّم حلقتك.') }}
+                                {{ __('فُتح لك لبلوغك نصف برنامجك الذاتي — من معلّم دفعتك.') }}
                             </flux:subheading>
                         </div>
                     </div>

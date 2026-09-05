@@ -110,7 +110,7 @@ class Stages extends Component
     {
         $stage = Stage::findOrFail($id);
         if ($stage->circles()->count() > 0) {
-            Flux::toast(__('لا يمكن حذف البرنامج لاحتوائها على حلقات'), variant: 'danger');
+            Flux::toast(__('لا يمكن حذف البرنامج لاحتوائها على دفعات'), variant: 'danger');
 
             return;
         }

@@ -140,8 +140,8 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
 
                 @if ($circles->count() > 1)
                     <div class="w-full sm:w-52">
-                        <flux:select wire:model.live="selectedCircle" label="تحديد الحلقة">
-                            <flux:select.option value="">-- اختر حلقة --</flux:select.option>
+                        <flux:select wire:model.live="selectedCircle" label="تحديد الدفعة">
+                            <flux:select.option value="">-- اختر دفعة --</flux:select.option>
                             @foreach ($circles as $circle)
                                 <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
                             @endforeach
@@ -252,7 +252,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
         @else
             <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-16 text-center">
                 <flux:icon icon="table-cells" class="size-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-                <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">اختر حلقة لعرض الجدول</flux:heading>
+                <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">اختر دفعة لعرض الجدول</flux:heading>
             </div>
         @endif
     </div>
@@ -265,8 +265,8 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
         <div
             class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-16 text-center">
             <flux:icon icon="cursor-arrow-ripple" class="size-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-            <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">اختر حلقة للبدء</flux:heading>
-            <flux:subheading class="text-zinc-400 dark:text-zinc-500">حدد الحلقة التي تريد تسجيل حضور طلابها
+            <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">اختر دفعة للبدء</flux:heading>
+            <flux:subheading class="text-zinc-400 dark:text-zinc-500">حدد الدفعة التي تريد تسجيل حضور طلابها
             </flux:subheading>
         </div>
 
@@ -276,7 +276,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
             class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-16 text-center">
             <flux:icon icon="users" class="size-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
             <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">لا يوجد طلاب</flux:heading>
-            <flux:subheading class="text-zinc-400 dark:text-zinc-500">لا يوجد طلاب معتمدون في هذه الحلقة</flux:subheading>
+            <flux:subheading class="text-zinc-400 dark:text-zinc-500">لا يوجد طلاب معتمدون في هذه الدفعة</flux:subheading>
         </div>
 
     @else
@@ -633,7 +633,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                 <flux:heading size="lg" class="text-red-600 dark:text-red-400">تأكيد مسح التحضير</flux:heading>
                 <flux:subheading>
                     <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                        هل أنت متأكد من مسح كافة بيانات التحضير لطلاب هذه الحلقة لهذا اليوم؟
+                        هل أنت متأكد من مسح كافة بيانات التحضير لطلاب هذه الدفعة لهذا اليوم؟
                         <br>
                         <strong>هذا الإجراء سيحذف السجلات ولا يمكن التراجع عنه.</strong>
                     </p>

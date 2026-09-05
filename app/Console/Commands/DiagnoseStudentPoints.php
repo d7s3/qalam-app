@@ -27,19 +27,19 @@ class DiagnoseStudentPoints extends Command
         }
 
         $this->info("الطالب: {$student->name} (#{$student->id})");
-        $this->line('الحلقة: '.($student->circle_id ?? 'بلا حلقة').' | البرنامج المباشر: '.($student->stage_id ?? '—'));
+        $this->line('الدفعة: '.($student->circle_id ?? 'بلا دفعة').' | البرنامج المباشر: '.($student->stage_id ?? '—'));
 
         if (! $student->circle_id) {
-            $this->warn('✗ الطالب بلا حلقة → لا يُطابق أي مسار تلعيب. النقاط تُمنح فقط لطلاب الحلقات.');
+            $this->warn('✗ الطالب بلا دفعة → لا يُطابق أي مسار تلعيب. النقاط تُمنح فقط لطلاب الدفعات.');
 
             return self::SUCCESS;
         }
 
         $boards = GamificationService::getActiveLeaderboards($student);
-        $this->line('مسارات تلعيب نشطة اليوم تغطّي حلقته: '.$boards->count());
+        $this->line('مسارات تلعيب نشطة اليوم تغطّي دفعته: '.$boards->count());
 
         if ($boards->isEmpty()) {
-            $this->warn('✗ لا يوجد مسار تلعيب نشط يغطّي حلقة الطالب اليوم (تحقّق من is_active/التواريخ/ضمّ الحلقة للمسار).');
+            $this->warn('✗ لا يوجد مسار تلعيب نشط يغطّي دفعة الطالب اليوم (تحقّق من is_active/التواريخ/ضمّ الدفعة للمسار).');
 
             return self::SUCCESS;
         }

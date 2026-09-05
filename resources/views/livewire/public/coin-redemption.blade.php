@@ -7,7 +7,7 @@
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
                 <h1 class="text-2xl md:text-3xl font-extrabold text-zinc-900">
-                    {{ __('صرف العملات') }} — {{ __('حلقة') }} {{ $circle?->name }}
+                    {{ __('صرف العملات') }} — {{ __('دفعة') }} {{ $circle?->name }}
                 </h1>
                 <p class="text-sm md:text-base text-zinc-500 mt-2">
                     {{ __('اصرف عملات الطالب مقابل جائزة أو علامات ورقية تسلّمها له، وسيُخصم المبلغ من رصيده فوراً دون التأثير على نقاط ترتيبه.') }}
@@ -23,7 +23,7 @@
     {{-- Students --}}
     <div class="bg-white rounded-2xl border border-zinc-200 shadow-xs overflow-hidden">
         <div class="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
-            <h2 class="font-bold text-zinc-800">{{ __('طلاب الحلقة') }}</h2>
+            <h2 class="font-bold text-zinc-800">{{ __('طلاب الدفعة') }}</h2>
             <span class="text-xs text-zinc-400">{{ $students->count() }} {{ __('طالباً') }}</span>
         </div>
 
@@ -50,7 +50,7 @@
                     </div>
                 </div>
             @empty
-                <div class="px-6 py-10 text-center text-sm text-zinc-500">{{ __('لا يوجد طلاب في هذه الحلقة.') }}</div>
+                <div class="px-6 py-10 text-center text-sm text-zinc-500">{{ __('لا يوجد طلاب في هذه الدفعة.') }}</div>
             @endforelse
         </div>
     </div>

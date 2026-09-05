@@ -14,7 +14,7 @@
 <flux:sidebar.group heading="العملية التعليمية" class="grid">
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.circles'))
         <flux:sidebar.item class="[&_svg]:bg-[#0d9488] hover:[&_svg]:bg-[#0f766e]" icon="circle-stack" :href="route('supervisor.circles')" :current="request()->routeIs('supervisor.circles')" wire:navigate>
-            الحلقات
+            الدفعات
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.students'))
@@ -103,7 +103,7 @@
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.yearly-attendance'))
         <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="calendar" :href="route('supervisor.yearly-attendance')"
             :current="request()->routeIs('supervisor.yearly-attendance')" wire:navigate>
-            متابعة تحضير الحلقات
+            متابعة تحضير الدفعات
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.academic-calendar'))

@@ -93,7 +93,7 @@
             </div>
             <div class="flex flex-col justify-around border border-zinc-200 rounded-3xl py-7 px-4 gap-1">
                 <div>
-                    <span class="text-zinc-500 ml-1">الحلقة:</span>
+                    <span class="text-zinc-500 ml-1">الدفعة:</span>
                     <span>{{ $student->circle->name ?? 'غير محدد' }}</span>
                 </div>
                 @if ($startDate)

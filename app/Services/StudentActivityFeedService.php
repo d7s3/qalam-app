@@ -60,7 +60,7 @@ class StudentActivityFeedService
             ->each(fn (Attendance $a) => $items->push([
                 'type' => 'attendance',
                 'icon' => 'check-circle',
-                'title' => 'حضرت الحلقة',
+                'title' => 'حضرت الدفعة',
                 'date' => Carbon::parse($a->date),
             ]));
 

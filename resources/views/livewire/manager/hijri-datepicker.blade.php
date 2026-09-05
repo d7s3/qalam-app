@@ -84,7 +84,7 @@
         </div>
 
         <div class="px-4 py-2 text-[0.6rem] text-center text-zinc-500 border-t border-zinc-100 dark:border-zinc-800">
-            النسبة المئوية تعبر عن جاهزية الحلقات (تحضير كامل)
+            النسبة المئوية تعبر عن جاهزية الدفعات (تحضير كامل)
         </div>
     </div>
 </div>

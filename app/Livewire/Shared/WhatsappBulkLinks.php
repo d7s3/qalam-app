@@ -37,7 +37,7 @@ class WhatsappBulkLinks extends Component
         'active' => 'مشارك',
         'registering' => 'تحت التسجيل',
         'suspended' => 'موقوف',
-        'left' => 'غادر الحلقات',
+        'left' => 'غادر الدفعات',
     ];
 
     public function mount(string $clientId): void

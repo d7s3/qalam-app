@@ -77,7 +77,7 @@
                 x-bind:data-current="'{{ $initialTab ?? '' }}' === 'leaderboards' ? 'true' : null"
                 x-on:switch-tab.window="if($event.detail.tab === 'leaderboards') $el.setAttribute('data-current', 'true'); else $el.removeAttribute('data-current');"
                 href="{{ route('teacher.leaderboards') }}">
-                {{ __('مسابقات الحلقة') }}
+                {{ __('مسابقات الدفعة') }}
             </flux:sidebar.item>
         </flux:sidebar.group>
     @endif

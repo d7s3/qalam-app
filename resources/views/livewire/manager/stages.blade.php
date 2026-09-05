@@ -37,7 +37,7 @@
                 <flux:table.column class="text-right">اسم البرنامج</flux:table.column>
                 <flux:table.column class="text-right">الوصف</flux:table.column>
                 <flux:table.column class="text-center">المشرفين الحاضرين</flux:table.column>
-                <flux:table.column class="text-center">عدد الحلقات</flux:table.column>
+                <flux:table.column class="text-center">عدد الدفعات</flux:table.column>
                 <flux:table.column class="text-center">تاريخ الإضافة</flux:table.column>
                 <flux:table.column></flux:table.column>
             </flux:table.columns>

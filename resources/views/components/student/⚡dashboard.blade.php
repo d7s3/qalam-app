@@ -2584,7 +2584,7 @@ new class extends Component {
                 </div>
             @else
                 <div class="text-center py-8 text-sm text-zinc-400">
-                    {{ __('لا توجد أنشطة من زملاء الحلقة بعد') }}
+                    {{ __('لا توجد أنشطة من زملاء الدفعة بعد') }}
                 </div>
             @endif
         </div>

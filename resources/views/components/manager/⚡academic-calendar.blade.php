@@ -174,7 +174,7 @@ new class extends Component {
         $period = AcademicCalendarEvent::updateOrCreate(
             ['id' => $this->editingPeriodId],
             [
-                'event_name' => 'فترة دوام الحلقات',
+                'event_name' => 'فترة دوام الدفعات',
                 'description' => $this->description,
                 'start_date' => $this->hijriFromDate,
                 'end_date' => $this->hijriToDate,
@@ -1142,8 +1142,8 @@ new class extends Component {
                             
                             <x-alpine-multiselect 
                                 wire:model="sharedWith.circle_ids" 
-                                label="حلقات محددة"
-                                placeholder="اختر الحلقات..."
+                                label="دفعات محددة"
+                                placeholder="اختر الدفعات..."
                                 :options="collect($this->availableCircles)->map(fn($c) => ['value' => $c->id, 'label' => $c->name])->toArray()" 
                             />
                         </div>
@@ -1164,7 +1164,7 @@ new class extends Component {
     <flux:modal name="attendance-period-modal" class="max-w-lg">
         <form wire:submit="saveAttendancePeriod" class="space-y-6">
             <div>
-                <flux:heading size="lg">{{ $editingPeriodId ? 'تعديل فترة دوام الحلقات' : 'إضافة فترة دوام الحلقات' }}</flux:heading>
+                <flux:heading size="lg">{{ $editingPeriodId ? 'تعديل فترة دوام الدفعات' : 'إضافة فترة دوام الدفعات' }}</flux:heading>
                 <flux:subheading>حدد المدة، والبرامج التي تتبعها، وأيام الأسبوع وأوقات الدوام.</flux:subheading>
             </div>
 

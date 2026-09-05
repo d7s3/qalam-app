@@ -200,7 +200,7 @@ class getMutunPlans implements Tool
         return [
             'kind' => $schema->string()->enum(['hadith', 'ode', 'both'])->description('hadith=المتون, ode=المنظومات. Defaults to both.'),
             'student' => $schema->string()->description('Student name, or part of it.'),
-            'circle' => $schema->string()->description('Circle name (حلقة).'),
+            'circle' => $schema->string()->description('Circle name (دفعة).'),
             'status' => $schema->string()->description('Plan status, for example active or completed.'),
             'limit' => $schema->integer()->description('Maximum plans per kind. Defaults to 50, maximum 150.'),
         ];

@@ -2,7 +2,7 @@
     $roleLabels = [
         'manager' => 'مدير',
         'supervisor' => 'مشرف',
-        'teacher' => 'معلم حلقة',
+        'teacher' => 'معلم دفعة',
         'student' => 'طالب',
         'guardian' => 'ولي أمر',
         'staff' => 'موظف',

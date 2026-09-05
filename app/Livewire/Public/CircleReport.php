@@ -56,7 +56,7 @@ class CircleReport extends Component
             $students = $isStageScope
                 ? CircleReportService::studentsForStage($circle->stage)
                 : CircleReportService::studentsForCircle($circle);
-            $scopeName = $isStageScope ? 'برنامج '.$circle->stage->name : 'حلقة '.$circle->name;
+            $scopeName = $isStageScope ? 'برنامج '.$circle->stage->name : 'دفعة '.$circle->name;
             $showCircleColumn = $isStageScope;
         }
 

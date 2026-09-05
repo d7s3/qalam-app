@@ -46,7 +46,7 @@ class Guardians extends Component
         $students = $query->get();
 
         return $students->groupBy(function ($s) {
-            return $s->circle ? $s->circle->name : 'بدون حلقة';
+            return $s->circle ? $s->circle->name : 'بدون دفعة';
         });
     }
 

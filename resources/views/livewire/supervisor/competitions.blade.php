@@ -63,14 +63,14 @@
                     <div class="px-4 pb-3">
                         <div class="flex items-center gap-1.5 text-[11px] font-medium text-zinc-400 mb-2">
                             <flux:icon icon="users" class="size-3.5" />
-                            <span>الحلقات المشاركة</span>
+                            <span>الدفعات المشاركة</span>
                             <span class="text-zinc-300 dark:text-zinc-600">({{ $circlesCount }})</span>
                         </div>
                         <div class="flex flex-wrap gap-1.5">
                             @forelse($competition->circles->take(6) as $circle)
                                 <span class="rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2 py-0.5 text-xs">{{ $circle->name }}</span>
                             @empty
-                                <span class="text-xs text-zinc-400">لم تُحدَّد حلقات</span>
+                                <span class="text-xs text-zinc-400">لم تُحدَّد دفعات</span>
                             @endforelse
                             @if ($circlesCount > 6)
                                 <span class="rounded-md bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 px-2 py-0.5 text-xs">+{{ $circlesCount - 6 }}</span>
@@ -161,7 +161,7 @@
 
                         {{-- Circles selection --}}
                         <div>
-                            <flux:heading size="sm" class="mb-2">الحلقات المشاركة</flux:heading>
+                            <flux:heading size="sm" class="mb-2">الدفعات المشاركة</flux:heading>
                             @error('selectedCircles')
                                 <div class="text-sm text-red-500 mb-2">{{ $message }}</div>
                             @enderror
@@ -178,7 +178,7 @@
                                         </div>
                                     </label>
                                 @empty
-                                    <span class="text-xs text-zinc-400 col-span-2 text-center py-2">لا توجد حلقات متاحة</span>
+                                    <span class="text-xs text-zinc-400 col-span-2 text-center py-2">لا توجد دفعات متاحة</span>
                                 @endforelse
                             </div>
                         </div>
@@ -371,7 +371,7 @@
                             @if ($currentStep === 1) نوع المسابقة @endif
                             @if ($currentStep === 2) اسم المسابقة @endif
                             @if ($currentStep === 3) الفترة الزمنية @endif
-                            @if ($currentStep === 4) الحلقات المشاركة @endif
+                            @if ($currentStep === 4) الدفعات المشاركة @endif
                         </flux:heading>
                     </div>
                     <span class="text-xs text-zinc-400 shrink-0">{{ $currentStep }} / 4</span>
@@ -491,7 +491,7 @@
 
                     @if ($currentStep === 4)
                         <div class="space-y-3">
-                            <flux:heading size="md">الحلقات المشاركة</flux:heading>
+                            <flux:heading size="md">الدفعات المشاركة</flux:heading>
                             @error('selectedCircles')
                                 <div class="text-xs text-rose-500 font-semibold mb-2">{{ $message }}</div>
                             @enderror
@@ -505,7 +505,7 @@
                                         </div>
                                     </label>
                                 @empty
-                                    <span class="text-xs text-zinc-400 col-span-2 text-center py-4">لا توجد حلقات متاحة</span>
+                                    <span class="text-xs text-zinc-400 col-span-2 text-center py-4">لا توجد دفعات متاحة</span>
                                 @endforelse
                             </div>
                         </div>

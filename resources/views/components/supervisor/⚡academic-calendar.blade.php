@@ -97,7 +97,7 @@ new class extends Component {
         }
 
         AcademicCalendarEvent::create([
-            'event_name' => 'فترة دوام الحلقات',
+            'event_name' => 'فترة دوام الدفعات',
             'description' => $this->description,
             'start_date' => $this->hijriFromDate,
             'end_date' => $this->hijriToDate,
@@ -999,8 +999,8 @@ new class extends Component {
                             
                             <x-alpine-multiselect 
                                 wire:model="sharedWith.circle_ids" 
-                                label="حلقات محددة"
-                                placeholder="اختر الحلقات..."
+                                label="دفعات محددة"
+                                placeholder="اختر الدفعات..."
                                 :options="collect($this->availableCircles)->map(fn($c) => ['value' => $c->id, 'label' => $c->name])->toArray()" 
                             />
                         </div>
@@ -1021,8 +1021,8 @@ new class extends Component {
     <flux:modal name="attendance-period-modal" class="max-w-md">
         <form wire:submit="saveAttendancePeriod" class="space-y-6">
             <div>
-                <flux:heading size="lg">إضافة فترة دوام الحلقات</flux:heading>
-                <flux:subheading>حدد تاريخ بداية ونهاية فترة دوام الحلقات (بالهجري).</flux:subheading>
+                <flux:heading size="lg">إضافة فترة دوام الدفعات</flux:heading>
+                <flux:subheading>حدد تاريخ بداية ونهاية فترة دوام الدفعات (بالهجري).</flux:subheading>
             </div>
 
             <div class="space-y-4">
@@ -1057,7 +1057,7 @@ new class extends Component {
                     <div class="flex gap-3">
                         <flux:icon icon="information-circle" variant="solid" class="text-blue-500 shrink-0" />
                         <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                            سيتم إضافة هذا النطاق كحدث مستمر في التقويم تحت مسمى "فترة دوام الحلقات" وباللون الزمردي المميز.
+                            سيتم إضافة هذا النطاق كحدث مستمر في التقويم تحت مسمى "فترة دوام الدفعات" وباللون الزمردي المميز.
                         </p>
                     </div>
                 </div>

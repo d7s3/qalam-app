@@ -20,7 +20,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'مرحلة التسكين']);
-    $this->circle = Circle::create(['name' => 'حلقة التسكين', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة التسكين', 'stage_id' => $this->stage->id]);
 
     $this->teacher = Teacher::factory()->create();
     $this->teacher->circles()->attach($this->circle->id);

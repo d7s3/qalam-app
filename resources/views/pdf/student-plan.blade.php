@@ -134,7 +134,7 @@
     <table class="info-table">
         <tr>
             <td><strong>الطالب:</strong> {{ $plan->student->name }}</td>
-            <td><strong>الحلقة:</strong> {{ $plan->student->circle->name ?? 'غير محدد' }}</td>
+            <td><strong>الدفعة:</strong> {{ $plan->student->circle->name ?? 'غير محدد' }}</td>
         </tr>
         <tr>
             <td><strong>المعلم:</strong> {{ auth()->guard('teacher')->user()->name }}</td>

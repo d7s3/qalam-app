@@ -70,7 +70,7 @@
                     @if($standings->isEmpty())
                         <tr>
                             <td colspan="100%" class="p-8 text-center text-zinc-500">
-                                {{ __('لا يوجد طلاب في هذه الحلقة بعد.') }}
+                                {{ __('لا يوجد طلاب في هذه الدفعة بعد.') }}
                             </td>
                         </tr>
                     @endif

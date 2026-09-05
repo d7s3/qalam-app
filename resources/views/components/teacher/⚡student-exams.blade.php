@@ -166,7 +166,7 @@ new class extends Component {
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
             <flux:heading size="xl">{{ __('اختبارات الطلاب') }}</flux:heading>
-            <flux:subheading>{{ __('إدارة ومتابعة اختبارات الجمعية لطلاب حلقتك') }}</flux:subheading>
+            <flux:subheading>{{ __('إدارة ومتابعة اختبارات الجمعية لطلاب دفعتك') }}</flux:subheading>
         </div>
         <flux:button variant="primary" wire:click="create" icon="plus">{{ __('إضافة اختبار جديد') }}</flux:button>
     </div>

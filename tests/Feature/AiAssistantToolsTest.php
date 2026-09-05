@@ -48,7 +48,7 @@ function runTool(object $tool, array $arguments = []): array
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $this->circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $this->stage->id]);
 
     $this->supervisor = Supervisor::factory()->create(['name' => 'المشرف سعد']);
     $this->supervisor->stages()->attach($this->stage->id);
@@ -77,7 +77,7 @@ it('describes every stage, circle, teacher and supervisor in the structure tool'
 
     expect($stage['stage'])->toBe('المرحلة الأولى')
         ->and($stage['supervisors'])->toBe(['المشرف سعد'])
-        ->and($stage['circles'][0]['circle'])->toBe('حلقة النور')
+        ->and($stage['circles'][0]['circle'])->toBe('دفعة النور')
         ->and($stage['circles'][0]['teachers'])->toBe(['المعلم خالد'])
         ->and($stage['circles'][0]['students']['total'])->toBe(1)
         ->and($stage['circles'][0]['students']['مشارك'])->toBe(1)
@@ -88,14 +88,14 @@ it('lists each role through the people directory tool', function () {
     expect(runTool(new getPeopleDirectory, ['role' => 'student'])['people'][0])
         ->toMatchArray([
             'name' => 'الطالب أنس',
-            'circle' => 'حلقة النور',
+            'circle' => 'دفعة النور',
             'stage' => 'المرحلة الأولى',
             'guardian' => 'الوالد عمر',
             'status' => 'مشارك',
         ]);
 
     expect(runTool(new getPeopleDirectory, ['role' => 'teacher'])['people'][0])
-        ->toMatchArray(['name' => 'المعلم خالد', 'circles' => ['حلقة النور']]);
+        ->toMatchArray(['name' => 'المعلم خالد', 'circles' => ['دفعة النور']]);
 
     expect(runTool(new getPeopleDirectory, ['role' => 'supervisor'])['people'][0])
         ->toMatchArray(['name' => 'المشرف سعد', 'stages' => ['المرحلة الأولى']]);
@@ -107,7 +107,7 @@ it('lists each role through the people directory tool', function () {
 });
 
 it('filters the people directory by circle, status and search', function () {
-    $otherCircle = Circle::create(['name' => 'حلقة الفرقان', 'stage_id' => $this->stage->id]);
+    $otherCircle = Circle::create(['name' => 'دفعة الفرقان', 'stage_id' => $this->stage->id]);
     Student::factory()->create([
         'name' => 'الطالب زيد',
         'circle_id' => $otherCircle->id,
@@ -169,7 +169,7 @@ it('returns a full student profile with plans, attendance and grades', function 
 
     expect($result['identity'])->toMatchArray([
         'name' => 'الطالب أنس',
-        'circle' => 'حلقة النور',
+        'circle' => 'دفعة النور',
         'stage' => 'المرحلة الأولى',
         'status' => 'مشارك',
     ]);
@@ -216,7 +216,7 @@ it('reports quran plan progress and grade distribution', function () {
 
     expect($result['plans'][0])->toMatchArray([
         'student' => 'الطالب أنس',
-        'circle' => 'حلقة النور',
+        'circle' => 'دفعة النور',
         'teacher' => 'المعلم خالد',
         'type' => 'مراجعة',
         'completion_percentage' => 75.0,
@@ -227,7 +227,7 @@ it('reports quran plan progress and grade distribution', function () {
 });
 
 it('excludes plans of other circles when filtered', function () {
-    $otherCircle = Circle::create(['name' => 'حلقة الفرقان', 'stage_id' => $this->stage->id]);
+    $otherCircle = Circle::create(['name' => 'دفعة الفرقان', 'stage_id' => $this->stage->id]);
     $otherStudent = Student::factory()->create(['name' => 'الطالب زيد', 'circle_id' => $otherCircle->id]);
 
     StudentPlan::create([
@@ -264,7 +264,7 @@ it('returns the ode catalogue and the student plans on it', function () {
     expect($result['odes_catalogue'][0]['ode'])->toBe('منظومة البيقونية')
         ->and($result['odes_catalogue'][0]['paths'][0]['path'])->toBe('مسار البيقونية')
         ->and($result['ode_plans'][0]['student'])->toBe('الطالب أنس')
-        ->and($result['ode_plans'][0]['circle'])->toBe('حلقة النور')
+        ->and($result['ode_plans'][0]['circle'])->toBe('دفعة النور')
         ->and($result)->not->toHaveKey('mutun_plans');
 });
 
@@ -302,7 +302,7 @@ it('returns student and teacher competitions with their criteria', function () {
     expect($result['student_competitions'][0])->toMatchArray([
         'title' => 'مسابقة الحفظ الكبرى',
         'type' => 'نقاط',
-        'scope' => 'مسابقة حلقة',
+        'scope' => 'مسابقة دفعة',
     ]);
     expect($result['student_competitions'][0]['criteria'][0]['name'])->toBe('إتقان الحفظ')
         ->and($result['student_competitions'][0]['standings'][0]['student'])->toBe('الطالب أنس')
@@ -338,7 +338,7 @@ it('returns tasks with their category and assignee', function () {
     $category = TaskCategory::create(['name' => 'متابعة إدارية']);
 
     Task::create([
-        'title' => 'مراجعة تقارير الحلقات',
+        'title' => 'مراجعة تقارير الدفعات',
         'task_category_id' => $category->id,
         'due_date' => '2026-07-20',
         'status' => 'pending',
@@ -364,7 +364,7 @@ it('returns tasks with their category and assignee', function () {
 
     expect($filtered['tasks'])->toHaveCount(1)
         ->and($filtered['tasks'][0])->toMatchArray([
-            'title' => 'مراجعة تقارير الحلقات',
+            'title' => 'مراجعة تقارير الدفعات',
             'category' => 'متابعة إدارية',
             'assigned_to' => 'المعلم خالد',
             'assigned_to_role' => 'معلم',
@@ -388,7 +388,7 @@ it('maps competition teams to their members and their attendance', function () {
         'competition_type' => 'gamification',
     ]);
 
-    $otherCircle = Circle::create(['name' => 'حلقة الفرقان', 'stage_id' => $this->stage->id]);
+    $otherCircle = Circle::create(['name' => 'دفعة الفرقان', 'stage_id' => $this->stage->id]);
     $teammate = Student::factory()->create(['name' => 'الطالب زيد', 'circle_id' => $otherCircle->id]);
 
     $team = GamificationTeam::create(['leaderboard_id' => $competition->id, 'name' => 'فريق تركي']);
@@ -496,13 +496,13 @@ it('bounds attendance data by date and can summarize it', function () {
 
     expect($july['matching_records'])->toBe(2)
         ->and($july['attendance'])->toHaveKeys(['2026-07-01', '2026-07-02'])
-        ->and($july['attendance']['2026-07-01']['المرحلة الأولى']['حلقة النور']['المعلم خالد']['الطالب أنس'])
+        ->and($july['attendance']['2026-07-01']['المرحلة الأولى']['دفعة النور']['المعلم خالد']['الطالب أنس'])
         ->toBe('حاضر');
 
     $summary = runTool(new getAttendanceData, ['summary' => true]);
 
     expect($summary['matching_records'])->toBe(3)
-        ->and($summary['summary']['المرحلة الأولى']['حلقة النور'])
+        ->and($summary['summary']['المرحلة الأولى']['دفعة النور'])
         ->toBe(['حاضر' => 1, 'غائب' => 1, 'متأخر' => 1, 'مستأذن' => 0]);
 });
 
@@ -540,7 +540,7 @@ it('returns magic login links for the manager to hand out', function () {
     expect($result['people'])->toHaveCount(1)
         ->and($result['people'][0]['name'])->toBe('الطالب أنس')
         ->and($result['people'][0]['magic_link'])->toBe(route('magic-link', ['token' => 'known-token']))
-        ->and($result['people'][0]['circle'])->toBe('حلقة النور')
+        ->and($result['people'][0]['circle'])->toBe('دفعة النور')
         ->and($result['warning'])->toContain('without a password');
 });
 

@@ -20,12 +20,12 @@ it('creates a new circle from the supervisor circles page', function () {
 
     Livewire::test(Circles::class)
         ->call('create')
-        ->set('name', 'حلقة جديدة')
+        ->set('name', 'دفعة جديدة')
         ->set('stage_id', $stage->id)
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(Circle::where('name', 'حلقة جديدة')->exists())->toBeTrue();
+    expect(Circle::where('name', 'دفعة جديدة')->exists())->toBeTrue();
 });
 
 it('updates an existing circle within the supervisor scope', function () {
@@ -48,7 +48,7 @@ it('updates an existing circle within the supervisor scope', function () {
 it('does not let a supervisor edit a circle outside their supervised stages', function () {
     $ownStage = Stage::create(['name' => 'مرحلتي']);
     $otherStage = Stage::create(['name' => 'مرحلة أخرى']);
-    $otherCircle = Circle::create(['name' => 'حلقة خارجية', 'stage_id' => $otherStage->id]);
+    $otherCircle = Circle::create(['name' => 'دفعة خارجية', 'stage_id' => $otherStage->id]);
 
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach($ownStage->id);
@@ -61,7 +61,7 @@ it('does not let a supervisor edit a circle outside their supervised stages', fu
 it('lets a supervisor move a circle to a different one of their own stages', function () {
     $stageA = Stage::create(['name' => 'المرحلة الأولى']);
     $stageB = Stage::create(['name' => 'المرحلة الثانية']);
-    $circle = Circle::create(['name' => 'حلقة', 'stage_id' => $stageA->id]);
+    $circle = Circle::create(['name' => 'دفعة', 'stage_id' => $stageA->id]);
 
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach([$stageA->id, $stageB->id]);
@@ -80,7 +80,7 @@ it('lets a supervisor move a circle to a different one of their own stages', fun
 it('rejects moving a circle to a stage outside the supervisor scope', function () {
     $ownStage = Stage::create(['name' => 'مرحلتي']);
     $otherStage = Stage::create(['name' => 'مرحلة أخرى']);
-    $circle = Circle::create(['name' => 'حلقة', 'stage_id' => $ownStage->id]);
+    $circle = Circle::create(['name' => 'دفعة', 'stage_id' => $ownStage->id]);
 
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach($ownStage->id);
@@ -99,8 +99,8 @@ it('rejects moving a circle to a stage outside the supervisor scope', function (
 it('sorts circles by stage name, then circle name', function () {
     $stageB = Stage::create(['name' => 'ب - المرحلة الثانية']);
     $stageA = Stage::create(['name' => 'أ - المرحلة الأولى']);
-    Circle::create(['name' => 'حلقة 2', 'stage_id' => $stageB->id]);
-    Circle::create(['name' => 'حلقة 1', 'stage_id' => $stageA->id]);
+    Circle::create(['name' => 'دفعة 2', 'stage_id' => $stageB->id]);
+    Circle::create(['name' => 'دفعة 1', 'stage_id' => $stageA->id]);
 
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach([$stageA->id, $stageB->id]);
@@ -114,7 +114,7 @@ it('sorts circles by stage name, then circle name', function () {
 
 it('shows the circle roster with status and progress stats when the student count is clicked', function () {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة ابن كثير', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة ابن كثير', 'stage_id' => $stage->id]);
     $student = Student::factory()->create([
         'circle_id' => $circle->id,
         'status' => 'active',
@@ -128,7 +128,7 @@ it('shows the circle roster with status and progress stats when the student coun
 
     $component = Livewire::test(Circles::class)->call('viewStudents', $circle->id);
 
-    expect($component->get('viewingCircleName'))->toBe('حلقة ابن كثير');
+    expect($component->get('viewingCircleName'))->toBe('دفعة ابن كثير');
     $students = $component->get('viewingCircleStudents');
     expect($students)->toHaveCount(1);
     expect($students->first()['id'])->toBe($student->id);
@@ -138,7 +138,7 @@ it('shows the circle roster with status and progress stats when the student coun
 it('does not let a supervisor view the roster of a circle outside their scope', function () {
     $ownStage = Stage::create(['name' => 'مرحلتي']);
     $otherStage = Stage::create(['name' => 'مرحلة أخرى']);
-    $otherCircle = Circle::create(['name' => 'حلقة خارجية', 'stage_id' => $otherStage->id]);
+    $otherCircle = Circle::create(['name' => 'دفعة خارجية', 'stage_id' => $otherStage->id]);
 
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach($ownStage->id);

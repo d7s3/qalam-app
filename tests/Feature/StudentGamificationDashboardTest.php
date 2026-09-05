@@ -35,7 +35,7 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     Carbon\Carbon::setTestNow('2026-06-08 10:00:00');
     $this->stage = Stage::create(['name' => 'مرحلة اختبار لوحة الطالب']);
-    $this->circle = Circle::create(['name' => 'حلقة اختبار لوحة الطالب', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة اختبار لوحة الطالب', 'stage_id' => $this->stage->id]);
 
     $this->student = Student::create([
         'name' => 'طالب تجربة لوحة التحكم',

@@ -447,9 +447,9 @@
                     <flux:error name="targetStageId" />
                 </flux:field>
                 <flux:field>
-                    <flux:label>الحلقة (اختياري)</flux:label>
+                    <flux:label>الدفعة (اختياري)</flux:label>
                     <select wire:model="targetCircleId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
-                        <option value="">-- بلا حلقة --</option>
+                        <option value="">-- بلا دفعة --</option>
                         @foreach($circles as $c)
                             <option value="{{ $c->id }}">{{ $c->name }} ({{ $c->stage->name }})</option>
                         @endforeach
@@ -457,7 +457,7 @@
                     <flux:error name="targetCircleId" />
                 </flux:field>
             </div>
-            <p class="text-[11px] text-zinc-400">عند اختيار حلقة تُعتمد مرحلتها تلقائيًا. اختيار البرنامج وحدها يُنشئ الطالب بلا حلقة ضمن ذلك البرنامج.</p>
+            <p class="text-[11px] text-zinc-400">عند اختيار دفعة يُعتمد برنامجها تلقائيًا. اختيار البرنامج وحده يُنشئ الطالب بلا دفعة ضمن ذلك البرنامج.</p>
         </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t border-zinc-150 dark:border-zinc-850">
@@ -470,7 +470,7 @@
     <flux:modal wire:model="showLinkModal" class="w-full max-w-md space-y-4">
         <div>
             <h2 class="text-lg font-bold text-zinc-900 dark:text-white">ربط الرد بطالب قائم</h2>
-            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">اختر الطالب من حلقاتك لربط هذا الرد ببياناته.</p>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">اختر الطالب من دفعاتك لربط هذا الرد ببياناته.</p>
         </div>
 
         <flux:field>
@@ -566,9 +566,9 @@
                         <flux:error name="bulkStageId" />
                     </flux:field>
                     <flux:field>
-                        <flux:label>الحلقة (اختياري)</flux:label>
+                        <flux:label>الدفعة (اختياري)</flux:label>
                         <select wire:model="bulkCircleId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
-                            <option value="">-- بلا حلقة --</option>
+                            <option value="">-- بلا دفعة --</option>
                             @foreach($circles as $c)
                                 <option value="{{ $c->id }}">{{ $c->name }} ({{ $c->stage->name }})</option>
                             @endforeach

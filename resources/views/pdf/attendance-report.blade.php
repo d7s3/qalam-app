@@ -98,7 +98,7 @@
 <body>
     <div class="header">
         <img src="{{ public_path(config('brand.logo')) }}" alt="Logo">
-        <h1>تقرير الحضور والغياب للحلقات</h1>
+        <h1>تقرير الحضور والغياب للدفعات</h1>
         @php
             @endphp
         <p>الفترة من: {{ \App\Support\HijriDate::withGregorian($fromDate) }} إلى {{ \App\Support\HijriDate::withGregorian($toDate) }}</p>
@@ -108,7 +108,7 @@
         <thead>
             {{-- Month row --}}
             <tr>
-                <th rowspan="2" style="width: 15%; text-align: right; padding-right: 8px;">الحلقة / البرنامج</th>
+                <th rowspan="2" style="width: 15%; text-align: right; padding-right: 8px;">الدفعة / البرنامج</th>
                 @php
                     $monthGroups = [];
                     $prevMonth = null;

@@ -18,20 +18,20 @@ beforeEach(function () {
     Carbon\Carbon::setTestNow('2026-06-10 10:00:00');
 
     $this->stage = Stage::factory()->create();
-    $this->circleA = Circle::factory()->create(['stage_id' => $this->stage->id, 'name' => 'حلقة أ']);
-    $this->circleB = Circle::factory()->create(['stage_id' => $this->stage->id, 'name' => 'حلقة ب']);
+    $this->circleA = Circle::factory()->create(['stage_id' => $this->stage->id, 'name' => 'دفعة أ']);
+    $this->circleB = Circle::factory()->create(['stage_id' => $this->stage->id, 'name' => 'دفعة ب']);
 
     $this->teacher = Teacher::factory()->create();
     $this->teacher->circles()->attach([$this->circleA->id, $this->circleB->id]);
 
     $this->studentA = Student::factory()->create([
-        'name' => 'طالب الحلقة الأولى',
+        'name' => 'طالب الدفعة الأولى',
         'circle_id' => $this->circleA->id,
         'status' => 'active',
         'is_approved' => true,
     ]);
     $this->studentB = Student::factory()->create([
-        'name' => 'طالب الحلقة الثانية',
+        'name' => 'طالب الدفعة الثانية',
         'circle_id' => $this->circleB->id,
         'status' => 'active',
         'is_approved' => true,
@@ -41,7 +41,7 @@ beforeEach(function () {
 it('shows students from all teacher circles on the leaderboard grading page', function () {
     $leaderboard = Leaderboard::create([
         'circle_id' => $this->circleA->id,
-        'title' => 'مسابقة الحلقتين',
+        'title' => 'مسابقة الدفعتين',
         'competition_type' => 'leaderboard',
         'start_date' => now()->subDay(),
         'end_date' => now()->addDays(10),
@@ -64,7 +64,7 @@ it('shows students from all teacher circles on the leaderboard grading page', fu
 it('lists competitions from every teacher circle on the leaderboards page', function () {
     $boardA = Leaderboard::create([
         'circle_id' => $this->circleA->id,
-        'title' => 'مسابقة الحلقة الأولى',
+        'title' => 'مسابقة الدفعة الأولى',
         'competition_type' => 'leaderboard',
         'start_date' => now()->subDay(),
         'is_active' => true,
@@ -72,7 +72,7 @@ it('lists competitions from every teacher circle on the leaderboards page', func
     ]);
     $boardB = Leaderboard::create([
         'circle_id' => $this->circleB->id,
-        'title' => 'مسابقة الحلقة الثانية',
+        'title' => 'مسابقة الدفعة الثانية',
         'competition_type' => 'leaderboard',
         'start_date' => now()->subDay(),
         'is_active' => true,

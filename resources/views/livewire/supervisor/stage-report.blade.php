@@ -8,7 +8,7 @@
             </a>
             <div>
                 <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">
-                    تقرير الإنجاز — {{ $selectedCircle ? 'حلقة '.$selectedCircle->name : 'برنامج '.$stage->name }}
+                    تقرير الإنجاز — {{ $selectedCircle ? 'دفعة '.$selectedCircle->name : 'برنامج '.$stage->name }}
                 </flux:heading>
                 <flux:subheading>
                     <x-hijri-date :date="$from" /> إلى <x-hijri-date :date="$to" />
@@ -30,8 +30,8 @@
     {{-- Filters --}}
     <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-4">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <flux:select label="الحلقة" wire:model.live="circleId">
-                <flux:select.option value="">كل حلقات البرنامج</flux:select.option>
+            <flux:select label="الدفعة" wire:model.live="circleId">
+                <flux:select.option value="">كل دفعات البرنامج</flux:select.option>
                 @foreach($circles as $circle)
                     <flux:select.option value="{{ $circle->id }}">{{ $circle->name }}</flux:select.option>
                 @endforeach

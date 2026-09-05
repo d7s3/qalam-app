@@ -15,7 +15,7 @@ beforeEach(function () {
     $this->actingAs($this->manager, 'manager');
 
     $this->stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $this->circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $this->stage->id]);
 
     $makeGuardian = fn (string $email, ?string $phone) => Guardian::create([
         'name' => "ولي {$email}",

@@ -46,7 +46,7 @@ new class extends Component {
     {
         $teacher = Auth::guard('teacher')->user();
 
-        // احصل على الطلاب المنسوبين للحلقات التي يدرسها المعلم
+        // احصل على الطلاب المنسوبين للدفعات التي يدرسها المعلم
         $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $students = Student::whereIn('circle_id', $circleIds)->get();
         $studentIds = $students->pluck('id');

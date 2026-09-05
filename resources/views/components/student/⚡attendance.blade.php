@@ -43,7 +43,7 @@ new class extends Component {
             {{ __('سجل الانضباط') }}
         </flux:heading>
         <flux:subheading class="text-zinc-500 dark:text-zinc-400 mt-1">
-            {{ __('متابعة حضورك وغيابك في الحلقة ومدى انضباطك.') }}
+            {{ __('متابعة حضورك وغيابك في الدفعة ومدى انضباطك.') }}
         </flux:subheading>
     </div>
 

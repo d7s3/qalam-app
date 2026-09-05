@@ -148,7 +148,7 @@ new class extends Component {
         // Validate working days
         $workingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification, $student->effective_stage_id);
         if (!in_array($this->doublePointsDate, $workingDays)) {
-            Flux::toast('خطأ: لا يمكن تفعيل الميزة في يوم إجازة. يجب اختيار يوم من أيام الدوام المعتمدة للحلقة.', variant: 'danger');
+            Flux::toast('خطأ: لا يمكن تفعيل الميزة في يوم إجازة. يجب اختيار يوم من أيام الدوام المعتمدة للدفعة.', variant: 'danger');
             return;
         }
 

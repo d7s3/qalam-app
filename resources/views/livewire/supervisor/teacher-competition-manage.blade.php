@@ -25,7 +25,7 @@
     @if($activeTab === 'participants')
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-5 space-y-4">
             <flux:heading size="lg">المعلمون المشاركون</flux:heading>
-            <flux:subheading>حدد المعلمين المشاركين في هذه المسابقة من ضمن معلمي الحلقات التابعة لك.</flux:subheading>
+            <flux:subheading>حدد المعلمين المشاركين في هذه المسابقة من ضمن معلمي الدفعات التابعة لك.</flux:subheading>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-96 overflow-y-auto p-2 border border-zinc-100 rounded-lg dark:border-zinc-800">
                 @forelse($teachersList as $teacher)
@@ -34,7 +34,7 @@
                         <flux:label :for="'ptc-'.$teacher->id" class="cursor-pointer">{{ $teacher->name }}</flux:label>
                     </div>
                 @empty
-                    <span class="text-xs text-zinc-400 col-span-full text-center py-4">لا يوجد معلمون ضمن حلقاتك</span>
+                    <span class="text-xs text-zinc-400 col-span-full text-center py-4">لا يوجد معلمون ضمن دفعاتك</span>
                 @endforelse
             </div>
 

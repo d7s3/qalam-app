@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\CircleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +24,21 @@ class Circle extends Model
         'is_quranic' => 'boolean',
         'self_program_unlock_on_completion' => 'boolean',
     ];
+
+    /**
+     * What to call this one.
+     *
+     * A cohort is a دفعة; a cohort whose content is Quranic is a حلقة. The two
+     * sit at the same level under a programme and differ only in that, so the
+     * word follows the cohort rather than the screen — and a list holding both
+     * reads correctly without the screen knowing which it holds.
+     *
+     * @return Attribute<string, never>
+     */
+    protected function noun(): Attribute
+    {
+        return Attribute::get(fn (): string => $this->is_quranic ? 'حلقة' : 'دفعة');
+    }
 
     /** @return BelongsTo<Stage, $this> */
     public function stage(): BelongsTo

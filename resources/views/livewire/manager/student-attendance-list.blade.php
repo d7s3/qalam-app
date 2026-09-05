@@ -91,7 +91,7 @@
                     </div>
                 </div>
             @empty
-                <div class="p-12 text-center text-zinc-400">لا يوجد طلاب في هذه الحلقة</div>
+                <div class="p-12 text-center text-zinc-400">لا يوجد طلاب في هذه الدفعة</div>
             @endforelse
         </div>
     </div>

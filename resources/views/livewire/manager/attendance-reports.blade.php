@@ -4,7 +4,7 @@
     <div class="m-6 flex flex-col xl:flex-row xl:items-end justify-between gap-4">
         <div>
             <flux:heading size="xl" class="font-bold">تقارير الحضور والغياب</flux:heading>
-            <flux:subheading>جدول الحضور اليومي مصنف بالبرامج والحلقات.</flux:subheading>
+            <flux:subheading>جدول الحضور اليومي مصنف بالبرامج والدفعات.</flux:subheading>
         </div>
 
         <div class="flex items-center gap-2 flex-wrap">
@@ -49,7 +49,7 @@
                         {{-- Month Row --}}
                         <tr>
                             <th class="sticky right-0 z-10 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-2 min-w-[160px] text-zinc-700 dark:text-zinc-300 font-bold" rowspan="2">
-                                الحلقة / البرنامج
+                                الدفعة / البرنامج
                             </th>
                             @php
                                 $monthGroups = [];
@@ -138,7 +138,7 @@
                         @empty
                             <tr>
                                 <td colspan="{{ count($dates) + 2 }}" class="text-center text-zinc-500 py-10">
-                                    لا توجد حلقات مسجلة.
+                                    لا توجد دفعات مسجلة.
                                 </td>
                             </tr>
                         @endforelse

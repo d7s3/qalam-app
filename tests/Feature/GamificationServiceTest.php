@@ -39,7 +39,7 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     Carbon::setTestNow('2026-06-10 10:00:00');
     $this->stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $this->circle = Circle::create(['name' => 'الحلقة الأولى', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'الدفعة الأولى', 'stage_id' => $this->stage->id]);
 
     $this->teacher = Teacher::create([
         'name' => 'أحمد المعلم',
@@ -250,7 +250,7 @@ it('backfills points for already-graded days via the recompute command', functio
 
 it('diagnoses a circle-less student as ineligible for points', function () {
     $orphan = Student::create([
-        'name' => 'طالب بلا حلقة',
+        'name' => 'طالب بلا دفعة',
         'email' => 'orphan@example.com',
         'password' => bcrypt('password'),
         'circle_id' => null,
@@ -259,7 +259,7 @@ it('diagnoses a circle-less student as ineligible for points', function () {
     ]);
 
     $this->artisan('gamification:diagnose-student-points', ['student' => $orphan->id])
-        ->expectsOutputToContain('الطالب بلا حلقة')
+        ->expectsOutputToContain('الطالب بلا دفعة')
         ->assertSuccessful();
 });
 

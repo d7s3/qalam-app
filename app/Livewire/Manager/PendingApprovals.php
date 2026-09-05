@@ -169,7 +169,7 @@ class PendingApprovals extends Component
                     $record->circle_id,
                     'new_student',
                     'طالب جديد',
-                    "انضم الطالب {$record->name} إلى حلقتك",
+                    "انضم الطالب {$record->name} إلى دفعتك",
                     route('teacher.students'),
                 );
             }

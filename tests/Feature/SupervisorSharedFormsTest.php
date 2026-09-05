@@ -17,12 +17,12 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stageA = Stage::create(['name' => 'مرحلة المالك']);
-    $this->circleA = Circle::create(['name' => 'حلقة المالك', 'stage_id' => $this->stageA->id]);
+    $this->circleA = Circle::create(['name' => 'دفعة المالك', 'stage_id' => $this->stageA->id]);
     $this->owner = Supervisor::factory()->create();
     $this->owner->stages()->attach($this->stageA->id);
 
     $this->stageB = Stage::create(['name' => 'مرحلة الآخر']);
-    $this->circleB = Circle::create(['name' => 'حلقة الآخر', 'stage_id' => $this->stageB->id]);
+    $this->circleB = Circle::create(['name' => 'دفعة الآخر', 'stage_id' => $this->stageB->id]);
     $this->other = Supervisor::factory()->create();
     $this->other->stages()->attach($this->stageB->id);
 

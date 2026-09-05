@@ -13,7 +13,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'مرحلة اختبار المنظومات']);
-    $this->circle = Circle::create(['name' => 'حلقة اختبار المنظومات', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة اختبار المنظومات', 'stage_id' => $this->stage->id]);
 
     $this->supervisor = Supervisor::factory()->create();
     $this->supervisor->stages()->attach($this->stage->id);

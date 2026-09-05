@@ -295,7 +295,7 @@ new class extends Component {
 ?>
 
 @php
-    $statusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الحلقات'];
+    $statusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
     $statusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
     $timelineBg = [
         'active' => 'bg-green-400 dark:bg-green-600',
@@ -390,7 +390,7 @@ new class extends Component {
                         <flux:select.option value="active">مشارك</flux:select.option>
                         <flux:select.option value="registering">تحت التسجيل</flux:select.option>
                         <flux:select.option value="suspended">موقوف</flux:select.option>
-                        <flux:select.option value="left">غادر الحلقات</flux:select.option>
+                        <flux:select.option value="left">غادر الدفعات</flux:select.option>
                     </flux:select>
 
                     <flux:input wire:model="reason" label="{{ __('سبب التغيير (إلزامي)') }}"

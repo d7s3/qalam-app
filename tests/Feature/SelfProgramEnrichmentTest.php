@@ -126,7 +126,7 @@ describe('the teacher screen', function () {
         $this->actingAs($this->teacher, 'teacher')
             ->get(route('teacher.self-program'))
             ->assertOk()
-            ->assertSee('إعدادات الحلقة')
+            ->assertSee('إعدادات الدفعة')
             ->assertSee($this->circle->name);
     });
 
