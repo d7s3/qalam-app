@@ -6,7 +6,7 @@
             </div>
             <div>
                 <flux:heading size="lg">البرنامج الذاتي</flux:heading>
-                <flux:subheading>محتوى المجالات الخمسة، أسبوعاً بأسبوع، لكل مرحلة</flux:subheading>
+                <flux:subheading>محتوى المجالات الخمسة، أسبوعاً بأسبوع، لكل برنامج</flux:subheading>
             </div>
         </div>
     </x-slot>

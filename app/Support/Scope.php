@@ -45,6 +45,10 @@ class Scope
 
     private bool $circlesResolved = false;
 
+    private ?Collection $stages = null;
+
+    private bool $stagesResolved = false;
+
     private function __construct(
         private readonly ?User $user,
         private readonly string $role,
@@ -153,7 +157,11 @@ class Scope
             return $assigned->scope_type === UserRole::SCOPE_ALL;
         }
 
-        return in_array($this->role, ['manager', 'staff'], true);
+        // The manager's office reaches the centre. A custom role does not: it
+        // is created empty and given what it needs, and 'staff' is the guard
+        // every custom role rides — so answering true here handed each new role
+        // every student in the academy before anyone had chosen to.
+        return $this->role === 'manager';
     }
 
     /**
@@ -184,6 +192,53 @@ class Scope
         $this->circlesResolved = true;
 
         return $this->circles = $this->resolveCircleIds();
+    }
+
+    /**
+     * The programmes within reach, or null when that is all of them.
+     *
+     * Derived from the cohorts rather than asked for on its own, so "which
+     * programmes am I in" and "which cohorts am I in" cannot drift apart.
+     *
+     * The supervisor is the exception, and deliberately: he holds programmes
+     * directly, and a programme he holds before any cohort exists in it is
+     * still a programme he holds.
+     */
+    public function stageIds(): ?Collection
+    {
+        if ($this->stagesResolved) {
+            return $this->stages;
+        }
+
+        $this->stagesResolved = true;
+
+        return $this->stages = $this->resolveStageIds();
+    }
+
+    /** @return Collection<int, int>|null */
+    private function resolveStageIds(): ?Collection
+    {
+        if ($this->reachesAll() || ! $this->user) {
+            return null;
+        }
+
+        $assigned = $this->assignedScope();
+
+        if ($assigned && $assigned->scope_type === UserRole::SCOPE_STAGES) {
+            return collect($assigned->scope_ids ?? [])->map(fn ($id) => (int) $id)->values();
+        }
+
+        if (! $assigned && $this->role === 'supervisor') {
+            return $this->user->stages()->pluck('stages.id');
+        }
+
+        $circles = $this->circleIds();
+
+        if ($circles === null) {
+            return null;
+        }
+
+        return Circle::whereIn('id', $circles)->pluck('stage_id')->filter()->unique()->values();
     }
 
     /**

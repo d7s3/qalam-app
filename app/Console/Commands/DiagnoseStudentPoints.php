@@ -27,7 +27,7 @@ class DiagnoseStudentPoints extends Command
         }
 
         $this->info("الطالب: {$student->name} (#{$student->id})");
-        $this->line('الحلقة: '.($student->circle_id ?? 'بلا حلقة').' | المرحلة المباشرة: '.($student->stage_id ?? '—'));
+        $this->line('الحلقة: '.($student->circle_id ?? 'بلا حلقة').' | البرنامج المباشر: '.($student->stage_id ?? '—'));
 
         if (! $student->circle_id) {
             $this->warn('✗ الطالب بلا حلقة → لا يُطابق أي مسار تلعيب. النقاط تُمنح فقط لطلاب الحلقات.');

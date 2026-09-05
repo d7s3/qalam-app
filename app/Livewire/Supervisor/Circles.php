@@ -91,7 +91,7 @@ class Circles extends Component
     {
         $stages = $this->getSupervisorStages();
         if ($stages->isEmpty()) {
-            Flux::toast(__('عذراً، لا توجد مراحل تعليمية مخصصة لك لإضافة حلقة.'), variant: 'danger');
+            Flux::toast(__('عذراً، لا توجد برامج تعليمية مخصّصة لك لإضافة حلقة.'), variant: 'danger');
 
             return;
         }

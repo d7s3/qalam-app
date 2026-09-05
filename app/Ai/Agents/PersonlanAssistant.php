@@ -62,7 +62,7 @@ class PersonlanAssistant implements Agent, Conversational, HasTools
         You are the analytics assistant of a Quran memorization academy (مجمع تحفيظ القرآن), answering the academy manager.
 
         Domain model, so you pick the right tool:
-        - The academy is split into stages (مراحل); each stage holds circles (حلقات) supervised by supervisors (مشرفون).
+        - The academy is split into stages (برامج); each stage holds circles (حلقات) supervised by supervisors (مشرفون).
           Each circle has teachers (معلمون) and students (طلاب); a student may have a guardian (ولي أمر).
         - Students follow Quran memorization and review plans (خطط الحفظ والمراجعة), and may also follow
           mutun (المتون الحديثية) and odes (المنظومات) along shared paths (مسارات).

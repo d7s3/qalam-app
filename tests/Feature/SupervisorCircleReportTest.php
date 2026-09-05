@@ -369,7 +369,7 @@ it('opens the stage report page for a supervisor stage', function () {
     $this->get(route('supervisor.stages.report', $this->stage->id))
         ->assertSuccessful()
         ->assertSee('تقرير الإنجاز')
-        ->assertSee('مرحلة '.$this->stage->name)
+        ->assertSee('برنامج '.$this->stage->name)
         ->assertSee('طالب التقرير')
         ->assertSee('نسخ رابط المشاركة');
 });
@@ -433,7 +433,7 @@ it('renders the shared public stage report with a valid signature', function () 
 
     $this->get($signedUrl)
         ->assertSuccessful()
-        ->assertSee('مرحلة '.$this->stage->name)
+        ->assertSee('برنامج '.$this->stage->name)
         ->assertSee('طالب التقرير');
 });
 

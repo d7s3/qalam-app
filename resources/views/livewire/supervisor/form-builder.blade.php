@@ -43,7 +43,7 @@
                     </label>
 
                     @if($roleKey !== 'manager')
-                        <div class="text-[11px] text-zinc-400">أو حدّد مراحل بعينها:</div>
+                        <div class="text-[11px] text-zinc-400">أو حدّد برامج بعينها:</div>
                         <div class="max-h-24 overflow-auto space-y-1 pr-1">
                             @foreach($stages as $stage)
                                 <label class="flex items-center gap-2 cursor-pointer text-xs">

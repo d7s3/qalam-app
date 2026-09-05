@@ -352,7 +352,7 @@ class FormResponses extends Component
             'targetStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
         ], [
             'targetCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
-            'targetStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
+            'targetStageId.in' => 'البرنامج المختار خارج نطاق صلاحياتك.',
         ]);
 
         $response = FormResponse::findOrFail($this->selectedResponseId);
@@ -542,7 +542,7 @@ class FormResponses extends Component
             'bulkStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
         ], [
             'bulkCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
-            'bulkStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
+            'bulkStageId.in' => 'البرنامج المختار خارج نطاق صلاحياتك.',
         ]);
 
         $created = 0;
@@ -571,7 +571,7 @@ class FormResponses extends Component
             'bulkStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
         ], [
             'bulkCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
-            'bulkStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
+            'bulkStageId.in' => 'البرنامج المختار خارج نطاق صلاحياتك.',
         ]);
 
         $edit = $this->reviewEdits[$responseId] ?? null;
@@ -801,7 +801,7 @@ class FormResponses extends Component
                 return $response->student->stage?->name ?? $response->student->circle?->stage?->name ?? '';
             }
             foreach ($this->form->fields as $field) {
-                if (str_contains($field['label'], 'مرحلة') || str_contains($field['label'], 'المرحلة')) {
+                if (str_contains($field['label'], 'برنامج') || str_contains($field['label'], 'البرنامج')) {
                     $answer = $response->answers[$field['id']] ?? '';
 
                     return is_array($answer) ? implode(' ', $answer) : (string) $answer;

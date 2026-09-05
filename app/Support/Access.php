@@ -2,9 +2,12 @@
 
 namespace App\Support;
 
+use App\Models\Role;
 use App\Models\Screen;
+use App\Models\StageScreenPermission;
 use App\Models\User;
 use App\Models\UserScreenOverride;
+use Illuminate\Support\Collection;
 
 /**
  * The one answer to "may this person open this page?".
@@ -30,6 +33,12 @@ class Access
 
     private const CACHE_SCREENS = 'access_screens';
 
+    private const CACHE_CUSTOM_ROLE = 'access_custom_role';
+
+    private const CACHE_STAGE_IDS = 'access_stage_ids';
+
+    private const CACHE_STAGE_PERMS = 'access_stage_permissions';
+
     /** The container keys this class has bound, so it can let go of them. */
     private static array $cached = [];
 
@@ -51,6 +60,8 @@ class Access
             return true;
         }
 
+        $role = self::heldRole($user, $role);
+
         $screen = self::screenFor($routeName);
 
         if (! $screen) {
@@ -67,6 +78,16 @@ class Access
             if ($override !== null) {
                 return $override;
             }
+        }
+
+        // Someone bound to particular programmes is answered by them: each may
+        // open or close a page for a role inside itself, and holding the role in
+        // two programmes means holding whatever either of them grants. Someone
+        // whose reach is the whole centre has no programme to ask.
+        $stageIds = self::stageIdsFor($user, $role);
+
+        if ($stageIds !== null && $stageIds->isNotEmpty()) {
+            return self::grantedInAnyStage($stageIds, $role, $screen['id']);
         }
 
         // A role holds its own grants and those of every role it carries: what
@@ -122,6 +143,123 @@ class Access
 
         RolePages::forget();
         RoleHierarchy::forget();
+    }
+
+    /**
+     * The role whose grants answer for a reader.
+     *
+     * A custom role has no guard of its own — every one of them signs in through
+     * `staff`, which is an area of the application rather than a job. Asking
+     * what "staff" may open answers about a role nobody holds, and the grants
+     * written for the role the person actually holds are never consulted: the
+     * custom role could be given pages and open none of them.
+     */
+    private static function heldRole(?User $user, string $role): string
+    {
+        if ($role !== 'staff' || ! $user?->staff_role_id) {
+            return $role;
+        }
+
+        $key = self::CACHE_CUSTOM_ROLE.":{$user->staff_role_id}";
+
+        if (! app()->bound($key)) {
+            self::$cached[$key] = true;
+            app()->instance($key, ['key' => Role::whereKey($user->staff_role_id)->value('key')]);
+        }
+
+        return app($key)['key'] ?? $role;
+    }
+
+    /**
+     * Whether any programme the person holds this role in opens the screen.
+     *
+     * A programme's own word replaces the central grant rather than adding to
+     * it, so a programme may close a page the role is granted everywhere else.
+     * The seniority chain is still walked inside each programme: what a teacher
+     * may open there, his supervisor may open there.
+     *
+     * Two programmes are a union, not an intersection. A page closed in one is
+     * closed for that programme's work, not taken from the person wherever he
+     * goes — which is what `Scope` is for, and it is asked separately.
+     */
+    private static function grantedInAnyStage(Collection $stageIds, string $role, int $screenId): bool
+    {
+        $exceptions = self::stagePermissions($stageIds);
+        $chain = RoleHierarchy::chainFor($role);
+
+        foreach ($stageIds as $stageId) {
+            foreach ($chain as $carried) {
+                $granted = $exceptions[$stageId][$carried][$screenId]
+                    ?? in_array($screenId, RolePages::enabledScreenIdsFor($carried), true);
+
+                if ($granted) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The programmes a person holds a role in, remembered for the request.
+     *
+     * The sidebar asks about two dozen pages on every render, and resolving the
+     * reach afresh for each would be two dozen times the queries.
+     */
+    private static function stageIdsFor(?User $user, string $role): ?Collection
+    {
+        if (! $user) {
+            return null;
+        }
+
+        $key = self::CACHE_STAGE_IDS.":{$user->id}:{$role}";
+
+        if (! app()->bound($key)) {
+            self::$cached[$key] = true;
+
+            // Wrapped, because "no programmes — the whole centre" is null, and a
+            // null cannot be told apart from an unbound key in the container.
+            app()->instance($key, ['ids' => Scope::for($user, $role)->stageIds()]);
+        }
+
+        return app($key)['ids'];
+    }
+
+    /**
+     * Every programme exception for a set of programmes, in one query.
+     *
+     * @return array<int, array<string, array<int, bool>>>
+     */
+    private static function stagePermissions(Collection $stageIds): array
+    {
+        $key = self::CACHE_STAGE_PERMS.':'.$stageIds->sort()->implode(',');
+
+        if (! app()->bound($key)) {
+            self::$cached[$key] = true;
+
+            $table = (new StageScreenPermission)->getTable();
+
+            $rows = StageScreenPermission::query()
+                ->whereIn('stage_id', $stageIds)
+                ->join('roles', 'roles.id', '=', $table.'.role_id')
+                ->get([
+                    $table.'.stage_id',
+                    'roles.key as role_key',
+                    $table.'.screen_id',
+                    $table.'.is_allowed',
+                ]);
+
+            $map = [];
+
+            foreach ($rows as $row) {
+                $map[$row->stage_id][$row->role_key][$row->screen_id] = (bool) $row->is_allowed;
+            }
+
+            app()->instance($key, $map);
+        }
+
+        return app($key);
     }
 
     /**

@@ -466,7 +466,7 @@ new class extends Component
         <div class="space-y-5">
             @if (! $this->selfWeek)
                 <flux:card class="text-center py-10">
-                    <flux:subheading>{{ __('لا يوجد أسبوع ذاتي جارٍ لمرحلة هذه الحلقة.') }}</flux:subheading>
+                    <flux:subheading>{{ __('لا يوجد أسبوع ذاتي جارٍ لبرنامج هذه الحلقة.') }}</flux:subheading>
                 </flux:card>
             @else
                 <flux:card>

@@ -6,7 +6,7 @@
             </div>
             <div>
                 <flux:heading size="lg">تقدّم البرنامج الذاتي</flux:heading>
-                <flux:subheading>كيف يمضي طلاب مراحلك في أسبوعهم</flux:subheading>
+                <flux:subheading>كيف يمضي طلاب برامجك في أسبوعهم</flux:subheading>
             </div>
         </div>
     </x-slot>

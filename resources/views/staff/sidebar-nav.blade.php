@@ -2,12 +2,17 @@
     $staffUser = auth('staff')->user();
     $staffUnreadMessages = \App\Services\MessagingService::unreadCountFor('staff', $staffUser->id);
 
+    // The pages this custom role was granted. Filtered through the one access
+    // answer rather than read straight from the grants, so a page closed for
+    // this person, or inside his programme, does not appear here anyway.
     $grantedScreens = $staffUser->staff_role_id
         ? \App\Models\RoleScreenPermission::where('role_id', $staffUser->staff_role_id)
             ->with('screen')
             ->get()
             ->pluck('screen')
             ->filter()
+            ->filter(fn ($screen) => \App\Support\Access::canSee($staffUser, 'staff', $screen->route_name))
+            ->values()
         : collect();
 @endphp
 
@@ -23,10 +28,14 @@
 @if($grantedScreens->isNotEmpty())
     <flux:sidebar.group heading="{{ __('صلاحيات إضافية لدورك') }}" class="grid">
         @foreach($grantedScreens as $screen)
-            <div class="flex items-center justify-between px-2.5 py-2 text-sm text-white/70" wire:key="staff-screen-{{ $screen->id }}">
-                <span>{{ $screen->label }}</span>
-                <flux:badge color="amber" size="sm">{{ __('قريباً') }}</flux:badge>
-            </div>
+            <flux:sidebar.item wire:key="staff-screen-{{ $screen->id }}"
+                class="[&_svg]:bg-[#64748b] hover:[&_svg]:bg-[#475569]"
+                icon="arrow-top-right-on-square"
+                :href="route('staff.held', ['screen' => $screen->route_name])"
+                :current="request()->routeIs('staff.held') && request()->route('screen') === $screen->route_name"
+                wire:navigate>
+                {{ $screen->label }}
+            </flux:sidebar.item>
         @endforeach
     </flux:sidebar.group>
 @endif

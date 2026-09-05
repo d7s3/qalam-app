@@ -5,14 +5,14 @@
                 <flux:icon icon="circle-stack" />
             </div>
             <div>
-                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">حلقات المرحلة</flux:heading>
-                <flux:subheading>الحلقات الواقعة ضمن المراحل التي تشرف عليها</flux:subheading>
+                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">حلقات البرنامج</flux:heading>
+                <flux:subheading>الحلقات الواقعة ضمن البرامج التي تشرف عليها</flux:subheading>
             </div>
         </div>
         @if($stages->isNotEmpty())
             <div class="flex items-center gap-2">
                 <flux:dropdown>
-                    <flux:button size="sm" icon="chart-bar" icon:trailing="chevron-down">تقرير المرحلة</flux:button>
+                    <flux:button size="sm" icon="chart-bar" icon:trailing="chevron-down">تقرير البرنامج</flux:button>
                     <flux:menu>
                         @foreach($stages as $stage)
                             <flux:menu.item :href="route('supervisor.stages.report', $stage->id)" icon="presentation-chart-line">
@@ -44,7 +44,7 @@
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>اسم الحلقة</flux:table.column>
-                <flux:table.column class="hidden md:table-cell">المرحلة</flux:table.column>
+                <flux:table.column class="hidden md:table-cell">البرنامج</flux:table.column>
                 <flux:table.column class="hidden md:table-cell">المعلمون</flux:table.column>
                 <flux:table.column class="text-center">الطلاب</flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
@@ -103,8 +103,8 @@
             </div>
 
             <div class="space-y-4">
-                <flux:select label="المرحلة التعليمية" wire:model="stage_id" required>
-                    <flux:select.option value="" >اختر المرحلة</flux:select.option>
+                <flux:select label="البرنامج التعليمي" wire:model="stage_id" required>
+                    <flux:select.option value="" >اختر البرنامج</flux:select.option>
                     @foreach($stages as $stage)
                         <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>
                     @endforeach

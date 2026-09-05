@@ -8,7 +8,7 @@ use App\Models\Screen;
 use App\Models\Staff;
 use Livewire\Livewire;
 
-it('lets a manager create a custom role, grant it a screen, create a staff account, and see the granted screen previewed in the staff sidebar', function () {
+it('lets a manager create a custom role, grant it a screen, create a staff account, and open that screen', function () {
     $manager = Manager::factory()->create();
     $this->actingAs($manager, 'manager');
 
@@ -53,12 +53,23 @@ it('lets a manager create a custom role, grant it a screen, create a staff accou
 
     $this->assertAuthenticatedAs($staff, 'staff');
 
-    // 5. The granted (but not-yet-wired) screen shows up as a preview, and
-    // messaging works since it's guard-agnostic.
+    // 5. The granted screen is a link in his sidebar, and it opens. It used to
+    // be a label reading "coming soon": custom roles all ride the staff guard,
+    // no route existed to reach a page through it, and asking the access layer
+    // about "staff" asked about a role nobody holds — so a granted page could
+    // be granted and never opened.
     $this->get(route('staff.dashboard'))
         ->assertSuccessful()
         ->assertSee('تقارير الحضور والغياب')
-        ->assertSee('قريباً');
+        ->assertSee(route('staff.held', ['screen' => 'manager.attendance-reports']), false)
+        ->assertDontSee('قريباً');
+
+    $this->get(route('staff.held', ['screen' => 'manager.attendance-reports']))
+        ->assertSuccessful();
+
+    // And a screen he was never granted stays shut.
+    $this->get(route('staff.held', ['screen' => 'manager.circles']))
+        ->assertForbidden();
 
     $this->get(route('staff.messages'))->assertSuccessful();
 });

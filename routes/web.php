@@ -11,7 +11,6 @@ use App\Livewire\Public\CoinRedemption as PublicCoinRedemption;
 use App\Livewire\Public\FormReport;
 use App\Livewire\Public\FormSubmit;
 use App\Livewire\Public\ResultsDisplay as PublicResultsDisplay;
-use App\Models\Circle;
 use App\Models\FormAssignment;
 use App\Models\Guardian;
 use App\Models\Student;
@@ -130,6 +129,7 @@ Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager
     Route::view('/messages', 'manager.messages')->name('messages');
     Route::view('/role-permissions', 'manager.role-permissions')->name('role-permissions');
     Route::view('/user-access', 'manager.user-access')->name('user-access');
+    Route::view('/stage-access', 'manager.stage-access')->name('stage-access');
     Route::view('/reports', 'manager.reports')->name('reports');
 
     // Screens this office carries from the ones beneath it. The name of
@@ -388,6 +388,13 @@ Route::middleware(['auth:staff', 'approved', 'page.enabled', 'surveys.required']
     Route::view('/dashboard', 'staff.dashboard')->name('dashboard');
     Route::view('/messages', 'staff.messages')->name('messages');
     Route::view('/guide', 'shared.guide')->name('guide');
+
+    // The screens a custom role is granted. Custom roles all ride this guard —
+    // they are bundles of screens rather than areas of the application — so
+    // without a way in they could be granted pages and never open one.
+    Route::get('/held/{screen}', HeldScreenController::class)
+        ->where('screen', '[a-z-]+\\.[a-z.-]+')
+        ->name('held');
 });
 
 // Magic Link Routes

@@ -205,7 +205,7 @@ class getPeopleDirectory implements Tool
             'role' => $schema->string()->enum(['student', 'teacher', 'supervisor', 'guardian'])->required(),
             'search' => $schema->string()->description('Part of a name or email to search for.'),
             'circle' => $schema->string()->description('Circle name (حلقة). Students and teachers only.'),
-            'stage' => $schema->string()->description('Stage name (مرحلة). Not applicable to guardians.'),
+            'stage' => $schema->string()->description('Stage name (برنامج). Not applicable to guardians.'),
             'status' => $schema->string()
                 ->enum(['active', 'registering', 'suspended', 'left'])
                 ->description('Student status: active=مشارك, registering=تحت التسجيل, suspended=موقوف, left=غادر الحلقات.'),

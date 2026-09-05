@@ -98,7 +98,7 @@ new class extends Component
     <div class="flex flex-wrap items-end gap-3">
         @if ($this->stages->isNotEmpty())
             <flux:field>
-                <flux:label>{{ __('المرحلة') }}</flux:label>
+                <flux:label>{{ __('البرنامج') }}</flux:label>
                 <flux:select wire:model.live="stageId">
                     @foreach ($this->stages as $stage)
                         <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>

@@ -332,13 +332,13 @@ new class extends Component
     @if ($this->stages->isEmpty())
         <flux:card class="text-center py-12">
             <flux:icon icon="exclamation-triangle" class="size-10 mx-auto text-amber-400" />
-            <flux:heading size="lg" class="mt-3">{{ __('لا توجد مراحل مسندة إليك') }}</flux:heading>
-            <flux:subheading class="mt-1">{{ __('محتوى البرنامج الذاتي يُكتب لكل مرحلة على حدة.') }}</flux:subheading>
+            <flux:heading size="lg" class="mt-3">{{ __('لا توجد برامج مسندة إليك') }}</flux:heading>
+            <flux:subheading class="mt-1">{{ __('محتوى البرنامج الذاتي يُكتب لكل برنامج على حدة.') }}</flux:subheading>
         </flux:card>
     @else
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <flux:field>
-                <flux:label>{{ __('المرحلة') }}</flux:label>
+                <flux:label>{{ __('البرنامج') }}</flux:label>
                 <flux:select wire:model.live="stageId">
                     @foreach ($this->stages as $stage)
                         <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>

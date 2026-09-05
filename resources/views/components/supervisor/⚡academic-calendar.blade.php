@@ -990,8 +990,8 @@ new class extends Component {
                                 :options="collect($this->availableSupervisors)->map(fn($s) => ['value' => $s->id, 'label' => $s->name])->toArray()" 
                             />
                             
-                            <flux:select wire:model="sharedWith.stage_ids_for_students" multiple placeholder="اختر المراحل...">
-                                <x-slot:label>مراحل دراسية (للطلاب)</x-slot:label>
+                            <flux:select wire:model="sharedWith.stage_ids_for_students" multiple placeholder="اختر البرامج...">
+                                <x-slot:label>برامج دراسية (للطلاب)</x-slot:label>
                                 @foreach($this->availableStages as $st)
                                     <flux:select.option value="{{ $st->id }}">{{ $st->name }}</flux:select.option>
                                 @endforeach

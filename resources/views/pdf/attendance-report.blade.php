@@ -108,7 +108,7 @@
         <thead>
             {{-- Month row --}}
             <tr>
-                <th rowspan="2" style="width: 15%; text-align: right; padding-right: 8px;">الحلقة / المرحلة</th>
+                <th rowspan="2" style="width: 15%; text-align: right; padding-right: 8px;">الحلقة / البرنامج</th>
                 @php
                     $monthGroups = [];
                     $prevMonth = null;

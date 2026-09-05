@@ -71,9 +71,9 @@ class ImportDataCommand extends Command
             foreach ($jsonData as $item) {
                 if (isset($item['all_password'])) {
                     $configDetails = $item;
-                } elseif (isset($item['المرحلة']) && ! isset($item['الحلقة']) && ! isset($item['المعلم'])) {
+                } elseif (isset($item['البرنامج']) && ! isset($item['الحلقة']) && ! isset($item['المعلم'])) {
                     $stages[] = $item;
-                } elseif (isset($item['الحلقة']) && isset($item['المرحلة']) && ! isset($item['المعلم'])) {
+                } elseif (isset($item['الحلقة']) && isset($item['البرنامج']) && ! isset($item['المعلم'])) {
                     $circles[] = $item;
                 } elseif (isset($item['المعلم'])) {
                     $teachers[] = $item;
@@ -117,7 +117,7 @@ class ImportDataCommand extends Command
             foreach ($stages as $stageData) {
                 Stage::updateOrCreate(
                     ['id' => $stageData['id']],
-                    ['name' => $stageData['المرحلة']]
+                    ['name' => $stageData['البرنامج']]
                 );
             }
             $this->info('Stages imported.');
@@ -128,7 +128,7 @@ class ImportDataCommand extends Command
                     ['id' => $circleData['id']],
                     [
                         'name' => $circleData['الحلقة'],
-                        'stage_id' => $circleData['المرحلة'],
+                        'stage_id' => $circleData['البرنامج'],
                     ]
                 );
             }

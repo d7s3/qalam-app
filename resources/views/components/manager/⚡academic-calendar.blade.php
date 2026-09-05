@@ -786,7 +786,7 @@ new class extends Component {
                                     @endphp
                                     <div class="flex flex-wrap gap-1 mb-3">
                                         <span class="px-1.5 py-0.5 rounded text-[0.6rem] font-medium bg-emerald-100 dark:bg-emerald-800/60 text-emerald-700 dark:text-emerald-300">
-                                            {{ $periodStages->isEmpty() ? 'كل المراحل' : $periodStages->implode('، ') }}
+                                            {{ $periodStages->isEmpty() ? 'كل البرامج' : $periodStages->implode('، ') }}
                                         </span>
                                         @foreach($period->sessions ?? [] as $session)
                                             <span class="px-1.5 py-0.5 rounded text-[0.6rem] font-medium bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-emerald-100 dark:border-emerald-800 dir-ltr">
@@ -1133,8 +1133,8 @@ new class extends Component {
                                 :options="collect($this->availableSupervisors)->map(fn($s) => ['value' => $s->id, 'label' => $s->name])->toArray()" 
                             />
                             
-                            <flux:select wire:model="sharedWith.stage_ids_for_students" multiple placeholder="اختر المراحل...">
-                                <x-slot:label>مراحل دراسية (للطلاب)</x-slot:label>
+                            <flux:select wire:model="sharedWith.stage_ids_for_students" multiple placeholder="اختر البرامج...">
+                                <x-slot:label>برامج دراسية (للطلاب)</x-slot:label>
                                 @foreach($this->availableStages as $st)
                                     <flux:select.option value="{{ $st->id }}">{{ $st->name }}</flux:select.option>
                                 @endforeach
@@ -1165,7 +1165,7 @@ new class extends Component {
         <form wire:submit="saveAttendancePeriod" class="space-y-6">
             <div>
                 <flux:heading size="lg">{{ $editingPeriodId ? 'تعديل فترة دوام الحلقات' : 'إضافة فترة دوام الحلقات' }}</flux:heading>
-                <flux:subheading>حدد المدة، والمراحل التي تتبعها، وأيام الأسبوع وأوقات الدوام.</flux:subheading>
+                <flux:subheading>حدد المدة، والبرامج التي تتبعها، وأيام الأسبوع وأوقات الدوام.</flux:subheading>
             </div>
 
             <div class="space-y-5 max-h-[65vh] overflow-y-auto pe-1">
@@ -1178,7 +1178,7 @@ new class extends Component {
 
                 {{-- Stages: none chosen means the whole academy follows this period. --}}
                 <div class="space-y-2">
-                    <flux:label>المراحل التي تتبع هذه الفترة</flux:label>
+                    <flux:label>البرامج التي تتبع هذه الفترة</flux:label>
                     <div class="flex flex-wrap gap-2">
                         @foreach($this->availableStages as $stage)
                             <label class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800">

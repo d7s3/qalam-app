@@ -79,7 +79,7 @@ class AttendanceReports extends Component
         $circles = Circle::with('stage')
             ->withCount(['students' => fn ($q) => $q->where('status', 'active')])
             ->orderBy('stage_id')->orderBy('name')->get();
-        $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون مرحلة');
+        $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون برنامج');
 
         $records = Attendance::query()
             ->join('users as students', 'attendances.student_id', '=', 'students.id')
@@ -146,7 +146,7 @@ class AttendanceReports extends Component
         $circles = Circle::with('stage')
             ->withCount(['students' => fn ($q) => $q->where('status', 'active')])
             ->orderBy('stage_id')->orderBy('name')->get();
-        $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون مرحلة');
+        $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون برنامج');
 
         // Fetch aggregated attendance per circle per day
         $attendanceData = [];

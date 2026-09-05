@@ -159,7 +159,7 @@ new class extends Component {
         </div>
 
         <div class="flex flex-col gap-1 w-full sm:w-48">
-            <flux:select wire:model.live="stageId" label="{{ __('المرحلة') }}" placeholder="{{ __('الكل') }}">
+            <flux:select wire:model.live="stageId" label="{{ __('البرنامج') }}" placeholder="{{ __('الكل') }}">
                 @foreach($this->stages as $stage)
                     <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>
                 @endforeach

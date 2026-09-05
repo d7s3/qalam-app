@@ -14,7 +14,7 @@
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.stages'))
     <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6] hover:[&_svg]:bg-[#7c3aed]" icon="rectangle-stack" :href="route('manager.stages')"
         :current="request()->routeIs('manager.stages')" wire:navigate>
-        المراحل التعليمية
+        البرامج
     </flux:sidebar.item>
 @endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-progress'))
@@ -148,6 +148,10 @@
     <flux:sidebar.item class="[&_svg]:bg-[#4f46e5] hover:[&_svg]:bg-[#4338ca]" icon="shield-check" :href="route('manager.role-permissions')" :current="request()->routeIs('manager.role-permissions')"
         wire:navigate>
         صلاحيات الصفحات
+    </flux:sidebar.item>
+    <flux:sidebar.item class="[&_svg]:bg-[#0891b2] hover:[&_svg]:bg-[#0e7490]" icon="rectangle-group" :href="route('manager.stage-access')" :current="request()->routeIs('manager.stage-access')"
+        wire:navigate>
+        صلاحيات البرامج
     </flux:sidebar.item>
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.staff-members'))
         <flux:sidebar.item class="[&_svg]:bg-[#7c3aed] hover:[&_svg]:bg-[#6d28d9]" icon="identification" :href="route('manager.staff-members')" :current="request()->routeIs('manager.staff-members')"

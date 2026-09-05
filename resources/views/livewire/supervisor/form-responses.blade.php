@@ -138,11 +138,11 @@
                 <button type="button" @click="open = !open" class="flex items-center justify-between w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors">
                     <span class="truncate">
                         @if(count($filterStageIds) === 0)
-                            كل المراحل الدراسية
+                            كل البرامج الدراسية
                         @elseif(count($filterStageIds) === 1)
-                            المرحلة: {{ $stages->firstWhere('id', $filterStageIds[0])?->name }}
+                            البرنامج: {{ $stages->firstWhere('id', $filterStageIds[0])?->name }}
                         @else
-                            المراحل: {{ count($filterStageIds) }} محددة
+                            البرامج: {{ count($filterStageIds) }} محددة
                         @endif
                     </span>
                     <flux:icon name="chevron-down" class="size-3.5 text-zinc-400 shrink-0 ms-2" />
@@ -218,7 +218,7 @@
                 <span class="font-semibold text-zinc-500">ترتيب النتائج حسب:</span>
                 <button type="button" wire:click="setSort('created_at')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'created_at' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">تاريخ الرد</button>
                 <button type="button" wire:click="setSort('name')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'name' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">الاسم</button>
-                <button type="button" wire:click="setSort('stage')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'stage' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">المرحلة</button>
+                <button type="button" wire:click="setSort('stage')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'stage' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">البرنامج</button>
                 <button type="button" wire:click="setSort('age')" class="px-2.5 py-1 rounded-md transition-all font-medium {{ $sortBy === 'age' ? 'bg-accent text-white font-semibold' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300' }}">العمر</button>
             </div>
             <button type="button" wire:click="toggleSortDirection" class="flex items-center gap-1.5 hover:text-zinc-900 dark:hover:text-white transition-colors">
@@ -437,9 +437,9 @@
 
             <div class="grid grid-cols-2 gap-3">
                 <flux:field>
-                    <flux:label>المرحلة (اختياري)</flux:label>
+                    <flux:label>البرنامج (اختياري)</flux:label>
                     <select wire:model="targetStageId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
-                        <option value="">-- بلا مرحلة --</option>
+                        <option value="">-- بلا برنامج --</option>
                         @foreach($stages as $s)
                             <option value="{{ $s->id }}">{{ $s->name }}</option>
                         @endforeach
@@ -457,7 +457,7 @@
                     <flux:error name="targetCircleId" />
                 </flux:field>
             </div>
-            <p class="text-[11px] text-zinc-400">عند اختيار حلقة تُعتمد مرحلتها تلقائيًا. اختيار المرحلة وحدها يُنشئ الطالب بلا حلقة ضمن تلك المرحلة.</p>
+            <p class="text-[11px] text-zinc-400">عند اختيار حلقة تُعتمد مرحلتها تلقائيًا. اختيار البرنامج وحدها يُنشئ الطالب بلا حلقة ضمن ذلك البرنامج.</p>
         </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t border-zinc-150 dark:border-zinc-850">
@@ -556,9 +556,9 @@
                         <flux:error name="bulkPassword" />
                     </flux:field>
                     <flux:field>
-                        <flux:label>المرحلة (اختياري)</flux:label>
+                        <flux:label>البرنامج (اختياري)</flux:label>
                         <select wire:model="bulkStageId" class="block w-full rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-sm">
-                            <option value="">-- بلا مرحلة --</option>
+                            <option value="">-- بلا برنامج --</option>
                             @foreach($stages as $s)
                                 <option value="{{ $s->id }}">{{ $s->name }}</option>
                             @endforeach

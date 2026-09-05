@@ -28,7 +28,7 @@
             </flux:select>
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="stageFilter" placeholder="تصفية حسب المرحلة">
+            <flux:select wire:model.live="stageFilter" placeholder="تصفية حسب البرنامج">
                 <flux:select.option value="">الكل</flux:select.option>
                 @foreach($stages as $stage)
                     <flux:select.option :value="$stage->id">{{ $stage->name }}</flux:select.option>
@@ -41,7 +41,7 @@
         <flux:table>
             <flux:table.columns>
                 <flux:table.column class="text-right">اسم الحلقة</flux:table.column>
-                <flux:table.column class="text-right">المرحلة</flux:table.column>
+                <flux:table.column class="text-right">البرنامج</flux:table.column>
                 <flux:table.column class="text-center">معلمون</flux:table.column>
                 <flux:table.column class="text-center">طلاب</flux:table.column>
                 <flux:table.column class="text-center">تاريخ الإضافة</flux:table.column>
@@ -98,7 +98,7 @@
             <div class="space-y-4">
                 <flux:input label="اسم الحلقة" wire:model="name" placeholder="مثال: حلقة ابن كثير" required />
                 
-                <flux:select label="المرحلة التعليمية" wire:model="stage_id" placeholder="اختر المرحلة..." required>
+                <flux:select label="البرنامج التعليمي" wire:model="stage_id" placeholder="اختر البرنامج..." required>
                     @foreach($stages as $stage)
                         <flux:select.option :value="$stage->id">{{ $stage->name }}</flux:select.option>
                     @endforeach

@@ -32,9 +32,9 @@ class UserGuideContent
             [
                 'heading' => 'المستخدمين',
                 'pages' => [
-                    ['title' => 'المراحل التعليمية', 'route' => 'manager.stages', 'icon' => 'rectangle-stack', 'description' => 'إنشاء وتعديل المراحل الدراسية (مثل المرحلة الأولى، الثانية...) وتوزيع المشرفين عليها.'],
-                    ['title' => 'الحلقات', 'route' => 'manager.circles', 'icon' => 'circle-stack', 'description' => 'إدارة حلقات التحفيظ: إنشاء حلقة جديدة، ربطها بمرحلة، وتعيين المعلمين المسؤولين عنها.'],
-                    ['title' => 'المشرفون', 'route' => 'manager.supervisors', 'icon' => 'users', 'description' => 'إدارة حسابات المشرفين وربط كل مشرف بالمراحل التي يشرف عليها.'],
+                    ['title' => 'البرامج', 'route' => 'manager.stages', 'icon' => 'rectangle-stack', 'description' => 'إنشاء وتعديل البرامج الدراسية (مثل البرنامج الأول، الثاني...) وتوزيع المشرفين عليها.'],
+                    ['title' => 'الحلقات', 'route' => 'manager.circles', 'icon' => 'circle-stack', 'description' => 'إدارة حلقات التحفيظ: إنشاء حلقة جديدة، ربطها ببرنامج، وتعيين المعلمين المسؤولين عنها.'],
+                    ['title' => 'المشرفون', 'route' => 'manager.supervisors', 'icon' => 'users', 'description' => 'إدارة حسابات المشرفين وربط كل مشرف بالبرامج التي يشرف عليها.'],
                     ['title' => 'المعلمون', 'route' => 'manager.teachers', 'icon' => 'users', 'description' => 'إدارة حسابات المعلمين، صلاحياتهم، والحلقات المسندة لكل معلم.'],
                     ['title' => 'الطلاب', 'route' => 'manager.students', 'icon' => 'academic-cap', 'description' => 'إدارة بيانات الطلاب: الحلقة، الحالة، ولي الأمر، وتاريخ الالتحاق.'],
                     ['title' => 'الأوصياء', 'route' => 'manager.guardians', 'icon' => 'user-group', 'description' => 'إدارة حسابات أولياء الأمور وربطهم بأبنائهم الطلاب.'],
@@ -90,14 +90,14 @@ class UserGuideContent
             [
                 'heading' => 'الرئيسية',
                 'pages' => [
-                    ['title' => 'لوحة التحكم', 'route' => 'supervisor.dashboard', 'icon' => 'home', 'description' => 'نظرة سريعة على مراحلك وحلقاتك ومعلميك وطلابك، ونسبة الحضور الأسبوعية.'],
+                    ['title' => 'لوحة التحكم', 'route' => 'supervisor.dashboard', 'icon' => 'home', 'description' => 'نظرة سريعة على برامجك وحلقاتك ومعلميك وطلابك، ونسبة الحضور الأسبوعية.'],
                     ['title' => 'الرسائل', 'route' => 'supervisor.messages', 'icon' => 'envelope', 'description' => 'محادثات مباشرة مع المعلمين والطلاب وأولياء الأمور ضمن نطاق إشرافك، والمدير.'],
                 ],
             ],
             [
                 'heading' => 'العملية التعليمية',
                 'pages' => [
-                    ['title' => 'الحلقات', 'route' => 'supervisor.circles', 'icon' => 'circle-stack', 'description' => 'إدارة الحلقات الواقعة ضمن المراحل التي تشرف عليها.'],
+                    ['title' => 'الحلقات', 'route' => 'supervisor.circles', 'icon' => 'circle-stack', 'description' => 'إدارة الحلقات الواقعة ضمن البرامج التي تشرف عليها.'],
                     ['title' => 'الطلاب', 'route' => 'supervisor.students', 'icon' => 'academic-cap', 'description' => 'عرض وإدارة طلاب حلقات مرحلتك، مع إجراءات جماعية (تغيير حلقة، تغيير حالة...).'],
                     ['title' => 'المعلمون', 'route' => 'supervisor.teachers', 'icon' => 'users', 'description' => 'إدارة شؤون المعلمين في نطاق إشرافك، صلاحياتهم، والموافقة على حساباتهم.'],
                 ],

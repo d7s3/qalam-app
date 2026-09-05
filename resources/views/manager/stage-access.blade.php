@@ -1,11 +1,13 @@
 <x-layouts.role-shell>
     <x-slot:title>
-        {{ __('إدارة البرامج') }}
+        {{ __('صلاحيات البرامج') }}
     </x-slot:title>
 
     <x-slot:sidebar>
         <x-role-sidebar />
     </x-slot:sidebar>
 
-    <livewire:manager.stages />
+    <div class="md:p-8">
+        <livewire:manager.stage-access />
+    </div>
 </x-layouts.role-shell>

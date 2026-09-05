@@ -308,7 +308,7 @@ a reason — enforced here for the prompt, and again on the server for real.
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-16 text-center">
             <flux:icon icon="calendar-days" class="size-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
             <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400">لا توجد أيام دراسية في هذا الشهر</flux:heading>
-            <flux:subheading class="text-zinc-400">حسب التقويم الدراسي المعتمد لهذه المرحلة</flux:subheading>
+            <flux:subheading class="text-zinc-400">حسب التقويم الدراسي المعتمد لهذا البرنامج</flux:subheading>
         </div>
     @elseif ($students->isEmpty())
         <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-16 text-center">

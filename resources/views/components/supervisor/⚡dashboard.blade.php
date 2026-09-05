@@ -68,7 +68,7 @@ new class extends Component
     </div>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <x-student.partials.stat-card icon="rectangle-stack" :label="__('المراحل التعليمية')" :value="$stagesCount" accent-class="bg-indigo-500/10 text-indigo-600" />
+        <x-student.partials.stat-card icon="rectangle-stack" :label="__('البرامج')" :value="$stagesCount" accent-class="bg-indigo-500/10 text-indigo-600" />
         <x-student.partials.stat-card icon="circle-stack" :label="__('الحلقات')" :value="$circlesCount" accent-class="bg-teal-500/10 text-teal-600" />
         <x-student.partials.stat-card icon="users" :label="__('المعلمون')" :value="$teachersCount" accent-class="bg-blue-500/10 text-blue-600" />
         <x-student.partials.stat-card icon="academic-cap" :label="__('الطلاب')" :value="$studentsCount" accent-class="bg-purple-500/10 text-purple-600" />

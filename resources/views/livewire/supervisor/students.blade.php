@@ -4,7 +4,7 @@
             <flux:icon icon="academic-cap" />
         </div>
         <div>
-            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">طلاب المرحلة</flux:heading>
+            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">طلاب البرنامج</flux:heading>
             <flux:subheading>عرض وإدارة الطلاب الواقعين ضمن حلقات مرحلتك</flux:subheading>
         </div>
     </div>

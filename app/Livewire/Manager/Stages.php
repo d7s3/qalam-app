@@ -75,14 +75,14 @@ class Stages extends Component
                 'description' => $this->description,
             ]);
             $stage->supervisors()->sync($this->selectedSupervisors);
-            Flux::toast(__('تم تحديث المرحلة بنجاح'), variant: 'success');
+            Flux::toast(__('تم تحديث البرنامج بنجاح'), variant: 'success');
         } else {
             $stage = Stage::create([
                 'name' => $this->name,
                 'description' => $this->description,
             ]);
             $stage->supervisors()->attach($this->selectedSupervisors);
-            Flux::toast(__('تم إضافة المرحلة بنجاح'), variant: 'success');
+            Flux::toast(__('تم إضافة البرنامج بنجاح'), variant: 'success');
         }
 
         $this->reset(['name', 'description', 'editingStageId', 'selectedSupervisors']);
@@ -110,14 +110,14 @@ class Stages extends Component
     {
         $stage = Stage::findOrFail($id);
         if ($stage->circles()->count() > 0) {
-            Flux::toast(__('لا يمكن حذف المرحلة لاحتوائها على حلقات'), variant: 'danger');
+            Flux::toast(__('لا يمكن حذف البرنامج لاحتوائها على حلقات'), variant: 'danger');
 
             return;
         }
 
         $stage->delete();
         $this->loadStages();
-        Flux::toast(__('تم حذف المرحلة بنجاح'), variant: 'success');
+        Flux::toast(__('تم حذف البرنامج بنجاح'), variant: 'success');
     }
 
     public function cancel()
