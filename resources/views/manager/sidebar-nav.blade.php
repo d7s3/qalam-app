@@ -2,6 +2,11 @@
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.period-values'))
+    <flux:sidebar.item class="[&_svg]:bg-[#d946ef] hover:[&_svg]:bg-[#c026d3]" icon="sparkles" :href="route('manager.period-values')" :current="request()->routeIs('manager.period-values')" wire:navigate>
+        قيم الفترة
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.event-visibility'))
     <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="eye" :href="route('manager.event-visibility')" :current="request()->routeIs('manager.event-visibility')" wire:navigate>
         رؤية الأحداث

@@ -227,6 +227,31 @@ class HijriDate
         ];
     }
 
+    /**
+     * The Hijri year, month and day of a date, as integers.
+     *
+     * `yearMonthOf` answers the two the month grid needs; the seasons need the
+     * day as well, and reading it back out of a formatted string would mean
+     * parsing Arabic-Indic digits to get a number the calendar already holds.
+     *
+     * @return array{year: int, month: int, day: int}
+     */
+    public static function parts(DateTimeInterface|string|int|null $date): array
+    {
+        $calendar = self::calendar();
+        $timestamp = self::timestamp($date);
+
+        if ($timestamp !== null) {
+            $calendar->setTime($timestamp * 1000);
+        }
+
+        return [
+            'year' => $calendar->get(IntlCalendar::FIELD_YEAR),
+            'month' => $calendar->get(IntlCalendar::FIELD_MONTH) + 1,
+            'day' => $calendar->get(IntlCalendar::FIELD_DAY_OF_MONTH),
+        ];
+    }
+
     private static function calendar(): IntlCalendar
     {
         return IntlCalendar::createInstance(self::TIMEZONE, self::LOCALE);

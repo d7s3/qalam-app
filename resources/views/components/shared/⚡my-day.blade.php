@@ -4,8 +4,11 @@ use App\Models\OccurrenceAttendance;
 use App\Models\Task;
 use App\Services\DayAgendaService;
 use App\Models\Compensation;
+use App\Models\PeriodValue;
+use App\Models\Student;
 use App\Services\CompensationService;
 use App\Services\EducationalLossService;
+use App\Support\HijriSeasons;
 use App\Support\Scope;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
@@ -124,10 +127,18 @@ new class extends Component
                 'agenda' => ['occurrences' => [], 'tasks' => collect(), 'content' => []],
                 'losses' => [],
                 'debts' => collect(),
+                'seasons' => HijriSeasons::on($this->date),
+                'values' => collect(),
             ];
         }
 
         return [
+            'seasons' => HijriSeasons::on($this->date),
+            'values' => PeriodValue::runningOn(
+                $this->date,
+                $user instanceof Student ? $user->stage_id : Scope::forRole($this->asRole)->stageIds()?->first(),
+                $user instanceof Student ? $user->circle_id : null,
+            )->get(),
             'debts' => CompensationService::openFor($user),
             'agenda' => DayAgendaService::forUser($user, $this->asRole, $this->date),
             // The week behind him, so a missed lesson is seen while it can still
@@ -158,6 +169,35 @@ new class extends Component
             <flux:button size="sm" variant="ghost" icon="chevron-left" wire:click="shift(1)" />
         </div>
     </div>
+
+    @if($values->isNotEmpty())
+        <flux:card class="space-y-3 border-maroon/30">
+            <flux:heading size="lg">{{ __('ما نعمل عليه') }}</flux:heading>
+
+            @foreach($values as $value)
+                <div wire:key="value-{{ $value->id }}" class="space-y-1">
+                    <div class="text-base font-bold text-maroon dark:text-red-secondary">{{ $value->title }}</div>
+                    @if($value->practice)
+                        <div class="text-sm text-zinc-600 dark:text-zinc-300">{{ $value->practice }}</div>
+                    @endif
+                    @if($value->evidence)
+                        <div class="text-xs text-zinc-400">{{ $value->evidence }}</div>
+                    @endif
+                </div>
+            @endforeach
+        </flux:card>
+    @endif
+
+    @if($seasons !== [])
+        <div class="rounded-xl border border-amber-200/70 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 p-4 space-y-2">
+            @foreach($seasons as $season)
+                <div wire:key="season-{{ $season['key'] }}">
+                    <div class="text-sm font-bold text-amber-900 dark:text-amber-200">{{ $season['label'] }}</div>
+                    <div class="text-xs text-amber-800/80 dark:text-amber-300/80">{{ $season['purpose'] }}</div>
+                </div>
+            @endforeach
+        </div>
+    @endif
 
     <flux:card class="space-y-4">
         <flux:heading size="lg">{{ __('المواعيد') }}</flux:heading>

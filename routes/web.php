@@ -102,6 +102,7 @@ Route::middleware('auth:manager,supervisor,teacher,student,guardian,staff')->gro
 });
 
 Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager')->name('manager.')->group(function () {
+    Route::view('/period-values', 'shared.period-values')->name('period-values');
     Route::view('/event-visibility', 'shared.event-visibility')->name('event-visibility');
     Route::view('/my-day', 'shared.my-day')->name('my-day');
     Route::livewire('/pending-approvals', PendingApprovals::class)->name('pending-approvals');
@@ -173,6 +174,7 @@ Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manage
     Route::get('/backup/download/{filename}', [BackupController::class, 'downloadStored'])->name('backup.download.stored');
 });
 Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.required'])->prefix('supervisor')->name('supervisor.')->group(function () {
+    Route::view('/period-values', 'shared.period-values')->name('period-values');
     Route::view('/event-visibility', 'shared.event-visibility')->name('event-visibility');
     Route::view('/my-day', 'shared.my-day')->name('my-day');
     Route::view('/placement-requests', 'supervisor.placement-requests')->name('placement-requests');
