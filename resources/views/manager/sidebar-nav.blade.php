@@ -2,6 +2,16 @@
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.portal'))
+    <flux:sidebar.item class="[&_svg]:bg-[#e11d48]" icon="megaphone" :href="route('manager.portal')" :current="request()->routeIs('manager.portal')" wire:navigate>
+        بوابة الرسائل
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.motivations'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b]" icon="sparkles" :href="route('manager.motivations')" :current="request()->routeIs('manager.motivations')" wire:navigate>
+        مستودع الشواهد
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-tracks'))
     <flux:sidebar.item class="[&_svg]:bg-[#14b8a6] hover:[&_svg]:bg-[#0d9488]" icon="adjustments-horizontal" :href="route('manager.self-program-tracks')" :current="request()->routeIs('manager.self-program-tracks')" wire:navigate>
         مجالات البرنامج الذاتي

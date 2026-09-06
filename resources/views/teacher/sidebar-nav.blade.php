@@ -3,6 +3,16 @@
         href="{{ route('teacher.dashboard') }}">
         {{ __('الرئيسية') }}
     </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.portal'))
+    <flux:sidebar.item class="[&_svg]:bg-[#e11d48]" icon="megaphone" :href="route('teacher.portal')" :current="request()->routeIs('teacher.portal')" wire:navigate>
+        بوابة الرسائل
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.motivations'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b]" icon="sparkles" :href="route('teacher.motivations')" :current="request()->routeIs('teacher.motivations')" wire:navigate>
+        مستودع الشواهد
+    </flux:sidebar.item>
+@endif
     @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.my-day'))
         <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('teacher.my-day')" :current="request()->routeIs('teacher.my-day')" wire:navigate>
             {{ __('يومي') }}
