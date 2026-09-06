@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Circle;
+use App\Models\Manager;
 use App\Models\SelfProgramItem;
 use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
@@ -103,4 +104,30 @@ it('never writes a link onto the wird even when one is sent', function () {
         ->first();
 
     expect($wird?->content_url)->toBeNull();
+});
+
+it('opens the authoring screen for the manager who carries the supervisor', function () {
+    // He reaches it through `manager.held`, signed in on his own guard. Naming
+    // the supervisor's guard inside answered for nobody and killed the page.
+    $manager = Manager::factory()->create();
+
+    $this->actingAs($manager, 'manager')
+        ->get(route('manager.held', ['screen' => 'supervisor.self-program']))
+        ->assertSuccessful()
+        ->assertSee('البرنامج الذاتي');
+});
+
+it('writes a week for the manager against his own name', function () {
+    $manager = Manager::factory()->create();
+
+    Livewire::actingAs($manager, 'manager')
+        ->test('supervisor.self-program-weeks')
+        ->set('asRole', 'manager')
+        ->set('stageId', $this->programme->id)
+        ->set('newStartsOn', '2026-10-04')
+        ->call('addWeek');
+
+    $week = SelfProgramWeek::whereDate('starts_on', '2026-10-04')->firstOrFail();
+
+    expect($week->created_by_id)->toBe($manager->id);
 });

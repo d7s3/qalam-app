@@ -42,8 +42,18 @@ new class extends Component
 
     public string $newStartsOn = '';
 
+    /**
+     * The office this page was opened under.
+     *
+     * The manager carries the supervisor and opens this through `manager.held`,
+     * signed in on his own guard and not the supervisor's — so naming that
+     * guard answered for nobody and the page died in his hands.
+     */
+    public string $asRole = 'supervisor';
+
     public function mount(): void
     {
+        $this->asRole = \App\Support\Scope::resolveRole();
         $this->stageId = $this->stages->first()?->id;
         $this->newStartsOn = Carbon::today()->startOfWeek(Carbon::SUNDAY)->toDateString();
         $this->yearStartsOn = $this->newStartsOn;
@@ -51,14 +61,27 @@ new class extends Component
     }
 
     /**
-     * The stages this supervisor speaks for. A supervisor writes the programme
-     * for his own stages and no others.
+     * The programmes this reader writes for.
+     *
+     * A supervisor writes for his own and no others; an office above him that
+     * reaches the whole academy writes for any of them. Asked of `Scope`, which
+     * is where that question is answered for every other screen.
+     *
+     * @return Collection<int, Stage>
      */
-    /** @return Collection<int, Stage> */
     #[Computed]
     public function stages(): Collection
     {
-        return Auth::guard('supervisor')->user()->stages()->orderBy('name')->get();
+        $reach = \App\Support\Scope::forRole($this->asRole)->stageIds();
+
+        return $reach === null
+            ? Stage::orderBy('name')->get()
+            : Stage::whereIn('id', $reach)->orderBy('name')->get();
+    }
+
+    private function author(): ?\App\Models\User
+    {
+        return \App\Support\Scope::forRole($this->asRole)->user();
     }
 
     /** @return Collection<int, SelfProgramWeek> */
@@ -158,8 +181,8 @@ new class extends Component
             'week_number' => ($this->weeks->max('week_number') ?? 0) + 1,
             'starts_on' => $starts,
             'ends_on' => $starts->copy()->addDays(6),
-            'created_by_id' => Auth::guard('supervisor')->id(),
-            'created_by_type' => Auth::guard('supervisor')->user()::class,
+            'created_by_id' => $this->author()?->id,
+            'created_by_type' => $this->author() ? $this->author()::class : null,
         ]);
 
         $week->ensureAllTracks();
