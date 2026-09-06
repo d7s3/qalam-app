@@ -24,3 +24,25 @@ yarn-error.log
 whatsapp-service/.wwebjs_auth/
 whatsapp-service/.wwebjs_cache/
 whatsapp-service/node_modules/
+
+# ── ما لا مكان له في مستودع ────────────────────────────────────────
+# نسخة من قاعدة البيانات وصلت المستودع مرة، وفيها بيانات ٢١٨ طالباً،
+# وبقيت فيه ثلاثة أشهر. ولن تعود.
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# ملفان فيهما بريد وكلمات مرور، أُدخلا لاستيراد بيانات المجمع القديم.
+# الأمران اللذان يقرآنهما يأخذان المسار وسيطاً، فمرّرْه ولا تلتزمه.
+/data.json
+/altag-data.json
+
+# خردة تراكمت في جذر المشروع
+/scratch
+/altag-app
+/div_trace.txt
+/check_student.php
+/good-QuranPlanService.php
+/afterdoublePoints.html
+.DS_Store
