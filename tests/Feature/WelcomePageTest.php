@@ -132,3 +132,21 @@ it('carries the same hadith treatment onto the sign-in page', function () {
         ->assertSee(config('brand.tagline'))
         ->assertSee('«', false);
 });
+
+it('puts the hadith above the sign-in on a phone', function () {
+    // The hero is two columns on a wide screen and one on a phone, and the
+    // text column was first — so a visitor arriving on his phone met the
+    // headline, the buttons and the help links, and had to scroll past all
+    // three before the hadith. Order is what decides it, not source position.
+    $html = $this->get(route('home'))->assertSuccessful()->getContent();
+
+    $hadith = strpos($html, 'order-1 lg:order-2');
+    $signIn = strpos($html, 'order-2 lg:order-1');
+
+    expect($hadith)->not->toBeFalse();
+    expect($signIn)->not->toBeFalse();
+
+    // And the wide screen keeps the arrangement it had: text first, medallion
+    // beside it — which is what the `lg:` half of each pair says.
+    expect($html)->toContain('lg:order-1')->toContain('lg:order-2');
+});

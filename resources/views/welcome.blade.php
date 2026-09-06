@@ -67,7 +67,7 @@
         <div class="relative max-w-6xl mx-auto grid lg:grid-cols-[1.05fr_.95fr] gap-12 lg:gap-16 items-center">
 
             {{-- النص والدخول --}}
-            <div class="animate-fade-in-up text-center lg:text-start">
+            <div class="order-2 lg:order-1 animate-fade-in-up text-center lg:text-start">
                 <span class="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-4 py-1.5 text-[11px] md:text-xs font-bold text-gold">
                     <flux:icon icon="sparkles" class="size-3.5" />
                     {{ config('brand.tagline') }}
@@ -113,21 +113,21 @@
                 </div>
             </div>
 
-            {{-- ميدالية الشعار --}}
-            <div class="animate-fade-in-up delay-200 flex justify-center lg:justify-end">
-                <div class="relative w-full max-w-sm rounded-[2rem] border border-gold/25 bg-gradient-to-b from-[#fdfaf3] to-[#f3e8d6] p-8 md:p-10 text-center shadow-2xl shadow-black/30">
+            {{-- ميدالية الشعار والحديث --}}
+            <div class="order-1 lg:order-2 animate-fade-in-up delay-200 flex justify-center lg:justify-end">
+                <div class="relative w-full max-w-sm rounded-[2rem] border border-gold/25 bg-gradient-to-b from-[#fdfaf3] to-[#f3e8d6] p-6 md:p-10 text-center shadow-2xl shadow-black/30">
                     <div class="absolute inset-3 rounded-[1.6rem] border border-gold/25 pointer-events-none"></div>
 
                     <img src="{{ asset(config('brand.logo')) }}" alt="{{ config('brand.name') }}"
-                         class="relative mx-auto h-28 md:h-32 w-auto object-contain" />
+                         class="relative mx-auto hidden lg:block h-28 md:h-32 w-auto object-contain" />
 
-                    <div class="relative mt-6 flex items-center gap-3">
+                    <div class="relative mt-0 lg:mt-6 flex items-center gap-3">
                         <span class="h-px flex-1 bg-gradient-to-l from-transparent to-gold/50"></span>
                         <flux:icon icon="sparkles" class="size-3.5 text-gold" />
                         <span class="h-px flex-1 bg-gradient-to-r from-transparent to-gold/50"></span>
                     </div>
 
-                    <p class="relative mt-5 font-zain text-lg md:text-xl leading-[1.9] text-maroon text-balance">
+                    <p class="relative mt-4 lg:mt-5 font-zain text-base md:text-xl leading-[1.85] lg:leading-[1.9] text-maroon text-balance">
                         «{{ $hadith['text'] }}»
                     </p>
 
