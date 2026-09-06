@@ -116,14 +116,14 @@ it('lists what his office carries in his own navigation', function () {
 });
 
 it('does not offer a page he already owns under his own prefix', function () {
-    // Both roles have a self-programme page of their own; his own is the one
+    // Both offices have a page of exceedances of their own; his own is the one
     // that belongs in his navigation, not the teacher's carried alongside it.
     $html = $this->actingAs($this->supervisor, 'supervisor')
         ->get(route('supervisor.dashboard'))
         ->assertOk()
         ->getContent();
 
-    expect($html)->not->toContain(route('supervisor.held', ['screen' => 'teacher.self-program']));
+    expect($html)->not->toContain(route('supervisor.held', ['screen' => 'teacher.exceeded-limits']));
 });
 
 describe('the six that are tabs of one shell', function () {

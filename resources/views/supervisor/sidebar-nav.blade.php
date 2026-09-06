@@ -18,7 +18,7 @@
 @endif
 @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program-tracks'))
     <flux:sidebar.item class="[&_svg]:bg-[#14b8a6] hover:[&_svg]:bg-[#0d9488]" icon="adjustments-horizontal" :href="route('supervisor.self-program-tracks')" :current="request()->routeIs('supervisor.self-program-tracks')" wire:navigate>
-        مجالات البرنامج الذاتي
+        مجالات كتابة البرنامج الذاتي
     </flux:sidebar.item>
 @endif
 @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.period-values'))
@@ -62,8 +62,8 @@
             طلبات التسكين
         </flux:sidebar.item>
     @endif
-    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program'))
-        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="squares-2x2" :href="route('supervisor.self-program')" :current="request()->routeIs('supervisor.self-program')" wire:navigate>
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program-weeks'))
+        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="squares-2x2" :href="route('supervisor.self-program-weeks')" :current="request()->routeIs('supervisor.self-program-weeks')" wire:navigate>
             {{ __('البرنامج الذاتي') }}
         </flux:sidebar.item>
     @endif

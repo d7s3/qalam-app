@@ -359,6 +359,15 @@ new class extends Component
 ?>
 
 <div class="space-y-6" dir="rtl">
+    @if ($asRole === 'teacher')
+        <div dir="rtl" class="rounded-xl border border-amber-200/70 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 p-4 mb-4">
+            <div class="text-sm font-bold text-amber-900 dark:text-amber-200">{{ __('أنت تكتب لبرنامج كامل') }}</div>
+            <div class="text-xs text-amber-800/80 dark:text-amber-300/80 mt-1">
+                {{ __('البرنامج الذاتي يُكتب للبرنامج لا للدفعة، فما تحفظه هنا يصل كل دفعات هذا البرنامج، ومنها دفعات غيرك. والإثرائي وحده هو ما يُكتب لدفعتك.') }}
+            </div>
+        </div>
+    @endif
+
     @if ($this->stages->isEmpty())
         <flux:card class="text-center py-12">
             <flux:icon icon="exclamation-triangle" class="size-10 mx-auto text-amber-400" />

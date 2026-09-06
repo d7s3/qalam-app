@@ -112,7 +112,7 @@ it('opens the authoring screen for the manager who carries the supervisor', func
     $manager = Manager::factory()->create();
 
     $this->actingAs($manager, 'manager')
-        ->get(route('manager.held', ['screen' => 'supervisor.self-program']))
+        ->get(route('manager.held', ['screen' => 'supervisor.self-program-weeks']))
         ->assertSuccessful()
         ->assertSee('البرنامج الذاتي');
 });

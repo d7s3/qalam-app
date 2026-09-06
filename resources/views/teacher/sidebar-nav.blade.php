@@ -3,6 +3,11 @@
         href="{{ route('teacher.dashboard') }}">
         {{ __('الرئيسية') }}
     </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.self-program-weeks'))
+    <flux:sidebar.item class="[&_svg]:bg-[#7c3aed]" icon="pencil-square" :href="route('teacher.self-program-weeks')" :current="request()->routeIs('teacher.self-program-weeks')" wire:navigate>
+        كتابة البرنامج الذاتي
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.student-log'))
     <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6]" icon="book-open" :href="route('teacher.student-log')" :current="request()->routeIs('teacher.student-log')" wire:navigate>
         السجل التربوي

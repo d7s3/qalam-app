@@ -102,6 +102,7 @@ Route::middleware('auth:manager,supervisor,teacher,student,guardian,staff')->gro
 });
 
 Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager')->name('manager.')->group(function () {
+    Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
     Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/portal', 'shared.portal')->name('portal');
@@ -201,7 +202,7 @@ Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.requi
     Route::view('/teacher-competitions', 'supervisor.teacher-competitions')->name('teacher-competitions');
     Route::get('/teacher-competitions/{competition}', fn ($competition) => view('supervisor.teacher-competition-manage', ['competitionId' => $competition]))->name('teacher-competitions.manage');
     Route::view('/students', 'supervisor.students')->name('students');
-    Route::view('/self-program', 'supervisor.self-program')->name('self-program');
+    Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
     Route::view('/self-program-progress', 'supervisor.self-program-progress')->name('self-program-progress');
     Route::view('/reports', 'supervisor.reports')->name('reports');
 
@@ -240,6 +241,7 @@ Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.requi
     Route::view('/guide', 'shared.guide')->name('guide');
 });
 Route::middleware(['auth:teacher', 'approved', 'page.enabled', 'surveys.required'])->prefix('teacher')->name('teacher.')->group(function () {
+    Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
     Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/portal', 'shared.portal')->name('portal');

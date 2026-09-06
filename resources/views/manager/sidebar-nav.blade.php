@@ -2,6 +2,11 @@
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-weeks'))
+    <flux:sidebar.item class="[&_svg]:bg-[#7c3aed]" icon="pencil-square" :href="route('manager.self-program-weeks')" :current="request()->routeIs('manager.self-program-weeks')" wire:navigate>
+        كتابة البرنامج الذاتي
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.student-log'))
     <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6]" icon="book-open" :href="route('manager.student-log')" :current="request()->routeIs('manager.student-log')" wire:navigate>
         السجل التربوي

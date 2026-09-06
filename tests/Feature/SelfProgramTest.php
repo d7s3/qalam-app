@@ -511,7 +511,7 @@ describe('the supervisor editor', function () {
 
     it('renders its page', function () {
         $this->actingAs($this->supervisor, 'supervisor')
-            ->get(route('supervisor.self-program'))
+            ->get(route('supervisor.self-program-weeks'))
             ->assertOk()
             ->assertSee('البرنامج الذاتي')
             ->assertSee($this->stage->name);
