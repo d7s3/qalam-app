@@ -105,7 +105,7 @@ it('shows an empty state in the community section when there is no active leader
 
     $this->get(route('student.dashboard'))
         ->assertSuccessful()
-        ->assertSee('لا توجد أنشطة من زملاء الحلقة بعد');
+        ->assertSee('لا توجد أنشطة من زملاء الدفعة بعد');
 });
 
 it('hides the community section once an active competition starts', function () {
@@ -135,6 +135,6 @@ it('hides the community section once an active competition starts', function () 
     // hidden along with the rest of the dashboard while a competition runs.
     $this->get(route('student.dashboard'))
         ->assertSuccessful()
-        ->assertDontSee('لا توجد أنشطة من زملاء الحلقة بعد')
+        ->assertDontSee('لا توجد أنشطة من زملاء الدفعة بعد')
         ->assertSee($leaderboard->title);
 });

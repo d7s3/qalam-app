@@ -58,7 +58,7 @@
             <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن معلم..." />
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الحلقة">
+            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة">
                 <flux:select.option value="all">الكل</flux:select.option>
                 @foreach($circles as $circle)
                     <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
@@ -85,8 +85,8 @@
                 <flux:input wire:model="quickPhone" label="{{ __('رقم الهاتف') }}" placeholder="{{ __('اختياري') }}" />
             </div>
             <div class="w-full md:w-1/3">
-                <flux:select wire:model="quickCircleId" label="{{ __('اختر الحلقة') }}" required placeholder="اختر حلقة">
-                    <flux:select.option value="">اختر حلقة</flux:select.option>
+                <flux:select wire:model="quickCircleId" label="{{ __('اختر الدفعة') }}" required placeholder="اختر دفعة">
+                    <flux:select.option value="">اختر دفعة</flux:select.option>
                     @foreach($circles as $circle)
                         <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
                     @endforeach
@@ -104,7 +104,7 @@
         <flux:table class="w-full">
             <flux:table.columns>
                 <flux:table.column>{{ __('المعلم') }}</flux:table.column>
-                <flux:table.column class="hidden md:table-cell">{{ __('الحلقات') }}</flux:table.column>
+                <flux:table.column class="hidden md:table-cell">{{ __('الدفعات') }}</flux:table.column>
                 <flux:table.column class="hidden md:table-cell">{{ __('الصلاحيات') }}</flux:table.column>
                 <flux:table.column class="hidden md:table-cell">{{ __('حالة البيانات') }}</flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
@@ -117,7 +117,17 @@
                         x-on:click="$flux.modal('teacher-modal').show(); $wire.edit({{ $teacher->id }})">
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex flex-col">
-                                <span class="font-bold text-zinc-900 dark:text-white">{{ $teacher->name }}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-zinc-900 dark:text-white">{{ $teacher->name }}</span>
+                                    @if($teacher->is_recitation_only)
+                                        <flux:badge size="sm" color="teal">{{ __('قرآني') }}</flux:badge>
+                                    @elseif(\App\Support\RecitationOnlyTeacher::suggests($teacher))
+                                        <button x-on:click.stop="$wire.toggleRecitationOnly({{ $teacher->id }})"
+                                            class="text-[11px] text-teal-600 hover:underline">
+                                            {{ __('اجعله قرآنياً؟') }}
+                                        </button>
+                                    @endif
+                                </div>
                                 <div class="flex gap-2">
                                     <span class="text-xs text-zinc-500">{{ $teacher->email }}</span>
                                     @if ($teacher->phone)
@@ -131,7 +141,7 @@
                                 @forelse($teacher->circles as $circle)
                                     <flux:badge size="sm" variant="neutral">{{ $circle->name }}</flux:badge>
                                 @empty
-                                    <span class="text-xs text-zinc-400">لا يوجد حلقات</span>
+                                    <span class="text-xs text-zinc-400">لا يوجد دفعات</span>
                                 @endforelse
                             </div>
                         </flux:table.cell>
@@ -227,7 +237,7 @@
                         </div>
 
                         <div class="space-y-2">
-                            <flux:heading size="sm">{{ __('تعيين الحلقات') }}</flux:heading>
+                            <flux:heading size="sm">{{ __('تعيين الدفعات') }}</flux:heading>
                             <div
                                 class="flex flex-col gap-2 max-h-48 overflow-y-auto p-3 border border-zinc-100 rounded-xl dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
                                 @foreach ($circles as $circle)
@@ -274,7 +284,7 @@
                                 <label class="flex items-center justify-between gap-3 cursor-pointer group">
                                     <div>
                                         <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200">إضافة وإزالة الطلاب (غير مسجلين)</div>
-                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">إضافة طلاب للحلقة، إزالتهم، وإدارة الطلاب غير المرتبطين</div>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">إضافة طلاب للدفعة، إزالتهم، وإدارة الطلاب غير المرتبطين</div>
                                     </div>
                                     <flux:switch wire:model="permissions.can_manage_students" />
                                 </label>

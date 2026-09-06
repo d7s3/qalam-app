@@ -180,6 +180,7 @@ class AcademicCalendarEvent extends Model
         'excluded_dates',
         'sessions',
         'description',
+        'formative_note',
         'day_count',
         'created_by_id',
         'created_by_type',
@@ -202,6 +203,81 @@ class AcademicCalendarEvent extends Model
         'is_visible' => 'boolean',
         'has_tasks' => 'boolean',
     ];
+
+    /**
+     * The days this event occupies inside a window, as Y-m-d strings in order.
+     *
+     * An event is a rule rather than a row per day: a range, the weekdays it
+     * keeps, the days added to it and the days taken out of it. An occurrence
+     * — the thing attendance hangs on and the thing a person can be said to
+     * have missed — is this event on one of these days.
+     *
+     * Expanded on demand rather than stored, so moving an event moves its
+     * occurrences with it and nothing has to be regenerated.
+     *
+     * @return array<int, string>
+     */
+    public function datesBetween(Carbon|string $from, Carbon|string $to): array
+    {
+        $windowStart = Carbon::parse($from)->startOfDay();
+        $windowEnd = Carbon::parse($to)->startOfDay();
+
+        if ($windowStart->gt($windowEnd)) {
+            return [];
+        }
+
+        $start = Carbon::parse($this->start_date)->startOfDay()->max($windowStart);
+        $end = $this->end_date
+            ? Carbon::parse($this->end_date)->startOfDay()->min($windowEnd)
+            : $windowEnd;
+
+        $excluded = $this->excluded_dates ?? [];
+        $weekdays = $this->weekdays ?? [];
+        $dates = [];
+
+        for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
+            $key = $day->format('Y-m-d');
+
+            if (in_array($key, $excluded, true)) {
+                continue;
+            }
+
+            // 1 = Sunday, matching how the periods store it.
+            if ($weekdays !== [] && ! in_array($day->dayOfWeek + 1, $weekdays, true)) {
+                continue;
+            }
+
+            $dates[] = $key;
+        }
+
+        // A day added by hand falls outside the pattern by definition, so it is
+        // gathered after it rather than tested against it.
+        foreach ($this->extra_dates ?? [] as $key) {
+            if ($key >= $windowStart->format('Y-m-d')
+                && $key <= $windowEnd->format('Y-m-d')
+                && ! in_array($key, $excluded, true)
+                && ! in_array($key, $dates, true)) {
+                $dates[] = $key;
+            }
+        }
+
+        sort($dates);
+
+        return $dates;
+    }
+
+    /**
+     * Whether this event speaks for a programme.
+     *
+     * Naming no programme means the whole academy, which is how the events that
+     * matter to everyone are written.
+     */
+    public function appliesToStage(?int $stageId): bool
+    {
+        $stages = $this->stage_ids ?? [];
+
+        return $stages === [] || ($stageId !== null && in_array($stageId, $stages));
+    }
 
     /**
      * Narrow to the periods that speak for a stage: those naming it, and the

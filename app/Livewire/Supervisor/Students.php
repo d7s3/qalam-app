@@ -153,7 +153,7 @@ class Students extends Component
         $circleIds = $this->getSupervisorCircleIds();
 
         if ($this->bulkCircleId && ! in_array((int) $this->bulkCircleId, $circleIds)) {
-            Flux::toast(__('الحلقة المختارة خارج نطاق صلاحياتك'), variant: 'danger');
+            Flux::toast(__('الدفعة المختارة خارج نطاق صلاحياتك'), variant: 'danger');
 
             return;
         }
@@ -166,7 +166,7 @@ class Students extends Component
         $this->bulkCircleId = null;
 
         Flux::modal('bulk-circle-modal')->close();
-        Flux::toast(__('تم تغيير حلقة '.$count.' طلاب بنجاح'), variant: 'success');
+        Flux::toast(__('تم تغيير دفعة '.$count.' طلاب بنجاح'), variant: 'success');
     }
 
     public function applyBulkJoinedAt(): void
@@ -324,7 +324,7 @@ class Students extends Component
 
         // Validate that the chosen circle is within scope
         if ($this->circle_id && ! in_array($this->circle_id, $circleIds)) {
-            Flux::toast(__('الحلقة المختارة خارج نطاق صلاحياتك'), variant: 'danger');
+            Flux::toast(__('الدفعة المختارة خارج نطاق صلاحياتك'), variant: 'danger');
 
             return;
         }

@@ -148,7 +148,7 @@ new class extends Component {
         // Validate working days
         $workingDays = \App\Services\GamificationService::getWorkingDaysForLeaderboard($activeGamification, $student->effective_stage_id);
         if (!in_array($this->doublePointsDate, $workingDays)) {
-            Flux::toast('خطأ: لا يمكن تفعيل الميزة في يوم إجازة. يجب اختيار يوم من أيام الدوام المعتمدة للحلقة.', variant: 'danger');
+            Flux::toast('خطأ: لا يمكن تفعيل الميزة في يوم إجازة. يجب اختيار يوم من أيام الدوام المعتمدة للدفعة.', variant: 'danger');
             return;
         }
 
@@ -1559,7 +1559,7 @@ new class extends Component {
         <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200/80">
         <div>
             <div class="flex items-center gap-3 mb-1">
-                <flux:heading size="3xl" class="text-slate-900 text-4xl font-black">{{ __('منصة التاج الرقمية') }}</flux:heading>
+                <flux:heading size="3xl" class="text-slate-900 text-4xl font-black">{{ config('brand.name') }}</flux:heading>
             </div>
             @if($activeGamification?->title)
                 <flux:subheading class="text-slate-500 font-medium">{{ $activeGamification->title }}</flux:subheading>

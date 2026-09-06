@@ -5,6 +5,8 @@ namespace App\Livewire\Supervisor;
 use App\Models\Circle;
 use App\Models\Setting;
 use App\Models\Teacher;
+use App\Support\Access;
+use App\Support\RecitationOnlyTeacher;
 use Flux\Flux;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -177,12 +179,12 @@ class Teachers extends Component
             'quickPhone' => 'nullable|string|max:20',
             'quickCircleId' => 'required|integer',
         ], [
-            'quickCircleId.required' => 'يجب تحديد حلقة للمعلم الجديد حتى يظهر في قائمتك.',
+            'quickCircleId.required' => 'يجب تحديد دفعة للمعلم الجديد حتى يظهر في قائمتك.',
         ]);
 
         $circleIds = $this->getSupervisorCircleIds();
         if (! in_array($this->quickCircleId, $circleIds)) {
-            Flux::toast(__('الحلقة المحددة ليست ضمن صلاحياتك'), variant: 'danger');
+            Flux::toast(__('الدفعة المحددة ليست ضمن صلاحياتك'), variant: 'danger');
 
             return;
         }
@@ -190,7 +192,7 @@ class Teachers extends Component
         $teacher = Teacher::create([
             'name' => $this->quickName,
             'phone' => $this->quickPhone,
-            'email' => 'teacher_'.Str::random(10).'@uncompleted.altag.app',
+            'email' => 'teacher_'.Str::random(10).'@unregistered.invalid',
             'password' => Hash::make(Str::random(10)),
             'is_approved' => true,
             'approved_by' => auth('manager')->id(),
@@ -204,6 +206,28 @@ class Teachers extends Component
         $this->loadData();
 
         Flux::toast(__('تم إنشاء حساب المعلم بنجاح'), variant: 'success');
+    }
+
+    /**
+     * Mark a teacher as being there for the memorisation and the review only.
+     *
+     * Not read off his circles: `is_quranic` defaults to true, so every circle
+     * in the academy is Quranic today and inferring this would narrow every
+     * teacher at once. His circles suggest it; this decides it.
+     */
+    public function toggleRecitationOnly($id)
+    {
+        $teacher = Teacher::findOrFail($id);
+
+        $teacher->update(['is_recitation_only' => ! $teacher->is_recitation_only]);
+
+        RecitationOnlyTeacher::forget($teacher->id);
+        Access::forget();
+
+        Flux::toast(
+            $teacher->is_recitation_only ? __('صار معلّماً قرآنياً') : __('عاد معلّماً عامّاً'),
+            variant: 'success',
+        );
     }
 
     public function resetToken($id)

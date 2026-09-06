@@ -71,9 +71,9 @@ class ImportDataCommand extends Command
             foreach ($jsonData as $item) {
                 if (isset($item['all_password'])) {
                     $configDetails = $item;
-                } elseif (isset($item['المرحلة']) && ! isset($item['الحلقة']) && ! isset($item['المعلم'])) {
+                } elseif (isset($item['البرنامج']) && ! isset($item['الدفعة']) && ! isset($item['المعلم'])) {
                     $stages[] = $item;
-                } elseif (isset($item['الحلقة']) && isset($item['المرحلة']) && ! isset($item['المعلم'])) {
+                } elseif (isset($item['الدفعة']) && isset($item['البرنامج']) && ! isset($item['المعلم'])) {
                     $circles[] = $item;
                 } elseif (isset($item['المعلم'])) {
                     $teachers[] = $item;
@@ -117,7 +117,7 @@ class ImportDataCommand extends Command
             foreach ($stages as $stageData) {
                 Stage::updateOrCreate(
                     ['id' => $stageData['id']],
-                    ['name' => $stageData['المرحلة']]
+                    ['name' => $stageData['البرنامج']]
                 );
             }
             $this->info('Stages imported.');
@@ -127,8 +127,8 @@ class ImportDataCommand extends Command
                 Circle::updateOrCreate(
                     ['id' => $circleData['id']],
                     [
-                        'name' => $circleData['الحلقة'],
-                        'stage_id' => $circleData['المرحلة'],
+                        'name' => $circleData['الدفعة'],
+                        'stage_id' => $circleData['البرنامج'],
                     ]
                 );
             }
@@ -149,8 +149,8 @@ class ImportDataCommand extends Command
                 );
 
                 // Attach to circle
-                if (isset($teacherData['الحلقة'])) {
-                    $teacher->circles()->syncWithoutDetaching([$teacherData['الحلقة']]);
+                if (isset($teacherData['الدفعة'])) {
+                    $teacher->circles()->syncWithoutDetaching([$teacherData['الدفعة']]);
                 }
             }
             $this->info('Teachers imported.');
@@ -163,7 +163,7 @@ class ImportDataCommand extends Command
                     [
                         'name' => $studentData['االطالب'],
                         'email' => $email,
-                        'circle_id' => $studentData['الحلقة'],
+                        'circle_id' => $studentData['الدفعة'],
                         'password' => $defaultPassword,
                         'is_approved' => true,
                     ]

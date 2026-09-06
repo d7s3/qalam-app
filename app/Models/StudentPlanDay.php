@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\GamificationService;
+use App\Services\SelfProgramBridge;
 use Illuminate\Database\Eloquent\Model;
 
 class StudentPlanDay extends Model
@@ -27,6 +28,15 @@ class StudentPlanDay extends Model
         // orphaned transactions inflate student/team scores.
         static::deleting(function (StudentPlanDay $day) {
             GamificationService::clearTransactionsForReference(self::class, $day->id);
+            app(SelfProgramBridge::class)->clearForPlanDay($day);
+        });
+
+        // A graded day is the student's Quran wird done, so it writes itself into
+        // his self programme rather than asking him to confirm it a second time.
+        // On `saved` rather than `created`, so regrading corrects the figure and
+        // ungrading takes it away.
+        static::saved(function (StudentPlanDay $day) {
+            app(SelfProgramBridge::class)->syncFromPlanDay($day);
         });
     }
 

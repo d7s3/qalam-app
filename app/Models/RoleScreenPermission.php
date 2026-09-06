@@ -2,11 +2,22 @@
 
 namespace App\Models;
 
+use App\Support\Access;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RoleScreenPermission extends Model
 {
+    protected static function booted(): void
+    {
+        // See UserScreenOverride: a grant that changes must not be answered for
+        // out of a cache read before it changed.
+        $forget = fn () => Access::forget();
+
+        static::saved($forget);
+        static::deleted($forget);
+    }
+
     protected $fillable = [
         'role_id',
         'screen_id',

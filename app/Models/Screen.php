@@ -16,6 +16,8 @@ class Screen extends Model
         'icon',
         'sort_order',
         'is_protected',
+        'view',
+        'view_data',
     ];
 
     protected function casts(): array
@@ -23,6 +25,7 @@ class Screen extends Model
         return [
             'sort_order' => 'integer',
             'is_protected' => 'boolean',
+            'view_data' => 'array',
         ];
     }
 

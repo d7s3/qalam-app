@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Teacher;
 
+use App\Models\Circle;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
+use App\Support\Scope;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -81,7 +83,9 @@ class Leaderboards extends Component
     public function mount()
     {
         $teacher = Auth::guard('teacher')->user();
-        $this->circleIds = $teacher->circles()->pluck('circles.id')->all();
+        // The reader's reach: a supervisor holding this screen through his
+        // office teaches no cohorts of his own.
+        $this->circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id')->all();
 
         if (! empty($this->circleIds)) {
             $this->circleId = $this->circleIds[0];

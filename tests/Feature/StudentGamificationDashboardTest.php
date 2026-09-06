@@ -35,7 +35,7 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     Carbon\Carbon::setTestNow('2026-06-08 10:00:00');
     $this->stage = Stage::create(['name' => 'مرحلة اختبار لوحة الطالب']);
-    $this->circle = Circle::create(['name' => 'حلقة اختبار لوحة الطالب', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة اختبار لوحة الطالب', 'stage_id' => $this->stage->id]);
 
     $this->student = Student::create([
         'name' => 'طالب تجربة لوحة التحكم',
@@ -84,7 +84,7 @@ it('automatically overrides dashboard to themed gamification when active', funct
     $response = $this->get(route('student.dashboard'));
     $response->assertSuccessful();
     $response->assertSee('مسابقة الفضاء والمجرات للطلاب');
-    $response->assertSee('منصة التاج الرقمية'); // Gamification header brand
+    $response->assertSee(config('brand.name')); // Gamification header carries the organisation, whoever it is
     $response->assertDontSee('محفوظي من القرآن الكريم'); // Normal dashboard is overridden
 });
 

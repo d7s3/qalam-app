@@ -4,7 +4,7 @@
     </x-slot:title>
 
     <x-slot:sidebar>
-        @include('teacher.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     <div class="p-6 md:p-8 space-y-8" dir="rtl">

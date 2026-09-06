@@ -1,0 +1,11 @@
+{
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "qalam-app",
+            "runtimeExecutable": "npx",
+            "runtimeArgs": ["concurrently", "-k", "php artisan serve --port=8123", "npm run dev"],
+            "port": 8123
+        }
+    ]
+}

@@ -97,18 +97,18 @@
 
 <body>
     <div class="header">
-        <img src="{{ public_path('images/altag_logo.png') }}" alt="Logo">
-        <h1>تقرير الحضور والغياب للحلقات</h1>
+        <img src="{{ public_path(config('brand.logo')) }}" alt="Logo">
+        <h1>تقرير الحضور والغياب للدفعات</h1>
         @php
             @endphp
-        <p>الفترة من: {{ \App\Support\HijriDate::full($fromDate) }} إلى {{ \App\Support\HijriDate::full($toDate) }}</p>
+        <p>الفترة من: {{ \App\Support\HijriDate::withGregorian($fromDate) }} إلى {{ \App\Support\HijriDate::withGregorian($toDate) }}</p>
     </div>
 
     <table>
         <thead>
             {{-- Month row --}}
             <tr>
-                <th rowspan="2" style="width: 15%; text-align: right; padding-right: 8px;">الحلقة / المرحلة</th>
+                <th rowspan="2" style="width: 15%; text-align: right; padding-right: 8px;">الدفعة / البرنامج</th>
                 @php
                     $monthGroups = [];
                     $prevMonth = null;

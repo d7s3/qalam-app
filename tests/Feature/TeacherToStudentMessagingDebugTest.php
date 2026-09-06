@@ -12,7 +12,7 @@ use Livewire\Livewire;
 
 it('lets a teacher find, message, and notify a student in their circle end to end', function () {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
 
     $teacher = Teacher::factory()->create(['name' => 'المعلم أحمد']);
     $teacher->circles()->attach($circle->id);

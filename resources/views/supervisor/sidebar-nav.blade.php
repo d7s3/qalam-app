@@ -1,6 +1,41 @@
 <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('supervisor.dashboard')" :current="request()->routeIs('supervisor.dashboard')" wire:navigate>
     {{ __('الرئيسية') }}
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.student-log'))
+    <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6]" icon="book-open" :href="route('supervisor.student-log')" :current="request()->routeIs('supervisor.student-log')" wire:navigate>
+        السجل التربوي
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.portal'))
+    <flux:sidebar.item class="[&_svg]:bg-[#e11d48]" icon="megaphone" :href="route('supervisor.portal')" :current="request()->routeIs('supervisor.portal')" wire:navigate>
+        بوابة الرسائل
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.motivations'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b]" icon="sparkles" :href="route('supervisor.motivations')" :current="request()->routeIs('supervisor.motivations')" wire:navigate>
+        مستودع الشواهد
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program-tracks'))
+    <flux:sidebar.item class="[&_svg]:bg-[#14b8a6] hover:[&_svg]:bg-[#0d9488]" icon="adjustments-horizontal" :href="route('supervisor.self-program-tracks')" :current="request()->routeIs('supervisor.self-program-tracks')" wire:navigate>
+        مجالات كتابة البرنامج الذاتي
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.period-values'))
+    <flux:sidebar.item class="[&_svg]:bg-[#d946ef] hover:[&_svg]:bg-[#c026d3]" icon="sparkles" :href="route('supervisor.period-values')" :current="request()->routeIs('supervisor.period-values')" wire:navigate>
+        قيم الفترة
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.event-visibility'))
+    <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="eye" :href="route('supervisor.event-visibility')" :current="request()->routeIs('supervisor.event-visibility')" wire:navigate>
+        رؤية الأحداث
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.my-day'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('supervisor.my-day')" :current="request()->routeIs('supervisor.my-day')" wire:navigate>
+        {{ __('يومي') }}
+    </flux:sidebar.item>
+@endif
 @php
     $supervisorUnreadMessages = \App\Services\MessagingService::unreadCountFor('supervisor', auth('supervisor')->id());
 @endphp
@@ -14,12 +49,27 @@
 <flux:sidebar.group heading="العملية التعليمية" class="grid">
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.circles'))
         <flux:sidebar.item class="[&_svg]:bg-[#0d9488] hover:[&_svg]:bg-[#0f766e]" icon="circle-stack" :href="route('supervisor.circles')" :current="request()->routeIs('supervisor.circles')" wire:navigate>
-            الحلقات
+            الدفعات
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.students'))
         <flux:sidebar.item class="[&_svg]:bg-[#a855f7] hover:[&_svg]:bg-[#9333ea]" icon="academic-cap" :href="route('supervisor.students')" :current="request()->routeIs('supervisor.students')" wire:navigate>
             الطلاب
+        </flux:sidebar.item>
+    @endif
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.placement-requests'))
+        <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="user-plus" :href="route('supervisor.placement-requests')" :current="request()->routeIs('supervisor.placement-requests')" wire:navigate>
+            طلبات التسكين
+        </flux:sidebar.item>
+    @endif
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program-weeks'))
+        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="squares-2x2" :href="route('supervisor.self-program-weeks')" :current="request()->routeIs('supervisor.self-program-weeks')" wire:navigate>
+            {{ __('البرنامج الذاتي') }}
+        </flux:sidebar.item>
+    @endif
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program-progress'))
+        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="chart-bar-square" :href="route('supervisor.self-program-progress')" :current="request()->routeIs('supervisor.self-program-progress')" wire:navigate>
+            {{ __('تقدّم البرنامج') }}
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.teachers'))
@@ -88,7 +138,7 @@
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.yearly-attendance'))
         <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="calendar" :href="route('supervisor.yearly-attendance')"
             :current="request()->routeIs('supervisor.yearly-attendance')" wire:navigate>
-            متابعة تحضير الحلقات
+            متابعة تحضير الدفعات
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.academic-calendar'))
@@ -125,3 +175,10 @@
         </flux:sidebar.item>
     @endif
 </flux:sidebar.group>
+    @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.reports'))
+        <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="chart-bar-square" :href="route('supervisor.reports')" :current="request()->routeIs('supervisor.reports')" wire:navigate>
+            {{ __('التقارير') }}
+        </flux:sidebar.item>
+    @endif
+
+<x-held-screens-nav />

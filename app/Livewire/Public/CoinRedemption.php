@@ -89,7 +89,7 @@ class CoinRedemption extends Component
         $student = $this->circleStudents()->firstWhere('id', $this->redeemStudentId);
 
         if (! $student) {
-            Flux::toast(__('الطالب غير موجود في هذه الحلقة'), variant: 'danger');
+            Flux::toast(__('الطالب غير موجود في هذه الدفعة'), variant: 'danger');
 
             return;
         }
@@ -114,7 +114,7 @@ class CoinRedemption extends Component
                 'reference_type' => 'redemption',
                 'description' => $this->redeemNote !== ''
                     ? __('صرف عملات (جائزة): :note', ['note' => $this->redeemNote])
-                    : __('صرف عملات مقابل جائزة من معلم الحلقة'),
+                    : __('صرف عملات مقابل جائزة من معلم الدفعة'),
             ]);
 
             GamificationService::recalculateStudentState($student->id, $leaderboard->id);

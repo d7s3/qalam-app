@@ -12,6 +12,7 @@ use App\Models\Teacher;
 use App\Services\GamificationService;
 use App\Services\GuardianNotificationService;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Flux\Flux;
@@ -281,7 +282,7 @@ class AttendanceSheet extends Component
         $teacher = auth()->guard('teacher')->user();
 
         if (! $teacher || ! $this->circleId || ! $this->teacherOwnsCircle($teacher)) {
-            Flux::toast('لا تملك صلاحية التعديل على هذه الحلقة', variant: 'danger');
+            Flux::toast('لا تملك صلاحية التعديل على هذه الدفعة', variant: 'danger');
 
             return false;
         }
@@ -452,7 +453,7 @@ class AttendanceSheet extends Component
 
     private function teacherOwnsCircle(Teacher $teacher): bool
     {
-        return $teacher->circles()->whereKey($this->circleId)->exists();
+        return Scope::forRoute()->applyToCircles(Circle::query())->whereKey($this->circleId)->exists();
     }
 
     /**
@@ -526,7 +527,7 @@ class AttendanceSheet extends Component
     public function exportCsv(): ?StreamedResponse
     {
         if (! $this->circleId || $this->students->isEmpty()) {
-            Flux::toast('اختر حلقة بها طلاب أولاً', variant: 'warning');
+            Flux::toast('اختر دفعة بها طلاب أولاً', variant: 'warning');
 
             return null;
         }

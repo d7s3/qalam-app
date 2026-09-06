@@ -269,7 +269,7 @@ class getStudentProfile implements Tool
             'active' => 'مشارك',
             'registering' => 'تحت التسجيل',
             'suspended' => 'موقوف',
-            'left' => 'غادر الحلقات',
+            'left' => 'غادر الدفعات',
             default => $status,
         };
     }

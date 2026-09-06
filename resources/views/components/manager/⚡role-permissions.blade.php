@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Role;
+use App\Support\Access;
 use App\Models\RoleScreenPermission;
 use App\Models\Screen;
 use Illuminate\Support\Facades\Auth;
@@ -75,6 +76,7 @@ new class extends Component
 
         if ($existing) {
             $existing->delete();
+            Access::forget();
             Flux::toast(__('تم تعطيل الصفحة'), variant: 'success');
         } else {
             RoleScreenPermission::create([
@@ -82,6 +84,7 @@ new class extends Component
                 'screen_id' => $screenId,
                 'enabled_by' => Auth::guard('manager')->id(),
             ]);
+            Access::forget();
             Flux::toast(__('تم تفعيل الصفحة'), variant: 'success');
         }
     }

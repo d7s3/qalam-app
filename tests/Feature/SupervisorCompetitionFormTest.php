@@ -16,7 +16,7 @@ uses(RefreshDatabase::class);
  */
 it('creates a new normal competition and persists it', function () {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
 
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach($stage->id);
@@ -42,7 +42,7 @@ it('creates a new normal competition and persists it', function () {
 
 it('updates an existing competition', function () {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
 
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach($stage->id);
@@ -72,7 +72,7 @@ it('updates an existing competition', function () {
 
 it('rejects saving a competition with no title', function () {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
 
     $supervisor = Supervisor::factory()->create(['is_approved' => true]);
     $supervisor->stages()->attach($stage->id);

@@ -121,7 +121,7 @@ class getQuranPlans implements Tool
     {
         return [
             'student' => $schema->string()->description('Student name, or part of it.'),
-            'circle' => $schema->string()->description('Circle name (حلقة).'),
+            'circle' => $schema->string()->description('Circle name (دفعة).'),
             'teacher' => $schema->string()->description('Name of the teacher who owns the plan.'),
             'plan_type' => $schema->string()->enum(['memorization', 'review'])->description('memorization=حفظ, review=مراجعة.'),
             'status' => $schema->string()->description('Plan status, for example active or completed.'),

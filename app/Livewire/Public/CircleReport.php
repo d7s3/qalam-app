@@ -48,7 +48,7 @@ class CircleReport extends Component
         if ($this->stageId) {
             $stage = Stage::findOrFail($this->stageId);
             $students = CircleReportService::studentsForStage($stage);
-            $scopeName = 'مرحلة '.$stage->name;
+            $scopeName = 'برنامج '.$stage->name;
             $showCircleColumn = true;
         } else {
             $circle = Circle::with('stage')->findOrFail($this->circleId);
@@ -56,7 +56,7 @@ class CircleReport extends Component
             $students = $isStageScope
                 ? CircleReportService::studentsForStage($circle->stage)
                 : CircleReportService::studentsForCircle($circle);
-            $scopeName = $isStageScope ? 'مرحلة '.$circle->stage->name : 'حلقة '.$circle->name;
+            $scopeName = $isStageScope ? 'برنامج '.$circle->stage->name : 'دفعة '.$circle->name;
             $showCircleColumn = $isStageScope;
         }
 

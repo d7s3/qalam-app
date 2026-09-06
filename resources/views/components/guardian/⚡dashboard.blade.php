@@ -221,7 +221,7 @@ new class extends Component
                             <div>
                                 <h4 class="font-semibold text-zinc-900 dark:text-zinc-100">{{ $student->name }}</h4>
                                 <p class="text-xs text-zinc-500">
-                                    {{ $student->circle?->name ?? 'لم تُحدَّد حلقة بعد' }}
+                                    {{ $student->circle?->name ?? 'لم تُحدَّد دفعة بعد' }}
                                 </p>
                             </div>
                         </div>

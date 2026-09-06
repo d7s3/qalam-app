@@ -61,6 +61,8 @@ class User extends Authenticatable
         'access_token',
         'staff_role_id',
         'permissions',
+        'is_super_admin',
+        'is_recitation_only',
         'circle_id',
         'guardian_id',
         'stage_id',
@@ -92,6 +94,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'permissions' => 'array',
+            'is_super_admin' => 'boolean',
+            'is_recitation_only' => 'boolean',
             'birth_date' => 'date',
             'joined_at' => 'date',
         ];

@@ -85,7 +85,7 @@
 
         @if($totalStudentsCount == 0)
             <div class="px-4 py-2 text-xs text-center text-zinc-500 border-t border-zinc-100 dark:border-zinc-800">
-                تنبيه: لا يوجد طلاب معتمدون في هذه الحلقة
+                تنبيه: لا يوجد طلاب معتمدون في هذه الدفعة
             </div>
         @endif
     </div>

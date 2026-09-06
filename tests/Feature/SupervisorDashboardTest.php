@@ -33,8 +33,8 @@ it('renders the supervisor dashboard with real counts instead of the old placeho
     $response->assertSuccessful();
     $response->assertDontSee('Placeholders for supervisor stats', false);
     $response->assertSee($this->circle->name);
-    $response->assertSee('المراحل التعليمية');
-    $response->assertSee('الحلقات');
+    $response->assertSee('البرامج');
+    $response->assertSee('الدفعات');
 });
 
 it('computes real weekly attendance percentage scoped to the supervisor stages', function () {

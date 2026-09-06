@@ -159,7 +159,7 @@ new class extends Component {
         </div>
 
         <div class="flex flex-col gap-1 w-full sm:w-48">
-            <flux:select wire:model.live="stageId" label="{{ __('المرحلة') }}" placeholder="{{ __('الكل') }}">
+            <flux:select wire:model.live="stageId" label="{{ __('البرنامج') }}" placeholder="{{ __('الكل') }}">
                 @foreach($this->stages as $stage)
                     <flux:select.option value="{{ $stage->id }}">{{ $stage->name }}</flux:select.option>
                 @endforeach
@@ -167,7 +167,7 @@ new class extends Component {
         </div>
 
         <div class="flex flex-col gap-1 w-full sm:w-48">
-            <flux:select wire:model.live="circleId" label="{{ __('الحلقة') }}" placeholder="{{ __('الكل') }}">
+            <flux:select wire:model.live="circleId" label="{{ __('الدفعة') }}" placeholder="{{ __('الكل') }}">
                 @foreach($this->circles as $circle)
                     <flux:select.option value="{{ $circle->id }}">{{ $circle->name }}</flux:select.option>
                 @endforeach
@@ -250,7 +250,7 @@ new class extends Component {
                                 </div>
                                 <div>
                                     <div class="font-medium">{{ $item['student']->name }}</div>
-                                    <div class="text-xs text-zinc-500">{{ $item['student']->circle->name ?? 'بدون حلقة' }}</div>
+                                    <div class="text-xs text-zinc-500">{{ $item['student']->circle->name ?? 'بدون دفعة' }}</div>
                                 </div>
                             </div>
                             <div class="text-sm font-bold text-emerald-600 dark:text-emerald-400">

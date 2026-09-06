@@ -84,6 +84,13 @@
             padding-right: 12px;
         }
 
+        .greg {
+            font-size: 8.5px;
+            color: #666;
+            direction: ltr;
+            display: block;
+        }
+
         .plan-table td.date-cell {
             color: #4b5563;
         }
@@ -109,8 +116,8 @@
 
     <div class="header">
         <div class="logo-container">
-            @if(file_exists(public_path('images/altag_logo.png')))
-                <img src="{{ public_path('images/altag_logo.png') }}" alt="Logo">
+            @if(file_exists(public_path(config('brand.logo'))))
+                <img src="{{ public_path(config('brand.logo')) }}" alt="Logo">
             @endif
         </div>
         <h1>
@@ -127,11 +134,11 @@
     <table class="info-table">
         <tr>
             <td><strong>الطالب:</strong> {{ $plan->student->name }}</td>
-            <td><strong>الحلقة:</strong> {{ $plan->student->circle->name ?? 'غير محدد' }}</td>
+            <td><strong>الدفعة:</strong> {{ $plan->student->circle->name ?? 'غير محدد' }}</td>
         </tr>
         <tr>
             <td><strong>المعلم:</strong> {{ auth()->guard('teacher')->user()->name }}</td>
-            <td><strong>تاريخ البدء:</strong> {{ \App\Support\HijriDate::full($plan->start_date) }}</td>
+            <td><strong>تاريخ البدء:</strong> {{ \App\Support\HijriDate::withGregorian($plan->start_date) }}</td>
         </tr>
         <tr>
             <td><strong>عدد أيام الخطة:</strong> {{ $plan->days_count }} يومًا</td>
@@ -165,7 +172,7 @@
         <tbody>
             @foreach($plan->days as $day)
                 <tr class="{{ $day->day_name == 'الأحد' ? 'sunday-row' : '' }}">
-                    <td class="date-cell">{{ \App\Support\HijriDate::full($day->date) }}</td>
+                    <td class="date-cell">{{ \App\Support\HijriDate::full($day->date) }}<span class="greg">{{ \App\Support\HijriDate::gregorian($day->date) }}</span></td>
                     <td>{{ $day->day_name }}</td>
 
                     @if(in_array($plan->plan_type, ['hifz', 'hifz_review']))
@@ -185,7 +192,7 @@
     </table>
 
     <div class="footer">
-        جدة - حي الواحة - جامع الزبيدي - حلقات التاج القرآنية التابعة لجمعية خيركم لتعليم القرآن الكريم
+        {{ config('brand.address') }}
     </div>
 </body>
 

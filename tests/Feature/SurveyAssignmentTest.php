@@ -632,7 +632,7 @@ it('records who wrote a form, whichever role they wrote it in', function () {
     $this->actingAs($this->teacher, 'teacher');
 
     Livewire::test(FormBuilder::class)
-        ->set('title', 'رضا حلقتي')
+        ->set('title', 'رضا دفعتي')
         ->set('slug', 'my-circle')
         ->set('fields', [[
             'id' => 'q1', 'type' => 'rating', 'label' => 'رضاك؟',

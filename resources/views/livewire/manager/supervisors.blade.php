@@ -5,7 +5,7 @@
         </div>
         <div>
             <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إدارة المشرفين</flux:heading>
-            <flux:subheading>إدارة شؤون المشرفين والموافقة عليهم وتعيين المراحل.</flux:subheading>
+            <flux:subheading>إدارة شؤون المشرفين والموافقة عليهم وتعيين البرامج.</flux:subheading>
         </div>
         <flux:spacer />
         <flux:button variant="primary" icon="plus" wire:click="add">إضافة مشرف</flux:button>
@@ -16,7 +16,7 @@
             <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن مشرف..." />
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="stageFilter" placeholder="تصفية حسب المرحلة">
+            <flux:select wire:model.live="stageFilter" placeholder="تصفية حسب البرنامج">
                 <flux:select.option value="all">الكل</flux:select.option>
                 @foreach($stages as $stage)
                     <flux:select.option :value="$stage->id">{{ $stage->name }}</flux:select.option>
@@ -52,7 +52,7 @@
         <flux:table class="w-full">
             <flux:table.columns>
                 <flux:table.column>{{ __('المشرف') }}</flux:table.column>
-                <flux:table.column class="hidden md:table-cell">{{ __('المراحل') }}</flux:table.column>
+                <flux:table.column class="hidden md:table-cell">{{ __('البرامج') }}</flux:table.column>
                 <flux:table.column class="hidden md:table-cell text-center">{{ __('حالة البيانات') }}
                 </flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
@@ -79,7 +79,7 @@
                                 @forelse($supervisor->stages as $stage)
                                     <flux:badge size="sm" variant="neutral">{{ $stage->name }}</flux:badge>
                                 @empty
-                                    <span class="text-xs text-zinc-400">لا يوجد مراحل</span>
+                                    <span class="text-xs text-zinc-400">لا توجد برامج</span>
                                 @endforelse
                             </div>
                         </flux:table.cell>
@@ -147,7 +147,7 @@
                         </div>
 
                         <div class="space-y-2">
-                            <flux:heading size="sm">{{ __('تعيين المراحل') }}</flux:heading>
+                            <flux:heading size="sm">{{ __('تعيين البرامج') }}</flux:heading>
                             <div
                                 class="flex flex-col gap-2 max-h-48 overflow-y-auto p-3 border border-zinc-100 rounded-xl dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
                                 @foreach ($stages as $stage)

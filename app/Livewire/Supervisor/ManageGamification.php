@@ -172,6 +172,16 @@ class ManageGamification extends Component
 
     public bool $manual_claim_enabled = false;
 
+    public bool $self_program_enabled = false;
+
+    public int $self_program_half_xp = 5;
+
+    public int $self_program_half_coins = 5;
+
+    public int $self_program_complete_xp = 15;
+
+    public int $self_program_complete_coins = 15;
+
     public bool $ode_hifz_enabled = false;
 
     public int $ode_hifz_excellent_xp = 10;
@@ -417,6 +427,12 @@ class ManageGamification extends Component
         $this->attendance_enthusiasm_trigger = (bool) ($settings['attendance_enthusiasm_trigger'] ?? true);
 
         $this->manual_claim_enabled = (bool) ($settings['manual_claim_enabled'] ?? false);
+
+        $this->self_program_enabled = (bool) ($settings['self_program_enabled'] ?? false);
+        $this->self_program_half_xp = (int) ($settings['self_program_half_xp'] ?? 5);
+        $this->self_program_half_coins = (int) ($settings['self_program_half_coins'] ?? 5);
+        $this->self_program_complete_xp = (int) ($settings['self_program_complete_xp'] ?? 15);
+        $this->self_program_complete_coins = (int) ($settings['self_program_complete_coins'] ?? 15);
 
         $this->ode_hifz_enabled = (bool) ($settings['ode_hifz_enabled'] ?? false);
         $this->ode_hifz_excellent_xp = (int) ($settings['ode_hifz_excellent_xp'] ?? 10);
@@ -727,6 +743,10 @@ class ManageGamification extends Component
             'attendance_present_coins' => 'required|integer|min:0',
             'attendance_late_xp' => 'required|integer|min:0',
             'attendance_late_coins' => 'required|integer|min:0',
+            'self_program_half_xp' => 'required|integer|min:0',
+            'self_program_half_coins' => 'required|integer|min:0',
+            'self_program_complete_xp' => 'required|integer|min:0',
+            'self_program_complete_coins' => 'required|integer|min:0',
             'ode_hifz_excellent_xp' => 'required|integer|min:0',
             'ode_hifz_excellent_coins' => 'required|integer|min:0',
             'ode_hifz_good_xp' => 'required|integer|min:0',
@@ -795,6 +815,12 @@ class ManageGamification extends Component
                 'attendance_enthusiasm_trigger' => $this->attendance_enthusiasm_trigger,
 
                 'manual_claim_enabled' => $this->manual_claim_enabled,
+
+                'self_program_enabled' => $this->self_program_enabled,
+                'self_program_half_xp' => $this->self_program_half_xp,
+                'self_program_half_coins' => $this->self_program_half_coins,
+                'self_program_complete_xp' => $this->self_program_complete_xp,
+                'self_program_complete_coins' => $this->self_program_complete_coins,
 
                 'ode_hifz_enabled' => $this->ode_hifz_enabled,
                 'ode_hifz_excellent_xp' => $this->ode_hifz_excellent_xp,
@@ -2558,7 +2584,7 @@ class ManageGamification extends Component
         $studentsGrouped = Student::with('circle')
             ->whereIn('circle_id', $circleIds)
             ->get()
-            ->groupBy(fn ($s) => $s->circle?->name ?? 'بدون حلقة');
+            ->groupBy(fn ($s) => $s->circle?->name ?? 'بدون دفعة');
 
         $dbAdjustments = GamificationTransaction::with(['student', 'team'])
             ->where('leaderboard_id', $this->competitionId)

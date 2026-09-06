@@ -79,7 +79,7 @@
             <flux:table.columns>
                 <flux:table.column>الطالب</flux:table.column>
                 @if($showCircleColumn)
-                    <flux:table.column class="hidden md:table-cell">الحلقة</flux:table.column>
+                    <flux:table.column class="hidden md:table-cell">الدفعة</flux:table.column>
                 @endif
                 <flux:table.column class="text-center">صفحات الحفظ</flux:table.column>
                 <flux:table.column class="text-center">صفحات المراجعة <span class="font-normal text-zinc-400">(المميزة)</span></flux:table.column>
@@ -97,7 +97,7 @@
                         <flux:table.cell class="font-bold text-zinc-900 dark:text-white">{{ $row['student']->name }}</flux:table.cell>
                         @if($showCircleColumn)
                             <flux:table.cell class="hidden md:table-cell">
-                                <flux:badge size="sm" variant="neutral">{{ $row['student']->circle?->name ?? 'بدون حلقة' }}</flux:badge>
+                                <flux:badge size="sm" variant="neutral">{{ $row['student']->circle?->name ?? 'بدون دفعة' }}</flux:badge>
                             </flux:table.cell>
                         @endif
                         <flux:table.cell class="text-center">

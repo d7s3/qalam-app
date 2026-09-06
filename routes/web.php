@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\HeldScreenController;
 use App\Http\Controllers\Manager\BackupController;
 use App\Http\Controllers\Student\StudentPlanPrintController;
 use App\Http\Controllers\Teacher\TasmeehDataController;
@@ -10,28 +11,21 @@ use App\Livewire\Public\CoinRedemption as PublicCoinRedemption;
 use App\Livewire\Public\FormReport;
 use App\Livewire\Public\FormSubmit;
 use App\Livewire\Public\ResultsDisplay as PublicResultsDisplay;
-use App\Models\Circle;
 use App\Models\FormAssignment;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\Supervisor;
-use App\Models\Surah;
 use App\Models\Teacher;
 use App\Services\MessagingService;
+use App\Support\KnowledgeHadiths;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Mccarlosen\LaravelMpdf\Facades\LaravelMpdf;
 
-Route::get('/', function () {
-    $stats = [
-        'students' => Student::count(),
-        'teachers' => Teacher::count(),
-        'circles' => Circle::count(),
-    ];
-
-    return view('welcome', compact('stats'));
-})->name('home');
+// A fresh hadith on every visit, read from code rather than the database so the
+// busiest unauthenticated route in the application still runs no query.
+Route::get('/', fn () => view('welcome', ['hadith' => KnowledgeHadiths::random()]))->name('home');
 
 Route::get('/pending-approval', fn () => view('pending-approval'))
     ->middleware('auth:manager,supervisor,teacher,student,guardian,staff')
@@ -108,12 +102,21 @@ Route::middleware('auth:manager,supervisor,teacher,student,guardian,staff')->gro
 });
 
 Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager')->name('manager.')->group(function () {
+    Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
+    Route::view('/student-log', 'shared.student-log')->name('student-log');
+    Route::view('/motivations', 'shared.motivations')->name('motivations');
+    Route::view('/portal', 'shared.portal')->name('portal');
+    Route::view('/self-program-tracks', 'shared.self-program-tracks')->name('self-program-tracks');
+    Route::view('/period-values', 'shared.period-values')->name('period-values');
+    Route::view('/event-visibility', 'shared.event-visibility')->name('event-visibility');
+    Route::view('/my-day', 'shared.my-day')->name('my-day');
     Route::livewire('/pending-approvals', PendingApprovals::class)->name('pending-approvals');
     Route::view('/stages', 'manager.stages')->name('stages');
     Route::view('/circles', 'manager.circles')->name('circles');
     Route::view('/supervisors', 'manager.supervisors')->name('supervisors');
     Route::view('/teachers', 'manager.teachers')->name('teachers');
     Route::view('/students', 'manager.students')->name('students');
+    Route::view('/self-program-progress', 'manager.self-program-progress')->name('self-program-progress');
     Route::view('/guardians', 'manager.guardians')->name('guardians');
     Route::view('/attendance-reports', 'manager.attendance-reports')->name('attendance-reports');
     Route::view('/yearly-attendance', 'manager.yearly-attendance')->name('yearly-attendance');
@@ -133,6 +136,26 @@ Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager
     Route::view('/api-docs', 'manager.api-docs')->name('api-docs');
     Route::view('/messages', 'manager.messages')->name('messages');
     Route::view('/role-permissions', 'manager.role-permissions')->name('role-permissions');
+    Route::view('/user-access', 'manager.user-access')->name('user-access');
+    Route::view('/stage-access', 'manager.stage-access')->name('stage-access');
+    Route::view('/reports', 'manager.reports')->name('reports');
+
+    // Screens this office carries from the ones beneath it. The name of
+    // the screen is the address, so permission is asked about the screen
+    // itself and nothing new is opened by having a second way in.
+    Route::get('/held/{screen}', HeldScreenController::class)
+        ->where('screen', '[a-z-]+\.[a-z.-]+')
+        ->name('held');
+    // A named route per report, so each is a link that can be kept and
+    // so each has a screen of its own whose permission can be set.
+    foreach ([
+        'attendance', 'memorization', 'self-program', 'mutun', 'exams',
+        'gamification', 'retention', 'family-contact', 'teacher-performance',
+        'forms', 'tasks', 'supervision',
+    ] as $report) {
+        Route::get('/reports/'.$report, fn () => view('manager.reports', ['report' => $report]))
+            ->name('reports.'.$report);
+    }
     Route::view('/staff-members', 'manager.staff-members')->name('staff-members');
     Route::view('/forms', 'manager.forms')->name('forms');
     Route::get('/forms/create', fn () => view('manager.form-create'))->name('forms.create');
@@ -156,6 +179,14 @@ Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manage
     Route::get('/backup/download/{filename}', [BackupController::class, 'downloadStored'])->name('backup.download.stored');
 });
 Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.required'])->prefix('supervisor')->name('supervisor.')->group(function () {
+    Route::view('/student-log', 'shared.student-log')->name('student-log');
+    Route::view('/motivations', 'shared.motivations')->name('motivations');
+    Route::view('/portal', 'shared.portal')->name('portal');
+    Route::view('/self-program-tracks', 'shared.self-program-tracks')->name('self-program-tracks');
+    Route::view('/period-values', 'shared.period-values')->name('period-values');
+    Route::view('/event-visibility', 'shared.event-visibility')->name('event-visibility');
+    Route::view('/my-day', 'shared.my-day')->name('my-day');
+    Route::view('/placement-requests', 'supervisor.placement-requests')->name('placement-requests');
     Route::get('/dashboard', fn () => view('supervisor.dashboard'))->name('dashboard');
     Route::view('/teachers', 'supervisor.teachers')->name('teachers');
     Route::view('/odes', 'supervisor.odes')->name('odes');
@@ -171,6 +202,26 @@ Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.requi
     Route::view('/teacher-competitions', 'supervisor.teacher-competitions')->name('teacher-competitions');
     Route::get('/teacher-competitions/{competition}', fn ($competition) => view('supervisor.teacher-competition-manage', ['competitionId' => $competition]))->name('teacher-competitions.manage');
     Route::view('/students', 'supervisor.students')->name('students');
+    Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
+    Route::view('/self-program-progress', 'supervisor.self-program-progress')->name('self-program-progress');
+    Route::view('/reports', 'supervisor.reports')->name('reports');
+
+    // Screens this office carries from the ones beneath it. The name of
+    // the screen is the address, so permission is asked about the screen
+    // itself and nothing new is opened by having a second way in.
+    Route::get('/held/{screen}', HeldScreenController::class)
+        ->where('screen', '[a-z-]+\.[a-z.-]+')
+        ->name('held');
+    // A named route per report, so each is a link that can be kept and
+    // so each has a screen of its own whose permission can be set.
+    foreach ([
+        'attendance', 'memorization', 'self-program', 'mutun', 'exams',
+        'gamification', 'retention', 'family-contact', 'teacher-performance',
+        'forms', 'tasks', 'supervision',
+    ] as $report) {
+        Route::get('/reports/'.$report, fn () => view('supervisor.reports', ['report' => $report]))
+            ->name('reports.'.$report);
+    }
     Route::view('/competitions', 'supervisor.competitions')->name('competitions');
     Route::get('/competitions/{competition}/gamification', fn ($competition) => view('supervisor.gamification', ['competitionId' => $competition]))->name('competitions.gamification');
     Route::get('/competitions/{competition}/standings', fn ($competition) => view('supervisor.competition-standings', ['competitionId' => $competition]))->name('competitions.standings');
@@ -190,6 +241,11 @@ Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.requi
     Route::view('/guide', 'shared.guide')->name('guide');
 });
 Route::middleware(['auth:teacher', 'approved', 'page.enabled', 'surveys.required'])->prefix('teacher')->name('teacher.')->group(function () {
+    Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
+    Route::view('/student-log', 'shared.student-log')->name('student-log');
+    Route::view('/motivations', 'shared.motivations')->name('motivations');
+    Route::view('/portal', 'shared.portal')->name('portal');
+    Route::view('/my-day', 'shared.my-day')->name('my-day');
     $appShellRoute = function ($tab) {
         return function () use ($tab) {
             return view('teacher.app-shell', ['initialTab' => $tab]);
@@ -209,6 +265,18 @@ Route::middleware(['auth:teacher', 'approved', 'page.enabled', 'surveys.required
     // Standard Routes
     Route::view('/discipline', 'teacher.discipline')->name('discipline');
     Route::view('/quranic-discipline', 'teacher.quranic-discipline')->name('quranic-discipline');
+    Route::view('/self-program', 'teacher.self-program')->name('self-program');
+    Route::view('/reports', 'teacher.reports')->name('reports');
+    // A named route per report, so each is a link that can be kept and
+    // so each has a screen of its own whose permission can be set.
+    foreach ([
+        'attendance', 'memorization', 'self-program', 'mutun', 'exams',
+        'gamification', 'retention', 'family-contact', 'teacher-performance',
+        'forms', 'tasks', 'supervision',
+    ] as $report) {
+        Route::get('/reports/'.$report, fn () => view('teacher.reports', ['report' => $report]))
+            ->name('reports.'.$report);
+    }
     Route::view('/student-plans', 'teacher.student-plans')->name('student-plans');
     Route::view('/ode-plans', 'teacher.ode-plans')->name('ode-plans');
     Route::view('/exceeded-limits', 'teacher.exceeded-limits')->name('exceeded-limits');
@@ -283,7 +351,10 @@ Route::middleware(['auth:teacher', 'approved', 'page.enabled', 'surveys.required
     })->name('download-plan-pdf');
 });
 Route::middleware(['auth:student', 'approved', 'page.enabled', 'surveys.required'])->prefix('student')->name('student.')->group(function () {
+    Route::view('/motivations', 'shared.motivations')->name('motivations');
+    Route::view('/my-day', 'shared.my-day')->name('my-day');
     Route::get('/dashboard', fn () => view('student.dashboard'))->name('dashboard');
+    Route::view('/self-program', 'student.self-program')->name('self-program');
     Route::view('/plan', 'student.my-plan')->name('plan');
     Route::view('/plan/create', 'student.plan-creator')->name('plan-creator');
     Route::view('/plan/show/{id}', 'student.show-plan')->name('show-plan');
@@ -315,10 +386,23 @@ Route::middleware(['auth:student', 'approved', 'page.enabled', 'surveys.required
 Route::view('/student/complete-profile', 'student.complete-profile')->middleware(['auth:student'])->name('student.complete-profile');
 Route::view('/teacher/complete-profile', 'teacher.complete-profile')->middleware(['auth:teacher'])->name('teacher.complete-profile');
 Route::middleware(['auth:guardian', 'approved', 'page.enabled', 'surveys.required'])->prefix('parent')->name('guardian.')->group(function () {
+    Route::view('/child-day', 'guardian.child-day')->name('child-day');
     Route::get('/dashboard', fn () => view('guardian.dashboard'))->name('dashboard');
     Route::get('/student/{id}', fn ($id) => view('guardian.student', ['studentId' => $id]))->name('student');
     Route::get('/student/{id}/attendance', fn ($id) => view('guardian.student-attendance', ['studentId' => $id]))->name('student.attendance');
     Route::get('/challenges', fn () => view('guardian.challenges'))->name('challenges');
+    Route::view('/self-program-progress', 'guardian.self-program-progress')->name('self-program-progress');
+    Route::view('/reports', 'guardian.reports')->name('reports');
+    // A named route per report, so each is a link that can be kept and
+    // so each has a screen of its own whose permission can be set.
+    foreach ([
+        'attendance', 'memorization', 'self-program', 'mutun', 'exams',
+        'gamification', 'retention', 'family-contact', 'teacher-performance',
+        'forms', 'tasks', 'supervision',
+    ] as $report) {
+        Route::get('/reports/'.$report, fn () => view('guardian.reports', ['report' => $report]))
+            ->name('reports.'.$report);
+    }
     Route::get('/student/{id}/challenge/create', fn ($id) => view('guardian.create-challenge', ['studentId' => $id]))->name('student.challenge.create');
     Route::view('/messages', 'guardian.messages')->name('messages');
     Route::view('/guide', 'shared.guide')->name('guide');
@@ -328,6 +412,13 @@ Route::middleware(['auth:staff', 'approved', 'page.enabled', 'surveys.required']
     Route::view('/dashboard', 'staff.dashboard')->name('dashboard');
     Route::view('/messages', 'staff.messages')->name('messages');
     Route::view('/guide', 'shared.guide')->name('guide');
+
+    // The screens a custom role is granted. Custom roles all ride this guard —
+    // they are bundles of screens rather than areas of the application — so
+    // without a way in they could be granted pages and never open one.
+    Route::get('/held/{screen}', HeldScreenController::class)
+        ->where('screen', '[a-z-]+\\.[a-z.-]+')
+        ->name('held');
 });
 
 // Magic Link Routes
@@ -382,12 +473,6 @@ Route::get('/magic/{token}/login-as', function ($token) {
 
     return redirect()->route('student.dashboard');
 })->name('magic-link.login-as');
-
-Route::get('/quran-json', function () {
-    return response()->json(Surah::with('ayahs')->get(), 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-});
-
-Route::get('/test', function () {})->name('test');
 
 Route::get('/f/{slug}', FormSubmit::class)->name('forms.submit');
 Route::get('/f/{slug}/{token}', FormReport::class)->name('forms.report');

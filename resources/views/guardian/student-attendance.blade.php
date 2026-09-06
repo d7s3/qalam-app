@@ -1,35 +1,35 @@
 <x-layouts.role-shell>
     <x-slot:sidebar>
-        @include('guardian.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     @php
         $guardian = auth()->guard('guardian')->user();
         $student = $guardian->students()->findOrFail($studentId);
 
-        // Month navigation via query param ?month=2026-04
+        // The month on view is a Hijri one — the academy's own — navigated by
+        // ?month=1448-03. A Gregorian month would begin and end on days nobody
+        // here recognises.
         $monthParam = request('month');
-        $currentMonth = $monthParam
-            ? \Carbon\Carbon::createFromFormat('Y-m', $monthParam)->startOfMonth()
-            : now()->startOfMonth();
+        [$paramYear, $paramMonth] = $monthParam && str_contains($monthParam, '-')
+            ? array_map('intval', explode('-', $monthParam, 2))
+            : [null, null];
 
-        $prevMonth = $currentMonth->copy()->subMonth();
-        $nextMonth = $currentMonth->copy()->addMonth();
-        $canGoNext = $nextMonth->lte(now()->startOfMonth());
+        $grid = \App\Support\HijriDate::monthGrid($paramYear, $paramMonth);
 
-        // Fetch attendance for this month
+        $prev = \App\Support\HijriDate::shiftMonth($grid['year'], $grid['month'], -1);
+        $next = \App\Support\HijriDate::shiftMonth($grid['year'], $grid['month'], 1);
+        $prevMonth = sprintf('%04d-%02d', $prev['year'], $prev['month']);
+        $nextMonth = sprintf('%04d-%02d', $next['year'], $next['month']);
+        $canGoNext = $grid['last'] < now()->toDateString();
+
+        // Read over the month's own span, since it crosses two Gregorian ones.
         $attendances = $student->attendances()
-            ->whereYear('date', $currentMonth->year)
-            ->whereMonth('date', $currentMonth->month)
+            ->whereBetween('date', [$grid['first'], $grid['last']])
             ->get()
             ->keyBy(fn($a) => $a->date->format('Y-m-d'));
 
-        // Calendar grid helpers
-        $daysInMonth = $currentMonth->daysInMonth;
-        $firstDayOfWeek = $currentMonth->copy()->startOfMonth()->dayOfWeek; // 0=Sun
-        // We want Saturday as first column (Islamic week), so shift accordingly
-        // Sat=6, Sun=0, Mon=1 ... Fri=5
-        $startOffset = ($firstDayOfWeek + 1) % 7; // offset from Saturday
+        $startOffset = $grid['leadingBlanks'];
 
         $statusConfig = [
             'present' => ['label' => 'حاضر', 'bg' => 'bg-emerald-100 dark:bg-emerald-500/20', 'text' => 'text-emerald-700 dark:text-emerald-400', 'dot' => 'bg-emerald-500'],
@@ -85,17 +85,20 @@
 
             {{-- Month navigation --}}
             <div class="flex items-center justify-between mb-6">
-                <a href="{{ route('guardian.student.attendance', ['id' => $student->id, 'month' => $prevMonth->format('Y-m')]) }}"
+                <a href="{{ route('guardian.student.attendance', ['id' => $student->id, 'month' => $prevMonth]) }}"
                     class="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800   s">
                     <flux:icon icon="chevron-right" class="size-5" />
                 </a>
 
                 <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">
-                    <x-hijri-date :date="$currentMonth" style="monthYear" />
+                    <span class="flex flex-col items-center leading-tight">
+                        <span>{{ $grid['label'] }}</span>
+                        <span dir="ltr" class="text-[11px] font-medium tabular-nums text-zinc-400">{{ $grid['span'] }}</span>
+                    </span>
                 </h2>
 
                 @if($canGoNext)
-                    <a href="{{ route('guardian.student.attendance', ['id' => $student->id, 'month' => $nextMonth->format('Y-m')]) }}"
+                    <a href="{{ route('guardian.student.attendance', ['id' => $student->id, 'month' => $nextMonth]) }}"
                         class="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800   s">
                         <flux:icon icon="chevron-left" class="size-5" />
                     </a>
@@ -119,9 +122,10 @@
                 @endfor
 
                 {{-- Day cells --}}
-                @for($day = 1; $day <= $daysInMonth; $day++)
+                @foreach($grid['days'] as $cell)
                     @php
-                        $dateStr = $currentMonth->copy()->day($day)->format('Y-m-d');
+                        $day = $cell['hijri'];
+                        $dateStr = $cell['date'];
                         $attendance = $attendances[$dateStr] ?? null;
                         $isToday = $dateStr === today()->format('Y-m-d');
                         $cfg = $attendance ? $statusConfig[$attendance->status] ?? null : null;
@@ -134,11 +138,14 @@
                             class="text-sm font-medium {{ $cfg ? $cfg['text'] : 'text-zinc-600 dark:text-zinc-400' }}">
                             {{ $day }}
                         </span>
+                        <span dir="ltr" class="text-[9px] font-medium tabular-nums text-zinc-400 dark:text-zinc-500">
+                            {{ substr($dateStr, 5) }}
+                        </span>
                         @if($cfg)
                             <span class="text-[10px] {{ $cfg['text'] }} opacity-75">{{ $cfg['label'] }}</span>
                         @endif
                     </div>
-                @endfor
+                @endforeach
             </div>
 
             {{-- Legend --}}

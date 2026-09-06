@@ -4,7 +4,7 @@
     </x-slot:title>
 
     <x-slot:sidebar>
-        @include('guardian.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
     <livewire:guardian.create-challenge :student-id="$studentId" />
 </x-layouts.role-shell>

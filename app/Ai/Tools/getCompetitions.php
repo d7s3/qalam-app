@@ -70,7 +70,7 @@ class getCompetitions implements Tool
             $row = [
                 'title' => $competition->title,
                 'type' => $competition->competition_type === 'gamification' ? 'تحفيزية (نقاط وعملات وفرق)' : 'نقاط',
-                'scope' => $competition->isSupervisorCompetition() ? 'مسابقة مشرف على عدة حلقات' : 'مسابقة حلقة',
+                'scope' => $competition->isSupervisorCompetition() ? 'مسابقة مشرف على عدة دفعات' : 'مسابقة دفعة',
                 'circles' => $competition->isSupervisorCompetition()
                     ? $competition->circles->pluck('name')->all()
                     : array_filter([$competition->circle?->name]),

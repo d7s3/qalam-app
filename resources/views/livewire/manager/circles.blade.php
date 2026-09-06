@@ -5,19 +5,19 @@
                 <flux:icon icon="circle-stack" />
             </div>
             <div>
-                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إدارة الحلقات</flux:heading>
+                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إدارة الدفعات</flux:heading>
                 <flux:subheading>إدارة حلقات التسميع والحفظ بالمجمع</flux:subheading>
             </div>
         </div>
 
         <flux:button wire:click="create" variant="primary" icon="plus" class="bg-white text-maroon border-zinc-200 hover:bg-zinc-50 shadow-xs dark:bg-zinc-800 dark:text-white dark:border-zinc-700">
-            إضافة حلقة جديدة
+            إضافة دفعة جديدة
         </flux:button>
     </div>
 
     <div class="flex flex-col md:flex-row gap-4 items-end">
         <div class="flex-1">
-            <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن حلقة..." />
+            <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن دفعة..." />
         </div>
         <div class="w-full md:w-48">
             <flux:select wire:model.live="teacherFilter" placeholder="تصفية حسب المعلم">
@@ -28,7 +28,7 @@
             </flux:select>
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="stageFilter" placeholder="تصفية حسب المرحلة">
+            <flux:select wire:model.live="stageFilter" placeholder="تصفية حسب البرنامج">
                 <flux:select.option value="">الكل</flux:select.option>
                 @foreach($stages as $stage)
                     <flux:select.option :value="$stage->id">{{ $stage->name }}</flux:select.option>
@@ -40,8 +40,8 @@
     <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs overflow-hidden">
         <flux:table>
             <flux:table.columns>
-                <flux:table.column class="text-right">اسم الحلقة</flux:table.column>
-                <flux:table.column class="text-right">المرحلة</flux:table.column>
+                <flux:table.column class="text-right">اسم الدفعة</flux:table.column>
+                <flux:table.column class="text-right">البرنامج</flux:table.column>
                 <flux:table.column class="text-center">معلمون</flux:table.column>
                 <flux:table.column class="text-center">طلاب</flux:table.column>
                 <flux:table.column class="text-center">تاريخ الإضافة</flux:table.column>
@@ -73,14 +73,14 @@
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2">
                                 <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
-                                <flux:button size="sm" variant="ghost" icon="trash" class="text-red-500 hover:text-red-600" wire:confirm="هل أنت متأكد من حذف هذه الحلقة؟" wire:click="delete({{ $circle->id }})" />
+                                <flux:button size="sm" variant="ghost" icon="trash" class="text-red-500 hover:text-red-600" wire:confirm="هل أنت متأكد من حذف هذه الدفعة؟" wire:click="delete({{ $circle->id }})" />
                             </div>
                         </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
                         <flux:table.cell colspan="5" class="text-center py-16">
-                            <flux:text class="text-zinc-400">لا توجد حلقات حالياً</flux:text>
+                            <flux:text class="text-zinc-400">لا توجد دفعات حالياً</flux:text>
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse
@@ -91,20 +91,20 @@
     <flux:modal name="circle-modal" class="md:w-[500px]">
         <form wire:submit="save" class="space-y-6">
             <div>
-                <flux:heading size="lg">@if($editingCircleId) تعديل الحلقة @else إضافة حلقة جديدة @endif</flux:heading>
-                <flux:subheading>أدخل بيانات حلقة التحفيظ أدناه.</flux:subheading>
+                <flux:heading size="lg">@if($editingCircleId) تعديل الدفعة @else إضافة دفعة جديدة @endif</flux:heading>
+                <flux:subheading>أدخل بيانات دفعة التحفيظ أدناه.</flux:subheading>
             </div>
 
             <div class="space-y-4">
-                <flux:input label="اسم الحلقة" wire:model="name" placeholder="مثال: حلقة ابن كثير" required />
+                <flux:input label="اسم الدفعة" wire:model="name" placeholder="مثال: دفعة ابن كثير" required />
                 
-                <flux:select label="المرحلة التعليمية" wire:model="stage_id" placeholder="اختر المرحلة..." required>
+                <flux:select label="البرنامج التعليمي" wire:model="stage_id" placeholder="اختر البرنامج..." required>
                     @foreach($stages as $stage)
                         <flux:select.option :value="$stage->id">{{ $stage->name }}</flux:select.option>
                     @endforeach
                 </flux:select>
 
-                <flux:textarea label="وصف الحلقة (اختياري)" wire:model="description" placeholder="وصف موجز للحلقة..." />
+                <flux:textarea label="وصف الدفعة (اختياري)" wire:model="description" placeholder="وصف موجز للدفعة..." />
             </div>
 
             <div class="space-y-2">

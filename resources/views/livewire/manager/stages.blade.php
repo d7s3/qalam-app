@@ -6,19 +6,19 @@
                     <flux:icon icon="rectangle-stack" />
                 </div>
                 <div>
-                    <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إدارة المراحل</flux:heading>
-                    <flux:subheading>إدارة المراحل التعليمية في المجمع</flux:subheading>
+                    <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">إدارة البرامج</flux:heading>
+                    <flux:subheading>إدارة البرامج في المجمع</flux:subheading>
                 </div>
             </div>
 
             <flux:button wire:click="create" variant="primary" icon="plus" class="bg-white text-maroon border-zinc-200 hover:bg-zinc-50 shadow-xs dark:bg-zinc-800 dark:text-white dark:border-zinc-700">
-                إضافة مرحلة جديدة
+                إضافة برنامج جديد
             </flux:button>
         </div>
 
         <div class="flex flex-col md:flex-row gap-4 items-end mb-6">
             <div class="flex-1">
-                <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث باسم المرحلة أو الوصف..." />
+                <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث باسم البرنامج أو الوصف..." />
             </div>
             <div class="w-full md:w-64">
                 <flux:select wire:model.live="supervisorFilter" placeholder="تصفية حسب المشرفين">
@@ -34,10 +34,10 @@
     <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs overflow-hidden">
         <flux:table>
             <flux:table.columns>
-                <flux:table.column class="text-right">اسم المرحلة</flux:table.column>
+                <flux:table.column class="text-right">اسم البرنامج</flux:table.column>
                 <flux:table.column class="text-right">الوصف</flux:table.column>
                 <flux:table.column class="text-center">المشرفين الحاضرين</flux:table.column>
-                <flux:table.column class="text-center">عدد الحلقات</flux:table.column>
+                <flux:table.column class="text-center">عدد الدفعات</flux:table.column>
                 <flux:table.column class="text-center">تاريخ الإضافة</flux:table.column>
                 <flux:table.column></flux:table.column>
             </flux:table.columns>
@@ -65,14 +65,14 @@
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2">
                                 <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $stage->id }})" />
-                                <flux:button size="sm" variant="ghost" icon="trash" class="text-red-500 hover:text-red-600" wire:confirm="هل أنت متأكد من حذف هذه المرحلة؟" wire:click="delete({{ $stage->id }})" />
+                                <flux:button size="sm" variant="ghost" icon="trash" class="text-red-500 hover:text-red-600" wire:confirm="هل أنت متأكد من حذف هذا البرنامج؟" wire:click="delete({{ $stage->id }})" />
                             </div>
                         </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
                         <flux:table.cell colspan="4" class="text-center py-16">
-                            <flux:text class="text-zinc-400">لا توجد مراحل حالياً</flux:text>
+                            <flux:text class="text-zinc-400">لا توجد برامج حالياً</flux:text>
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse
@@ -83,13 +83,13 @@
     <flux:modal name="stage-modal" class="md:w-[500px]">
         <form wire:submit="save" class="space-y-6">
             <div>
-                <flux:heading size="lg">@if($editingStageId) تعديل المرحلة @else إضافة مرحلة جديدة @endif</flux:heading>
-                <flux:subheading>أدخل بيانات المرحلة التعليمية أدناه.</flux:subheading>
+                <flux:heading size="lg">@if($editingStageId) تعديل البرنامج @else إضافة برنامج جديد @endif</flux:heading>
+                <flux:subheading>أدخل بيانات البرنامج أدناه.</flux:subheading>
             </div>
 
             <div class="space-y-4">
-                <flux:input label="اسم المرحلة" wire:model="name" placeholder="مثال: المرحلة الابتدائية" required />
-                <flux:textarea label="وصف المرحلة (اختياري)" wire:model="description" placeholder="وصف موجز للمرحلة..." />
+                <flux:input label="اسم البرنامج" wire:model="name" placeholder="مثال: برنامج التأسيس" required />
+                <flux:textarea label="وصف البرنامج (اختياري)" wire:model="description" placeholder="وصف موجز للبرنامج..." />
             </div>
 
             <div class="space-y-2">

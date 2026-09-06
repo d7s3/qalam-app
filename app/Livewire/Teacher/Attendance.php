@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Services\GamificationService;
 use App\Services\GuardianNotificationService;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Carbon\Carbon;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
@@ -45,7 +46,7 @@ class Attendance extends Component
         }
 
         $teacher = auth()->guard('teacher')->user();
-        $this->circles = $teacher->circles()->get();
+        $this->circles = Scope::forRoute()->applyToCircles(Circle::query())->orderBy('name')->get();
 
         if ($this->circles->count() === 1) {
             $this->selectedCircle = $this->circles->first()->id;
@@ -175,7 +176,7 @@ class Attendance extends Component
     public function exportCsv(): ?StreamedResponse
     {
         if (! $this->selectedCircle || $this->students->isEmpty()) {
-            Flux::toast(__('اختر حلقة بها طلاب أولاً'), variant: 'warning');
+            Flux::toast(__('اختر دفعة بها طلاب أولاً'), variant: 'warning');
 
             return null;
         }
@@ -427,7 +428,7 @@ class Attendance extends Component
         $statusText = $status === 'late' ? 'متأخر' : 'غائب';
 
         if ($statusText == 'متأخر') {
-            $statusText = 'حضر الحلقة متأخراً';
+            $statusText = 'حضر الدفعة متأخراً';
         }
         $ordinals = [
             1 => 'الأولى',

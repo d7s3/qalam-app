@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Support\RolePages;
+use App\Support\Access;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -31,11 +31,13 @@ class EnsurePageIsEnabled
         // silently apply the wrong role's permissions to the current page.
         $role = Str::before($routeName, '.');
 
-        if (! $request->user($role)) {
+        $user = $request->user($role);
+
+        if (! $user) {
             return $next($request);
         }
 
-        if (! RolePages::isEnabled($role, $routeName)) {
+        if (! Access::canSee($user, $role, $routeName)) {
             abort(403, __('هذه الصفحة غير متاحة لك حالياً. تواصل مع إدارة المجمع إذا كنت تحتاجها.'));
         }
 

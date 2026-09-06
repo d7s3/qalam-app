@@ -32,6 +32,10 @@ jobs:
           php-version: ${{ matrix.php-version }}
           tools: composer:v2
           coverage: xdebug
+          # The suite exhausts the default 128M and dies with an out-of-memory
+          # fatal rather than a failing test, which reads as a broken workflow
+          # instead of a broken change.
+          ini-values: memory_limit=-1
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -41,7 +45,11 @@ jobs:
       - name: Install Node Dependencies
         run: npm i
 
+      # Only the free Flux is required, so a fork without the licence secrets
+      # installs and tests exactly the same. Configuring the credentials with
+      # empty values would leave composer with a broken auth entry.
       - name: Add Flux Credentials Loaded From ENV
+        if: ${{ secrets.FLUX_USERNAME != '' }}
         run: composer config http-basic.composer.fluxui.dev "${{ secrets.FLUX_USERNAME }}" "${{ secrets.FLUX_LICENSE_KEY }}"
 
       - name: Install Dependencies

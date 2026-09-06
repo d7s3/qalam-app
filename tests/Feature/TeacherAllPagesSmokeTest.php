@@ -37,7 +37,7 @@ it('loads every teacher page without error', function () {
     $teacher = Teacher::factory()->create(['is_approved' => true]);
 
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
     $teacher->circles()->attach($circle->id);
 
     $student = Student::factory()->create(['circle_id' => $circle->id, 'is_approved' => true]);

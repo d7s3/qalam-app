@@ -53,7 +53,7 @@ it('shows a rate limit notice instead of failing when generating insights', func
 it('keeps the existing insights when the provider errors', function () {
     AiInsight::create([
         'period' => '2026-07',
-        'category' => 'الحلقات',
+        'category' => 'الدفعات',
         'title' => 'تحليل سابق',
         'description' => 'يجب أن يبقى كما هو',
         'type' => 'positive',
@@ -101,9 +101,9 @@ it('replaces the insights when the analysis parses', function () {
     ]);
 
     PersonlanAssistant::fake([json_encode([[
-        'category' => 'الحلقات',
-        'title' => 'أعلى الحلقات التزاماً',
-        'description' => 'حلقة النور هي الأعلى حضوراً هذا الشهر.',
+        'category' => 'الدفعات',
+        'title' => 'أعلى الدفعات التزاماً',
+        'description' => 'دفعة النور هي الأعلى حضوراً هذا الشهر.',
         'type' => 'positive',
     ]], JSON_UNESCAPED_UNICODE)]);
 
@@ -115,7 +115,7 @@ it('replaces the insights when the analysis parses', function () {
     $insights = AiInsight::where('period', '2026-07')->get();
 
     expect($insights)->toHaveCount(1)
-        ->and($insights->first()->title)->toBe('أعلى الحلقات التزاماً')
+        ->and($insights->first()->title)->toBe('أعلى الدفعات التزاماً')
         ->and($insights->first()->type)->toBe('positive');
 });
 

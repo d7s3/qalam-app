@@ -1,6 +1,6 @@
 <x-layouts.role-shell>
     <x-slot:sidebar>
-        @include('supervisor.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
     <livewire:supervisor.manage-forms />
 </x-layouts.role-shell>

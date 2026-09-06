@@ -4,12 +4,17 @@
     </x-slot:title>
 
     <x-slot:sidebar>
-        @include('teacher.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     @php
-        $teacher = Auth::guard('teacher')->user();
-        $teacherCircleIds = $teacher->circles()->pluck('circles.id');
+        // Read as a reach rather than as one teacher's cohorts: a supervisor who
+        // holds this screen through his office teaches none, and asking him for
+        // his circles would have been a call on nothing at all.
+        $teacher = \App\Support\Scope::forRoute()->user();
+        $teacherCircleIds = \App\Support\Scope::forRoute()
+            ->applyToCircles(\App\Models\Circle::query())
+            ->pluck('circles.id');
 
         $activeLeaderboard = null;
 

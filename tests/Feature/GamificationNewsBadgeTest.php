@@ -12,7 +12,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'مرحلة اختبار شارة الأخبار']);
-    $this->circle = Circle::create(['name' => 'حلقة اختبار شارة الأخبار', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة اختبار شارة الأخبار', 'stage_id' => $this->stage->id]);
 
     $this->student = Student::create([
         'name' => 'طالب تجربة شارة الأخبار',

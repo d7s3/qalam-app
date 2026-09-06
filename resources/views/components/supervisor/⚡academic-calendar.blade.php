@@ -44,6 +44,8 @@ new class extends Component {
     // Attendance Period Form
     public $hijriFromDate = '';
     public $hijriToDate = '';
+    public $formativeNote = '';
+
     public $description = '';
     public $selectedWeekdays = [1, 2, 3, 4, 5]; // Default to Sunday-Thursday (1=Sun, 5=Thu)
 
@@ -77,6 +79,7 @@ new class extends Component {
             'hijriToDate' => 'required|date|after_or_equal:hijriFromDate',
             'selectedWeekdays' => 'required|array|min:1',
             'description' => 'nullable|string|max:500',
+            'formativeNote' => 'nullable|string|max:1000',
         ]);
 
         // Calculate day count
@@ -97,8 +100,9 @@ new class extends Component {
         }
 
         AcademicCalendarEvent::create([
-            'event_name' => 'فترة دوام الحلقات',
+            'event_name' => 'فترة دوام الدفعات',
             'description' => $this->description,
+                'formative_note' => $this->formativeNote ?: null,
             'start_date' => $this->hijriFromDate,
             'end_date' => $this->hijriToDate,
             'color' => 'emerald',
@@ -124,6 +128,7 @@ new class extends Component {
         $this->hijriFromDate = '';
         $this->hijriToDate = '';
         $this->description = '';
+        $this->formativeNote = '';
         $this->selectedWeekdays = [1, 2, 3, 4, 5];
         Flux::modal('attendance-period-modal')->close();
     }
@@ -908,7 +913,7 @@ new class extends Component {
                                 <template x-if="event.status !== 'completed'">
                                     <flux:button variant="ghost" size="xs" icon="check-circle" x-on:click="$wire.completeTask(event.id)" class="text-zinc-400 hover:text-emerald-500" />
                                 </template>
-                                <flux:button variant="ghost" size="xs" icon="arrow-top-right-on-square" href="{{ route(auth()->guard('manager')->check() ? 'manager.tasks' : 'supervisor.tasks') }}" wire:navigate />
+                                <flux:button variant="ghost" size="xs" icon="arrow-top-right-on-square" href="{{ route(\App\Support\Scope::resolveRole() === 'manager' ? 'manager.tasks' : 'supervisor.tasks') }}" wire:navigate />
                             </div>
                         </template>
                     </div>
@@ -990,8 +995,8 @@ new class extends Component {
                                 :options="collect($this->availableSupervisors)->map(fn($s) => ['value' => $s->id, 'label' => $s->name])->toArray()" 
                             />
                             
-                            <flux:select wire:model="sharedWith.stage_ids_for_students" multiple placeholder="اختر المراحل...">
-                                <x-slot:label>مراحل دراسية (للطلاب)</x-slot:label>
+                            <flux:select wire:model="sharedWith.stage_ids_for_students" multiple placeholder="اختر البرامج...">
+                                <x-slot:label>برامج دراسية (للطلاب)</x-slot:label>
                                 @foreach($this->availableStages as $st)
                                     <flux:select.option value="{{ $st->id }}">{{ $st->name }}</flux:select.option>
                                 @endforeach
@@ -999,8 +1004,8 @@ new class extends Component {
                             
                             <x-alpine-multiselect 
                                 wire:model="sharedWith.circle_ids" 
-                                label="حلقات محددة"
-                                placeholder="اختر الحلقات..."
+                                label="دفعات محددة"
+                                placeholder="اختر الدفعات..."
                                 :options="collect($this->availableCircles)->map(fn($c) => ['value' => $c->id, 'label' => $c->name])->toArray()" 
                             />
                         </div>
@@ -1021,8 +1026,8 @@ new class extends Component {
     <flux:modal name="attendance-period-modal" class="max-w-md">
         <form wire:submit="saveAttendancePeriod" class="space-y-6">
             <div>
-                <flux:heading size="lg">إضافة فترة دوام الحلقات</flux:heading>
-                <flux:subheading>حدد تاريخ بداية ونهاية فترة دوام الحلقات (بالهجري).</flux:subheading>
+                <flux:heading size="lg">إضافة فترة دوام الدفعات</flux:heading>
+                <flux:subheading>حدد تاريخ بداية ونهاية فترة دوام الدفعات (بالهجري).</flux:subheading>
             </div>
 
             <div class="space-y-4">
@@ -1057,7 +1062,7 @@ new class extends Component {
                     <div class="flex gap-3">
                         <flux:icon icon="information-circle" variant="solid" class="text-blue-500 shrink-0" />
                         <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                            سيتم إضافة هذا النطاق كحدث مستمر في التقويم تحت مسمى "فترة دوام الحلقات" وباللون الزمردي المميز.
+                            سيتم إضافة هذا النطاق كحدث مستمر في التقويم تحت مسمى "فترة دوام الدفعات" وباللون الزمردي المميز.
                         </p>
                     </div>
                 </div>

@@ -3,8 +3,8 @@
 namespace App\Livewire\Shared;
 
 use App\Jobs\SendGuardianWhatsappJob;
-use App\Models\Circle;
 use App\Models\Student;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -37,7 +37,7 @@ class WhatsappBulkLinks extends Component
         'active' => 'مشارك',
         'registering' => 'تحت التسجيل',
         'suspended' => 'موقوف',
-        'left' => 'غادر الحلقات',
+        'left' => 'غادر الدفعات',
     ];
 
     public function mount(string $clientId): void
@@ -61,22 +61,24 @@ class WhatsappBulkLinks extends Component
     }
 
     /**
-     * Approved students in scope: everyone for a manager, only the
-     * supervisor's stages' circles when a supervisor is signed in.
+     * Approved students within the reader's reach — everyone for a centre
+     * manager, the cohorts of his programmes for a cohort supervisor.
+     *
+     * Taken from the page rather than from whichever guard answers first: a
+     * manager who also supervises a programme was being narrowed to it even
+     * while standing on his own settings page.
      *
      * @return Collection<int, Student>
      */
     protected function scopedStudents(): Collection
     {
-        $query = Student::with(['guardian', 'circle'])
-            ->whereRoleState(fn ($q) => $q->where('is_approved', true));
-
-        if (auth()->guard('supervisor')->check()) {
-            $stageIds = auth()->guard('supervisor')->user()->stages()->pluck('stages.id');
-            $query->whereIn('circle_id', Circle::whereIn('stage_id', $stageIds)->pluck('id'));
-        }
-
-        return $query->orderBy('name')->get();
+        return Scope::forRoute()
+            ->applyToStudents(
+                Student::with(['guardian', 'circle'])
+                    ->whereRoleState(fn ($q) => $q->where('is_approved', true)),
+            )
+            ->orderBy('name')
+            ->get();
     }
 
     protected function targetsGuardian(): bool

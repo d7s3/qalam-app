@@ -5,6 +5,7 @@ use App\Models\Circle;
 use App\Models\Hadith;
 use App\Models\HadithChapter;
 use App\Models\HadithLine;
+use App\Models\HadithText;
 use App\Models\Stage;
 use App\Models\Supervisor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,7 +16,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'مرحلة اختبار الأحاديث']);
-    $this->circle = Circle::create(['name' => 'حلقة اختبار الأحاديث', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة اختبار الأحاديث', 'stage_id' => $this->stage->id]);
 
     $this->supervisor = Supervisor::factory()->create();
     $this->supervisor->stages()->attach($this->stage->id);
@@ -32,7 +33,7 @@ it('renders the hadiths management page for supervisors', function () {
 it('does not run a separate lines-count query per hadith in the list', function () {
     $this->actingAs($this->supervisor, 'supervisor');
 
-    $text = \App\Models\HadithText::create(['name' => 'متن الاختبار']);
+    $text = HadithText::create(['name' => 'متن الاختبار']);
     foreach (range(1, 15) as $i) {
         $hadith = Hadith::create(['name' => "حديث رقم {$i}", 'hadith_text_id' => $text->id]);
         HadithLine::create(['hadith_id' => $hadith->id, 'line_number' => 1, 'text' => 'سطر تجريبي']);

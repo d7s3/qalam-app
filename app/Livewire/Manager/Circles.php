@@ -91,7 +91,7 @@ class Circles extends Component
                 'stage_id' => $this->stage_id,
             ]);
             $circle->teachers()->sync($this->selectedTeachers);
-            Flux::toast(__('تم تحديث الحلقة بنجاح'), variant: 'success');
+            Flux::toast(__('تم تحديث الدفعة بنجاح'), variant: 'success');
         } else {
             $circle = Circle::create([
                 'name' => $this->name,
@@ -99,7 +99,7 @@ class Circles extends Component
                 'stage_id' => $this->stage_id,
             ]);
             $circle->teachers()->attach($this->selectedTeachers);
-            Flux::toast(__('تم إضافة الحلقة بنجاح'), variant: 'success');
+            Flux::toast(__('تم إضافة الدفعة بنجاح'), variant: 'success');
         }
 
         $this->reset(['name', 'description', 'stage_id', 'editingCircleId', 'selectedTeachers']);
@@ -128,14 +128,14 @@ class Circles extends Component
     {
         $circle = Circle::findOrFail($id);
         if ($circle->teachers()->count() > 0 || $circle->students()->count() > 0) {
-            Flux::toast(__('لا يمكن حذف الحلقة لاحتوائها على معلمين أو طلاب'), variant: 'danger');
+            Flux::toast(__('لا يمكن حذف الدفعة لاحتوائها على معلمين أو طلاب'), variant: 'danger');
 
             return;
         }
 
         $circle->delete();
         $this->loadData();
-        Flux::toast(__('تم حذف الحلقة بنجاح'), variant: 'success');
+        Flux::toast(__('تم حذف الدفعة بنجاح'), variant: 'success');
     }
 
     public function cancel()

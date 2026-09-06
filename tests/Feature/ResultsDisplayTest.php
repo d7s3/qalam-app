@@ -17,7 +17,7 @@ beforeEach(function () {
     Carbon::setTestNow('2026-07-15 10:00:00'); // Wednesday; week started Sunday 2026-07-12
 
     $this->stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $this->circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $this->stage->id]);
 
     $makeStudent = fn (string $email, string $name) => Student::create([
         'name' => $name,

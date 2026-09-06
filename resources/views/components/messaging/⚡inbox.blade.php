@@ -35,7 +35,7 @@ new class extends Component
         $me = MessagingService::currentParticipant();
 
         if (! MessagingService::isAllowedToMessage($me['type'], $me['id'], $type, $id)) {
-            Flux::toast('لا يمكنك مراسلة هذا الشخص — لا توجد علاقة تنظيمية بينكما (نفس الحلقة/الإشراف)', variant: 'danger');
+            Flux::toast('لا يمكنك مراسلة هذا الشخص — لا توجد علاقة تنظيمية بينكما (نفس الدفعة/الإشراف)', variant: 'danger');
 
             return;
         }
@@ -234,7 +234,7 @@ new class extends Component
                     <div class="text-center py-10 px-4">
                         <p class="text-sm text-zinc-400">{{ __('لا توجد نتائج.') }}</p>
                         @if(mb_strlen(trim($recipientSearch)) > 0)
-                            <p class="text-xs text-zinc-400 mt-1">{{ __('تقدر بس تراسل مين له علاقة تنظيمية بيك (نفس الحلقة/الإشراف).') }}</p>
+                            <p class="text-xs text-zinc-400 mt-1">{{ __('تقدر بس تراسل مين له علاقة تنظيمية بيك (نفس الدفعة/الإشراف).') }}</p>
                         @endif
                     </div>
                 @endforelse

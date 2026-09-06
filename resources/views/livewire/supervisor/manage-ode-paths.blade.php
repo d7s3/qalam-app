@@ -148,7 +148,7 @@
                         ->get();
 
                     $grouped = $students->groupBy(function($student) {
-                        return $student->circle->name ?? 'بلا حلقة';
+                        return $student->circle->name ?? 'بلا دفعة';
                     });
 
                     $allStudentIds = $students->pluck('id')->toArray();
@@ -192,7 +192,7 @@
                                            wire:click="toggleSelectCircle([{{ implode(',', $circleStudentIds) }}])"
                                            @if($isCircleAllSelected) checked @endif
                                            class="rounded text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-700 size-3.5" />
-                                    <span>تحديد الحلقة</span>
+                                    <span>تحديد الدفعة</span>
                                 </label>
                             </div>
 

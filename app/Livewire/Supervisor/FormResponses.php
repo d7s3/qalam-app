@@ -237,7 +237,7 @@ class FormResponses extends Component
     private function resolveEmail(?string $raw, bool $random): string
     {
         if ($random || ! $raw) {
-            return $this->ensureUniqueEmail('std_'.Str::random(6).'@altag-student.com');
+            return $this->ensureUniqueEmail('std_'.Str::random(6).'@unregistered.invalid');
         }
 
         if (str_contains($raw, '@')) {
@@ -249,7 +249,7 @@ class FormResponses extends Component
             $prefix = 'std_'.Str::random(6);
         }
 
-        return $this->ensureUniqueEmail($prefix.'@altag-student.com');
+        return $this->ensureUniqueEmail($prefix.'@unregistered.invalid');
     }
 
     private function ensureUniqueEmail(string $email): string
@@ -258,7 +258,7 @@ class FormResponses extends Component
             return $email;
         }
 
-        [$local, $domain] = str_contains($email, '@') ? explode('@', $email, 2) : [$email, 'altag-student.com'];
+        [$local, $domain] = str_contains($email, '@') ? explode('@', $email, 2) : [$email, 'unregistered.invalid'];
 
         for ($i = 0; $i < 5; $i++) {
             $candidate = $local.'_'.mt_rand(100, 999).'@'.$domain;
@@ -267,7 +267,7 @@ class FormResponses extends Component
             }
         }
 
-        return 'std_'.Str::random(8).'@altag-student.com';
+        return 'std_'.Str::random(8).'@unregistered.invalid';
     }
 
     /**
@@ -351,8 +351,8 @@ class FormResponses extends Component
             'targetCircleId' => ['nullable', Rule::in($this->supervisorCircleIds())],
             'targetStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
         ], [
-            'targetCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
-            'targetStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
+            'targetCircleId.in' => 'الدفعة المختارة خارج نطاق صلاحياتك.',
+            'targetStageId.in' => 'البرنامج المختار خارج نطاق صلاحياتك.',
         ]);
 
         $response = FormResponse::findOrFail($this->selectedResponseId);
@@ -541,8 +541,8 @@ class FormResponses extends Component
             'bulkCircleId' => ['nullable', Rule::in($this->supervisorCircleIds())],
             'bulkStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
         ], [
-            'bulkCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
-            'bulkStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
+            'bulkCircleId.in' => 'الدفعة المختارة خارج نطاق صلاحياتك.',
+            'bulkStageId.in' => 'البرنامج المختار خارج نطاق صلاحياتك.',
         ]);
 
         $created = 0;
@@ -570,8 +570,8 @@ class FormResponses extends Component
             'bulkCircleId' => ['nullable', Rule::in($this->supervisorCircleIds())],
             'bulkStageId' => ['nullable', Rule::in($this->supervisorStageIds())],
         ], [
-            'bulkCircleId.in' => 'الحلقة المختارة خارج نطاق صلاحياتك.',
-            'bulkStageId.in' => 'المرحلة المختارة خارج نطاق صلاحياتك.',
+            'bulkCircleId.in' => 'الدفعة المختارة خارج نطاق صلاحياتك.',
+            'bulkStageId.in' => 'البرنامج المختار خارج نطاق صلاحياتك.',
         ]);
 
         $edit = $this->reviewEdits[$responseId] ?? null;
@@ -801,7 +801,7 @@ class FormResponses extends Component
                 return $response->student->stage?->name ?? $response->student->circle?->stage?->name ?? '';
             }
             foreach ($this->form->fields as $field) {
-                if (str_contains($field['label'], 'مرحلة') || str_contains($field['label'], 'المرحلة')) {
+                if (str_contains($field['label'], 'برنامج') || str_contains($field['label'], 'البرنامج')) {
                     $answer = $response->answers[$field['id']] ?? '';
 
                     return is_array($answer) ? implode(' ', $answer) : (string) $answer;

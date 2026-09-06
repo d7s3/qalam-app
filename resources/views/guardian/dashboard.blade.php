@@ -1,6 +1,6 @@
 <x-layouts.role-shell>
     <x-slot:sidebar>
-        @include('guardian.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     <livewire:guardian.dashboard />

@@ -1,8 +1,8 @@
 <div class="space-y-8 pb-10" dir="rtl">
     <div class="flex items-center justify-between">
         <div>
-            <flux:heading size="xl" class="font-bold">متابعة تحضير الحلقات السنوي</flux:heading>
-            <flux:subheading>عرض حالة تحضير جميع الحلقات على مدار العام الهجري {{ $currentYear }}</flux:subheading>
+            <flux:heading size="xl" class="font-bold">متابعة تحضير الدفعات السنوي</flux:heading>
+            <flux:subheading>عرض حالة تحضير جميع الدفعات على مدار العام الهجري {{ $currentYear }}</flux:subheading>
         </div>
         <div class="flex items-center gap-2">
             <div class="flex items-center gap-1.5 text-xs">
@@ -120,7 +120,7 @@
                                 @if ($circle['teacher_phone'])
                                     @php
                                         $msg = urlencode(
-                                            "السلام عليكم ورحمة الله وبركاته، بخصوص تحضير الحلقة يوم $selectedDateHijri",
+                                            "السلام عليكم ورحمة الله وبركاته، بخصوص تحضير الدفعة يوم $selectedDateHijri",
                                         );
                                     @endphp
                                     <flux:button size="sm" variant="ghost" square

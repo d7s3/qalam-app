@@ -6,9 +6,12 @@ use App\Models\Role;
 use App\Models\RoleScreenPermission;
 use App\Models\Screen;
 use App\Models\Staff;
+use App\Models\Supervisor;
+use App\Support\Access;
+use App\Support\RoleHierarchy;
 use Livewire\Livewire;
 
-it('lets a manager create a custom role, grant it a screen, create a staff account, and see the granted screen previewed in the staff sidebar', function () {
+it('lets a manager create a custom role, grant it a screen, create a staff account, and open that screen', function () {
     $manager = Manager::factory()->create();
     $this->actingAs($manager, 'manager');
 
@@ -53,12 +56,62 @@ it('lets a manager create a custom role, grant it a screen, create a staff accou
 
     $this->assertAuthenticatedAs($staff, 'staff');
 
-    // 5. The granted (but not-yet-wired) screen shows up as a preview, and
-    // messaging works since it's guard-agnostic.
+    // 5. The granted screen is a link in his sidebar, and it opens. It used to
+    // be a label reading "coming soon": custom roles all ride the staff guard,
+    // no route existed to reach a page through it, and asking the access layer
+    // about "staff" asked about a role nobody holds — so a granted page could
+    // be granted and never opened.
     $this->get(route('staff.dashboard'))
         ->assertSuccessful()
         ->assertSee('تقارير الحضور والغياب')
-        ->assertSee('قريباً');
+        ->assertSee(route('staff.held', ['screen' => 'manager.attendance-reports']), false)
+        ->assertDontSee('قريباً');
+
+    $this->get(route('staff.held', ['screen' => 'manager.attendance-reports']))
+        ->assertSuccessful();
+
+    // And a screen he was never granted stays shut.
+    $this->get(route('staff.held', ['screen' => 'manager.circles']))
+        ->assertForbidden();
 
     $this->get(route('staff.messages'))->assertSuccessful();
+});
+
+it('lets a flavoured supervisor carry the supervisor and open his pages', function () {
+    // "مشرف علمي" and "مشرف تربوي" are the same office wearing different names
+    // and holding different pages. Neither needs a guard, a route file or a line
+    // of code: the role is created here, told what it carries, and the screens
+    // it does not need are taken off it.
+    $manager = Manager::factory()->create();
+    $this->actingAs($manager, 'manager');
+
+    Livewire::test('manager.role-permissions')
+        ->set('newRoleLabel', 'مشرف علمي')
+        ->call('createRole');
+
+    $role = Role::where('label', 'مشرف علمي')->firstOrFail();
+
+    RoleHierarchy::set(array_merge(RoleHierarchy::map(), [$role->key => ['supervisor']]));
+
+    $staff = Staff::factory()->create(['staff_role_id' => $role->id, 'is_approved' => true]);
+
+    // A page granted to the supervisor centrally, which he now holds by carrying
+    // the office rather than by being granted it a second time.
+    $screen = Screen::where('route_name', 'supervisor.forms')->firstOrFail();
+
+    expect(Access::canSee($staff, 'staff', $screen->route_name))->toBeTrue();
+
+    $this->actingAs($staff, 'staff')
+        ->get(route('staff.held', ['screen' => $screen->route_name]))
+        ->assertSuccessful();
+
+    // And taking one page off this flavour leaves every other supervisor alone.
+    Livewire::actingAs($manager, 'manager')
+        ->test('manager.role-permissions')
+        ->call('setActiveRole', $role->id)
+        ->call('toggle', $role->id, $screen->id);
+
+    Access::forget();
+
+    expect(Access::canSee(Supervisor::factory()->create(), 'supervisor', $screen->route_name))->toBeTrue();
 });

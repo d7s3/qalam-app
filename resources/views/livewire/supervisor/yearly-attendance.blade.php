@@ -5,8 +5,8 @@
                 <flux:icon icon="calendar" />
             </div>
             <div>
-                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">متابعة تحضير الحلقات السنوي</flux:heading>
-                <flux:subheading class="text-zinc-400">عرض حالة تحضير جميع الحلقات على مدار العام الهجري {{ $currentYear }}</flux:subheading>
+                <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">متابعة تحضير الدفعات السنوي</flux:heading>
+                <flux:subheading class="text-zinc-400">عرض حالة تحضير جميع الدفعات على مدار العام الهجري {{ $currentYear }}</flux:subheading>
             </div>
         </div>
         <div class="flex items-center gap-2">
@@ -151,7 +151,7 @@
                                         if (!str_starts_with($phone, '966')) {
                                             $phone = '966' . $phone;
                                         }
-                                        $msg = urlencode("السلام عليكم ورحمة الله وبركاته، بخصوص تحضير الحلقة يوم $selectedDateHijri");
+                                        $msg = urlencode("السلام عليكم ورحمة الله وبركاته، بخصوص تحضير الدفعة يوم $selectedDateHijri");
                                     @endphp
                                     <flux:button size="sm" variant="ghost" square
                                         href="https://wa.me/{{ $phone }}?text={{ $msg }}" target="_blank">

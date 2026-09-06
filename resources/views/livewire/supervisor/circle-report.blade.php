@@ -8,7 +8,7 @@
             </a>
             <div>
                 <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">
-                    تقرير الإنجاز — {{ $scope === 'stage' ? 'مرحلة '.$circle->stage->name : 'حلقة '.$circle->name }}
+                    تقرير الإنجاز — {{ $scope === 'stage' ? 'برنامج '.$circle->stage->name : 'دفعة '.$circle->name }}
                 </flux:heading>
                 <flux:subheading>
                     <x-hijri-date :date="$from" /> إلى <x-hijri-date :date="$to" />
@@ -31,8 +31,8 @@
     <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-xs p-4">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <flux:select label="نطاق التقرير" wire:model.live="scope">
-                <flux:select.option value="circle">حلقة {{ $circle->name }}</flux:select.option>
-                <flux:select.option value="stage">المرحلة كاملة ({{ $circle->stage->name }})</flux:select.option>
+                <flux:select.option value="circle">دفعة {{ $circle->name }}</flux:select.option>
+                <flux:select.option value="stage">البرنامج كاملاً ({{ $circle->stage->name }})</flux:select.option>
             </flux:select>
 
             <flux:select label="الطالب" wire:model.live="studentId">

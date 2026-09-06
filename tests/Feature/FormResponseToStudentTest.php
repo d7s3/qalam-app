@@ -17,7 +17,7 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'المرحلة الابتدائية']);
     $this->otherStage = Stage::create(['name' => 'المرحلة المتوسطة']);
-    $this->circle = Circle::create(['name' => 'حلقة الفجر', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة الفجر', 'stage_id' => $this->stage->id]);
 
     $this->supervisor = Supervisor::factory()->create();
     $this->supervisor->stages()->attach([$this->stage->id, $this->otherStage->id]);
@@ -66,7 +66,7 @@ it('maps all guessed fields from a response into the new student account', funct
 
     $student = Student::where('name', 'عمر فاروق')->first();
     expect($student)->not->toBeNull();
-    expect($student->email)->toBe('omar@altag-student.com');
+    expect($student->email)->toBe('omar@unregistered.invalid');
     expect($student->phone)->toBe('0501234567');
     expect($student->birth_date->toDateString())->toBe('2010-03-15');
     expect($student->nationality)->toBe('سعودي');
@@ -88,13 +88,13 @@ it('generates a random email when the random toggle is on', function () {
 
     $student = Student::where('name', 'طالب بلا بريد')->first();
     expect($student->email)->toStartWith('std_');
-    expect($student->email)->toEndWith('@altag-student.com');
+    expect($student->email)->toEndWith('@unregistered.invalid');
 });
 
 it('creates a student in a stage without a circle and resolves the effective stage', function () {
     $response = FormResponse::create([
         'form_id' => $this->form->id,
-        'answers' => ['f_name' => 'طالب بلا حلقة', 'f_email' => 'noc'],
+        'answers' => ['f_name' => 'طالب بلا دفعة', 'f_email' => 'noc'],
     ]);
 
     Livewire::test(FormResponses::class, ['formId' => $this->form->id])
@@ -103,7 +103,7 @@ it('creates a student in a stage without a circle and resolves the effective sta
         ->call('createStudentAccount')
         ->assertHasNoErrors();
 
-    $student = Student::where('name', 'طالب بلا حلقة')->first();
+    $student = Student::where('name', 'طالب بلا دفعة')->first();
     expect($student->circle_id)->toBeNull();
     expect($student->stage_id)->toBe($this->stage->id);
     expect($student->effective_stage_id)->toBe($this->stage->id);
@@ -112,7 +112,7 @@ it('creates a student in a stage without a circle and resolves the effective sta
 it('lets the circle win over a directly chosen stage (no divergence)', function () {
     $response = FormResponse::create([
         'form_id' => $this->form->id,
-        'answers' => ['f_name' => 'طالب بحلقة', 'f_email' => 'wc'],
+        'answers' => ['f_name' => 'طالب بدفعة', 'f_email' => 'wc'],
     ]);
 
     Livewire::test(FormResponses::class, ['formId' => $this->form->id])
@@ -122,7 +122,7 @@ it('lets the circle win over a directly chosen stage (no divergence)', function 
         ->call('createStudentAccount')
         ->assertHasNoErrors();
 
-    $student = Student::where('name', 'طالب بحلقة')->first();
+    $student = Student::where('name', 'طالب بدفعة')->first();
     expect($student->circle_id)->toBe($this->circle->id);
     expect($student->stage_id)->toBeNull();
     expect($student->fresh()->effective_stage_id)->toBe($this->stage->id); // the circle's stage
@@ -174,7 +174,7 @@ it('sorts bulk responses into ready and needs-review, and creates after manual r
 it('rejects placing a student into a stage or circle outside the supervisor scope', function () {
     // A stage/circle the supervisor is NOT assigned to.
     $foreignStage = Stage::create(['name' => 'مرحلة أخرى']);
-    $foreignCircle = Circle::create(['name' => 'حلقة بعيدة', 'stage_id' => $foreignStage->id]);
+    $foreignCircle = Circle::create(['name' => 'دفعة بعيدة', 'stage_id' => $foreignStage->id]);
 
     $response = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'طالب خارج النطاق', 'f_email' => 'oos']]);
 
@@ -218,7 +218,7 @@ it('only displays and filters by stages filled in the responses', function () {
     // Create a response with $this->stage (linked to student)
     $student = Student::create([
         'name' => 'طالب ابتدائي',
-        'email' => 'pri@altag-student.com',
+        'email' => 'pri@unregistered.invalid',
         'password' => bcrypt('password'),
         'stage_id' => $this->stage->id,
         'status' => 'registering',
@@ -351,7 +351,7 @@ it('toggles select-all across unprocessed responses', function () {
 it('shows circle-less stage-assigned students in the supervisor students list', function () {
     $student = Student::create([
         'name' => 'طالب مرحلة فقط',
-        'email' => 'stageonly@altag-student.com',
+        'email' => 'stageonly@unregistered.invalid',
         'password' => bcrypt('password'),
         'circle_id' => null,
         'stage_id' => $this->stage->id,
@@ -368,7 +368,7 @@ it('shows circle-less stage-assigned students in the supervisor students list', 
 it('bulk deletes circle-less stage-assigned students', function () {
     $student = Student::create([
         'name' => 'طالب للحذف',
-        'email' => 'todelete@altag-student.com',
+        'email' => 'todelete@unregistered.invalid',
         'password' => bcrypt('password'),
         'circle_id' => null,
         'stage_id' => $this->stage->id,

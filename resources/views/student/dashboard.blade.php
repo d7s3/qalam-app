@@ -4,7 +4,7 @@
     </x-slot:title>
 
     <x-slot:sidebar>
-        @include('student.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     <x-slot:bottomNav>

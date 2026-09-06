@@ -2,6 +2,46 @@
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-weeks'))
+    <flux:sidebar.item class="[&_svg]:bg-[#7c3aed]" icon="pencil-square" :href="route('manager.self-program-weeks')" :current="request()->routeIs('manager.self-program-weeks')" wire:navigate>
+        كتابة البرنامج الذاتي
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.student-log'))
+    <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6]" icon="book-open" :href="route('manager.student-log')" :current="request()->routeIs('manager.student-log')" wire:navigate>
+        السجل التربوي
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.portal'))
+    <flux:sidebar.item class="[&_svg]:bg-[#e11d48]" icon="megaphone" :href="route('manager.portal')" :current="request()->routeIs('manager.portal')" wire:navigate>
+        بوابة الرسائل
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.motivations'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b]" icon="sparkles" :href="route('manager.motivations')" :current="request()->routeIs('manager.motivations')" wire:navigate>
+        مستودع الشواهد
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-tracks'))
+    <flux:sidebar.item class="[&_svg]:bg-[#14b8a6] hover:[&_svg]:bg-[#0d9488]" icon="adjustments-horizontal" :href="route('manager.self-program-tracks')" :current="request()->routeIs('manager.self-program-tracks')" wire:navigate>
+        مجالات البرنامج الذاتي
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.period-values'))
+    <flux:sidebar.item class="[&_svg]:bg-[#d946ef] hover:[&_svg]:bg-[#c026d3]" icon="sparkles" :href="route('manager.period-values')" :current="request()->routeIs('manager.period-values')" wire:navigate>
+        قيم الفترة
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.event-visibility'))
+    <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="eye" :href="route('manager.event-visibility')" :current="request()->routeIs('manager.event-visibility')" wire:navigate>
+        رؤية الأحداث
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.my-day'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('manager.my-day')" :current="request()->routeIs('manager.my-day')" wire:navigate>
+        {{ __('يومي') }}
+    </flux:sidebar.item>
+@endif
 @php
     $managerUnreadMessages = \App\Services\MessagingService::unreadCountFor('manager', auth('manager')->id());
 @endphp
@@ -14,13 +54,18 @@
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.stages'))
     <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6] hover:[&_svg]:bg-[#7c3aed]" icon="rectangle-stack" :href="route('manager.stages')"
         :current="request()->routeIs('manager.stages')" wire:navigate>
-        المراحل التعليمية
+        البرامج
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-progress'))
+    <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="chart-bar-square" :href="route('manager.self-program-progress')" :current="request()->routeIs('manager.self-program-progress')" wire:navigate>
+        {{ __('تقدّم البرنامج') }}
     </flux:sidebar.item>
 @endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.circles'))
     <flux:sidebar.item class="[&_svg]:bg-[#0d9488] hover:[&_svg]:bg-[#0f766e]" icon="circle-stack" :href="route('manager.circles')" :current="request()->routeIs('manager.circles')"
         wire:navigate>
-        الحلقات
+        الدفعات
     </flux:sidebar.item>
 @endif
 <flux:sidebar.group heading="المستخدمين" class="grid">
@@ -69,7 +114,7 @@
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.yearly-attendance'))
         <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="calendar" :href="route('manager.yearly-attendance')"
             :current="request()->routeIs('manager.yearly-attendance')" wire:navigate>
-            متابعة تحضير الحلقات
+            متابعة تحضير الدفعات
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.academic-calendar'))
@@ -144,6 +189,10 @@
         wire:navigate>
         صلاحيات الصفحات
     </flux:sidebar.item>
+    <flux:sidebar.item class="[&_svg]:bg-[#0891b2] hover:[&_svg]:bg-[#0e7490]" icon="rectangle-group" :href="route('manager.stage-access')" :current="request()->routeIs('manager.stage-access')"
+        wire:navigate>
+        صلاحيات البرامج
+    </flux:sidebar.item>
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.staff-members'))
         <flux:sidebar.item class="[&_svg]:bg-[#7c3aed] hover:[&_svg]:bg-[#6d28d9]" icon="identification" :href="route('manager.staff-members')" :current="request()->routeIs('manager.staff-members')"
             wire:navigate>
@@ -158,3 +207,16 @@
         </flux:sidebar.item>
     @endif
 </flux:sidebar.group>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.user-access'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="shield-check" :href="route('manager.user-access')"
+        :current="request()->routeIs('manager.user-access')" wire:navigate>
+        صلاحيات المستخدمين
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.reports'))
+    <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="chart-bar-square" :href="route('manager.reports')" :current="request()->routeIs('manager.reports')" wire:navigate>
+        {{ __('التقارير') }}
+    </flux:sidebar.item>
+@endif
+
+<x-held-screens-nav />

@@ -17,7 +17,7 @@ class getOrganizationStructure implements Tool
      */
     public function description(): Stringable|string
     {
-        return 'Get the academy structure: every stage (مرحلة) with its supervisors, and every circle (حلقة) within it with its teachers and student counts by status. '
+        return 'Get the academy structure: every stage (برنامج) with its supervisors, and every circle (دفعة) within it with its teachers and student counts by status. '
             .'Call this first when a question involves stages, circles, who supervises or teaches where, or how students are distributed. '
             .'It also gives you the exact stage and circle names to pass as filters to the other tools.';
     }
@@ -68,7 +68,7 @@ class getOrganizationStructure implements Tool
             'مشارك' => 0,
             'تحت التسجيل' => 0,
             'موقوف' => 0,
-            'غادر الحلقات' => 0,
+            'غادر الدفعات' => 0,
         ];
 
         foreach ($rows ?? [] as $row) {
@@ -78,7 +78,7 @@ class getOrganizationStructure implements Tool
                 'active' => 'مشارك',
                 'registering' => 'تحت التسجيل',
                 'suspended' => 'موقوف',
-                'left' => 'غادر الحلقات',
+                'left' => 'غادر الدفعات',
                 default => null,
             };
 

@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Circle;
+use App\Support\Scope;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\StudentPlan;
@@ -42,7 +44,7 @@ new class extends Component {
         $this->keepAchievements = null;
 
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $this->studentsList = \App\Models\Student::whereIn('circle_id', $circleIds)->get();
 
         $plan = StudentPlan::with('days')->whereHas('student', function ($q) use ($circleIds) {
@@ -75,7 +77,7 @@ new class extends Component {
         $this->validate($rules, $messages);
 
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $plan = StudentPlan::with('days')->whereHas('student', function ($q) use ($circleIds) {
             $q->whereIn('circle_id', $circleIds);
         })->findOrFail($this->selectedPlanId);
@@ -122,7 +124,7 @@ new class extends Component {
     public function approvePlan($id)
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $plan = StudentPlan::whereHas('student', function ($q) use ($circleIds) {
             $q->whereIn('circle_id', $circleIds);
         })->findOrFail($id);
@@ -143,7 +145,7 @@ new class extends Component {
     public function deletePlan($id)
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $plan = StudentPlan::whereHas('student', function ($q) use ($circleIds) {
             $q->whereIn('circle_id', $circleIds);
         })->findOrFail($id);
@@ -154,7 +156,7 @@ new class extends Component {
     public function togglePlanStatus($id)
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $plan = StudentPlan::whereHas('student', function ($q) use ($circleIds) {
             $q->whereIn('circle_id', $circleIds);
         })->findOrFail($id);
@@ -167,7 +169,7 @@ new class extends Component {
     protected function selectedAuthorizedPlansQuery()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         return StudentPlan::whereHas('student', function ($q) use ($circleIds) {
             $q->whereIn('circle_id', $circleIds);
@@ -228,7 +230,7 @@ new class extends Component {
     public function with()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $studentIds = \App\Models\Student::whereIn('circle_id', $circleIds)
             ->when($this->search, function ($query) {

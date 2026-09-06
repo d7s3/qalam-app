@@ -9,7 +9,7 @@ use App\Ai\SurveyQuestionExtractor;
  */
 it('keeps a well-formed reply', function () {
     $fields = SurveyQuestionExtractor::sanitize(json_encode([
-        ['type' => 'section', 'label' => 'رضاك عن الحلقة', 'required' => true],
+        ['type' => 'section', 'label' => 'رضاك عن الدفعة', 'required' => true],
         ['type' => 'rating', 'label' => 'ما مدى رضاك؟', 'required' => true, 'max' => 5],
         ['type' => 'long_text', 'label' => 'اقتراحاتك', 'required' => false],
     ]));

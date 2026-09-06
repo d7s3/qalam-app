@@ -19,7 +19,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'مرحلة النماذج']);
-    $this->circle = Circle::create(['name' => 'حلقة النماذج', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة النماذج', 'stage_id' => $this->stage->id]);
 
     $this->supervisor = Supervisor::factory()->create();
     $this->supervisor->stages()->attach($this->stage->id);
@@ -258,7 +258,7 @@ it('allows supervisor to create a new student account from response with registe
 
     $newStudent = Student::where('name', 'خالد عبد الله')->first();
     expect($newStudent)->not->toBeNull();
-    expect($newStudent->email)->toBe('khaled99@altag-student.com');
+    expect($newStudent->email)->toBe('khaled99@unregistered.invalid');
     expect($newStudent->status)->toBe('registering');
     expect($newStudent->is_approved)->toBeFalse();
     expect($newStudent->circle_id)->toBe($this->circle->id);

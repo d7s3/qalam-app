@@ -7,6 +7,7 @@ use App\Models\Hadith;
 use App\Models\HadithPath;
 use App\Models\HadithPathDay;
 use App\Models\StudentHadithAchievement;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
@@ -47,11 +48,9 @@ class HadithPlanCreator extends Component
 
     public function mount(): void
     {
-        if (auth()->guard('supervisor')->check()) {
-            $this->userRole = 'supervisor';
-        } else {
-            $this->userRole = 'teacher';
-        }
+        // Captured once from the page this was opened on, and kept: a Livewire
+        // update names no role, and a person may hold both of these at once.
+        $this->userRole = Scope::resolveRole() === 'supervisor' ? 'supervisor' : 'teacher';
 
         $this->startDate = now()->format('Y-m-d');
 

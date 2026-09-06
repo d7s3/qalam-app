@@ -11,7 +11,7 @@
             <flux:icon icon="calendar" class="size-4 text-zinc-500" />
             <span><x-hijri-date :date="$leaderboard->start_date" /></span>
             <span class="text-zinc-400">-</span>
-            <span>{{ $leaderboard->end_date ? $leaderboard->end_date->format('Y-m-d') : __('الآن') }}</span>
+            <span>@if ($leaderboard->end_date)<x-hijri-date :date="$leaderboard->end_date" />@else{{ __('الآن') }}@endif</span>
         </div>
     </div>
 
@@ -70,7 +70,7 @@
                     @if($standings->isEmpty())
                         <tr>
                             <td colspan="100%" class="p-8 text-center text-zinc-500">
-                                {{ __('لا يوجد طلاب في هذه الحلقة بعد.') }}
+                                {{ __('لا يوجد طلاب في هذه الدفعة بعد.') }}
                             </td>
                         </tr>
                     @endif

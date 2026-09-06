@@ -25,7 +25,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->stage = Stage::create(['name' => 'مرحلة المتون']);
-    $this->circle = Circle::create(['name' => 'حلقة المتون', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة المتون', 'stage_id' => $this->stage->id]);
 
     $this->guardian = Guardian::factory()->create(['is_approved' => true]);
     $this->student = Student::factory()->create([

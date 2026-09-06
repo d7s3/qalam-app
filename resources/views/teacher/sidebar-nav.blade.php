@@ -3,6 +3,31 @@
         href="{{ route('teacher.dashboard') }}">
         {{ __('الرئيسية') }}
     </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.self-program-weeks'))
+    <flux:sidebar.item class="[&_svg]:bg-[#7c3aed]" icon="pencil-square" :href="route('teacher.self-program-weeks')" :current="request()->routeIs('teacher.self-program-weeks')" wire:navigate>
+        كتابة البرنامج الذاتي
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.student-log'))
+    <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6]" icon="book-open" :href="route('teacher.student-log')" :current="request()->routeIs('teacher.student-log')" wire:navigate>
+        السجل التربوي
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.portal'))
+    <flux:sidebar.item class="[&_svg]:bg-[#e11d48]" icon="megaphone" :href="route('teacher.portal')" :current="request()->routeIs('teacher.portal')" wire:navigate>
+        بوابة الرسائل
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.motivations'))
+    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b]" icon="sparkles" :href="route('teacher.motivations')" :current="request()->routeIs('teacher.motivations')" wire:navigate>
+        مستودع الشواهد
+    </flux:sidebar.item>
+@endif
+    @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.my-day'))
+        <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('teacher.my-day')" :current="request()->routeIs('teacher.my-day')" wire:navigate>
+            {{ __('يومي') }}
+        </flux:sidebar.item>
+    @endif
     @php
         $teacherUnreadMessages = \App\Services\MessagingService::unreadCountFor('teacher', auth('teacher')->id());
     @endphp
@@ -30,6 +55,12 @@
                 x-on:switch-tab.window="if($event.detail.tab === 'plan-creator') $el.setAttribute('data-current', 'true'); else $el.removeAttribute('data-current');"
                 href="{{ route('teacher.plan-creator') }}">
                 {{ __('إنشاء خطة طالب') }}
+            </flux:sidebar.item>
+        @endif
+        @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.self-program'))
+            <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="squares-2x2" wire:navigate
+                :href="route('teacher.self-program')" :current="request()->routeIs('teacher.self-program')">
+                {{ __('البرنامج الذاتي') }}
             </flux:sidebar.item>
         @endif
         @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.student-plans'))
@@ -71,7 +102,7 @@
                 x-bind:data-current="'{{ $initialTab ?? '' }}' === 'leaderboards' ? 'true' : null"
                 x-on:switch-tab.window="if($event.detail.tab === 'leaderboards') $el.setAttribute('data-current', 'true'); else $el.removeAttribute('data-current');"
                 href="{{ route('teacher.leaderboards') }}">
-                {{ __('مسابقات الحلقة') }}
+                {{ __('مسابقات الدفعة') }}
             </flux:sidebar.item>
         </flux:sidebar.group>
     @endif
@@ -121,3 +152,8 @@
         </flux:sidebar.item>
     @endif
 </flux:sidebar.group>
+        @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.reports'))
+            <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="chart-bar-square" :href="route('teacher.reports')" :current="request()->routeIs('teacher.reports')" wire:navigate>
+                {{ __('التقارير') }}
+            </flux:sidebar.item>
+        @endif

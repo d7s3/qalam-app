@@ -7,6 +7,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserRole extends Model
 {
+    /** The reach follows the role, as it did before any of this. */
+    public const SCOPE_ROLE = null;
+
+    /** The whole academy, whatever the role would have given. */
+    public const SCOPE_ALL = 'all';
+
+    /** Named programmes only. */
+    public const SCOPE_STAGES = 'stages';
+
+    /** Named cohorts only. */
+    public const SCOPE_CIRCLES = 'circles';
+
     protected $fillable = [
         'user_id',
         'role',
@@ -16,6 +28,8 @@ class UserRole extends Model
         'rejected_at',
         'rejected_by',
         'is_data_completed',
+        'scope_type',
+        'scope_ids',
     ];
 
     /**
@@ -30,6 +44,7 @@ class UserRole extends Model
             'is_rejected' => 'boolean',
             'rejected_at' => 'datetime',
             'is_data_completed' => 'boolean',
+            'scope_ids' => 'array',
         ];
     }
 

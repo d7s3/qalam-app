@@ -25,18 +25,18 @@ class UserGuideContent
             [
                 'heading' => 'الرئيسية',
                 'pages' => [
-                    ['title' => 'لوحة التحكم', 'route' => 'manager.dashboard', 'icon' => 'home', 'description' => 'نظرة عامة سريعة على حالة المجمع كله: عدد الطلاب والمعلمين والحلقات وأهم المؤشرات.'],
+                    ['title' => 'لوحة التحكم', 'route' => 'manager.dashboard', 'icon' => 'home', 'description' => 'نظرة عامة سريعة على حالة المجمع كله: عدد الطلاب والمعلمين والدفعات وأهم المؤشرات.'],
                     ['title' => 'الرسائل', 'route' => 'manager.messages', 'icon' => 'envelope', 'description' => 'محادثات مباشرة معك ومع أي مستخدم في المجمع — بصفتك المدير تقدر تراسل الجميع.'],
                 ],
             ],
             [
                 'heading' => 'المستخدمين',
                 'pages' => [
-                    ['title' => 'المراحل التعليمية', 'route' => 'manager.stages', 'icon' => 'rectangle-stack', 'description' => 'إنشاء وتعديل المراحل الدراسية (مثل المرحلة الأولى، الثانية...) وتوزيع المشرفين عليها.'],
-                    ['title' => 'الحلقات', 'route' => 'manager.circles', 'icon' => 'circle-stack', 'description' => 'إدارة حلقات التحفيظ: إنشاء حلقة جديدة، ربطها بمرحلة، وتعيين المعلمين المسؤولين عنها.'],
-                    ['title' => 'المشرفون', 'route' => 'manager.supervisors', 'icon' => 'users', 'description' => 'إدارة حسابات المشرفين وربط كل مشرف بالمراحل التي يشرف عليها.'],
-                    ['title' => 'المعلمون', 'route' => 'manager.teachers', 'icon' => 'users', 'description' => 'إدارة حسابات المعلمين، صلاحياتهم، والحلقات المسندة لكل معلم.'],
-                    ['title' => 'الطلاب', 'route' => 'manager.students', 'icon' => 'academic-cap', 'description' => 'إدارة بيانات الطلاب: الحلقة، الحالة، ولي الأمر، وتاريخ الالتحاق.'],
+                    ['title' => 'البرامج', 'route' => 'manager.stages', 'icon' => 'rectangle-stack', 'description' => 'إنشاء وتعديل البرامج الدراسية (مثل البرنامج الأول، الثاني...) وتوزيع المشرفين عليها.'],
+                    ['title' => 'الدفعات', 'route' => 'manager.circles', 'icon' => 'circle-stack', 'description' => 'إدارة دفعات التحفيظ: إنشاء دفعة جديدة، ربطها ببرنامج، وتعيين المعلمين المسؤولين عنها.'],
+                    ['title' => 'المشرفون', 'route' => 'manager.supervisors', 'icon' => 'users', 'description' => 'إدارة حسابات المشرفين وربط كل مشرف بالبرامج التي يشرف عليها.'],
+                    ['title' => 'المعلمون', 'route' => 'manager.teachers', 'icon' => 'users', 'description' => 'إدارة حسابات المعلمين، صلاحياتهم، والدفعات المسندة لكل معلم.'],
+                    ['title' => 'الطلاب', 'route' => 'manager.students', 'icon' => 'academic-cap', 'description' => 'إدارة بيانات الطلاب: الدفعة، الحالة، ولي الأمر، وتاريخ الالتحاق.'],
                     ['title' => 'الأوصياء', 'route' => 'manager.guardians', 'icon' => 'user-group', 'description' => 'إدارة حسابات أولياء الأمور وربطهم بأبنائهم الطلاب.'],
                     ['title' => 'طلبات التسجيل', 'route' => 'manager.pending-approvals', 'icon' => 'user-plus', 'description' => 'الموافقة أو الرفض لأي حساب جديد سجّل نفسه ذاتيًا من صفحة التسجيل العامة، وتحديد نوع حسابه الحقيقي (طالب، معلم...).'],
                 ],
@@ -51,8 +51,8 @@ class UserGuideContent
             [
                 'heading' => 'التقارير',
                 'pages' => [
-                    ['title' => 'تقارير الحضور والغياب', 'route' => 'manager.attendance-reports', 'icon' => 'chart-bar-square', 'description' => 'تقرير مفصّل بحضور وغياب الطلاب حسب الفترة والحلقة.'],
-                    ['title' => 'متابعة الحلقات السنوي', 'route' => 'manager.yearly-attendance', 'icon' => 'calendar', 'description' => 'نظرة سنوية شاملة على مدى التزام كل حلقة بتسجيل الحضور شهرًا بشهر.'],
+                    ['title' => 'تقارير الحضور والغياب', 'route' => 'manager.attendance-reports', 'icon' => 'chart-bar-square', 'description' => 'تقرير مفصّل بحضور وغياب الطلاب حسب الفترة والدفعة.'],
+                    ['title' => 'متابعة الدفعات السنوي', 'route' => 'manager.yearly-attendance', 'icon' => 'calendar', 'description' => 'نظرة سنوية شاملة على مدى التزام كل دفعة بتسجيل الحضور شهرًا بشهر.'],
                     ['title' => 'التقويم الأكاديمي', 'route' => 'manager.academic-calendar', 'icon' => 'calendar-days', 'description' => 'إضافة إجازات ومناسبات وفترات اختبارات، وتحديد أيام الدوام الفعلية المستخدمة في حسابات الحضور.'],
                     ['title' => 'المهام', 'route' => 'manager.tasks', 'icon' => 'clipboard-document-list', 'description' => 'قائمة مهامك الشخصية كمدير، بتواريخ استحقاق هجرية، وربطها بمناسبات التقويم عند الحاجة.'],
                     ['title' => 'تقرير الإنجاز القرآني', 'route' => 'manager.quranic-achievement', 'icon' => 'document-chart-bar', 'description' => 'تقرير شامل لمجموع ما تم حفظه ومراجعته من القرآن على مستوى المجمع كله خلال فترة معينة، وأفضل الطلاب إنجازًا.'],
@@ -90,15 +90,15 @@ class UserGuideContent
             [
                 'heading' => 'الرئيسية',
                 'pages' => [
-                    ['title' => 'لوحة التحكم', 'route' => 'supervisor.dashboard', 'icon' => 'home', 'description' => 'نظرة سريعة على مراحلك وحلقاتك ومعلميك وطلابك، ونسبة الحضور الأسبوعية.'],
+                    ['title' => 'لوحة التحكم', 'route' => 'supervisor.dashboard', 'icon' => 'home', 'description' => 'نظرة سريعة على برامجك ودفعاتك ومعلميك وطلابك، ونسبة الحضور الأسبوعية.'],
                     ['title' => 'الرسائل', 'route' => 'supervisor.messages', 'icon' => 'envelope', 'description' => 'محادثات مباشرة مع المعلمين والطلاب وأولياء الأمور ضمن نطاق إشرافك، والمدير.'],
                 ],
             ],
             [
                 'heading' => 'العملية التعليمية',
                 'pages' => [
-                    ['title' => 'الحلقات', 'route' => 'supervisor.circles', 'icon' => 'circle-stack', 'description' => 'إدارة الحلقات الواقعة ضمن المراحل التي تشرف عليها.'],
-                    ['title' => 'الطلاب', 'route' => 'supervisor.students', 'icon' => 'academic-cap', 'description' => 'عرض وإدارة طلاب حلقات مرحلتك، مع إجراءات جماعية (تغيير حلقة، تغيير حالة...).'],
+                    ['title' => 'الدفعات', 'route' => 'supervisor.circles', 'icon' => 'circle-stack', 'description' => 'إدارة الدفعات الواقعة ضمن البرامج التي تشرف عليها.'],
+                    ['title' => 'الطلاب', 'route' => 'supervisor.students', 'icon' => 'academic-cap', 'description' => 'عرض وإدارة طلاب دفعات برنامجك، مع إجراءات جماعية (تغيير دفعة، تغيير حالة...).'],
                     ['title' => 'المعلمون', 'route' => 'supervisor.teachers', 'icon' => 'users', 'description' => 'إدارة شؤون المعلمين في نطاق إشرافك، صلاحياتهم، والموافقة على حساباتهم.'],
                 ],
             ],
@@ -115,14 +115,14 @@ class UserGuideContent
             [
                 'heading' => 'التلعيب والمسابقات',
                 'pages' => [
-                    ['title' => 'المسابقات', 'route' => 'supervisor.competitions', 'icon' => 'trophy', 'description' => 'إنشاء مسابقة تقليدية (نقاط وترتيب) أو مسابقة تلعيب متكاملة (مستويات، فرق، متجر، أوسمة)، وتحديد الحلقات المشاركة.'],
+                    ['title' => 'المسابقات', 'route' => 'supervisor.competitions', 'icon' => 'trophy', 'description' => 'إنشاء مسابقة تقليدية (نقاط وترتيب) أو مسابقة تلعيب متكاملة (مستويات، فرق، متجر، أوسمة)، وتحديد الدفعات المشاركة.'],
                     ['title' => 'عرض الأوائل', 'route' => 'supervisor.competitions.standings', 'icon' => 'trophy', 'description' => 'عرض أفضل الطلاب ترتيبًا في كل مسار من مسارات مسابقة معينة.'],
                 ],
             ],
             [
                 'heading' => 'المتابعة والتقارير',
                 'pages' => [
-                    ['title' => 'متابعة الحلقات السنوي', 'route' => 'supervisor.yearly-attendance', 'icon' => 'calendar', 'description' => 'نظرة سنوية على مدى التزام حلقاتك بتسجيل الحضور.'],
+                    ['title' => 'متابعة الدفعات السنوي', 'route' => 'supervisor.yearly-attendance', 'icon' => 'calendar', 'description' => 'نظرة سنوية على مدى التزام دفعاتك بتسجيل الحضور.'],
                     ['title' => 'التقويم الأكاديمي', 'route' => 'supervisor.academic-calendar', 'icon' => 'calendar-days', 'description' => 'عرض ومتابعة مناسبات وإجازات التقويم الأكاديمي الخاصة بنطاقك.'],
                     ['title' => 'المهام', 'route' => 'supervisor.tasks', 'icon' => 'clipboard-document-list', 'description' => 'قائمة مهامك الشخصية كمشرف، بتواريخ استحقاق هجرية.'],
                     ['title' => 'لائحة التجاوزات', 'route' => 'supervisor.exceeded-limits', 'icon' => 'exclamation-triangle', 'description' => 'الطلاب الذين تجاوزوا حدود الغياب أو التأخير ضمن نطاق إشرافك.'],
@@ -144,14 +144,14 @@ class UserGuideContent
             [
                 'heading' => 'الرئيسية',
                 'pages' => [
-                    ['title' => 'لوحة التحكم', 'route' => 'teacher.dashboard', 'icon' => 'home', 'description' => 'نظرة سريعة على حلقتك: عدد الطلاب، المهام المعلّقة، وأهم التنبيهات.'],
+                    ['title' => 'لوحة التحكم', 'route' => 'teacher.dashboard', 'icon' => 'home', 'description' => 'نظرة سريعة على دفعتك: عدد الطلاب، المهام المعلّقة، وأهم التنبيهات.'],
                     ['title' => 'الرسائل', 'route' => 'teacher.messages', 'icon' => 'envelope', 'description' => 'محادثات مباشرة مع طلابك وأولياء أمورهم ومشرفك.'],
                 ],
             ],
             [
                 'heading' => 'الخطط القرآنية',
                 'pages' => [
-                    ['title' => 'إدارة الطلاب', 'route' => 'teacher.students', 'icon' => 'users', 'description' => 'عرض قائمة طلاب حلقتك وبياناتهم الأساسية.'],
+                    ['title' => 'إدارة الطلاب', 'route' => 'teacher.students', 'icon' => 'users', 'description' => 'عرض قائمة طلاب دفعتك وبياناتهم الأساسية.'],
                     ['title' => 'إنشاء خطة طالب', 'route' => 'teacher.plan-creator', 'icon' => 'pencil-square', 'description' => 'بناء خطة حفظ ومراجعة قرآنية جديدة لطالب معين: نطاق الحفظ، عدد الأيام، واتجاه الخطة.'],
                     ['title' => 'عرض الخطط المنشأة', 'route' => 'teacher.student-plans', 'icon' => 'clipboard-document-list', 'description' => 'قائمة كل خطط الحفظ التي أنشأتها لطلابك، مع إمكانية اعتمادها أو طباعتها أو تنزيلها PDF.'],
                     ['title' => 'التسميع والمتابعة', 'route' => 'teacher.tasmeeh', 'icon' => 'book-open', 'description' => 'الصفحة اليومية لتسميع الطلاب: تسجيل تقييم الحفظ والمراجعة (ممتاز/جيد/مقبول/لم يُسمّع) لكل طالب أولاً بأول.'],
@@ -167,7 +167,7 @@ class UserGuideContent
             [
                 'heading' => 'التحفيز والمنافسة',
                 'pages' => [
-                    ['title' => 'مسابقات الحلقة', 'route' => 'teacher.leaderboards', 'icon' => 'trophy', 'description' => 'عرض المسابقات النشطة المرتبطة بحلقتك.'],
+                    ['title' => 'مسابقات الدفعة', 'route' => 'teacher.leaderboards', 'icon' => 'trophy', 'description' => 'عرض المسابقات النشطة المرتبطة بدفعتك.'],
                     ['title' => 'رصد الدرجات', 'route' => 'teacher.grade-items', 'icon' => 'star', 'description' => 'تسجيل نقاط/درجات الطلاب في المسابقة النشطة حاليًا حسب بنود التقييم المحددة لها.'],
                 ],
             ],
@@ -180,7 +180,7 @@ class UserGuideContent
             [
                 'heading' => 'التحضير',
                 'pages' => [
-                    ['title' => 'سجل الحضور', 'route' => 'teacher.attendance', 'icon' => 'calendar', 'description' => 'تسجيل حضور طلاب الحلقة يوميًا (حاضر/غائب/متأخر/مستأذن)، بوضعين: تحضير تفاعلي سريع أو قائمة يدوية كاملة.'],
+                    ['title' => 'سجل الحضور', 'route' => 'teacher.attendance', 'icon' => 'calendar', 'description' => 'تسجيل حضور طلاب الدفعة يوميًا (حاضر/غائب/متأخر/مستأذن)، بوضعين: تحضير تفاعلي سريع أو قائمة يدوية كاملة.'],
                     ['title' => 'الانضباط الحضوري', 'route' => 'teacher.discipline', 'icon' => 'chart-bar', 'description' => 'إحصائية حضور وغياب كل طالب خلال فترة مختارة، مع قائمة بالأكثر تكرارًا في الغياب أو التأخير.'],
                     ['title' => 'الانضباط القرآني', 'route' => 'teacher.quranic-discipline', 'icon' => 'chart-pie', 'description' => 'إحصائية تقييمات الحفظ والمراجعة لكل طالب، لمعرفة من يحتاج متابعة أكثر في التسميع.'],
                     ['title' => 'لائحة التجاوزات', 'route' => 'teacher.exceeded-limits', 'icon' => 'exclamation-triangle', 'description' => 'طلابك الذين تجاوزوا حد الغياب أو التأخير المسموح.'],

@@ -84,22 +84,40 @@ new class extends Component {
         return $grouped;
     }
 
+    /**
+     * Who this person may put a task on.
+     *
+     * Was every supervisor and every teacher in the academy, whoever was asking.
+     * The chain of responsibility decides it now — a supervisor asks his own
+     * teachers and their students, a teacher his own students, nobody asks
+     * upward — and reach decides which of them are his.
+     */
     #[Computed]
     public function assignableUsers()
     {
-        $supervisors = \App\Models\Supervisor::all();
-        $teachers = \App\Models\Teacher::all();
+        $candidates = \App\Support\TaskAssignment::candidatesFor(\App\Support\Scope::forRoute());
 
-        return [
-            'App\Models\Supervisor' => [
-                'label' => 'المشرفون',
-                'users' => $supervisors,
-            ],
-            'App\Models\Teacher' => [
-                'label' => 'المعلمون',
-                'users' => $teachers,
-            ],
+        $groups = [
+            'App\Models\Supervisor' => ['label' => 'المشرفون', 'users' => collect()],
+            'App\Models\Teacher' => ['label' => 'المعلمون', 'users' => collect()],
+            'App\Models\Student' => ['label' => 'الطلاب', 'users' => collect()],
         ];
+
+        foreach ($candidates as $candidate) {
+            $roles = $candidate->roles->pluck('role');
+
+            // Placed under the most senior office the person holds, so a teacher
+            // who is also a supervisor is offered once, as a supervisor.
+            $type = match (true) {
+                $roles->contains('supervisor') => 'App\Models\Supervisor',
+                $roles->contains('teacher') => 'App\Models\Teacher',
+                default => 'App\Models\Student',
+            };
+
+            $groups[$type]['users'] = $groups[$type]['users']->push($candidate);
+        }
+
+        return collect($groups)->filter(fn (array $group) => $group['users']->isNotEmpty())->all();
     }
 
     public function sendTasksToTeachers()
@@ -319,6 +337,18 @@ new class extends Component {
     public function updateTaskAssignee($taskId, $type, $id)
     {
         $task = Task::findOrFail($taskId);
+
+        // Checked in the server and not only in the list the screen drew: a
+        // chosen id arrives from the browser and must be answered for.
+        if ($id && ! \App\Support\TaskAssignment::allows(
+            \App\Support\Scope::forRoute(),
+            \App\Models\User::findOrFail($id),
+        )) {
+            \Flux\Flux::toast('ليس لك أن تُسند مهمة إلى هذا الشخص.', variant: 'danger');
+
+            return;
+        }
+
         if ($this->canEdit($task)) {
             $task->update([
                 'assigned_to_type' => $type ?: null,
@@ -353,8 +383,37 @@ new class extends Component {
     {
         $task = Task::findOrFail($taskId);
         if ($this->canEdit($task)) {
-            $task->update(['due_date' => $date ?: null]);
+            // A date that moves clears the warning already given, so the new
+            // day is announced rather than passing in silence.
+            $task->update(['due_date' => $date ?: null, 'reminded_at' => null]);
         }
+    }
+
+    /** The task whose date is being set, for the reminder control beside it. */
+    #[Computed]
+    public function selectedDueDateTask(): ?Task
+    {
+        return $this->selectingDueDateTaskId ? Task::find($this->selectingDueDateTaskId) : null;
+    }
+
+    /**
+     * How many days ahead its holder wants warning; none means no warning.
+     */
+    public function updateTaskReminder($taskId, $days)
+    {
+        $task = Task::findOrFail($taskId);
+
+        if (! $this->canEdit($task)) {
+            return;
+        }
+
+        $days = $days === '' || $days === null ? null : max(0, min(30, (int) $days));
+
+        $task->update(['remind_days_before' => $days, 'reminded_at' => null]);
+
+        unset($this->selectedDueDateTask);
+
+        Flux::toast($days === null ? 'أُلغي التنبيه.' : "سيصل تنبيه قبل {$days} يوماً.", variant: 'success');
     }
 
     public function syncTaskEvents($taskId, $eventIds)
@@ -1241,6 +1300,25 @@ new class extends Component {
                     @endif
                 </div>
             </div>
+
+            {{-- التنبيه قبل الموعد --}}
+            @if ($this->selectedDueDateTask)
+                <div class="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                    <div class="text-sm font-bold text-zinc-700 dark:text-zinc-200 mb-1">تنبيه قبل الموعد</div>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
+                        يصل التنبيه مرة واحدة صباح اليوم المحدَّد، ولا يتكرّر بعده.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach ([null => 'بلا تنبيه', 1 => 'قبل يوم', 3 => 'قبل ٣ أيام', 7 => 'قبل أسبوع'] as $days => $label)
+                            <flux:button wire:key="rem-{{ $days ?? 'none' }}" size="sm"
+                                :variant="($this->selectedDueDateTask->remind_days_before ?? null) === $days ? 'primary' : 'filled'"
+                                wire:click="updateTaskReminder({{ $this->selectingDueDateTaskId }}, '{{ $days }}')">
+                                {{ $label }}
+                            </flux:button>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             <div class="flex justify-between mt-4">
                 <flux:button wire:click="selectDueDate('')" variant="danger" size="sm">إزالة التاريخ

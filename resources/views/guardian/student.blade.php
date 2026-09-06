@@ -1,6 +1,6 @@
 <x-layouts.role-shell>
     <x-slot:sidebar>
-        @include('guardian.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     @php
@@ -90,7 +90,7 @@
             </a>
             <div>
                 <h1 class="text-xl font-bold text-zinc-900 dark:text-white">{{ $student->name }}</h1>
-                <p class="text-sm text-zinc-500">{{ $student->circle?->name ?? 'لم تُحدَّد حلقة' }}</p>
+                <p class="text-sm text-zinc-500">{{ $student->circle?->name ?? 'لم تُحدَّد دفعة' }}</p>
             </div>
         </div>
 
@@ -120,7 +120,7 @@
                     class="text-sm font-bold {{ $student->is_approved ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400' }}">
                     {{ $student->is_approved ? 'معتمد' : 'قيد الانتظار' }}
                 </p>
-                <p class="text-xs text-zinc-400 mt-1">{{ $student->joined_at?->format('Y/m/d') ?? '—' }}</p>
+                <p class="text-xs text-zinc-400 mt-1"><x-hijri-date :date="$student->joined_at" /></p>
             </div>
         </div>
 

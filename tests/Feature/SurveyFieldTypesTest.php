@@ -75,8 +75,8 @@ it('lets the builder save a satisfaction survey', function () {
         ->set('title', 'رضا أولياء الأمور')
         ->set('slug', 'guardian-satisfaction')
         ->set('fields', [
-            scaleField('section', ['label' => 'الحلقة', 'required' => false]),
-            scaleField('rating', ['label' => 'ما مدى رضاك عن الحلقة؟']),
+            scaleField('section', ['label' => 'الدفعة', 'required' => false]),
+            scaleField('rating', ['label' => 'ما مدى رضاك عن الدفعة؟']),
             scaleField('likert', ['label' => 'المعلم متعاون']),
             scaleField('nps', ['label' => 'هل ترشّح الأكاديمية؟']),
             scaleField('yesno', ['label' => 'هل تواصل معك المعلم؟']),
@@ -195,7 +195,7 @@ it('leaves an optional scale blank without complaint', function () {
 
 it('renders the satisfaction questions on the public page', function () {
     $form = surveyWith([
-        scaleField('section', ['label' => 'رضاك عن الحلقة', 'required' => false]),
+        scaleField('section', ['label' => 'رضاك عن الدفعة', 'required' => false]),
         scaleField('rating', ['label' => 'ما مدى رضاك؟']),
         scaleField('likert', ['label' => 'المعلم متعاون']),
         scaleField('nps', ['label' => 'هل ترشّح الأكاديمية؟']),
@@ -203,7 +203,7 @@ it('renders the satisfaction questions on the public page', function () {
 
     $this->get(route('forms.submit', $form->slug))
         ->assertSuccessful()
-        ->assertSee('رضاك عن الحلقة')
+        ->assertSee('رضاك عن الدفعة')
         ->assertSee('ما مدى رضاك؟')
         ->assertSee('موافق بشدة')
         ->assertSee('لا أُرشّح إطلاقاً');

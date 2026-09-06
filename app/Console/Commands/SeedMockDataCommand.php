@@ -30,7 +30,7 @@ class SeedMockDataCommand extends Command
         // Ensure we have at least one circle and teacher
         $circle = Circle::first();
         if (! $circle) {
-            $circle = Circle::factory()->create(['name' => 'حلقة التجربة']);
+            $circle = Circle::factory()->create(['name' => 'دفعة التجربة']);
         }
 
         $teacher = Teacher::first();

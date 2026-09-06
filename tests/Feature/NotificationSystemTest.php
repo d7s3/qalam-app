@@ -1,10 +1,10 @@
 <?php
 
 use App\Models\AppNotification;
+use App\Models\Ayah;
 use App\Models\Circle;
 use App\Models\Conversation;
 use App\Models\ExamLevel;
-use App\Models\Guardian;
 use App\Models\Manager;
 use App\Models\Stage;
 use App\Models\Student;
@@ -12,7 +12,6 @@ use App\Models\StudentExam;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\Surah;
-use App\Models\Ayah;
 use App\Models\Teacher;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -34,7 +33,7 @@ beforeEach(function () {
     ]);
 
     $this->stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $this->circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $this->stage->id]);
+    $this->circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $this->stage->id]);
 
     $this->teacher = Teacher::factory()->create();
     $this->teacher->circles()->attach($this->circle->id);

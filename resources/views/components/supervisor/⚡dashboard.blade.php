@@ -68,8 +68,8 @@ new class extends Component
     </div>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <x-student.partials.stat-card icon="rectangle-stack" :label="__('المراحل التعليمية')" :value="$stagesCount" accent-class="bg-indigo-500/10 text-indigo-600" />
-        <x-student.partials.stat-card icon="circle-stack" :label="__('الحلقات')" :value="$circlesCount" accent-class="bg-teal-500/10 text-teal-600" />
+        <x-student.partials.stat-card icon="rectangle-stack" :label="__('البرامج')" :value="$stagesCount" accent-class="bg-indigo-500/10 text-indigo-600" />
+        <x-student.partials.stat-card icon="circle-stack" :label="__('الدفعات')" :value="$circlesCount" accent-class="bg-teal-500/10 text-teal-600" />
         <x-student.partials.stat-card icon="users" :label="__('المعلمون')" :value="$teachersCount" accent-class="bg-blue-500/10 text-blue-600" />
         <x-student.partials.stat-card icon="academic-cap" :label="__('الطلاب')" :value="$studentsCount" accent-class="bg-purple-500/10 text-purple-600" />
     </div>
@@ -108,11 +108,11 @@ new class extends Component
 
     <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
         <div class="p-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-            <flux:heading size="sm">{{ __('الحلقات') }}</flux:heading>
+            <flux:heading size="sm">{{ __('الدفعات') }}</flux:heading>
             <flux:link :accent="false" :href="route('supervisor.circles')" wire:navigate>{{ __('عرض الكل') }}</flux:link>
         </div>
         @if($recentCircles->isEmpty())
-            <p class="text-sm text-zinc-400 text-center py-10">{{ __('لا توجد حلقات ضمن نطاق إشرافك بعد') }}</p>
+            <p class="text-sm text-zinc-400 text-center py-10">{{ __('لا توجد دفعات ضمن نطاق إشرافك بعد') }}</p>
         @else
             <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
                 @foreach($recentCircles as $circle)

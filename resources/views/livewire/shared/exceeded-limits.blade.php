@@ -24,7 +24,7 @@
             <flux:table class="w-full">
                 <flux:table.columns>
                     <flux:table.column>الطالب</flux:table.column>
-                    <flux:table.column>الحلقة</flux:table.column>
+                    <flux:table.column>الدفعة</flux:table.column>
                     <flux:table.column class="text-center">الغياب (أكثر من {{ $absenceLimit - 1 }})</flux:table.column>
                     <flux:table.column class="text-center">التأخر (أكثر من {{ $latenessLimit - 1 }})</flux:table.column>
                     <flux:table.column class="text-center">التواصل</flux:table.column>

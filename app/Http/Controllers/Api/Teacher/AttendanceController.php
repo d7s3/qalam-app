@@ -55,7 +55,7 @@ class AttendanceController extends Controller
 
             if (! $circle) {
                 return response()->json([
-                    'message' => 'غير مصرح لك بالوصول لهذه الحلقة.',
+                    'message' => 'غير مصرح لك بالوصول لهذه الدفعة.',
                 ], 403);
             }
 
@@ -130,7 +130,7 @@ class AttendanceController extends Controller
             $circle = $teacher->circles()->where('circles.id', $request->circle_id)->first();
             if (! $circle) {
                 return response()->json([
-                    'message' => 'غير مصرح لك بالوصول لهذه الحلقة.',
+                    'message' => 'غير مصرح لك بالوصول لهذه الدفعة.',
                 ], 403);
             }
         }

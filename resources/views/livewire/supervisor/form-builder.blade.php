@@ -43,7 +43,7 @@
                     </label>
 
                     @if($roleKey !== 'manager')
-                        <div class="text-[11px] text-zinc-400">أو حدّد مراحل بعينها:</div>
+                        <div class="text-[11px] text-zinc-400">أو حدّد برامج بعينها:</div>
                         <div class="max-h-24 overflow-auto space-y-1 pr-1">
                             @foreach($stages as $stage)
                                 <label class="flex items-center gap-2 cursor-pointer text-xs">
@@ -169,7 +169,7 @@
                         <input type="checkbox" wire:model="is_supervisor_shared" class="rounded border-zinc-300 text-accent focus:ring-accent" />
                         <span class="text-zinc-700 dark:text-zinc-300 font-semibold">نموذج عام للمشرفين</span>
                     </label>
-                    <p class="text-xs text-zinc-500 mt-1">عند تفعيله، يمكن لأي مشرف الدخول إلى هذا النموذج والتعديل عليه وإنشاء حسابات الطلاب ضمن مرحلته وحلقاته هو.</p>
+                    <p class="text-xs text-zinc-500 mt-1">عند تفعيله، يمكن لأي مشرف الدخول إلى هذا النموذج والتعديل عليه وإنشاء حسابات الطلاب ضمن برنامجه ودفعاته هو.</p>
                 </div>
             </div>
         </div>
@@ -227,7 +227,7 @@
                                     <flux:field>
                                         <flux:label>{{ $isLayout ? 'عنوان القسم *' : 'اسم الحقل (السؤال) *' }}</flux:label>
                                         <flux:input wire:model="fields.{{ $index }}.label"
-                                            placeholder="{{ $isLayout ? 'مثال: رضاك عن الحلقة' : 'مثال: الاسم الكامل للطالب' }}" />
+                                            placeholder="{{ $isLayout ? 'مثال: رضاك عن الدفعة' : 'مثال: الاسم الكامل للطالب' }}" />
                                         <flux:error name="fields.{{ $index }}.label" />
                                     </flux:field>
                                 </div>
@@ -355,7 +355,7 @@
                 <flux:field>
                     <flux:label>الأسئلة</flux:label>
                     <flux:textarea wire:model="pastedQuestions" rows="10" class="font-mono text-sm"
-                        placeholder="رضاك عن الحلقة:&#10;1. ما مدى رضاك عن أداء المعلم؟&#10;2. هل تواصل معك المعلم؟&#10;3. ما الجهاز الذي تستخدمه؟&#10;- جوال&#10;- حاسب&#10;&#10;٤- اقتراحاتك لتطوير الحلقة" />
+                        placeholder="رضاك عن الدفعة:&#10;1. ما مدى رضاك عن أداء المعلم؟&#10;2. هل تواصل معك المعلم؟&#10;3. ما الجهاز الذي تستخدمه؟&#10;- جوال&#10;- حاسب&#10;&#10;٤- اقتراحاتك لتطوير الدفعة" />
                 </flux:field>
 
                 <div class="text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 space-y-1">

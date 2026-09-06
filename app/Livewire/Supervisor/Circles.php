@@ -91,7 +91,7 @@ class Circles extends Component
     {
         $stages = $this->getSupervisorStages();
         if ($stages->isEmpty()) {
-            Flux::toast(__('عذراً، لا توجد مراحل تعليمية مخصصة لك لإضافة حلقة.'), variant: 'danger');
+            Flux::toast(__('عذراً، لا توجد برامج تعليمية مخصّصة لك لإضافة دفعة.'), variant: 'danger');
 
             return;
         }
@@ -162,14 +162,14 @@ class Circles extends Component
                 'description' => $this->description,
                 'stage_id' => $this->stage_id,
             ]);
-            $message = __('تم تحديث الحلقة بنجاح');
+            $message = __('تم تحديث الدفعة بنجاح');
         } else {
             $circle = Circle::create([
                 'name' => $this->name,
                 'description' => $this->description,
                 'stage_id' => $this->stage_id,
             ]);
-            $message = __('تم إضافة الحلقة بنجاح');
+            $message = __('تم إضافة الدفعة بنجاح');
 
             // Re-fetch circleIds after creating the new circle so it can assign teachers
             $circleIds = $this->getSupervisorCircleIds();

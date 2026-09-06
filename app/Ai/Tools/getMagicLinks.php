@@ -156,8 +156,8 @@ class getMagicLinks implements Tool
         return [
             'role' => $schema->string()->enum(['student', 'teacher', 'supervisor', 'guardian'])->required(),
             'search' => $schema->string()->description('Part of a name or email to search for.'),
-            'circle' => $schema->string()->description('Circle name (حلقة). Students and teachers.'),
-            'stage' => $schema->string()->description('Stage name (مرحلة).'),
+            'circle' => $schema->string()->description('Circle name (دفعة). Students and teachers.'),
+            'stage' => $schema->string()->description('Stage name (برنامج).'),
             'only_without_link' => $schema->boolean()->description('Only accounts that have never been issued a link.'),
             'limit' => $schema->integer()->description('Maximum people to return. Defaults to 100, maximum 300.'),
         ];

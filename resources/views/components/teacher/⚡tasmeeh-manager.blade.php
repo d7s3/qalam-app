@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Circle;
+use App\Support\Scope;
 use Livewire\Component;
 use App\Models\Student;
 use App\Models\StudentPlan;
@@ -44,7 +46,7 @@ new class extends Component {
     public function with()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $students = Student::whereIn('circle_id', $circleIds)
             ->where('status', 'active')
@@ -194,7 +196,7 @@ new class extends Component {
     protected function findSharedSession()
     {
         $teacher = Auth::guard('teacher')->user();
-        $circleIds = $teacher->circles()->pluck('circles.id');
+        $circleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
 
         $coTeacherIds = \Illuminate\Support\Facades\DB::table('circle_teacher')
             ->whereIn('circle_id', $circleIds)

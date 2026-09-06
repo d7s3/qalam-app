@@ -23,7 +23,7 @@ it('loads every supervisor page without error', function () {
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
     $supervisor->stages()->attach($stage->id);
 
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
 
     $teacher = Teacher::factory()->create(['is_approved' => true]);
     $teacher->circles()->attach($circle->id);

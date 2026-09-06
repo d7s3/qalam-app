@@ -14,7 +14,7 @@
             <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن معلم..." />
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الحلقة">
+            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة">
                 <flux:select.option value="all">الكل</flux:select.option>
                 @foreach($circles as $circle)
                     <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
@@ -51,7 +51,7 @@
         <flux:table class="w-full">
             <flux:table.columns>
                 <flux:table.column>{{ __('المعلم') }}</flux:table.column>
-                <flux:table.column class="hidden md:table-cell">{{ __('الحلقات') }}</flux:table.column>
+                <flux:table.column class="hidden md:table-cell">{{ __('الدفعات') }}</flux:table.column>
                 <flux:table.column class="hidden md:table-cell">{{ __('حالة البيانات') }}</flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
             </flux:table.columns>
@@ -77,7 +77,7 @@
                                 @forelse($teacher->circles as $circle)
                                     <flux:badge size="sm" variant="neutral">{{ $circle->name }}</flux:badge>
                                 @empty
-                                    <span class="text-xs text-zinc-400">لا يوجد حلقات</span>
+                                    <span class="text-xs text-zinc-400">لا يوجد دفعات</span>
                                 @endforelse
                             </div>
                         </flux:table.cell>
@@ -139,7 +139,7 @@
                         </div>
 
                         <div class="space-y-2">
-                            <flux:heading size="sm">{{ __('تعيين الحلقات') }}</flux:heading>
+                            <flux:heading size="sm">{{ __('تعيين الدفعات') }}</flux:heading>
                             <div
                                 class="flex flex-col gap-2 max-h-48 overflow-y-auto p-3 border border-zinc-100 rounded-xl dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
                                 @foreach ($circles as $circle)

@@ -180,7 +180,7 @@ class getPeopleDirectory implements Tool
             'مشارك' => 'active',
             'تحت التسجيل' => 'registering',
             'موقوف' => 'suspended',
-            'غادر الحلقات' => 'left',
+            'غادر الدفعات' => 'left',
             default => $status,
         };
     }
@@ -191,7 +191,7 @@ class getPeopleDirectory implements Tool
             'active' => 'مشارك',
             'registering' => 'تحت التسجيل',
             'suspended' => 'موقوف',
-            'left' => 'غادر الحلقات',
+            'left' => 'غادر الدفعات',
             default => $status,
         };
     }
@@ -204,11 +204,11 @@ class getPeopleDirectory implements Tool
         return [
             'role' => $schema->string()->enum(['student', 'teacher', 'supervisor', 'guardian'])->required(),
             'search' => $schema->string()->description('Part of a name or email to search for.'),
-            'circle' => $schema->string()->description('Circle name (حلقة). Students and teachers only.'),
-            'stage' => $schema->string()->description('Stage name (مرحلة). Not applicable to guardians.'),
+            'circle' => $schema->string()->description('Circle name (دفعة). Students and teachers only.'),
+            'stage' => $schema->string()->description('Stage name (برنامج). Not applicable to guardians.'),
             'status' => $schema->string()
                 ->enum(['active', 'registering', 'suspended', 'left'])
-                ->description('Student status: active=مشارك, registering=تحت التسجيل, suspended=موقوف, left=غادر الحلقات.'),
+                ->description('Student status: active=مشارك, registering=تحت التسجيل, suspended=موقوف, left=غادر الدفعات.'),
             'limit' => $schema->integer()->description('Maximum people to return. Defaults to 100, maximum 300.'),
         ];
     }

@@ -1,10 +1,10 @@
 <x-layouts.role-shell>
     <x-slot:title>
-        {{ __('إدارة المراحل') }}
+        {{ __('إدارة البرامج') }}
     </x-slot:title>
 
     <x-slot:sidebar>
-        @include('manager.sidebar-nav')
+        <x-role-sidebar />
     </x-slot:sidebar>
 
     <livewire:manager.stages />

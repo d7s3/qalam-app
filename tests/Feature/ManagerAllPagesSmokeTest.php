@@ -24,7 +24,7 @@ it('loads every manager page without error', function () {
     $manager = Manager::factory()->create();
 
     $stage = Stage::create(['name' => 'المرحلة الأولى']);
-    $circle = Circle::create(['name' => 'حلقة النور', 'stage_id' => $stage->id]);
+    $circle = Circle::create(['name' => 'دفعة النور', 'stage_id' => $stage->id]);
 
     $teacher = Teacher::factory()->create(['is_approved' => true]);
     $teacher->circles()->attach($circle->id);

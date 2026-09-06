@@ -231,8 +231,21 @@ class MemorizationJourneyService
     public static function activityDatesForMonth(Student $student, int $year, int $month): array
     {
         $start = Carbon::create($year, $month, 1)->startOfMonth();
-        $end = $start->copy()->endOfMonth();
 
+        return self::activityDatesBetween($student, $start, $start->copy()->endOfMonth());
+    }
+
+    /**
+     * The days a student did something between two dates.
+     *
+     * Taken over a range rather than a Gregorian month because a Hijri month —
+     * which is what the calendar draws — begins and ends in the middle of two
+     * of them.
+     *
+     * @return array<int, string>
+     */
+    public static function activityDatesBetween(Student $student, $start, $end): array
+    {
         $attendanceDates = Attendance::where('student_id', $student->id)
             ->whereIn('status', ['present', 'late'])
             ->whereBetween('date', [$start, $end])

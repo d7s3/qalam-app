@@ -149,8 +149,8 @@ class getAttendanceData implements Tool
         return [
             'from' => $schema->string()->description('Start of the range (Y-m-d).'),
             'to' => $schema->string()->description('End of the range (Y-m-d).'),
-            'circle' => $schema->string()->description('Circle name (حلقة), or part of it.'),
-            'stage' => $schema->string()->description('Stage name (مرحلة), or part of it.'),
+            'circle' => $schema->string()->description('Circle name (دفعة), or part of it.'),
+            'stage' => $schema->string()->description('Stage name (برنامج), or part of it.'),
             'student' => $schema->string()->description('Student name, or part of it.'),
             'summary' => $schema->boolean()->description('Return status counts per circle instead of the name-by-name list.'),
         ];

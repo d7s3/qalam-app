@@ -157,8 +157,8 @@ class Competitions extends Component
     }
 
     protected $messages = [
-        'selectedCircles.required' => 'يجب اختيار حلقة واحدة على الأقل.',
-        'selectedCircles.min' => 'يجب اختيار حلقة واحدة على الأقل.',
+        'selectedCircles.required' => 'يجب اختيار دفعة واحدة على الأقل.',
+        'selectedCircles.min' => 'يجب اختيار دفعة واحدة على الأقل.',
     ];
 
     public function mount(): void

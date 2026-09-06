@@ -64,7 +64,7 @@
         <div class="flex justify-between gap-2 text-xs font-semibold container mx-auto">
             <div class="flex justify-center items-end border border-zinc-200 rounded-4xl p-5 pt-3">
                 <div class="flex justify-start items-end w-26">
-                    <img src="{{ asset('images/altag_logo.png') }}" alt="Logo" class="h-26 object-contain" />
+                    <img src="{{ asset(config('brand.logo')) }}" alt="Logo" class="h-26 object-contain" />
                 </div>
                 <div class="flex flex-col items-start">
                     <h1 class="text-lg  mb-2">
@@ -85,7 +85,7 @@
             <div class="flex flex-col justify-around border border-zinc-200 rounded-4xl py-7 px-3">
                 <div class="flex flex-wrap justify-start items-cend gap-2 w-full">
                     <div class="flex items-end">
-                        <span class="text-zinc-500 ml-1">الحلقة:</span>
+                        <span class="text-zinc-500 ml-1">الدفعة:</span>
                         <span>{{ $plan->student->circle->name ?? 'غير محدد' }}</span>
                     </div>
 
@@ -97,7 +97,7 @@
                 <div class="flexflex-wrap justify-start gap-2 w-full">
                     <div class="">
                         <span class="text-zinc-500 ml-1">التاريخ:</span>
-                        <span>{{ \App\Support\HijriDate::full($plan->start_date) }}</span>
+                        <span><x-hijri-date :date="$plan->start_date" /></span>
                     </div>
                 </div>
             </div>
@@ -126,7 +126,7 @@
             <tbody>
                 @foreach($plan->days as $day)
                     <tr class=" @if($day->day_name == 'الأحد') print-sunday @endif">
-                        <td class="py-2 px-1 text-[11px] text-zinc-600 ">{{ \App\Support\HijriDate::full($day->date) }}
+                        <td class="py-2 px-1 text-[11px] text-zinc-600 "><x-hijri-date :date="$day->date" />
                         </td>
                         <td class="py-2 px-1 text-[11px] bg-zinc-50/50">{{ $day->day_name }}</td>
 
@@ -151,8 +151,7 @@
     </div>
 
     <hr class="my-4">
-    <p class="text-center text-xs text-zinc-500">جدة - حي الواحة - جامع الزبيدي - حلقات التاج القرآنية التابعة لجمعية
-        خيركم لتعليم القرآن الكريم</p>
+    <p class="text-center text-xs text-zinc-500">{{ config('brand.address') }}</p>
 </body>
 
 </html>
