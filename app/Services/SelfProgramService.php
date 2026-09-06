@@ -28,7 +28,11 @@ class SelfProgramService
     public const ENRICHMENT_THRESHOLD = 50.0;
 
     /**
-     * The week whose dates cover a day, for the stage a student belongs to.
+     * The week whose dates cover a day for a student.
+     *
+     * Written for his programme by the supervisor, or for his cohort alone by
+     * his teacher. Where both cover the day the cohort's wins: it is the more
+     * particular of the two, and it is the one his own teacher wrote.
      */
     public function currentWeek(Student $student, ?CarbonInterface $on = null): ?SelfProgramWeek
     {
@@ -39,9 +43,16 @@ class SelfProgramService
         }
 
         return SelfProgramWeek::self()
-            ->where('stage_id', $student->effective_stage_id)
+            ->where(function ($q) use ($student) {
+                $q->when($student->circle_id, fn ($c) => $c->where('circle_id', $student->circle_id))
+                    ->orWhere(fn ($w) => $w->whereNull('circle_id')
+                        ->where('stage_id', $student->effective_stage_id));
+            })
             ->whereDate('starts_on', '<=', $day)
             ->whereDate('ends_on', '>=', $day)
+            // 0 sorts before 1, so a week naming a cohort comes before one that
+            // names none.
+            ->orderByRaw('circle_id is null')
             ->with('items')
             ->first();
     }

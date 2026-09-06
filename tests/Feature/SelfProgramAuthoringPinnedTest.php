@@ -50,18 +50,16 @@ it('is a link in each of the three sidebars', function () {
         ->assertSee(route('teacher.self-program-weeks'), false);
 });
 
-it('tells a teacher that the programme reaches past his cohort', function () {
-    // The self programme is written for a programme; the enrichment is what is
-    // written for a cohort. Handing him the screen without saying so would let
-    // him overwrite the work of circles he does not teach without knowing it.
+it('tells a teacher he writes for his own cohort', function () {
     $this->actingAs($this->teacher, 'teacher')
         ->get(route('teacher.self-program-weeks'))
-        ->assertSee('أنت تكتب لبرنامج كامل')
-        ->assertSee('ومنها دفعات غيرك');
+        ->assertSee('أنت تكتب لدفعتك وحدها')
+        ->assertSee('يتقدّم على ما كتبه المشرف');
 
+    // The supervisor writes the programme, and it reaches every cohort in it.
     $this->actingAs($this->supervisor, 'supervisor')
         ->get(route('supervisor.self-program-weeks'))
-        ->assertDontSee('أنت تكتب لبرنامج كامل');
+        ->assertDontSee('أنت تكتب لدفعتك وحدها');
 });
 
 it('lets each of them write a week for the programme he reaches', function () {

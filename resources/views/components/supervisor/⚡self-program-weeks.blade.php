@@ -20,6 +20,9 @@ new class extends Component
 
     public ?int $stageId = null;
 
+    /** The cohort a teacher writes for. Null for the offices that write for a programme. */
+    public ?int $circleId = null;
+
     /** Whether the year-at-once tools are showing. */
     public bool $showYearTools = false;
 
@@ -54,7 +57,13 @@ new class extends Component
     public function mount(): void
     {
         $this->asRole = \App\Support\Scope::resolveRole();
-        $this->stageId = $this->stages->first()?->id;
+
+        if ($this->writesForCohort()) {
+            $this->circleId = $this->cohorts->first()?->id;
+            $this->stageId = $this->cohorts->first()?->stage_id;
+        } else {
+            $this->stageId = $this->stages->first()?->id;
+        }
         $this->newStartsOn = Carbon::today()->startOfWeek(Carbon::SUNDAY)->toDateString();
         $this->yearStartsOn = $this->newStartsOn;
         $this->openLatestWeek();
@@ -79,6 +88,40 @@ new class extends Component
             : Stage::whereIn('id', $reach)->orderBy('name')->get();
     }
 
+    /**
+     * Whether this reader writes for one cohort rather than for a programme.
+     *
+     * The supervisor writes the programme and it reaches every cohort in it.
+     * A teacher writes for his own, and a week naming a cohort is the one his
+     * students read — see `SelfProgramService::currentWeek`.
+     */
+    public function writesForCohort(): bool
+    {
+        return $this->asRole === 'teacher';
+    }
+
+    /** @return Collection<int, Circle> */
+    #[Computed]
+    public function cohorts(): Collection
+    {
+        $user = \App\Support\Scope::forRole($this->asRole)->user();
+
+        return $user
+            ? $user->circles()->orderBy('name')->get()
+            : collect();
+    }
+
+    public function chooseCohort(int $circleId): void
+    {
+        $cohort = $this->cohorts->firstWhere('id', $circleId) ?? abort(403);
+
+        $this->circleId = $cohort->id;
+        $this->stageId = $cohort->stage_id;
+
+        unset($this->weeks);
+        $this->openLatestWeek();
+    }
+
     private function author(): ?\App\Models\User
     {
         return \App\Support\Scope::forRole($this->asRole)->user();
@@ -94,6 +137,9 @@ new class extends Component
 
         return SelfProgramWeek::self()
             ->where('stage_id', $this->stageId)
+            ->when($this->writesForCohort(),
+                fn ($q) => $q->where('circle_id', $this->circleId),
+                fn ($q) => $q->whereNull('circle_id'))
             ->orderBy('week_number')
             ->get();
     }
@@ -177,6 +223,7 @@ new class extends Component
 
         $week = SelfProgramWeek::create([
             'stage_id' => $this->stageId,
+            'circle_id' => $this->writesForCohort() ? $this->circleId : null,
             'program_type' => SelfProgramWeek::TYPE_SELF,
             'week_number' => ($this->weeks->max('week_number') ?? 0) + 1,
             'starts_on' => $starts,
@@ -254,6 +301,7 @@ new class extends Component
             Carbon::parse($this->yearStartsOn),
             $this->yearWeeks,
             $this->stageId,
+            $this->writesForCohort() ? $this->circleId : null,
         );
 
         unset($this->weeks);
@@ -315,7 +363,7 @@ new class extends Component
         $result = app(SelfProgramYearBuilder::class)->import(
             $this->sheet->getRealPath(),
             $this->stageId,
-            null,
+            $this->writesForCohort() ? $this->circleId : null,
             SelfProgramWeek::TYPE_SELF,
             $this->sheet->getClientOriginalExtension(),
         );
@@ -359,12 +407,26 @@ new class extends Component
 ?>
 
 <div class="space-y-6" dir="rtl">
-    @if ($asRole === 'teacher')
-        <div dir="rtl" class="rounded-xl border border-amber-200/70 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 p-4 mb-4">
-            <div class="text-sm font-bold text-amber-900 dark:text-amber-200">{{ __('أنت تكتب لبرنامج كامل') }}</div>
-            <div class="text-xs text-amber-800/80 dark:text-amber-300/80 mt-1">
-                {{ __('البرنامج الذاتي يُكتب للبرنامج لا للدفعة، فما تحفظه هنا يصل كل دفعات هذا البرنامج، ومنها دفعات غيرك. والإثرائي وحده هو ما يُكتب لدفعتك.') }}
+    @if ($this->writesForCohort())
+        <div class="rounded-xl border border-emerald-200/70 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-950/20 p-4 mb-4 space-y-3">
+            <div>
+                <div class="text-sm font-bold text-emerald-900 dark:text-emerald-200">{{ __('أنت تكتب لدفعتك وحدها') }}</div>
+                <div class="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-1">
+                    {{ __('ما تحفظه هنا يقرؤه طلاب دفعتك دون غيرهم، ويتقدّم على ما كتبه المشرف للبرنامج. واتركه فارغاً ليقرؤوا برنامج المشرف كما هو.') }}
+                </div>
             </div>
+
+            @if ($this->cohorts->count() > 1)
+                <div class="flex items-center gap-2 flex-wrap">
+                    @foreach ($this->cohorts as $one)
+                        <button wire:click="chooseCohort({{ $one->id }})" wire:key="c-{{ $one->id }}"
+                            class="px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors
+                                {{ $circleId === $one->id ? 'bg-maroon text-white border-maroon' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300' }}">
+                            {{ $one->name }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
         </div>
     @endif
 
