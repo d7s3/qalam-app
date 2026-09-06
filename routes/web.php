@@ -102,6 +102,7 @@ Route::middleware('auth:manager,supervisor,teacher,student,guardian,staff')->gro
 });
 
 Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager')->name('manager.')->group(function () {
+    Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/portal', 'shared.portal')->name('portal');
     Route::view('/self-program-tracks', 'shared.self-program-tracks')->name('self-program-tracks');
@@ -177,6 +178,7 @@ Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manage
     Route::get('/backup/download/{filename}', [BackupController::class, 'downloadStored'])->name('backup.download.stored');
 });
 Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.required'])->prefix('supervisor')->name('supervisor.')->group(function () {
+    Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/portal', 'shared.portal')->name('portal');
     Route::view('/self-program-tracks', 'shared.self-program-tracks')->name('self-program-tracks');
@@ -238,6 +240,7 @@ Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.requi
     Route::view('/guide', 'shared.guide')->name('guide');
 });
 Route::middleware(['auth:teacher', 'approved', 'page.enabled', 'surveys.required'])->prefix('teacher')->name('teacher.')->group(function () {
+    Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/portal', 'shared.portal')->name('portal');
     Route::view('/my-day', 'shared.my-day')->name('my-day');

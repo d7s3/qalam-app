@@ -3,6 +3,11 @@
         href="{{ route('teacher.dashboard') }}">
         {{ __('الرئيسية') }}
     </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.student-log'))
+    <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6]" icon="book-open" :href="route('teacher.student-log')" :current="request()->routeIs('teacher.student-log')" wire:navigate>
+        السجل التربوي
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.portal'))
     <flux:sidebar.item class="[&_svg]:bg-[#e11d48]" icon="megaphone" :href="route('teacher.portal')" :current="request()->routeIs('teacher.portal')" wire:navigate>
         بوابة الرسائل

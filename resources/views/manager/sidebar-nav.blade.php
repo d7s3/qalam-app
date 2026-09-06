@@ -2,6 +2,11 @@
     wire:navigate>
     الرئيسية
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.student-log'))
+    <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6]" icon="book-open" :href="route('manager.student-log')" :current="request()->routeIs('manager.student-log')" wire:navigate>
+        السجل التربوي
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.portal'))
     <flux:sidebar.item class="[&_svg]:bg-[#e11d48]" icon="megaphone" :href="route('manager.portal')" :current="request()->routeIs('manager.portal')" wire:navigate>
         بوابة الرسائل

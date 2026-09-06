@@ -1,6 +1,11 @@
 <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('supervisor.dashboard')" :current="request()->routeIs('supervisor.dashboard')" wire:navigate>
     {{ __('الرئيسية') }}
 </flux:sidebar.item>
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.student-log'))
+    <flux:sidebar.item class="[&_svg]:bg-[#8b5cf6]" icon="book-open" :href="route('supervisor.student-log')" :current="request()->routeIs('supervisor.student-log')" wire:navigate>
+        السجل التربوي
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.portal'))
     <flux:sidebar.item class="[&_svg]:bg-[#e11d48]" icon="megaphone" :href="route('supervisor.portal')" :current="request()->routeIs('supervisor.portal')" wire:navigate>
         بوابة الرسائل
