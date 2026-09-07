@@ -44,11 +44,15 @@ class SelfProgramTrack extends Model
         'icon',
         'is_system',
         'sort_order',
+        'is_day_bound',
+        'needs_recitation_confirmation',
     ];
 
     protected $casts = [
         'is_system' => 'boolean',
         'sort_order' => 'integer',
+        'is_day_bound' => 'boolean',
+        'needs_recitation_confirmation' => 'boolean',
     ];
 
     /** The key, under the name the application has always called it by. */

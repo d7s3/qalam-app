@@ -103,10 +103,12 @@ it('hides it while it is not earned', function () {
 it('lets a student record against an enrichment track he has earned', function () {
     $this->service->record($this->student, $this->wird, 5);
 
+    // المحفوظ asks before it counts, so the entry goes through the hearing.
     Livewire::actingAs($this->student, 'student')
         ->test('student.self-program')
         ->set("amounts.{$this->extra->id}", 3)
         ->call('save', $this->extra->id)
+        ->call('confirmRecitation')
         ->assertHasNoErrors();
 
     expect($this->service->weekProgress($this->student, $this->enrichmentWeek->fresh('items'))['overall'])

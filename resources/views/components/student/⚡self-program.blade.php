@@ -5,6 +5,7 @@ use App\Models\SelfProgramWeek;
 use App\Services\SelfProgramService;
 use App\Models\SelfProgramTrack;
 use Carbon\Carbon;
+use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -110,6 +111,9 @@ new class extends Component
     /**
      * Record what the student says he did on the chosen day.
      */
+    /** The field waiting on "have you recited it?", if one is. */
+    public ?int $askingRecitationFor = null;
+
     public function save(int $itemId): void
     {
         $item = $this->openItems()->firstWhere('id', $itemId);
@@ -124,12 +128,57 @@ new class extends Component
             "amounts.{$itemId}" => ['nullable', 'numeric', 'min:0', 'max:9999'],
         ], [], ["amounts.{$itemId}" => 'المقدار']);
 
-        app(SelfProgramService::class)->record(
-            Auth::guard('student')->user(),
-            $item,
-            (float) ($this->amounts[$itemId] ?? 0),
-            Carbon::parse($this->day),
-        );
+        $amount = (float) ($this->amounts[$itemId] ?? 0);
+
+        // Memorising is not knowing until somebody has heard it, so the field
+        // asks before it counts. Clearing an entry needs no hearing.
+        if ($amount > 0 && $item->track?->needs_recitation_confirmation) {
+            $this->askingRecitationFor = $itemId;
+
+            return;
+        }
+
+        $this->write($item, $amount);
+    }
+
+    /** He says he recited it: the amount counts and its points are given. */
+    public function confirmRecitation(): void
+    {
+        $item = $this->openItems()->firstWhere('id', $this->askingRecitationFor);
+
+        abort_unless($item instanceof SelfProgramItem, 404);
+
+        $this->write($item, (float) ($this->amounts[$item->id] ?? 0), true);
+
+        $this->askingRecitationFor = null;
+    }
+
+    /**
+     * He says he has not: nothing is written at all.
+     *
+     * Not a zero either — a zero is a statement that he did none of it, and
+     * what he is saying is that he did it and has not recited it yet.
+     */
+    public function denyRecitation(): void
+    {
+        $this->askingRecitationFor = null;
+
+        Flux::toast(__('لم يُحتسب — سمّعه ثم سجّله.'), variant: 'warning');
+    }
+
+    private function write(SelfProgramItem $item, float $amount, bool $recited = false): void
+    {
+        try {
+            app(SelfProgramService::class)->record(
+                Auth::guard('student')->user(),
+                $item,
+                $amount,
+                Carbon::parse($this->day),
+                recitationConfirmed: $recited,
+            );
+        } catch (\InvalidArgumentException $e) {
+            Flux::toast($e->getMessage(), variant: 'danger');
+        }
     }
 
     /**
@@ -223,6 +272,32 @@ new class extends Component
         </flux:subheading>
     </div>
 
+
+    @if ($askingRecitationFor)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div class="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 shadow-xl p-6 space-y-4 text-center">
+                <div class="mx-auto w-fit p-3 rounded-2xl bg-maroon/10 text-maroon dark:text-red-secondary">
+                    <flux:icon icon="microphone" class="size-6" />
+                </div>
+
+                <div>
+                    <div class="text-lg font-bold text-zinc-900 dark:text-white">{{ __('هل سمّعت المحفوظ؟') }}</div>
+                    <div class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                        {{ __('لا يُحتسب المحفوظ ولا تُعطى درجته حتى تُسمّعه.') }}
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <flux:button class="flex-1 !bg-maroon hover:!bg-burgundy" variant="primary" wire:click="confirmRecitation">
+                        {{ __('نعم، سمّعته') }}
+                    </flux:button>
+                    <flux:button class="flex-1" variant="ghost" wire:click="denyRecitation">
+                        {{ __('ليس بعد') }}
+                    </flux:button>
+                </div>
+            </div>
+        </div>
+    @endif
 
     {{-- جدول الأسبوع --}}
     @if (! empty($grid['days']))

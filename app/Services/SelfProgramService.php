@@ -637,17 +637,65 @@ class SelfProgramService
      * student who unticks a day leaves nothing behind for a report to read as
      * work he did.
      */
+    /**
+     * Whether this field will take an entry on this day.
+     *
+     * The programme's promise is that the student is free with his week. A
+     * day-bound field is the exception: preparing on Thursday for Sunday's
+     * lesson is not preparation. It binds only to the days it was actually
+     * written for — a field nobody set a day for has nothing to bind to, and
+     * stays as free as the rest.
+     */
+    public function dayIsOpenFor(SelfProgramItem $item, Student $student, CarbonInterface $day): bool
+    {
+        if (! $item->track?->is_day_bound) {
+            return true;
+        }
+
+        $written = $this->dayRowsFor($item, $student)
+            ->filter(fn (SelfProgramDayOverride $row) => filled($row->content) || $row->amount !== null);
+
+        if ($written->isEmpty()) {
+            return true;
+        }
+
+        return $written->contains(fn (SelfProgramDayOverride $row) => $row->day_date->isSameDay($day));
+    }
+
+    /**
+     * Record what a student did.
+     *
+     * Two fields refuse: one outside its own day, and one until the student
+     * says he has recited it. Both refuse here rather than only on the screen,
+     * so a second screen written later cannot forget them.
+     *
+     * @throws \InvalidArgumentException
+     */
     public function record(
         Student $student,
         SelfProgramItem $item,
         float $amount,
         ?CarbonInterface $on = null,
         string $source = StudentSelfProgramEntry::SOURCE_STUDENT,
+        bool $recitationConfirmed = false,
     ): ?StudentSelfProgramEntry {
         // Bound as a Carbon rather than a bare "Y-m-d": the `date` cast writes
         // the full "Y-m-d H:i:s" form, and on SQLite the column is text, so a
         // bare string would compare unequal to every row it ought to match.
         $day = ($on ?? Carbon::today())->copy()->startOfDay();
+
+        // A recitation the teacher wrote through the bridge is a hearing in
+        // itself, so only the student's own entry is asked to confirm.
+        $needsHearing = $item->track?->needs_recitation_confirmation
+            && $source === StudentSelfProgramEntry::SOURCE_STUDENT;
+
+        if ($amount > 0 && $needsHearing && ! $recitationConfirmed) {
+            throw new \InvalidArgumentException('لا يُحتسب المحفوظ حتى تُسمّعه.');
+        }
+
+        if ($amount > 0 && ! $this->dayIsOpenFor($item, $student, $day)) {
+            throw new \InvalidArgumentException('هذا المجال مقرَّر ليوم بعينه، ولا يُحتسب في غيره.');
+        }
 
         $keys = [
             'student_id' => $student->id,
