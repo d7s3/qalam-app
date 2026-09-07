@@ -161,6 +161,20 @@ class AcademicCalendarSheet
     }
 
     /**
+     * Whether a file is a calendar grid, asked by a reader that expected
+     * something else.
+     *
+     * Two import panels stand a screen apart, and a file put in the wrong one
+     * fails every row for a reason that has nothing to do with what is wrong.
+     * Recognising the other shape costs one read and turns twenty-one useless
+     * complaints into one instruction.
+     */
+    public static function isCalendarGrid(string $path, ?string $extension = null): bool
+    {
+        return self::looksLikeGrid(self::lines($path, $extension));
+    }
+
+    /**
      * Read the academy's own grid.
      *
      * The title carries the Hijri year, one row heads the columns with the days

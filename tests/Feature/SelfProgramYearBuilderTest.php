@@ -191,3 +191,23 @@ describe('importing a sheet', function () {
             ->and($result['errors'][0])->toContain('بيت');
     });
 });
+
+/**
+ * The two importers stand a screen apart, and a file put in the wrong one used
+ * to fail every row for a missing week number — true of every row, and useless.
+ */
+it('recognises an academic calendar put in the wrong importer', function () {
+    $path = tempnam(sys_get_temp_dir(), 'cal').'.csv';
+
+    file_put_contents($path, "\u{FEFF}تقويم الفصل الدراسي الأول ١٤٤٨ هـ,,,,,,,,\n"
+        ."السبت,الجمعة,الخميس,الأربعاء,الثلاثاء,الاثنين,الأحد,الأسبوع,الشهر\n"
+        ."٢٣,٢٢,٢١,٢٠,١٩,١٨,١٧,١,ربيع الأول\n");
+
+    $read = SelfProgramSheet::read($path, 'csv');
+
+    @unlink($path);
+
+    expect($read['rows'])->toBe([])
+        ->and($read['errors'])->toHaveCount(1)
+        ->and($read['errors'][0])->toContain('التقويم الأكاديمي');
+});

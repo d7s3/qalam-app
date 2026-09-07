@@ -36,7 +36,19 @@ class SelfProgramSheet
      */
     public static function read(string $path, ?string $extension = null): array
     {
-        $reader = self::readerFor($extension ?? pathinfo($path, PATHINFO_EXTENSION));
+        $extension ??= pathinfo($path, PATHINFO_EXTENSION);
+
+        // The academic calendar is imported from a screen away, and its sheet
+        // has no week column at all — so every one of its rows would be refused
+        // for a missing week number, which says nothing about the real mistake.
+        if (AcademicCalendarSheet::isCalendarGrid($path, $extension)) {
+            return [
+                'rows' => [],
+                'errors' => ['هذا الملف تقويمٌ أكاديمي لا برنامجاً ذاتياً؛ استورده من شاشة «التقويم الأكاديمي».'],
+            ];
+        }
+
+        $reader = self::readerFor($extension);
         $reader->open($path);
 
         $rows = [];
