@@ -227,23 +227,58 @@ class SelfProgramService
      */
     private function overridesFor(SelfProgramItem $item, Student $student): array
     {
-        $rows = SelfProgramDayOverride::where('self_program_item_id', $item->id)
-            ->where(function ($query) use ($student) {
-                $query->where('student_id', $student->id)
-                    ->orWhere(function ($sub) use ($student) {
-                        $sub->whereNull('student_id')->where('circle_id', $student->circle_id);
-                    });
-            })
-            ->orderByRaw('student_id is null desc')
-            ->get();
-
         $overrides = [];
 
-        foreach ($rows as $row) {
-            $overrides[$row->day_date->toDateString()] = (float) $row->amount;
+        foreach ($this->dayRowsFor($item, $student) as $row) {
+            if ($row->amount !== null) {
+                $overrides[$row->day_date->toDateString()] = (float) $row->amount;
+            }
         }
 
         return $overrides;
+    }
+
+    /**
+     * What each day of the week actually holds for this student, by name.
+     *
+     * The amount answers "how much today" and cannot answer "what today" — and
+     * the academy's own sheet is a grid whose Sunday and Tuesday carry
+     * different texts and whose Wednesday is empty on purpose.
+     *
+     * @return array<string, string>
+     */
+    public function dailyContent(SelfProgramItem $item, Student $student): array
+    {
+        $content = [];
+
+        foreach ($this->dayRowsFor($item, $student) as $row) {
+            if (filled($row->content)) {
+                $content[$row->day_date->toDateString()] = $row->content;
+            }
+        }
+
+        return $content;
+    }
+
+    /**
+     * The day rows that speak for this student, least particular first.
+     *
+     * The programme's own plan, then his cohort's, then his — read in that
+     * order so the later assignment wins and the most particular has the last
+     * word.
+     *
+     * @return Collection<int, SelfProgramDayOverride>
+     */
+    private function dayRowsFor(SelfProgramItem $item, Student $student)
+    {
+        return SelfProgramDayOverride::where('self_program_item_id', $item->id)
+            ->where(function ($query) use ($student) {
+                $query->where('student_id', $student->id)
+                    ->orWhere(fn ($sub) => $sub->whereNull('student_id')->where('circle_id', $student->circle_id))
+                    ->orWhere(fn ($sub) => $sub->whereNull('student_id')->whereNull('circle_id'));
+            })
+            ->orderByRaw('case when student_id is not null then 3 when circle_id is not null then 2 else 1 end')
+            ->get();
     }
 
     /**
@@ -251,6 +286,58 @@ class SelfProgramService
      *
      * @return array<string, float>
      */
+    /**
+     * The week as a grid: a row per field, a column per working day.
+     *
+     * The shape the academy already writes its week in — Sunday carries one
+     * text and Tuesday another, and Wednesday is empty because nothing was set
+     * for it, not because the arithmetic happened to reach zero.
+     *
+     * Each cell carries what was asked for that day, how much of it, and how
+     * much the student has done — so a student reads his week the way it was
+     * written rather than as five running totals.
+     *
+     * @return array{days: array<int, string>, rows: array<int, array<string, mixed>>}
+     */
+    public function weekGrid(Student $student, ?SelfProgramWeek $week = null): array
+    {
+        $week ??= $this->currentWeek($student);
+
+        if (! $week) {
+            return ['days' => [], 'rows' => []];
+        }
+
+        $days = $this->workingDays($week);
+        $rows = [];
+
+        foreach ($week->items->sortBy(fn (SelfProgramItem $item) => $item->track?->sort_order ?? 99) as $item) {
+            $plan = $this->dailyPlan($item, $student);
+            $content = $this->dailyContent($item, $student);
+            $done = $this->doneByDay($item, $student);
+
+            $cells = [];
+
+            foreach ($days as $day) {
+                $cells[$day] = [
+                    'content' => $content[$day] ?? null,
+                    'expected' => (float) ($plan[$day] ?? 0),
+                    'done' => (float) ($done[$day] ?? 0),
+                ];
+            }
+
+            $rows[] = [
+                'item' => $item,
+                'track' => $item->track,
+                'unit' => $item->displayUnit(),
+                'target' => (float) $item->target_amount,
+                'done' => array_sum($done),
+                'cells' => $cells,
+            ];
+        }
+
+        return ['days' => $days, 'rows' => $rows];
+    }
+
     public function doneByDay(SelfProgramItem $item, Student $student): array
     {
         return StudentSelfProgramEntry::where('self_program_item_id', $item->id)

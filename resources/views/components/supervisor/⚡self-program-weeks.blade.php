@@ -1,6 +1,9 @@
 <?php
 
+use App\Models\Circle;
+use App\Models\SelfProgramDayOverride;
 use App\Models\SelfProgramWeek;
+use App\Services\SelfProgramService;
 use App\Services\SelfProgramYearBuilder;
 use App\Models\Stage;
 use App\Support\SelfProgramSheet;
@@ -22,6 +25,11 @@ new class extends Component
 
     /** The cohort a teacher writes for. Null for the offices that write for a programme. */
     public ?int $circleId = null;
+
+    /** The day grid: [trackKey][date] => ['content' => ?string, 'amount' => ?string]. */
+    public array $grid = [];
+
+    public bool $showGrid = false;
 
     /** Whether the year-at-once tools are showing. */
     public bool $showYearTools = false;
@@ -169,6 +177,7 @@ new class extends Component
         $this->authorizeStage($id);
         $this->weekId = $id;
         $this->loadRows();
+        $this->loadGrid();
     }
 
     /**
@@ -210,6 +219,111 @@ new class extends Component
     /**
      * Add the week that follows the last one, seven days after it.
      */
+    /**
+     * Read the week's day plan into the form.
+     *
+     * Only the rows this office wrote: a supervisor sees the programme's own
+     * plan, a teacher his cohort's. Neither edits the other's by accident —
+     * what a teacher writes sits on top of the programme's and leaves it whole.
+     */
+    public function loadGrid(): void
+    {
+        $this->grid = [];
+
+        $week = $this->week;
+
+        if (! $week) {
+            return;
+        }
+
+        $days = app(SelfProgramService::class)->workingDays($week);
+
+        $written = SelfProgramDayOverride::whereIn('self_program_item_id', $week->items->pluck('id'))
+            ->when($this->writesForCohort(),
+                fn ($q) => $q->whereNull('student_id')->where('circle_id', $this->circleId),
+                fn ($q) => $q->whereNull('student_id')->whereNull('circle_id'))
+            ->get()
+            ->keyBy(fn (SelfProgramDayOverride $row) => $row->self_program_item_id.'|'.$row->day_date->toDateString());
+
+        foreach ($week->items as $item) {
+            $key = $item->track?->key ?? (string) $item->id;
+
+            foreach ($days as $day) {
+                $row = $written[$item->id.'|'.$day] ?? null;
+
+                $this->grid[$key][$day] = [
+                    'content' => $row?->content ?? '',
+                    'amount' => $row && $row->amount !== null ? (string) (float) $row->amount : '',
+                ];
+            }
+        }
+    }
+
+    /**
+     * Write the day plan back.
+     *
+     * A cell left empty in both fields is not stored: absence is how a day is
+     * said to hold nothing, and the sheet the academy writes has deliberate
+     * blanks in it.
+     */
+    public function saveGrid(): void
+    {
+        $week = $this->week;
+
+        if (! $week) {
+            return;
+        }
+
+        abort_unless($this->stages->contains('id', $this->stageId), 403);
+
+        $circleId = $this->writesForCohort() ? $this->circleId : null;
+
+        foreach ($week->items as $item) {
+            $key = $item->track?->key ?? (string) $item->id;
+
+            foreach ($this->grid[$key] ?? [] as $day => $cell) {
+                $content = trim((string) ($cell['content'] ?? ''));
+                $amount = trim((string) ($cell['amount'] ?? ''));
+
+                // Matched as a date and not as text: the cast writes
+                // `Y-m-d H:i:s`, so a plain comparison never finds the row it
+                // wrote a moment ago — and updateOrCreate would go on making a
+                // second one for the same day.
+                $existing = SelfProgramDayOverride::where('self_program_item_id', $item->id)
+                    ->whereDate('day_date', $day)
+                    ->whereNull('student_id')
+                    ->when($circleId, fn ($q) => $q->where('circle_id', $circleId), fn ($q) => $q->whereNull('circle_id'))
+                    ->first();
+
+                if ($content === '' && $amount === '') {
+                    $existing?->delete();
+
+                    continue;
+                }
+
+                $values = [
+                    'content' => $content ?: null,
+                    'amount' => $amount === '' ? null : (float) $amount,
+                ];
+
+                if ($existing) {
+                    $existing->update($values);
+
+                    continue;
+                }
+
+                SelfProgramDayOverride::create($values + [
+                    'self_program_item_id' => $item->id,
+                    'day_date' => $day,
+                    'circle_id' => $circleId,
+                    'student_id' => null,
+                ]);
+            }
+        }
+
+        Flux::toast(text: 'حُفظ الجدول اليومي.', variant: 'success');
+    }
+
     public function addWeek(): void
     {
         $this->validate([
@@ -654,6 +768,75 @@ new class extends Component
                     {{ __('مقدار صفر يعني أن المجال غير مطلوب هذا الأسبوع، فلا يُحسب على الطالب.') }}
                     {{ __('ووحدة الورد القرآني مثبّتة على الصفحة ليكتب فيها التسميع تلقائياً.') }}
                 </p>
+            </flux:card>
+
+            {{-- الجدول اليومي --}}
+            <flux:card class="mt-4 space-y-4">
+                <div class="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                        <flux:heading size="lg">{{ __('الجدول اليومي') }}</flux:heading>
+                        <flux:subheading class="mt-0.5">
+                            {{ __('اكتب ما يخصّ كل يوم بعينه. واترك الخانة فارغة ليقسم النظام المقدار على الأيام كما يفعل اليوم.') }}
+                        </flux:subheading>
+                    </div>
+                    <flux:button size="sm" variant="ghost"
+                        wire:click="$toggle('showGrid')"
+                        icon="{{ $showGrid ? 'chevron-up' : 'table-cells' }}">
+                        {{ $showGrid ? __('إخفاء') : __('افتح الجدول') }}
+                    </flux:button>
+                </div>
+
+                @if ($showGrid)
+                    @php
+                        $gridDays = app(\App\Services\SelfProgramService::class)->workingDays($this->week);
+                    @endphp
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm border-collapse">
+                            <thead>
+                                <tr>
+                                    <th class="p-2 text-right text-xs font-bold text-zinc-500 sticky start-0 bg-white dark:bg-zinc-900">
+                                        {{ __('المجال') }}
+                                    </th>
+                                    @foreach ($gridDays as $day)
+                                        <th class="p-2 text-center text-xs font-bold text-zinc-500 min-w-40">
+                                            <x-hijri-date :date="$day" style="weekdayOnly" />
+                                            <span class="block text-[10px] font-normal text-zinc-400" dir="ltr">{{ substr($day, 5) }}</span>
+                                        </th>
+                                    @endforeach
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($tracks as $track)
+                                    <tr class="border-t border-zinc-100 dark:border-zinc-800" wire:key="grid-{{ $track->key }}">
+                                        <td class="p-2 font-bold text-zinc-800 dark:text-zinc-100 whitespace-nowrap sticky start-0 bg-white dark:bg-zinc-900">
+                                            {{ $track->label() }}
+                                        </td>
+                                        @foreach ($gridDays as $day)
+                                            <td class="p-1.5 align-top" wire:key="cell-{{ $track->key }}-{{ $day }}">
+                                                <flux:input size="sm"
+                                                    wire:model="grid.{{ $track->key }}.{{ $day }}.content"
+                                                    placeholder="{{ __('المحتوى') }}" />
+                                                <flux:input size="sm" class="mt-1" type="number" step="0.25" min="0"
+                                                    wire:model="grid.{{ $track->key }}.{{ $day }}.amount"
+                                                    placeholder="{{ __('المقدار') }}" />
+                                            </td>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <flux:button variant="primary" icon="check" wire:click="saveGrid">{{ __('حفظ الجدول') }}</flux:button>
+                        <flux:text class="text-xs text-zinc-400">
+                            {{ $this->writesForCohort()
+                                ? __('تكتب لدفعتك، ويتقدّم ما تكتبه على جدول البرنامج.')
+                                : __('تكتب لكل من يقرأ هذا الأسبوع، ولمعلّم الدفعة أن يخصّص فوقه.') }}
+                        </flux:text>
+                    </div>
+                @endif
             </flux:card>
         @endif
     @endif

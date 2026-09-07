@@ -176,10 +176,14 @@ new class extends Component
                 'week' => null, 'tracks' => [], 'overall' => 0, 'days' => [], 'plans' => [],
                 'unlocked' => false, 'arrears' => $arrears, 'bridged' => [],
                 'enrichment' => null, 'enrichmentProgress' => null,
+                'grid' => ['days' => [], 'rows' => []],
             ];
         }
 
         $progress = $service->weekProgress($student, $week);
+
+        // The week as it was written: a row per field, a column per day.
+        $grid = $service->weekGrid($student, $week);
         $enrichment = $this->enrichmentWeek();
 
         $plans = [];
@@ -192,6 +196,7 @@ new class extends Component
 
         return [
             'week' => $week,
+            'grid' => $grid,
             'tracks' => $progress['tracks'],
             'overall' => $progress['overall'],
             'days' => $service->workingDays($week),
@@ -218,6 +223,90 @@ new class extends Component
         </flux:subheading>
     </div>
 
+
+    {{-- جدول الأسبوع --}}
+    @if (! empty($grid['days']))
+        <flux:card class="space-y-3">
+            <div>
+                <flux:heading size="lg">{{ __('جدول أسبوعك') }}</flux:heading>
+                <flux:subheading class="mt-0.5">
+                    {{ __('ما هو مقرَّر لكل يوم، وما أنجزته منه. والخانة الفارغة يومٌ لم يُقرَّر لك فيه شيء.') }}
+                </flux:subheading>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="p-2 text-right text-xs font-bold text-zinc-500 sticky start-0 bg-white dark:bg-zinc-900">
+                                {{ __('المجال') }}
+                            </th>
+                            @foreach ($grid['days'] as $day)
+                                <th class="p-2 text-center text-xs font-bold min-w-32
+                                    {{ $day === now('Asia/Riyadh')->format('Y-m-d') ? 'text-maroon dark:text-red-secondary' : 'text-zinc-500' }}">
+                                    <x-hijri-date :date="$day" style="weekdayOnly" />
+                                    <span class="block text-[10px] font-normal text-zinc-400" dir="ltr">{{ substr($day, 5) }}</span>
+                                </th>
+                            @endforeach
+                            <th class="p-2 text-center text-xs font-bold text-zinc-500">{{ __('الأسبوع') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($grid['rows'] as $row)
+                            <tr class="border-t border-zinc-100 dark:border-zinc-800" wire:key="grid-row-{{ $row['item']->id }}">
+                                <td class="p-2 font-bold text-zinc-800 dark:text-zinc-100 whitespace-nowrap sticky start-0 bg-white dark:bg-zinc-900">
+                                    {{ $row['track']?->label() }}
+                                </td>
+
+                                @foreach ($grid['days'] as $day)
+                                    @php
+                                        $cell = $row['cells'][$day];
+                                        $met = $cell['expected'] > 0 && $cell['done'] >= $cell['expected'];
+                                        $partly = ! $met && $cell['done'] > 0;
+                                    @endphp
+                                    <td class="p-2 text-center align-top
+                                        {{ $met ? 'bg-emerald-50/60 dark:bg-emerald-950/20' : ($partly ? 'bg-amber-50/60 dark:bg-amber-950/20' : '') }}">
+                                        @if ($cell['content'])
+                                            <div class="text-xs text-zinc-700 dark:text-zinc-200 leading-snug">{{ $cell['content'] }}</div>
+                                        @endif
+
+                                        @if ($cell['expected'] > 0)
+                                            <div class="mt-1 text-[11px] tabular-nums {{ $met ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-500' }}">
+                                                {{ rtrim(rtrim(number_format($cell['done'], 2, '.', ''), '0'), '.') }}
+                                                /
+                                                {{ rtrim(rtrim(number_format($cell['expected'], 2, '.', ''), '0'), '.') }}
+                                            </div>
+                                        @elseif (! $cell['content'])
+                                            <span class="text-zinc-300 dark:text-zinc-700">—</span>
+                                        @endif
+                                    </td>
+                                @endforeach
+
+                                <td class="p-2 text-center text-[11px] font-bold tabular-nums text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
+                                    {{ rtrim(rtrim(number_format($row['done'], 2, '.', ''), '0'), '.') }}
+                                    /
+                                    {{ rtrim(rtrim(number_format($row['target'], 2, '.', ''), '0'), '.') }}
+                                    <span class="block text-[10px] font-normal text-zinc-400">{{ $row['unit'] }}</span>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex items-center gap-4 text-[11px] text-zinc-400 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <span class="flex items-center gap-1.5">
+                    <span class="size-2.5 rounded bg-emerald-200 dark:bg-emerald-900"></span>{{ __('أُنجز') }}
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span class="size-2.5 rounded bg-amber-200 dark:bg-amber-900"></span>{{ __('بعضه') }}
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span class="text-zinc-300 dark:text-zinc-700">—</span>{{ __('لا شيء لهذا اليوم') }}
+                </span>
+            </div>
+        </flux:card>
+    @endif
 
     {{-- متأخرات الأسابيع الماضية --}}
     @if (! empty($arrears))

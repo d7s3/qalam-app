@@ -13,16 +13,21 @@ class SelfProgramDayOverride extends Model
         'student_id',
         'day_date',
         'amount',
+        'content',
     ];
 
     protected static function booted(): void
     {
         // Kept in step with the two nullable columns it stands in for, so the
-        // unique index has something non-null to hold on to.
+        // unique index has something non-null to hold on to. Both null is the
+        // programme's own day — what the supervisor writes once for everyone
+        // reading that week.
         static::saving(function (self $override) {
-            $override->scope_key = $override->student_id
-                ? 's:'.$override->student_id
-                : 'c:'.$override->circle_id;
+            $override->scope_key = match (true) {
+                (bool) $override->student_id => 's:'.$override->student_id,
+                (bool) $override->circle_id => 'c:'.$override->circle_id,
+                default => 'w',
+            };
         });
     }
 
@@ -30,6 +35,16 @@ class SelfProgramDayOverride extends Model
         'day_date' => 'date',
         'amount' => 'decimal:2',
     ];
+
+    /** How particular this row is: the programme, a cohort, or one student. */
+    public function specificity(): int
+    {
+        return match (true) {
+            (bool) $this->student_id => 3,
+            (bool) $this->circle_id => 2,
+            default => 1,
+        };
+    }
 
     /** @return BelongsTo<SelfProgramItem, $this> */
     public function item(): BelongsTo
