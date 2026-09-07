@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Circle;
 use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
@@ -8,7 +9,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 it('computes the completion percentage from graded days out of days_count', function () {
-    $student = Student::factory()->create(['is_approved' => true]);
+    $student = Student::factory()->create([
+        'is_approved' => true,
+        'circle_id' => Circle::factory()->create(['is_quranic' => true])->id,
+    ]);
 
     $plan = StudentPlan::create([
         'student_id' => $student->id,
@@ -28,7 +32,10 @@ it('computes the completion percentage from graded days out of days_count', func
 });
 
 it('returns zero completion for a plan with no scheduled days', function () {
-    $student = Student::factory()->create(['is_approved' => true]);
+    $student = Student::factory()->create([
+        'is_approved' => true,
+        'circle_id' => Circle::factory()->create(['is_quranic' => true])->id,
+    ]);
 
     $plan = StudentPlan::create([
         'student_id' => $student->id,
@@ -43,7 +50,10 @@ it('returns zero completion for a plan with no scheduled days', function () {
 });
 
 it('buckets every recorded hifz and review rating into the achievement distribution', function () {
-    $student = Student::factory()->create(['is_approved' => true]);
+    $student = Student::factory()->create([
+        'is_approved' => true,
+        'circle_id' => Circle::factory()->create(['is_quranic' => true])->id,
+    ]);
 
     $plan = StudentPlan::create([
         'student_id' => $student->id,
@@ -75,7 +85,10 @@ it('buckets every recorded hifz and review rating into the achievement distribut
 });
 
 it('renders the overall and per-plan progress charts on the student plan page', function () {
-    $student = Student::factory()->create(['is_approved' => true]);
+    $student = Student::factory()->create([
+        'is_approved' => true,
+        'circle_id' => Circle::factory()->create(['is_quranic' => true])->id,
+    ]);
 
     $plan = StudentPlan::create([
         'student_id' => $student->id,

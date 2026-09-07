@@ -618,7 +618,7 @@ new class extends Component {
                                         </div>
                                     </div>
 
-                                    <flux:button href="{{ route('student.plan') }}" variant="primary" size="sm" class="!bg-maroon hover:!bg-burgundy mt-5" wire:navigate>
+                                    <flux:button href="{{ \App\Support\QuranicStudent::applies(auth('student')->user()) ? route('student.plan') : route('student.self-program') }}" variant="primary" size="sm" class="!bg-maroon hover:!bg-burgundy mt-5" wire:navigate>
                                         {{ __('متابعة الحفظ') }}
                                     </flux:button>
                                 </div>
@@ -730,7 +730,7 @@ new class extends Component {
                         <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-2 leading-relaxed">
                             {{ __('كل آية تحفظها اليوم هي نور لك في الدنيا والآخرة') }}
                         </p>
-                        <flux:button href="{{ route('student.plan') }}" variant="primary" size="sm" class="!bg-maroon hover:!bg-burgundy mt-4" wire:navigate>
+                        <flux:button href="{{ \App\Support\QuranicStudent::applies(auth('student')->user()) ? route('student.plan') : route('student.self-program') }}" variant="primary" size="sm" class="!bg-maroon hover:!bg-burgundy mt-4" wire:navigate>
                             {{ __('استمر في رحلتك') }}
                         </flux:button>
                     </div>
@@ -832,7 +832,7 @@ new class extends Component {
                         <div class="text-xl font-bold text-zinc-800 dark:text-zinc-100 mb-1">
                             {{ __('حفظ حديث جديد') }}
                         </div>
-                        <flux:button href="{{ route('student.plan') }}" variant="primary" icon="play" class="!bg-rose-600 hover:!bg-rose-700" wire:navigate>
+                        <flux:button href="{{ \App\Support\QuranicStudent::applies(auth('student')->user()) ? route('student.plan') : route('student.self-program') }}" variant="primary" icon="play" class="!bg-rose-600 hover:!bg-rose-700" wire:navigate>
                             {{ __('ابدأ الآن') }}
                         </flux:button>
                     @else
@@ -1730,7 +1730,7 @@ new class extends Component {
                                     </div>
 
                                     <div class="mt-6 flex justify-end">
-                                        <flux:button href="{{ route('student.plan') }}" variant="filled"
+                                        <flux:button href="{{ \App\Support\QuranicStudent::applies(auth('student')->user()) ? route('student.plan') : route('student.self-program') }}" variant="filled"
                                             class="bg-white text-emerald-600 hover:bg-emerald-50">
                                             {{ __('الانتقال إلى خططي') }}
                                         </flux:button>

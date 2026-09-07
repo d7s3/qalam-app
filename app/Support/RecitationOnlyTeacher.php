@@ -28,6 +28,9 @@ class RecitationOnlyTeacher
     /** Where the request remembers the answer, which the sidebar asks often. */
     private const CACHE = 'recitation_only_teacher';
 
+    /** The container keys this class has bound, so it can let go of them all. */
+    private static array $cached = [];
+
     /**
      * The pages that show a student's work other than his memorisation.
      *
@@ -56,6 +59,7 @@ class RecitationOnlyTeacher
         $key = self::CACHE.":{$user->id}";
 
         if (! app()->bound($key)) {
+            self::$cached[$key] = true;
             app()->instance($key, ['is' => self::resolve($user)]);
         }
 
@@ -68,11 +72,22 @@ class RecitationOnlyTeacher
         return self::applies($user) && in_array($routeName, self::WITHHELD, true);
     }
 
+    /** Forget one person's answer, or everybody's. */
     public static function forget(?int $userId = null): void
     {
         if ($userId !== null) {
-            app()->forgetInstance(self::CACHE.":{$userId}");
+            $key = self::CACHE.":{$userId}";
+            app()->forgetInstance($key);
+            unset(self::$cached[$key]);
+
+            return;
         }
+
+        foreach (array_keys(self::$cached) as $key) {
+            app()->forgetInstance($key);
+        }
+
+        self::$cached = [];
     }
 
     /**

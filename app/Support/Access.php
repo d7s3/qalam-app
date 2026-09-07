@@ -67,6 +67,13 @@ class Access
             return false;
         }
 
+        // And its mirror: the mushaf, the hifz and the review belong to a
+        // student of a حلقة. A student outside one has the self programme,
+        // which is what the academy's centre moved to.
+        if ($role === 'student' && QuranicStudent::withholds($user, $routeName)) {
+            return false;
+        }
+
         $role = self::heldRole($user, $role);
 
         $screen = self::screenFor($routeName);
