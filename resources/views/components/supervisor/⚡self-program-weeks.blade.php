@@ -2,11 +2,13 @@
 
 use App\Models\Circle;
 use App\Models\SelfProgramDayOverride;
+use App\Models\SelfProgramItem;
 use App\Models\SelfProgramWeek;
 use App\Services\SelfProgramService;
 use App\Services\SelfProgramYearBuilder;
 use App\Models\Stage;
 use App\Support\SelfProgramSheet;
+use App\Support\SelfProgramUnit;
 use App\Models\SelfProgramTrack;
 use Carbon\Carbon;
 use Flux\Flux;
@@ -29,10 +31,15 @@ new class extends Component
     /** The day grid: [trackKey][date] => ['content' => ?string, 'amount' => ?string]. */
     public array $grid = [];
 
-    public bool $showGrid = false;
+    public bool $showGrid = true;
 
     /** Days ticked in the grid header, waiting to be joined into one column. */
     public array $selectedDays = [];
+
+    public bool $showPreview = false;
+
+    /** A table pasted from a sheet, waiting to be spread over the grid. */
+    public string $pasted = '';
 
     /** Whether the year-at-once tools are showing. */
     public bool $showYearTools = false;
@@ -138,6 +145,60 @@ new class extends Component
         return \App\Support\Scope::forRole($this->asRole)->user();
     }
 
+    /**
+     * How much of each week has actually been written.
+     *
+     * Thirty buttons reading "الأسبوع ١، الأسبوع ٢" tell nobody which of them
+     * were filled and which were generated empty and left, so the supervisor
+     * navigated a year by guessing.
+     *
+     * @return array<int, array{filled: int, of: int, days: int}>
+     */
+    #[Computed]
+    public function weekState(): array
+    {
+        $weeks = $this->weeks;
+
+        if ($weeks->isEmpty()) {
+            return [];
+        }
+
+        $items = SelfProgramItem::whereIn('self_program_week_id', $weeks->pluck('id'))->get();
+
+        $days = SelfProgramDayOverride::whereIn('self_program_item_id', $items->pluck('id'))
+            ->when($this->writesForCohort(),
+                fn ($q) => $q->whereNull('student_id')->where('circle_id', $this->circleId),
+                fn ($q) => $q->whereNull('student_id')->whereNull('circle_id'))
+            ->get()
+            ->groupBy('self_program_item_id');
+
+        $state = [];
+
+        foreach ($weeks as $week) {
+            $mine = $items->where('self_program_week_id', $week->id);
+
+            $state[$week->id] = [
+                // A field asked for in any amount is a field that was written.
+                'filled' => $mine->filter(fn (SelfProgramItem $item) => (float) $item->target_amount > 0)->count(),
+                'of' => $mine->count(),
+                'days' => $mine->sum(fn (SelfProgramItem $item) => ($days[$item->id] ?? collect())->count()),
+            ];
+        }
+
+        return $state;
+    }
+
+    /** The week covering today, so a year is opened where the academy is in it. */
+    #[Computed]
+    public function currentWeekId(): ?int
+    {
+        $today = Carbon::today()->toDateString();
+
+        return $this->weeks
+            ->first(fn (SelfProgramWeek $week) => $week->starts_on->toDateString() <= $today
+                && $week->ends_on->toDateString() >= $today)?->id;
+    }
+
     /** @return Collection<int, SelfProgramWeek> */
     #[Computed]
     public function weeks(): Collection
@@ -210,11 +271,21 @@ new class extends Component
         foreach (SelfProgramTrack::ordered() as $track) {
             $item = $week->items->firstWhere('track.key', $track->key);
 
+            $amount = $item ? (float) $item->target_amount : 0;
+            $clock = SelfProgramUnit::toHoursAndMinutes($amount);
+
             $this->rows[$track->value] = [
                 'description' => $item?->description ?? '',
                 'content_url' => $item?->content_url ?? '',
-                'target_amount' => $item ? (float) $item->target_amount : 0,
-                'unit' => $track->fixedUnit() ?? ($item?->unit ?: $track->defaultUnit()),
+                'target_amount' => $amount,
+                'unit' => $track->unitFor($item?->unit),
+                // Time is asked for the way it is spoken, and kept in minutes.
+                'hours' => $clock['hours'],
+                'minutes' => $clock['minutes'],
+                // A week written before the field had a vocabulary keeps the
+                // word it was written in, said aloud rather than quietly
+                // reinterpreted — three lessons are not three minutes.
+                'was_written_in' => $item && $item->unit && ! $track->allowsUnit($item->unit) ? $item->unit : null,
             ];
         }
     }
@@ -222,6 +293,67 @@ new class extends Component
     /**
      * Add the week that follows the last one, seven days after it.
      */
+    /**
+     * Spread a table pasted from a sheet over the grid.
+     *
+     * Word and Excel both put a tab between cells and a newline between rows,
+     * so a week copied out of the academy's own document lands here whole
+     * rather than being retyped into thirty-five boxes.
+     *
+     * The first cell of a row names the field — by its label or its key — and
+     * the rest fall on the week's days in order. A row naming nothing is
+     * skipped rather than guessed at.
+     */
+    public function applyPaste(): void
+    {
+        if (trim($this->pasted) === '') {
+            return;
+        }
+
+        $columns = app(SelfProgramService::class)->dayColumns($this->week);
+        $keys = array_column($columns, 'key');
+        $tracks = SelfProgramTrack::ordered();
+        $placed = 0;
+
+        foreach (preg_split('/\r\n|\r|\n/', $this->pasted) as $line) {
+            $cells = preg_split('/\t|\s{2,}|\|/', trim($line));
+
+            if (count($cells) < 2) {
+                continue;
+            }
+
+            $name = trim(array_shift($cells));
+
+            $track = $tracks->first(fn (SelfProgramTrack $t) => $t->key === $name || $t->label() === $name);
+
+            if (! $track) {
+                continue;
+            }
+
+            foreach (array_values($cells) as $index => $value) {
+                if (! isset($keys[$index])) {
+                    break;
+                }
+
+                $value = trim($value);
+
+                // A dash is how the academy's sheet writes "nothing today".
+                $this->grid[$track->key][$keys[$index]]['content'] = in_array($value, ['-', '—', '－', '...', '……'], true)
+                    ? ''
+                    : $value;
+            }
+
+            $placed++;
+        }
+
+        $this->pasted = '';
+
+        Flux::toast(
+            text: $placed > 0 ? "وُزّع {$placed} صفّاً — راجعها ثم احفظ." : 'لم يُتعرَّف على أي مجال في ما لصقت.',
+            variant: $placed > 0 ? 'success' : 'danger',
+        );
+    }
+
     /**
      * Join the ticked days into one column.
      *
@@ -367,7 +499,9 @@ new class extends Component
 
                 $values = [
                     'content' => $content ?: null,
-                    'amount' => $amount === '' ? null : (float) $amount,
+                    // A day's share is measured in the same unit as its week,
+                    // so half a hadith cannot enter through the grid either.
+                    'amount' => $amount === '' ? null : SelfProgramUnit::normalise((float) $amount, $item->unit),
                 ];
 
                 if ($existing) {
@@ -430,6 +564,8 @@ new class extends Component
             'rows.*.description' => ['nullable', 'string', 'max:500'],
             'rows.*.target_amount' => ['nullable', 'numeric', 'min:0', 'max:9999'],
             'rows.*.unit' => ['nullable', 'string', 'max:30'],
+            'rows.*.hours' => ['nullable', 'integer', 'min:0', 'max:99'],
+            'rows.*.minutes' => ['nullable', 'integer', 'min:0', 'max:59'],
             'rows.*.content_url' => ['nullable', 'url', 'max:2048'],
         ]);
 
@@ -440,6 +576,14 @@ new class extends Component
                 continue;
             }
 
+            // The unit settles first, because it decides how the amount was
+            // asked for: time comes in two boxes, everything else in one.
+            $unit = $track->unitFor($row['unit'] ?? null);
+
+            $amount = SelfProgramUnit::isDuration($unit)
+                ? SelfProgramUnit::fromHoursAndMinutes($row['hours'] ?? 0, $row['minutes'] ?? 0)
+                : SelfProgramUnit::normalise((float) ($row['target_amount'] ?: 0), $unit);
+
             $week->items()->updateOrCreate(
                 ['track' => $track->value],
                 [
@@ -449,10 +593,8 @@ new class extends Component
                     'content_url' => $track->isQuranWird()
                         ? null
                         : (($row['content_url'] ?? '') ?: null),
-                    'target_amount' => (float) ($row['target_amount'] ?: 0),
-                    // The wird is measured in pages and nothing else, so the
-                    // recitation bridge can write into it.
-                    'unit' => $track->fixedUnit() ?? ($row['unit'] ?: $track->defaultUnit()),
+                    'target_amount' => $amount,
+                    'unit' => $unit,
                 ],
             );
         }
@@ -762,14 +904,47 @@ new class extends Component
         </flux:card>
 
         @if ($this->weeks->isNotEmpty())
-            <div class="flex flex-wrap gap-2">
-                @foreach ($this->weeks as $item)
-                    <flux:button wire:key="week-{{ $item->id }}" size="sm"
-                        :variant="$item->id === $weekId ? 'primary' : 'filled'"
-                        wire:click="openWeek({{ $item->id }})">
-                        {{ __('الأسبوع') }} {{ $item->week_number }}
-                    </flux:button>
-                @endforeach
+            <div class="space-y-2">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <div class="flex items-center gap-3 text-[11px] text-zinc-400">
+                        <span class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-emerald-500"></span>{{ __('مكتوب') }}</span>
+                        <span class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>{{ __('بعضه') }}</span>
+                        <span class="flex items-center gap-1.5"><span class="size-2 rounded-full bg-zinc-300 dark:bg-zinc-700"></span>{{ __('فارغ') }}</span>
+                    </div>
+
+                    @if ($this->currentWeekId)
+                        <flux:button size="xs" variant="ghost" icon="calendar-days"
+                            wire:click="openWeek({{ $this->currentWeekId }})">
+                            {{ __('أسبوع اليوم') }}
+                        </flux:button>
+                    @endif
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    @foreach ($this->weeks as $item)
+                        @php
+                            $state = $this->weekState[$item->id] ?? ['filled' => 0, 'of' => 0, 'days' => 0];
+                            $dot = $state['filled'] === 0
+                                ? 'bg-zinc-300 dark:bg-zinc-700'
+                                : ($state['filled'] === $state['of'] ? 'bg-emerald-500' : 'bg-amber-400');
+                        @endphp
+                        <button wire:key="week-{{ $item->id }}" wire:click="openWeek({{ $item->id }})"
+                            title="{{ __(':a من :b مجالات · :d يوماً مكتوباً', ['a' => $state['filled'], 'b' => $state['of'], 'd' => $state['days']]) }}"
+                            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors
+                                {{ $item->id === $weekId
+                                    ? 'bg-maroon text-white border-maroon'
+                                    : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-maroon' }}
+                                {{ $item->id === $this->currentWeekId && $item->id !== $weekId ? 'ring-1 ring-maroon/40' : '' }}">
+                            <span class="size-2 rounded-full {{ $item->id === $weekId ? 'bg-white/70' : $dot }}"></span>
+                            {{ $item->week_number }}
+                            @if ($state['days'] > 0)
+                                <span class="text-[10px] font-normal {{ $item->id === $weekId ? 'text-white/60' : 'text-zinc-400' }}">
+                                    {{ $state['days'] }}<span class="align-super">·</span>
+                                </span>
+                            @endif
+                        </button>
+                    @endforeach
+                </div>
             </div>
         @endif
 
@@ -808,20 +983,54 @@ new class extends Component
                                 @endunless
                             </div>
 
+                            @php
+                                $unit = $track->unitFor($rows[$track->value]['unit'] ?? null);
+                                $wrongUnit = $rows[$track->value]['was_written_in'] ?? null;
+                            @endphp
+
                             <div class="md:col-span-2">
-                                <flux:input type="number" step="0.25" min="0"
-                                    wire:model="rows.{{ $track->value }}.target_amount"
-                                    placeholder="{{ __('المقدار') }}" />
-                                <flux:error name="rows.{{ $track->value }}.target_amount" />
+                                @if (SelfProgramUnit::isDuration($unit))
+                                    {{-- Time is asked for as it is spoken. --}}
+                                    <div class="flex items-center gap-1.5">
+                                        <flux:input type="number" min="0" max="99" class="text-center"
+                                            wire:model="rows.{{ $track->value }}.hours"
+                                            placeholder="{{ __('ساعة') }}" />
+                                        <span class="text-zinc-400 text-xs shrink-0">:</span>
+                                        <flux:input type="number" min="0" max="59" step="5" class="text-center"
+                                            wire:model="rows.{{ $track->value }}.minutes"
+                                            placeholder="{{ __('دقيقة') }}" />
+                                    </div>
+                                    <flux:error name="rows.{{ $track->value }}.hours" />
+                                    <flux:error name="rows.{{ $track->value }}.minutes" />
+                                @else
+                                    <flux:input type="number" min="0"
+                                        step="{{ SelfProgramUnit::step($unit) }}"
+                                        wire:model="rows.{{ $track->value }}.target_amount"
+                                        placeholder="{{ __('المقدار') }}" />
+                                    <flux:error name="rows.{{ $track->value }}.target_amount" />
+                                @endif
                             </div>
 
                             <div class="md:col-span-2">
-                                @if ($track->fixedUnit())
-                                    <flux:input value="{{ $track->fixedUnit() }}" disabled />
+                                @if ($track->choosesUnit())
+                                    <flux:select wire:model.live="rows.{{ $track->value }}.unit">
+                                        @foreach ($track->unitOptions() as $option => $meaning)
+                                            <flux:select.option value="{{ $option }}">{{ $meaning }}</flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="rows.{{ $track->value }}.unit" />
+                                @elseif ($track->unitOptions() !== [])
+                                    <flux:input value="{{ $unit }}" disabled />
                                 @else
                                     <flux:input wire:model="rows.{{ $track->value }}.unit"
                                         placeholder="{{ __('الوحدة') }}" />
                                     <flux:error name="rows.{{ $track->value }}.unit" />
+                                @endif
+
+                                @if ($wrongUnit)
+                                    <p class="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                                        {{ __('كُتب سابقاً بـ«:unit»؛ راجع المقدار قبل الحفظ.', ['unit' => $wrongUnit]) }}
+                                    </p>
                                 @endif
                             </div>
                         </div>
@@ -896,8 +1105,15 @@ new class extends Component
                             <tbody>
                                 @foreach ($tracks as $track)
                                     <tr class="border-t border-zinc-100 dark:border-zinc-800" wire:key="grid-{{ $track->key }}">
+                                        @php
+                                            $rowUnit = $track->unitFor($rows[$track->value]['unit'] ?? null);
+                                            $inMinutes = SelfProgramUnit::isDuration($rowUnit);
+                                        @endphp
                                         <td class="p-2 font-bold text-zinc-800 dark:text-zinc-100 whitespace-nowrap sticky start-0 bg-white dark:bg-zinc-900">
                                             {{ $track->label() }}
+                                            <span class="block text-[10px] font-normal text-zinc-400">
+                                                {{ $inMinutes ? __('بالدقائق') : $rowUnit }}
+                                            </span>
                                         </td>
                                         @foreach ($gridColumns as $column)
                                             @php
@@ -908,9 +1124,10 @@ new class extends Component
                                                 <flux:input size="sm"
                                                     wire:model="grid.{{ $track->key }}.{{ $day }}.content"
                                                     placeholder="{{ __('المحتوى') }}" />
-                                                <flux:input size="sm" class="mt-1" type="number" step="0.25" min="0"
+                                                <flux:input size="sm" class="mt-1" type="number" min="0"
+                                                    step="{{ $inMinutes ? 5 : SelfProgramUnit::step($rowUnit) }}"
                                                     wire:model="grid.{{ $track->key }}.{{ $day }}.amount"
-                                                    placeholder="{{ __('المقدار') }}" />
+                                                    placeholder="{{ $inMinutes ? __('دقيقة') : __('المقدار') }}" />
                                             </td>
                                         @endforeach
                                     </tr>
@@ -919,14 +1136,88 @@ new class extends Component
                         </table>
                     </div>
 
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3 flex-wrap">
                         <flux:button variant="primary" icon="check" wire:click="saveGrid">{{ __('حفظ الجدول') }}</flux:button>
+                        <flux:button variant="ghost" icon="eye" wire:click="$toggle('showPreview')">
+                            {{ $showPreview ? __('إخفاء المعاينة') : __('كما يراه الطالب') }}
+                        </flux:button>
                         <flux:text class="text-xs text-zinc-400">
                             {{ $this->writesForCohort()
                                 ? __('تكتب لدفعتك، ويتقدّم ما تكتبه على جدول البرنامج.')
                                 : __('تكتب لكل من يقرأ هذا الأسبوع، ولمعلّم الدفعة أن يخصّص فوقه.') }}
                         </flux:text>
                     </div>
+
+                    {{-- اللصق من ورقة --}}
+                    <div class="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
+                        <div class="text-xs font-bold text-zinc-600 dark:text-zinc-300">{{ __('الصق جدولاً من ملفك') }}</div>
+                        <flux:textarea rows="3" wire:model="pasted" class="font-mono text-xs" dir="rtl"
+                            placeholder="{{ __('انسخ الجدول من Word أو Excel والصقه هنا. أول خانة في السطر اسم المجال، وما بعدها أيام الأسبوع بالترتيب.') }}" />
+                        <div class="flex items-center gap-2">
+                            <flux:button size="sm" variant="ghost" icon="clipboard-document" wire:click="applyPaste">
+                                {{ __('وزّعه على الجدول') }}
+                            </flux:button>
+                            <flux:text class="text-[11px] text-zinc-400">{{ __('يملأ الخانات ولا يحفظ — راجعها ثم احفظ.') }}</flux:text>
+                        </div>
+                    </div>
+
+                    {{-- المعاينة --}}
+                    @if ($showPreview)
+                        @php
+                            $preview = app(\App\Services\SelfProgramService::class)
+                                ->plannedGrid($this->week, $this->writesForCohort() ? $circleId : null);
+                        @endphp
+
+                        <div class="rounded-xl border border-maroon/20 bg-maroon/[0.03] dark:bg-maroon/[0.06] p-3 space-y-2">
+                            <div class="text-xs font-bold text-maroon dark:text-red-secondary">
+                                {{ __('كما يصل الطالب — بما فيه الأيام التي تركتها للحساب') }}
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-xs border-collapse">
+                                    <thead>
+                                        <tr>
+                                            <th class="p-1.5 text-right text-zinc-500">{{ __('المجال') }}</th>
+                                            @foreach ($preview['columns'] as $column)
+                                                <th class="p-1.5 text-center text-zinc-500 min-w-28">
+                                                    <x-hijri-date :date="$column['key']" style="weekdayOnly" />
+                                                </th>
+                                            @endforeach
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($preview['rows'] as $row)
+                                            <tr class="border-t border-zinc-100 dark:border-zinc-800" wire:key="pv-{{ $row['track']?->key }}">
+                                                <td class="p-1.5 font-bold whitespace-nowrap">{{ $row['track']?->label() }}</td>
+                                                @foreach ($preview['columns'] as $column)
+                                                    @php
+                                                        $cell = $row['cells'][$column['key']];
+                                                    @endphp
+                                                    <td class="p-1.5 text-center align-top {{ $cell['written'] ? '' : 'text-zinc-400' }}">
+                                                        @if ($cell['content'])
+                                                            <div class="leading-snug">{{ $cell['content'] }}</div>
+                                                        @endif
+                                                        @if ($cell['expected'] > 0)
+                                                            <div class="tabular-nums text-[11px]">
+                                                                {{ rtrim(rtrim(number_format($cell['expected'], 2, '.', ''), '0'), '.') }}
+                                                                {{ $row['unit'] }}
+                                                            </div>
+                                                        @else
+                                                            <span class="text-zinc-300 dark:text-zinc-700">—</span>
+                                                        @endif
+                                                    </td>
+                                                @endforeach
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="text-[11px] text-zinc-400">
+                                {{ __('الباهت مقدارٌ حسبه النظام، والواضح ما كتبته أنت.') }}
+                            </div>
+                        </div>
+                    @endif
                 @endif
             </flux:card>
         @endif

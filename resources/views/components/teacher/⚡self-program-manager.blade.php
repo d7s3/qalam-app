@@ -7,6 +7,7 @@ use App\Models\SelfProgramWeek;
 use App\Models\Student;
 use App\Services\SelfProgramService;
 use App\Models\SelfProgramTrack;
+use App\Support\SelfProgramUnit;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -197,7 +198,8 @@ new class extends Component
             $this->rows[$track->value] = [
                 'description' => $item?->description ?? '',
                 'target_amount' => $item ? (float) $item->target_amount : 0,
-                'unit' => $track->fixedUnit() ?? ($item?->unit ?: $track->defaultUnit()),
+                'unit' => $track->unitFor($item?->unit),
+                ...SelfProgramUnit::toHoursAndMinutes($item ? (float) $item->target_amount : 0),
             ];
         }
     }
@@ -240,6 +242,8 @@ new class extends Component
             'rows.*.description' => ['nullable', 'string', 'max:500'],
             'rows.*.target_amount' => ['nullable', 'numeric', 'min:0', 'max:9999'],
             'rows.*.unit' => ['nullable', 'string', 'max:30'],
+            'rows.*.hours' => ['nullable', 'integer', 'min:0', 'max:99'],
+            'rows.*.minutes' => ['nullable', 'integer', 'min:0', 'max:59'],
         ]);
 
         foreach (SelfProgramTrack::ordered() as $track) {
@@ -251,8 +255,10 @@ new class extends Component
 
             $week->items()->updateOrCreate(['track' => $track->value], [
                 'description' => $row['description'] ?: null,
-                'target_amount' => (float) ($row['target_amount'] ?: 0),
-                'unit' => $track->fixedUnit() ?? ($row['unit'] ?: $track->defaultUnit()),
+                'target_amount' => SelfProgramUnit::isDuration($unit = $track->unitFor($row['unit'] ?? null))
+                    ? SelfProgramUnit::fromHoursAndMinutes($row['hours'] ?? 0, $row['minutes'] ?? 0)
+                    : SelfProgramUnit::normalise((float) ($row['target_amount'] ?: 0), $unit),
+                'unit' => $unit,
             ]);
         }
 
@@ -435,14 +441,35 @@ new class extends Component
                                     <flux:input wire:model="rows.{{ $track->value }}.description"
                                         placeholder="{{ __('المحتوى الإثرائي') }}" />
                                 </div>
+                                @php
+                                    $unit = $track->unitFor($rows[$track->value]['unit'] ?? null);
+                                @endphp
                                 <div class="md:col-span-2">
-                                    <flux:input type="number" step="0.25" min="0"
-                                        wire:model="rows.{{ $track->value }}.target_amount"
-                                        placeholder="{{ __('المقدار') }}" />
+                                    @if (SelfProgramUnit::isDuration($unit))
+                                        <div class="flex items-center gap-1.5">
+                                            <flux:input type="number" min="0" max="99" class="text-center"
+                                                wire:model="rows.{{ $track->value }}.hours"
+                                                placeholder="{{ __('ساعة') }}" />
+                                            <span class="text-zinc-400 text-xs shrink-0">:</span>
+                                            <flux:input type="number" min="0" max="59" step="5" class="text-center"
+                                                wire:model="rows.{{ $track->value }}.minutes"
+                                                placeholder="{{ __('دقيقة') }}" />
+                                        </div>
+                                    @else
+                                        <flux:input type="number" min="0" step="{{ SelfProgramUnit::step($unit) }}"
+                                            wire:model="rows.{{ $track->value }}.target_amount"
+                                            placeholder="{{ __('المقدار') }}" />
+                                    @endif
                                 </div>
                                 <div class="md:col-span-2">
-                                    @if ($track->fixedUnit())
-                                        <flux:input value="{{ $track->fixedUnit() }}" disabled />
+                                    @if ($track->choosesUnit())
+                                        <flux:select wire:model.live="rows.{{ $track->value }}.unit">
+                                            @foreach ($track->unitOptions() as $option => $meaning)
+                                                <flux:select.option value="{{ $option }}">{{ $meaning }}</flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+                                    @elseif ($track->unitOptions() !== [])
+                                        <flux:input value="{{ $unit }}" disabled />
                                     @else
                                         <flux:input wire:model="rows.{{ $track->value }}.unit"
                                             placeholder="{{ __('الوحدة') }}" />

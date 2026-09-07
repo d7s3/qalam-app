@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\StudentSelfProgramEntry;
 use App\Models\Supervisor;
 use App\Services\SelfProgramService;
+use App\Support\SelfProgramUnit;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -237,20 +238,22 @@ describe('the student page', function () {
     it('records what the student confirms', function () {
         Livewire::actingAs($this->student, 'student')
             ->test('student.self-program')
-            ->set("amounts.{$this->manual->id}", 6)
+            ->set("clock.{$this->manual->id}.hours", 1)
+            ->set("clock.{$this->manual->id}.minutes", 15)
             ->call('save', $this->manual->id)
             ->assertHasNoErrors();
 
+        // He listened for an hour and a quarter, and that is what is kept.
         expect(StudentSelfProgramEntry::where('student_id', $this->student->id)->sum('amount_done'))
-            ->toEqual(6.0);
+            ->toEqual(75.0);
     });
 
     it('refuses an amount that is not a number', function () {
         Livewire::actingAs($this->student, 'student')
             ->test('student.self-program')
-            ->set("amounts.{$this->manual->id}", 'كثير')
+            ->set("clock.{$this->manual->id}.minutes", 'كثير')
             ->call('save', $this->manual->id)
-            ->assertHasErrors("amounts.{$this->manual->id}");
+            ->assertHasErrors("clock.{$this->manual->id}.minutes");
     });
 
     it('will not let a memorising circle\'s student write his own wird', function () {
@@ -469,8 +472,8 @@ describe('the supervisor editor', function () {
             ->call('openWeek', $this->week->id)
             ->set('rows.quran_wird.description', 'سورة الملك')
             ->set('rows.quran_wird.target_amount', 20)
-            ->set('rows.masmou.target_amount', 4)
-            ->set('rows.masmou.unit', 'درس')
+            ->set('rows.masmou.hours', 1)
+            ->set('rows.masmou.minutes', 30)
             ->call('save')
             ->assertHasNoErrors();
 
@@ -479,7 +482,10 @@ describe('the supervisor editor', function () {
         expect($items)->toHaveCount(5)
             ->and($items['quran_wird']->description)->toBe('سورة الملك')
             ->and((float) $items['quran_wird']->target_amount)->toBe(20.0)
-            ->and((float) $items['masmou']->target_amount)->toBe(4.0);
+            // المسموع is time, so it is asked for in hours and minutes and kept
+            // in minutes — an hour and a half is ninety.
+            ->and((float) $items['masmou']->target_amount)->toBe(90.0)
+            ->and($items['masmou']->unit)->toBe('دقيقة');
     });
 
     it('keeps the wird in pages whatever unit is submitted', function () {
@@ -530,5 +536,92 @@ describe('the supervisor editor', function () {
             ->and($added->ends_on->toDateString())->toBe('2026-09-19')
             // A new week arrives holding all five tracks, ready to fill in.
             ->and($added->items()->count())->toBe(5);
+    });
+});
+
+/**
+ * A number without a unit that fits it is a number that will be read wrongly.
+ * Reading is counted in pages, listening is a length of time, and memorised text
+ * is verses or hadiths or pages depending on what was memorised — so the field
+ * decides what it may be measured in, and the form asks accordingly.
+ */
+describe('the unit fits the field', function () {
+    beforeEach(function () {
+        $this->supervisor = Supervisor::factory()->create();
+        $this->supervisor->stages()->attach($this->stage->id);
+    });
+
+    it('settles the unit of every field the way the academy counts it', function () {
+        $by = SelfProgramTrack::ordered()->keyBy('key');
+
+        expect($by['maqrou']->fixedUnit())->toBe('صفحة')
+            ->and($by['quran_wird']->fixedUnit())->toBe('صفحة')
+            ->and($by['masmou']->isDuration())->toBeTrue()
+            ->and($by['tahdheer']->choosesUnit())->toBeTrue()
+            ->and(array_keys($by['tahdheer']->unitOptions()))->toBe(['دقيقة', 'صفحة'])
+            ->and(array_keys($by['mahfoudh']->unitOptions()))->toBe(['بيت', 'حديث', 'صفحة']);
+    });
+
+    it('refuses a unit the field does not take, keeping its own', function () {
+        $track = SelfProgramTrack::where('key', 'mahfoudh')->first();
+
+        expect($track->unitFor('حديث'))->toBe('حديث')
+            ->and($track->unitFor('صفحة'))->toBe('صفحة')
+            ->and($track->unitFor('درس'))->toBe('بيت')
+            ->and($track->unitFor(null))->toBe('بيت');
+    });
+
+    it('rounds a counted field to whole things and lets a page be halved', function () {
+        Livewire::actingAs($this->supervisor, 'supervisor')
+            ->test('supervisor.self-program-weeks')
+            ->call('openWeek', $this->week->id)
+            ->set('rows.mahfoudh.unit', 'حديث')
+            ->set('rows.mahfoudh.target_amount', 2.5)
+            ->set('rows.maqrou.target_amount', 3.5)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $items = $this->week->fresh('items')->items->keyBy(fn ($i) => $i->track->value);
+
+        // Half a hadith is not a quantity; half a page is.
+        expect((float) $items['mahfoudh']->target_amount)->toBe(3.0)
+            ->and((float) $items['maqrou']->target_amount)->toBe(3.5);
+    });
+
+    it('lets التحضير be prepared either by listening or by reading', function () {
+        Livewire::actingAs($this->supervisor, 'supervisor')
+            ->test('supervisor.self-program-weeks')
+            ->call('openWeek', $this->week->id)
+            ->set('rows.tahdheer.unit', 'صفحة')
+            ->set('rows.tahdheer.target_amount', 6)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        expect((float) $this->week->fresh('items')->items->firstWhere('track.key', 'tahdheer')->target_amount)->toBe(6.0);
+
+        Livewire::actingAs($this->supervisor, 'supervisor')
+            ->test('supervisor.self-program-weeks')
+            ->call('openWeek', $this->week->id)
+            ->set('rows.tahdheer.unit', 'دقيقة')
+            ->set('rows.tahdheer.hours', 0)
+            ->set('rows.tahdheer.minutes', 45)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $item = $this->week->fresh('items')->items->firstWhere('track.key', 'tahdheer');
+
+        expect((float) $item->target_amount)->toBe(45.0)
+            ->and($item->unit)->toBe('دقيقة');
+    });
+
+    it('says an amount the way it is read aloud', function () {
+        expect(SelfProgramUnit::say(1, 'صفحة'))->toBe('صفحة')
+            ->and(SelfProgramUnit::say(2, 'حديث'))->toBe('حديثان')
+            ->and(SelfProgramUnit::say(7, 'بيت'))->toBe('7 أبيات')
+            ->and(SelfProgramUnit::say(15, 'صفحة'))->toBe('15 صفحة')
+            ->and(SelfProgramUnit::say(45, 'دقيقة'))->toBe('45 دقيقة')
+            ->and(SelfProgramUnit::say(60, 'دقيقة'))->toBe('ساعة')
+            ->and(SelfProgramUnit::say(90, 'دقيقة'))->toBe('ساعة و30 دقيقة')
+            ->and(SelfProgramUnit::say(120, 'دقيقة'))->toBe('ساعتان');
     });
 });

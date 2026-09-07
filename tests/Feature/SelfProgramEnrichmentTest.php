@@ -150,13 +150,15 @@ describe('the teacher screen', function () {
             ->test('teacher.self-program-manager')
             ->call('openWeek', $this->enrichmentWeek->id)
             ->set('rows.masmou.description', 'درسان صوتيان')
-            ->set('rows.masmou.target_amount', 2)
+            ->set('rows.masmou.hours', 2)
+            ->set('rows.masmou.minutes', 0)
             ->call('saveWeek')
             ->assertHasNoErrors();
 
         $items = $this->enrichmentWeek->fresh('items')->items->keyBy(fn ($i) => $i->track->value);
 
-        expect((float) $items['masmou']->target_amount)->toBe(2.0)
+        // المسموع is a length of time: two hours, kept as minutes.
+        expect((float) $items['masmou']->target_amount)->toBe(120.0)
             ->and($items['masmou']->description)->toBe('درسان صوتيان');
     });
 

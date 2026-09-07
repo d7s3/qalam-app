@@ -3,6 +3,7 @@
 use App\Models\SelfProgramItem;
 use App\Models\SelfProgramWeek;
 use App\Services\SelfProgramService;
+use App\Support\SelfProgramUnit;
 use App\Models\SelfProgramTrack;
 use Carbon\Carbon;
 use Flux\Flux;
@@ -14,6 +15,12 @@ new class extends Component
 {
     /** The amount the student is entering against each track, keyed by item id. */
     public array $amounts = [];
+
+    /**
+     * The same entry for a field measured in time, asked for as it is spoken:
+     * ['hours' => .., 'minutes' => ..] keyed by item id.
+     */
+    public array $clock = [];
 
     /** The day being recorded against — today unless the student picks another. */
     public string $day = '';
@@ -44,6 +51,7 @@ new class extends Component
         foreach ($this->openItems() as $item) {
             $done = $service->doneByDay($item, $student);
             $this->amounts[$item->id] = $done[$this->day] ?? null;
+            $this->clock[$item->id] = SelfProgramUnit::toHoursAndMinutes((float) ($done[$this->day] ?? 0));
         }
     }
 
@@ -129,9 +137,18 @@ new class extends Component
 
         $this->validate([
             "amounts.{$itemId}" => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            "clock.{$itemId}.hours" => ['nullable', 'integer', 'min:0', 'max:99'],
+            "clock.{$itemId}.minutes" => ['nullable', 'integer', 'min:0', 'max:59'],
         ], [], ["amounts.{$itemId}" => 'المقدار']);
 
-        $amount = (float) ($this->amounts[$itemId] ?? 0);
+        // Listening is reported in hours and minutes; everything else is
+        // counted, and counted whole.
+        $amount = $item->isDuration()
+            ? SelfProgramUnit::fromHoursAndMinutes(
+                $this->clock[$itemId]['hours'] ?? 0,
+                $this->clock[$itemId]['minutes'] ?? 0,
+            )
+            : SelfProgramUnit::normalise((float) ($this->amounts[$itemId] ?? 0), $item->displayUnit());
 
         // Memorising is not knowing until somebody has heard it, so the field
         // asks before it counts. Clearing an entry needs no hearing.
@@ -151,7 +168,12 @@ new class extends Component
 
         abort_unless($item instanceof SelfProgramItem, 404);
 
-        $this->write($item, (float) ($this->amounts[$item->id] ?? 0), true);
+        $this->write($item, $item->isDuration()
+            ? SelfProgramUnit::fromHoursAndMinutes(
+                $this->clock[$item->id]['hours'] ?? 0,
+                $this->clock[$item->id]['minutes'] ?? 0,
+            )
+            : SelfProgramUnit::normalise((float) ($this->amounts[$item->id] ?? 0), $item->displayUnit()), true);
 
         $this->askingRecitationFor = null;
     }
@@ -211,7 +233,12 @@ new class extends Component
         // recitation would store it again under his own name.
         $already = $service->recordedBy($student, $item, $today);
 
-        $service->record($student, $item, $already + (float) $this->settleAmounts[$itemId], $today);
+        $service->record(
+            $student,
+            $item,
+            $already + SelfProgramUnit::normalise((float) $this->settleAmounts[$itemId], $item->displayUnit()),
+            $today,
+        );
 
         $this->settleAmounts[$itemId] = null;
     }
@@ -506,21 +533,20 @@ new class extends Component
                                 </span>
                             </div>
                             <div class="text-xs text-amber-600 dark:text-amber-400 tabular-nums mt-0.5">
-                                {{ __('بقي') }}
-                                {{ rtrim(rtrim(number_format($arrear['remaining'], 2), '0'), '.') }}
-                                {{ $arrear['item']->displayUnit() }}
+                                {{ __('بقي') }} {{ $arrear['item']->say($arrear['remaining']) }}
                                 <span class="text-zinc-400">
-                                    ({{ rtrim(rtrim(number_format($arrear['done'], 2), '0'), '.') }}
+                                    ({{ $arrear['item']->say($arrear['done']) }}
                                     {{ __('من') }}
-                                    {{ rtrim(rtrim(number_format($arrear['target'], 2), '0'), '.') }})
+                                    {{ $arrear['item']->say($arrear['target']) }})
                                 </span>
                             </div>
                         </div>
                         <div class="flex items-end gap-2">
                             <flux:field>
-                                <flux:input type="number" step="0.25" min="0" class="w-32"
+                                <flux:input type="number" min="0" class="w-32"
+                                    step="{{ SelfProgramUnit::step($arrear['item']->displayUnit()) }}"
                                     wire:model="settleAmounts.{{ $arrear['item']->id }}"
-                                    placeholder="{{ __('ما أنجزته') }}" />
+                                    placeholder="{{ $arrear['item']->isDuration() ? __('دقيقة') : __('ما أنجزته') }}" />
                                 <flux:error name="settleAmounts.{{ $arrear['item']->id }}" />
                             </flux:field>
                             <flux:button variant="filled" wire:click="settle({{ $arrear['item']->id }})" class="mb-0.5">
@@ -617,10 +643,9 @@ new class extends Component
                         <div class="text-end shrink-0">
                             <div class="text-lg font-bold text-zinc-900 dark:text-white tabular-nums">{{ $entry['percent'] }}%</div>
                             <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
-                                {{ rtrim(rtrim(number_format($entry['done'], 2), '0'), '.') }}
+                                {{ $item->say($entry['done']) }}
                                 {{ __('من') }}
-                                {{ rtrim(rtrim(number_format($entry['target'], 2), '0'), '.') }}
-                                {{ $item->displayUnit() }}
+                                {{ $item->say($entry['target']) }}
                             </div>
                         </div>
                     </div>
@@ -636,11 +661,11 @@ new class extends Component
                             <div class="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
                                 {{ __('يُسجَّل تلقائياً من تسميعك عند معلمك') }} —
                                 <span class="font-bold tabular-nums">
-                                    {{ rtrim(rtrim(number_format($entry['done'], 2), '0'), '.') }} {{ $item->displayUnit() }}
+                                    {{ $item->say($entry['done']) }}
                                 </span>
                                 {{ __('حتى الآن، والمقترح اليوم') }}
                                 <span class="font-bold tabular-nums">
-                                    {{ rtrim(rtrim(number_format($suggested, 2), '0'), '.') }}
+                                    {{ $item->say($suggested) }}
                                 </span>.
                             </div>
                         </div>
@@ -650,13 +675,28 @@ new class extends Component
                                 <flux:label class="text-xs">
                                     {{ __('المقترح اليوم') }}:
                                     <span class="font-bold text-zinc-700 dark:text-zinc-200 tabular-nums">
-                                        {{ rtrim(rtrim(number_format($suggested, 2), '0'), '.') }} {{ $item->displayUnit() }}
+                                        {{ $item->say($suggested) }}
                                     </span>
                                 </flux:label>
-                                <flux:input type="number" step="0.25" min="0"
-                                    wire:model="amounts.{{ $item->id }}"
-                                    placeholder="{{ __('ما أنجزته') }}" />
-                                <flux:error name="amounts.{{ $item->id }}" />
+                                @if ($item->isDuration())
+                                    <div class="flex items-center gap-1.5">
+                                        <flux:input type="number" min="0" max="99" class="text-center"
+                                            wire:model="clock.{{ $item->id }}.hours"
+                                            placeholder="{{ __('ساعة') }}" />
+                                        <span class="text-zinc-400 text-xs shrink-0">:</span>
+                                        <flux:input type="number" min="0" max="59" step="5" class="text-center"
+                                            wire:model="clock.{{ $item->id }}.minutes"
+                                            placeholder="{{ __('دقيقة') }}" />
+                                    </div>
+                                    <flux:error name="clock.{{ $item->id }}.hours" />
+                                    <flux:error name="clock.{{ $item->id }}.minutes" />
+                                @else
+                                    <flux:input type="number" min="0"
+                                        step="{{ SelfProgramUnit::step($item->displayUnit()) }}"
+                                        wire:model="amounts.{{ $item->id }}"
+                                        placeholder="{{ __('ما أنجزته') }}" />
+                                    <flux:error name="amounts.{{ $item->id }}" />
+                                @endif
                             </flux:field>
                             <flux:button variant="primary" wire:click="save({{ $item->id }})" class="mb-0.5">
                                 {{ __('تأكيد') }}
@@ -708,18 +748,30 @@ new class extends Component
                                         <div class="h-full rounded-full bg-emerald-500" style="width: {{ $extra['percent'] }}%"></div>
                                     </div>
                                     <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums mt-1">
-                                        {{ rtrim(rtrim(number_format($extra['done'], 2), '0'), '.') }}
+                                        {{ $extra['item']->say($extra['done']) }}
                                         {{ __('من') }}
-                                        {{ rtrim(rtrim(number_format($extra['target'], 2), '0'), '.') }}
-                                        {{ $extra['item']->displayUnit() }}
+                                        {{ $extra['item']->say($extra['target']) }}
                                     </div>
                                 </div>
                                 <div class="flex items-end gap-2">
                                     <flux:field>
-                                        <flux:input type="number" step="0.25" min="0" class="w-32"
-                                            wire:model="amounts.{{ $extra['item']->id }}"
-                                            placeholder="{{ __('ما أنجزته') }}" />
-                                        <flux:error name="amounts.{{ $extra['item']->id }}" />
+                                        @if ($extra['item']->isDuration())
+                                            <div class="flex items-center gap-1.5 w-40">
+                                                <flux:input type="number" min="0" max="99" class="text-center"
+                                                    wire:model="clock.{{ $extra['item']->id }}.hours"
+                                                    placeholder="{{ __('ساعة') }}" />
+                                                <span class="text-zinc-400 text-xs shrink-0">:</span>
+                                                <flux:input type="number" min="0" max="59" step="5" class="text-center"
+                                                    wire:model="clock.{{ $extra['item']->id }}.minutes"
+                                                    placeholder="{{ __('دقيقة') }}" />
+                                            </div>
+                                        @else
+                                            <flux:input type="number" min="0" class="w-32"
+                                                step="{{ SelfProgramUnit::step($extra['item']->displayUnit()) }}"
+                                                wire:model="amounts.{{ $extra['item']->id }}"
+                                                placeholder="{{ __('ما أنجزته') }}" />
+                                            <flux:error name="amounts.{{ $extra['item']->id }}" />
+                                        @endif
                                     </flux:field>
                                     <flux:button variant="filled" wire:click="save({{ $extra['item']->id }})" class="mb-0.5">
                                         {{ __('تأكيد') }}

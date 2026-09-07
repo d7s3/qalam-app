@@ -114,7 +114,7 @@ describe('importing a sheet', function () {
     it('reads Arabic field names off a handed-over sheet', function () {
         file_put_contents($this->path, "\u{FEFF}الأسبوع,المجال,المحتوى,المقدار,الوحدة\n"
             ."1,الورد القرآني,سورة الملك,20,صفحة\n"
-            ."1,المسموع,درس التجويد,3,درس\n"
+            ."1,المسموع,درس التجويد,1:30,دقيقة\n"
             ."2,الورد القرآني,سورة القلم,15,صفحة\n");
 
         $result = $this->builder->import($this->path, $this->stage->id);
@@ -125,7 +125,9 @@ describe('importing a sheet', function () {
         $first = SelfProgramWeek::with('items')->where('week_number', 1)->first();
 
         expect((float) $first->items->firstWhere('track.key', SelfProgramTrack::QURAN_WIRD)->target_amount)->toBe(20.0)
-            ->and($first->items->firstWhere('track.key', SelfProgramTrack::MASMOU)->description)->toBe('درس التجويد');
+            ->and($first->items->firstWhere('track.key', SelfProgramTrack::MASMOU)->description)->toBe('درس التجويد')
+            // Time written the way a person writes it, kept in minutes.
+            ->and((float) $first->items->firstWhere('track.key', SelfProgramTrack::MASMOU)->target_amount)->toBe(90.0);
     });
 
     it('names the row when a field is not recognised', function () {
@@ -174,5 +176,18 @@ describe('importing a sheet', function () {
 
         expect($template)->toStartWith("\u{FEFF}الأسبوع,المجال,المحتوى,المقدار,الوحدة")
             ->and(substr_count($template, "\n"))->toBe(11);
+    });
+
+    it('refuses a unit the field is not measured in, and says what it is', function () {
+        file_put_contents($this->path, "الأسبوع,المجال,المحتوى,المقدار,الوحدة\n"
+            ."1,المحفوظ,متن الورقات,5,درس\n");
+
+        $result = $this->builder->import($this->path, $this->stage->id);
+
+        // Swapping the unit silently would keep the number and change what it
+        // meant, so the row is named and left to the person who wrote it.
+        expect($result['written'])->toBe(0)
+            ->and($result['errors'][0])->toContain('لا يُقاس')
+            ->and($result['errors'][0])->toContain('بيت');
     });
 });

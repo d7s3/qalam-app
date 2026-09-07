@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\SelfProgramUnit;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -76,5 +77,20 @@ class SelfProgramItem extends Model
     public function displayUnit(): string
     {
         return $this->track->fixedUnit() ?? ($this->unit ?: $this->track->defaultUnit());
+    }
+
+    /** Whether this item is a length of time rather than a count of things. */
+    public function isDuration(): bool
+    {
+        return SelfProgramUnit::isDuration($this->displayUnit());
+    }
+
+    /**
+     * An amount of this item, said the way it would be read aloud — «ساعة و٣٠
+     * دقيقة», «3 أبيات», «صفحتان».
+     */
+    public function say(?float $amount): string
+    {
+        return SelfProgramUnit::say((float) $amount, $this->displayUnit());
     }
 }

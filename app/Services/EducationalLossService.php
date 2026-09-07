@@ -225,8 +225,8 @@ class EducationalLossService
                 'kind' => 'self-program',
                 'label' => $item->track?->label() ?? __('البرنامج الذاتي'),
                 'date' => (string) $item->week?->ends_on?->format('Y-m-d'),
-                'expected' => $item->target_amount.' '.$item->displayUnit(),
-                'done' => ($done[$item->id] ?? 0).' '.$item->displayUnit(),
+                'expected' => $item->say((float) $item->target_amount),
+                'done' => $item->say((float) ($done[$item->id] ?? 0)),
             ])
             ->values()
             ->all();

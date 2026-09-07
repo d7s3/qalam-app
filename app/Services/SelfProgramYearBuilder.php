@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AcademicCalendarEvent;
+use App\Models\SelfProgramDayOverride;
 use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Support\SelfProgramSheet;
@@ -87,21 +88,57 @@ class SelfProgramYearBuilder
         $source->loadMissing('items');
         $written = 0;
 
+        // The day plan is written against real dates, so it is carried by the
+        // offset between the two weeks rather than copied verbatim: the
+        // source's Sunday becomes the target's Sunday.
+        $sourceDays = SelfProgramDayOverride::whereIn('self_program_item_id', $source->items->pluck('id'))
+            ->get()
+            ->groupBy('self_program_item_id');
+
         foreach ($targets as $target) {
             if ($target->id === $source->id) {
                 continue;
             }
 
+            $shift = $source->starts_on->diffInDays($target->starts_on, false);
+
             foreach ($source->items as $item) {
-                $target->items()->updateOrCreate(
+                $copy = $target->items()->updateOrCreate(
                     ['track' => $item->track->value],
                     [
                         'description' => $item->description,
+                        // Carried too: a week copied without its link is a week
+                        // whose content the student cannot reach.
+                        'content_url' => $item->content_url,
+                        'content_label' => $item->content_label,
                         'target_amount' => $item->target_amount,
                         'unit' => $item->unit,
                     ],
                 );
+
+                foreach ($sourceDays[$item->id] ?? [] as $day) {
+                    $on = $day->day_date->copy()->addDays($shift);
+
+                    SelfProgramDayOverride::updateOrCreate(
+                        [
+                            'self_program_item_id' => $copy->id,
+                            'day_date' => $on,
+                            'circle_id' => $day->circle_id,
+                            'student_id' => $day->student_id,
+                        ],
+                        ['content' => $day->content, 'amount' => $day->amount],
+                    );
+                }
             }
+
+            // And the days the week joins into one column travel with it.
+            $target->update([
+                'merged_days' => collect($source->merged_days ?? [])
+                    ->map(fn ($group) => collect($group)
+                        ->map(fn ($day) => Carbon::parse($day)->addDays($shift)->format('Y-m-d'))
+                        ->all())
+                    ->all(),
+            ]);
 
             $written++;
         }

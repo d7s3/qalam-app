@@ -99,10 +99,23 @@ class SelfProgramSheet
             return "السطر {$line}: المجال \"{$cells[1]}\" غير معروف.";
         }
 
-        $amount = $cells[3] ?? 0;
+        $written = trim((string) ($cells[4] ?? ''));
 
-        if ($amount !== '' && $amount !== null && ! is_numeric($amount)) {
-            return "السطر {$line}: المقدار يجب أن يكون رقماً.";
+        // A sheet says what it means, so a unit the field does not take is
+        // refused by name rather than quietly swapped for one that fits.
+        if ($written !== '' && ! $track->allowsUnit($written)) {
+            $allowed = implode(' أو ', array_keys($track->unitOptions()));
+
+            return "السطر {$line}: {$track->label()} لا يُقاس بـ\"{$written}\" — بل بـ{$allowed}.";
+        }
+
+        $unit = $track->unitFor($written ?: null);
+        $amount = self::amountFrom($cells[3] ?? 0, $unit);
+
+        if ($amount === null) {
+            return SelfProgramUnit::isDuration($unit)
+                ? "السطر {$line}: المقدار وقتٌ، فاكتبه دقائقَ أو هكذا 1:30."
+                : "السطر {$line}: المقدار يجب أن يكون رقماً.";
         }
 
         return [
@@ -110,9 +123,35 @@ class SelfProgramSheet
             'week' => $week,
             'track' => $track,
             'description' => ($cells[2] ?? '') !== '' ? (string) $cells[2] : null,
-            'amount' => (float) $amount,
-            'unit' => ($cells[4] ?? '') !== '' ? (string) $cells[4] : null,
+            'amount' => $amount,
+            'unit' => $unit,
         ];
+    }
+
+    /**
+     * Read the amount a cell holds, in whatever the field is measured in.
+     *
+     * Time is written the way a person writes it — `1:30`, or plainly in
+     * minutes — and kept in minutes. Everything else is a count, and is made
+     * whole. `null` means the cell was not a quantity at all.
+     */
+    private static function amountFrom(mixed $written, string $unit): ?float
+    {
+        $written = trim((string) $written);
+
+        if ($written === '') {
+            return 0.0;
+        }
+
+        if (SelfProgramUnit::isDuration($unit) && preg_match('/^(\d{1,2})\s*:\s*(\d{1,2})$/', $written, $found)) {
+            return SelfProgramUnit::fromHoursAndMinutes($found[1], $found[2]);
+        }
+
+        if (! is_numeric($written)) {
+            return null;
+        }
+
+        return SelfProgramUnit::normalise((float) $written, $unit);
     }
 
     /**
@@ -166,14 +205,21 @@ class SelfProgramSheet
     public static function template(int $weeks = 4): string
     {
         $out = "\u{FEFF}".implode(',', self::COLUMNS)."\n";
+        $tracks = SelfProgramTrack::ordered();
 
-        foreach (SelfProgramTrack::ordered() as $track) {
-            $out .= implode(',', [1, $track->label(), '', 0, $track->defaultUnit()])."\n";
-        }
+        for ($week = 1; $week <= $weeks; $week++) {
+            foreach ($tracks as $track) {
+                $unit = $track->defaultUnit();
 
-        for ($week = 2; $week <= $weeks; $week++) {
-            foreach (SelfProgramTrack::ordered() as $track) {
-                $out .= implode(',', [$week, $track->label(), '', 0, $track->defaultUnit()])."\n";
+                // A field measured in time shows the shape its cell takes, so
+                // nobody has to guess whether to write hours or minutes.
+                $out .= implode(',', [
+                    $week,
+                    $track->label(),
+                    '',
+                    SelfProgramUnit::isDuration($unit) ? '0:00' : 0,
+                    $unit,
+                ])."\n";
             }
         }
 

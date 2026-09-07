@@ -289,6 +289,87 @@ class SelfProgramService
      * @return array<string, float>
      */
     /**
+     * The week as it will reach a student, for nobody in particular.
+     *
+     * The author writing the grid sees his own boxes; this shows what they turn
+     * into — including the days he left blank, whose share the arithmetic
+     * decides. Finding that out from a student's question is finding out late.
+     *
+     * No achievements enter it: this is the plan, not anybody's standing
+     * against it.
+     *
+     * @return array{columns: array<int, array<string, mixed>>, rows: array<int, array<string, mixed>>}
+     */
+    public function plannedGrid(SelfProgramWeek $week, ?int $circleId = null): array
+    {
+        $columns = $this->dayColumns($week);
+        $days = $this->workingDays($week);
+        $rows = [];
+
+        $written = SelfProgramDayOverride::whereIn('self_program_item_id', $week->items->pluck('id'))
+            ->whereNull('student_id')
+            ->where(fn ($q) => $q->whereNull('circle_id')->when($circleId, fn ($c) => $c->orWhere('circle_id', $circleId)))
+            ->orderByRaw('circle_id is null desc')
+            ->get()
+            ->groupBy('self_program_item_id');
+
+        foreach ($week->items->sortBy(fn (SelfProgramItem $item) => $item->track?->sort_order ?? 99) as $item) {
+            $amounts = [];
+            $content = [];
+
+            foreach ($written[$item->id] ?? [] as $row) {
+                $key = $row->day_date->toDateString();
+
+                if ($row->amount !== null) {
+                    $amounts[$key] = (float) $row->amount;
+                }
+
+                if (filled($row->content)) {
+                    $content[$key] = $row->content;
+                }
+            }
+
+            // The same share the student would be shown, with nothing done yet.
+            $target = (float) $item->target_amount;
+            $plan = [];
+            $spent = 0.0;
+
+            foreach ($days as $index => $day) {
+                if (isset($amounts[$day])) {
+                    $plan[$day] = $amounts[$day];
+                    $spent += $amounts[$day];
+
+                    continue;
+                }
+
+                $left = count($days) - $index;
+                $plan[$day] = $left > 0 ? round(max(0.0, $target - $spent) / $left, 2) : 0.0;
+                $spent += $plan[$day];
+            }
+
+            $cells = [];
+
+            foreach ($columns as $column) {
+                $cells[$column['key']] = [
+                    'content' => collect($column['days'])->map(fn ($d) => $content[$d] ?? null)->filter()->implode(' · ') ?: null,
+                    'expected' => collect($column['days'])->sum(fn ($d) => $plan[$d] ?? 0),
+                    'written' => collect($column['days'])->contains(fn ($d) => isset($amounts[$d]) || isset($content[$d])),
+                    'merged' => $column['merged'],
+                ];
+            }
+
+            $rows[] = [
+                'track' => $item->track,
+                'unit' => $item->displayUnit(),
+                'target' => $target,
+                'cells' => $cells,
+            ];
+        }
+
+        return ['columns' => $columns, 'rows' => $rows];
+    }
+
+    /**
      * The programme read at a wider scale: a row per field, a column per week
      * or per month.
      *

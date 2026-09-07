@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\SelfProgramUnit;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -46,6 +47,7 @@ class SelfProgramTrack extends Model
         'sort_order',
         'is_day_bound',
         'needs_recitation_confirmation',
+        'unit_choices',
     ];
 
     protected $casts = [
@@ -53,6 +55,7 @@ class SelfProgramTrack extends Model
         'sort_order' => 'integer',
         'is_day_bound' => 'boolean',
         'needs_recitation_confirmation' => 'boolean',
+        'unit_choices' => 'array',
     ];
 
     /** The key, under the name the application has always called it by. */
@@ -67,19 +70,82 @@ class SelfProgramTrack extends Model
     }
 
     /**
+     * The units this field may be measured in, each with what choosing it means.
+     *
+     * Empty when the field takes any unit at all, which is only true of one the
+     * academy added itself without saying how it is counted.
+     *
+     * @return array<string, string>
+     */
+    public function unitOptions(): array
+    {
+        return $this->unit_choices ?: [];
+    }
+
+    /**
      * The unit no supervisor may override.
      *
-     * The wird is written in mushaf pages by the recitation bridge, so choosing
-     * another unit for it would break the arithmetic silently.
+     * A field with one unit has it settled: the wird is written in mushaf pages
+     * because the recitation bridge writes into it, and المقروء is written in
+     * pages because that is what reading is counted in. Choosing otherwise
+     * would break the arithmetic silently rather than loudly.
      */
     public function fixedUnit(): ?string
     {
+        $options = $this->unitOptions();
+
+        if (count($options) === 1) {
+            return (string) array_key_first($options);
+        }
+
         return $this->attributes['fixed_unit'] ?: null;
     }
 
     public function defaultUnit(): string
     {
         return $this->fixedUnit() ?? ($this->attributes['default_unit'] ?: 'وحدة');
+    }
+
+    /** Whether the field offers the author a choice of unit at all. */
+    public function choosesUnit(): bool
+    {
+        return count($this->unitOptions()) > 1;
+    }
+
+    /**
+     * Settle the unit an item is to be written in.
+     *
+     * A fixed field ignores what was asked for. A choosing field takes the
+     * choice when it is one of its own and falls back to its first otherwise,
+     * so a unit that arrived from a spreadsheet cannot smuggle itself in.
+     */
+    public function unitFor(?string $wanted): string
+    {
+        if ($fixed = $this->fixedUnit()) {
+            return $fixed;
+        }
+
+        $options = $this->unitOptions();
+
+        if ($options === []) {
+            return $wanted !== null && $wanted !== '' ? $wanted : $this->defaultUnit();
+        }
+
+        return isset($options[$wanted]) ? (string) $wanted : $this->defaultUnit();
+    }
+
+    /** Whether a unit is one this field accepts. */
+    public function allowsUnit(?string $unit): bool
+    {
+        $options = $this->unitOptions();
+
+        return $options === [] || ($unit !== null && isset($options[$unit]));
+    }
+
+    /** Whether this field, as written, is measured in time rather than counted. */
+    public function isDuration(?string $unit = null): bool
+    {
+        return SelfProgramUnit::isDuration($unit ?? $this->defaultUnit());
     }
 
     public function icon(): string
