@@ -170,7 +170,7 @@
                                                                         }">
                                                             <button @click="toggle()"
                                                                 :title="confirmed ? '{{ __('إزالة النقطة') }}' : '{{ __('منح النقطة') }}'" :class="{
-                                                                                'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/20 scale-110': confirmed && !pending,
+                                                                                'bg-maroon border-maroon text-white scale-110': confirmed && !pending,
                                                                                 'bg-zinc-200 border-zinc-300 text-zinc-700 dark:bg-white dark:border-white dark:text-zinc-900 shadow-md scale-105 animate-pulse': pending,
                                                                                 'bg-white border-zinc-200 text-zinc-300 hover:border-emerald-200 hover:text-emerald-300 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-700 dark:hover:border-emerald-800 dark:hover:text-emerald-700': !confirmed && !pending
                                                                             }"

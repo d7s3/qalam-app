@@ -7,22 +7,18 @@
 
         {{-- Header + period selector --}}
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 shadow-sm">
-                    <flux:icon icon="user-group" class="size-6" />
-                </div>
-                <div>
-                    <flux:heading size="xl" class="font-bold">إحصائيات الحضور</flux:heading>
-                    <flux:subheading class="text-zinc-500">
-                        {{ $attDates['label'] }}
+            <x-section-heading icon="user-group">
+                إحصائيات الحضور
+
+                <x-slot:detail>
+                    {{ $attDates['label'] }}
                         @if($attDates['from'] !== $attDates['to'])
                             &nbsp;·&nbsp; <x-hijri-date :date="\Carbon\Carbon::parse($attDates['from'])" /> → <x-hijri-date :date="\Carbon\Carbon::parse($attDates['to'])" />
                         @else
                             &nbsp;·&nbsp; <x-hijri-date :date="\Carbon\Carbon::parse($attDates['from'])" />
                         @endif
-                    </flux:subheading>
-                </div>
-            </div>
+                </x-slot:detail>
+            </x-section-heading>
 
             {{-- Period Chips --}}
             <div class="flex flex-wrap items-center gap-2">
@@ -36,8 +32,8 @@
                     <button wire:click="setAttendancePeriod('{{ $key }}')"
                         class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all
                             {{ $attendancePeriod === $key
-                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                                : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-emerald-400' }}">
+                                ? 'bg-maroon border-maroon text-white'
+                                : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-maroon/40' }}">
                         {{ $label }}
                     </button>
                 @endforeach
@@ -75,15 +71,9 @@
 
         @elseif($att['total'] === 0)
             {{-- School day but no data --}}
-            <div class="flex items-center gap-4 p-5 rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
-                <div class="p-3 rounded-xl bg-blue-100 dark:bg-blue-800/50 text-blue-500 dark:text-blue-300">
-                    <flux:icon icon="clock" class="size-7" />
-                </div>
-                <div>
-                    <flux:heading size="lg" class="text-blue-800 dark:text-blue-300">لم يتم تسجيل بيانات حتى الآن</flux:heading>
-                    <p class="text-blue-700/80 dark:text-blue-400 text-sm mt-0.5">لا توجد سجلات حضور لهذا الاختيار. ربما لم يتم تسجيل الحضور بعد.</p>
-                </div>
-            </div>
+            <x-empty-note title="لم يُسجَّل شيءٌ بعد">
+                لا توجد سجلات حضور لهذا الاختيار. ربما لم يتم تسجيل الحضور بعد.
+            </x-empty-note>
 
         @else
             {{-- Stats Cards --}}
@@ -168,22 +158,18 @@
 
         {{-- Header + period selector --}}
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shadow-sm">
-                    <flux:icon icon="book-open" class="size-6" />
-                </div>
-                <div>
-                    <flux:heading size="xl" class="font-bold">إحصائيات الحفظ والمراجعة</flux:heading>
-                    <flux:subheading class="text-zinc-500">
-                        {{ $quranDates['label'] }}
+            <x-section-heading icon="book-open">
+                إحصائيات الحفظ والمراجعة
+
+                <x-slot:detail>
+                    {{ $quranDates['label'] }}
                         @if($quranDates['from'] !== $quranDates['to'])
                             &nbsp;·&nbsp; <x-hijri-date :date="\Carbon\Carbon::parse($quranDates['from'])" /> → <x-hijri-date :date="\Carbon\Carbon::parse($quranDates['to'])" />
                         @else
                             &nbsp;·&nbsp; <x-hijri-date :date="\Carbon\Carbon::parse($quranDates['from'])" />
                         @endif
-                    </flux:subheading>
-                </div>
-            </div>
+                </x-slot:detail>
+            </x-section-heading>
 
             {{-- Period Chips --}}
             <div class="flex flex-wrap items-center gap-2">
@@ -234,15 +220,9 @@
             </div>
 
         @elseif(! $q['hasData'])
-            <div class="flex items-center gap-4 p-5 rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
-                <div class="p-3 rounded-xl bg-blue-100 dark:bg-blue-800/50 text-blue-500 dark:text-blue-300">
-                    <flux:icon icon="clock" class="size-7" />
-                </div>
-                <div>
-                    <flux:heading size="lg" class="text-blue-800 dark:text-blue-300">لم يتم تسجيل بيانات حتى الآن</flux:heading>
-                    <p class="text-blue-700/80 dark:text-blue-400 text-sm mt-0.5">لا توجد جلسات تسميع مسجلة لهذا الاختيار.</p>
-                </div>
-            </div>
+            <x-empty-note title="لم يُسجَّل شيءٌ بعد">
+                لا توجد جلسات تسميع مسجلة لهذا الاختيار.
+            </x-empty-note>
 
         @else
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

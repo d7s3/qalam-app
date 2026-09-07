@@ -3,22 +3,22 @@
 @endphp
 
 <flux:sidebar.group :heading="__('Platform')" class="grid">
-    <flux:sidebar.item class="[&_svg]:bg-[#3b82f6] hover:[&_svg]:bg-[#2563eb]" icon="home" :href="route('guardian.dashboard')" :current="request()->routeIs('guardian.dashboard')" wire:navigate>
+    <flux:sidebar.item icon="home" :href="route('guardian.dashboard')" :current="request()->routeIs('guardian.dashboard')" wire:navigate>
         {{ __('الرئيسية') }}
     </flux:sidebar.item>
 @if(\App\Support\RolePages::isEnabled('guardian', 'guardian.child-day'))
-    <flux:sidebar.item class="[&_svg]:bg-[#f59e0b] hover:[&_svg]:bg-[#d97706]" icon="sun" :href="route('guardian.child-day')" :current="request()->routeIs('guardian.child-day')" wire:navigate>
+    <flux:sidebar.item icon="sun" :href="route('guardian.child-day')" :current="request()->routeIs('guardian.child-day')" wire:navigate>
         يوم ابني
     </flux:sidebar.item>
 @endif
     @if(\App\Support\RolePages::isEnabled('guardian', 'guardian.messages'))
-        <flux:sidebar.item class="[&_svg]:bg-[#e11d48] hover:[&_svg]:bg-[#be123c]" icon="envelope" :href="route('guardian.messages')" :current="request()->routeIs('guardian.messages')"
+        <flux:sidebar.item icon="envelope" :href="route('guardian.messages')" :current="request()->routeIs('guardian.messages')"
             :badge="$guardianUnreadMessages > 0 ? $guardianUnreadMessages : null" badge-color="rose" wire:navigate>
             {{ __('الرسائل') }}
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('guardian', 'guardian.challenges'))
-        <flux:sidebar.item class="[&_svg]:bg-[#eab308] hover:[&_svg]:bg-[#ca8a04]" icon="trophy" :href="route('guardian.challenges')" :current="request()->routeIs('guardian.challenges')" wire:navigate>
+        <flux:sidebar.item icon="trophy" :href="route('guardian.challenges')" :current="request()->routeIs('guardian.challenges')" wire:navigate>
             {{ __('المكافآت التحفيزية') }}
         </flux:sidebar.item>
     @endif
@@ -26,7 +26,7 @@
 
 <flux:sidebar.group heading="متابعة الأبناء" class="grid">
     @foreach(auth()->guard('guardian')->user()->students()->with('circle')->get() as $sidebarStudent)
-        <flux:sidebar.item class="[&_svg]:bg-[#64748b] hover:[&_svg]:bg-[#475569]"
+        <flux:sidebar.item
             icon="academic-cap"
             :href="route('guardian.student', $sidebarStudent->id)"
             :current="request()->routeIs('guardian.student*') && request()->route('id') == $sidebarStudent->id"
@@ -36,12 +36,12 @@
     @endforeach
 </flux:sidebar.group>
     @if(\App\Support\RolePages::isEnabled('guardian', 'guardian.self-program-progress'))
-        <flux:sidebar.item class="[&_svg]:bg-[#10b981] hover:[&_svg]:bg-[#059669]" icon="chart-bar-square" :href="route('guardian.self-program-progress')" :current="request()->routeIs('guardian.self-program-progress')" wire:navigate>
+        <flux:sidebar.item icon="chart-bar-square" :href="route('guardian.self-program-progress')" :current="request()->routeIs('guardian.self-program-progress')" wire:navigate>
             {{ __('البرنامج الذاتي') }}
         </flux:sidebar.item>
     @endif
     @if(\App\Support\RolePages::isEnabled('guardian', 'guardian.reports'))
-        <flux:sidebar.item class="[&_svg]:bg-[#0ea5e9] hover:[&_svg]:bg-[#0284c7]" icon="chart-bar-square" :href="route('guardian.reports')" :current="request()->routeIs('guardian.reports')" wire:navigate>
+        <flux:sidebar.item icon="chart-bar-square" :href="route('guardian.reports')" :current="request()->routeIs('guardian.reports')" wire:navigate>
             {{ __('التقارير') }}
         </flux:sidebar.item>
     @endif

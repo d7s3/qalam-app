@@ -19,7 +19,7 @@
     @endif
 </head>
 
-<body class="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased">
+<body class="min-h-screen bg-paper dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased">
     <!-- Offline Indicator -->
     <div x-data="{ online: navigator.onLine }" 
          @online.window="online = true" 
@@ -71,11 +71,11 @@
 
             <flux:sidebar.nav>
                 @if(auth('student')->check())
-                    <flux:sidebar.item class="[&_svg]:bg-[#71717a] hover:[&_svg]:bg-[#52525b]" icon="cog" :href="route('student.settings')" :current="request()->routeIs('student.settings')" wire:navigate>
+                    <flux:sidebar.item icon="cog" :href="route('student.settings')" :current="request()->routeIs('student.settings')" wire:navigate>
                         {{ __('إعدادات الحساب') }}
                     </flux:sidebar.item>
                 @else
-                    <flux:sidebar.item class="[&_svg]:bg-[#71717a] hover:[&_svg]:bg-[#52525b]" icon="cog" :href="route('profile.edit')" :current="request()->routeIs('profile.edit')" wire:navigate>
+                    <flux:sidebar.item icon="cog" :href="route('profile.edit')" :current="request()->routeIs('profile.edit')" wire:navigate>
                         {{ __('إعدادات الحساب') }}
                     </flux:sidebar.item>
                 @endif
@@ -87,7 +87,7 @@
                 @endif
                     @csrf
                     <flux:sidebar.item as="button" type="submit" icon="arrow-right-start-on-rectangle"
-                        class="[&_svg]:bg-[#71717a] hover:[&_svg]:bg-[#52525b] w-full cursor-pointer">
+                        class="w-full cursor-pointer">
                         {{ __('تسجيل الخروج') }}
                     </flux:sidebar.item>
                 </form>

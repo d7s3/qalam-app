@@ -62,11 +62,12 @@ it('calls the student plans page by what it lists', function () {
 });
 
 /**
- * The coloured square behind a sidebar icon is drawn by a global rule on the
- * svg; the colour itself comes from the item. Only the supervisor's items
- * carried one, so every other role showed a white icon on nothing.
+ * The sidebar carried a coloured tile behind every icon, each item in a colour
+ * of its own — a hundred and twelve of them across the six roles, none of them
+ * the brand's. Colour that distinguishes nothing is the loudest thing on a
+ * page, and this is the guard against it coming back one item at a time.
  */
-it('gives every sidebar icon a coloured square', function () {
+it('keeps a colour of its own off every sidebar item', function () {
     $files = array_merge(
         glob(resource_path('views/*/sidebar-nav.blade.php')),
         [resource_path('views/components/layouts/role-shell.blade.php')],
@@ -76,17 +77,35 @@ it('gives every sidebar icon a coloured square', function () {
         $markup = file_get_contents($file);
         preg_match_all('/<flux:sidebar\.item\b((?:[^>]|->)*?)(?<!-)>/s', $markup, $items);
 
-        $uncoloured = array_filter($items[1], fn ($attrs) => ! str_contains($attrs, '[&_svg]:bg-'));
+        $painted = array_filter($items[1], fn ($attrs) => str_contains($attrs, '[&_svg]:bg-'));
 
-        expect($uncoloured)->toBe([], basename(dirname($file)).'/'.basename($file));
+        expect($painted)->toBe([], basename(dirname($file)).'/'.basename($file));
     }
 });
 
-it('draws the square itself for every role, not only the supervisor', function () {
+/**
+ * One treatment, drawn once, for whichever role is looking: the icon takes the
+ * colour of the words beside it, and only the page being read stands out — in
+ * the brand's own colour.
+ */
+it('draws one navigation for every role, in the brand', function () {
     $css = file_get_contents(resource_path('css/app.css'));
 
-    // Padding, radius and a white glyph — the rule is on the item, so it holds
-    // for whichever role is looking at it.
     expect($css)->toContain('[data-flux-sidebar-item] svg')
-        ->and($css)->toContain('border-radius: 8px');
+        ->and($css)->toContain('color: currentColor')
+        ->and($css)->toContain('[data-flux-sidebar-item][data-current]')
+        ->and($css)->toContain('var(--color-maroon)')
+        // And no tile is drawn any more.
+        ->and($css)->not->toContain('border-radius: 8px');
+});
+
+/**
+ * The application used to stand on a clinical grey while its own sign-in page
+ * stood on warm paper, so the two looked like two different products.
+ */
+it('stands the application on the brand\'s paper', function () {
+    expect(file_get_contents(resource_path('views/components/layouts/role-shell.blade.php')))
+        ->toContain('bg-paper')
+        ->and(file_get_contents(resource_path('css/app.css')))
+        ->toContain('--color-paper:');
 });

@@ -831,7 +831,7 @@ new class extends Component {
                                         <div class="flex items-center gap-3 flex-1 min-w-0">
                                             <button
                                                 wire:click="updateTaskStatus({{ $task->id }}, '{{ $task->status === 'completed' ? 'pending' : 'completed' }}')"
-                                                class="shrink-0 flex items-center justify-center size-5 rounded-full border-2   s focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 dark:focus:ring-offset-zinc-900 {{ $task->status === 'completed' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent hover:border-emerald-400' }}">
+                                                class="shrink-0 flex items-center justify-center size-5 rounded-full border-2   s focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 dark:focus:ring-offset-zinc-900 {{ $task->status === 'completed' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent hover:border-maroon/40' }}">
                                                 <flux:icon icon="check" class="size-3" />
                                             </button>
 

@@ -9,6 +9,32 @@
     font-style: normal;
 }
 
+/*
+ * Cairo, for headings.
+ *
+ * The brand asks for DIN Next Arabic and its files are not here, so every word
+ * in the application was falling through to Tajawal — one weight of one face
+ * from top to bottom, which is what an interface looks like when nobody chose
+ * its type. Cairo was already in `public/fonts`, chosen and then never used.
+ *
+ * Headings take it; the body keeps Tajawal. Two faces with different jobs is
+ * the smallest thing that makes a page look set rather than defaulted. Put the
+ * DIN files beside these two and `--font-sans` picks them up on its own.
+ */
+@font-face {
+    font-family: 'Cairo';
+    src: url('/fonts/Cairo-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Cairo';
+    src: url('/fonts/Cairo-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-display: swap;
+}
+
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
@@ -27,6 +53,7 @@
 @theme {
     --font-sans: 'DIN Next Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --font-zain: 'Zain Mobile Swashes', sans-serif;
+    --font-display: 'DIN Next Arabic', 'Cairo', 'Tajawal', sans-serif;
 
     /* Brand Colors (ui.json) */
     --color-maroon: #7a2727;
@@ -34,6 +61,16 @@
     --color-red-secondary: #9d2e33;
     --color-accent-dark: #3f1a19;
     --color-gold: #c9a063;
+
+    /*
+     * The ground the whole application stands on.
+     *
+     * It was a clinical grey — the colour a page is when nobody set one. The
+     * sign-in page has always stood on warm paper, and the two looked like two
+     * different products. This is that same paper, taken inside.
+     */
+    --color-paper: #fdfaf3;
+    --color-paper-deep: #f7efe0;
     --color-neutral-grey: #6e6e6e;
 
     /* Original Zing Colors */
@@ -49,6 +86,104 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
+
+    /*
+     * The decorative palette, brought back to the brand.
+     *
+     * The interface reached for a new colour whenever it needed one — indigo
+     * here, violet there, sky for an empty panel — and colour chosen that way
+     * says nothing except that nobody chose it. There were one thousand four
+     * hundred such uses against an identity of two colours.
+     *
+     * Rather than edit them one by one, the families that carried no meaning
+     * are re-cut from the brand itself: the accents become the maroon, the
+     * quiet informational tones become the warm grey the identity already
+     * names, and the one warm accent becomes the gold.
+     *
+     * Green, amber and rose are left exactly as they were. Those say present,
+     * late and absent — they mean something, and meaning keeps its colour.
+     */
+    --color-indigo-50: #fbf4f3;
+    --color-indigo-100: #f6e6e4;
+    --color-indigo-200: #ecccc8;
+    --color-indigo-300: #dda9a3;
+    --color-indigo-400: #c87a72;
+    --color-indigo-500: #a94a44;
+    --color-indigo-600: #9d2e33;
+    --color-indigo-700: #7a2727;
+    --color-indigo-800: #521f1e;
+    --color-indigo-900: #3f1a19;
+    --color-indigo-950: #2a1211;
+
+    --color-violet-50: #fbf4f3;
+    --color-violet-100: #f6e6e4;
+    --color-violet-200: #ecccc8;
+    --color-violet-300: #dda9a3;
+    --color-violet-400: #c87a72;
+    --color-violet-500: #a94a44;
+    --color-violet-600: #9d2e33;
+    --color-violet-700: #7a2727;
+    --color-violet-800: #521f1e;
+    --color-violet-900: #3f1a19;
+    --color-violet-950: #2a1211;
+
+    --color-purple-50: #fbf4f3;
+    --color-purple-100: #f6e6e4;
+    --color-purple-200: #ecccc8;
+    --color-purple-300: #dda9a3;
+    --color-purple-400: #c87a72;
+    --color-purple-500: #a94a44;
+    --color-purple-600: #9d2e33;
+    --color-purple-700: #7a2727;
+    --color-purple-800: #521f1e;
+    --color-purple-900: #3f1a19;
+    --color-purple-950: #2a1211;
+    --color-blue-50: #faf9f8;
+    --color-blue-100: #f3f1ef;
+    --color-blue-200: #e6e3e0;
+    --color-blue-300: #d2cecb;
+    --color-blue-400: #ada8a4;
+    --color-blue-500: #85807c;
+    --color-blue-600: #6e6e6e;
+    --color-blue-700: #575351;
+    --color-blue-800: #423f3d;
+    --color-blue-900: #2e2b2a;
+    --color-blue-950: #1c1a19;
+
+    --color-sky-50: #faf9f8;
+    --color-sky-100: #f3f1ef;
+    --color-sky-200: #e6e3e0;
+    --color-sky-300: #d2cecb;
+    --color-sky-400: #ada8a4;
+    --color-sky-500: #85807c;
+    --color-sky-600: #6e6e6e;
+    --color-sky-700: #575351;
+    --color-sky-800: #423f3d;
+    --color-sky-900: #2e2b2a;
+    --color-sky-950: #1c1a19;
+
+    --color-cyan-50: #faf9f8;
+    --color-cyan-100: #f3f1ef;
+    --color-cyan-200: #e6e3e0;
+    --color-cyan-300: #d2cecb;
+    --color-cyan-400: #ada8a4;
+    --color-cyan-500: #85807c;
+    --color-cyan-600: #6e6e6e;
+    --color-cyan-700: #575351;
+    --color-cyan-800: #423f3d;
+    --color-cyan-900: #2e2b2a;
+    --color-cyan-950: #1c1a19;
+    --color-teal-50: #fdfaf3;
+    --color-teal-100: #faf2e2;
+    --color-teal-200: #f2e3c2;
+    --color-teal-300: #e6cd99;
+    --color-teal-400: #d9b57c;
+    --color-teal-500: #c9a063;
+    --color-teal-600: #b0854a;
+    --color-teal-700: #8f6a3b;
+    --color-teal-800: #6d5130;
+    --color-teal-900: #533e27;
+    --color-teal-950: #322517;
     /* Flux Overrides */
     --color-accent: var(--color-maroon);
     --color-accent-content: var(--color-white);
@@ -101,22 +236,49 @@ select:focus[data-flux-control] {
     @apply !text-white;
 }
 
-/* Custom Sidebar Item Icons Style (Rounded colored background with white icon) */
+/*
+ * The navigation, in one ink.
+ *
+ * Every item used to carry a rounded tile in a colour of its own — a hundred
+ * and twelve of them across the six roles, no two alike and none of them the
+ * brand's. Colour that means nothing is the loudest thing on a page, and a
+ * different colour for every row is how an interface says that nobody decided
+ * anything.
+ *
+ * The icons now take the colour of the words beside them, so the eye reads the
+ * list rather than the palette, and the page the reader is on is the only one
+ * that stands out.
+ */
 [data-flux-sidebar-item] svg {
-    color: white !important;
-    padding: 5px;
-    border-radius: 8px;
-    width: 26px !important;
-    height: 26px !important;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    color: currentColor;
+    width: 20px !important;
+    height: 20px !important;
     flex-shrink: 0;
-    transition: background-color 0.2s, transform 0.2s;
+    opacity: 0.62;
+    transition: opacity 0.15s ease;
 }
 
-[data-flux-sidebar-item]:hover svg {
-    transform: scale(1.05);
+[data-flux-sidebar-item]:hover svg,
+[data-flux-sidebar-item][data-current] svg {
+    opacity: 1;
+}
+
+/* Where the reader is: the brand's own colour, and a rule down the edge. */
+[data-flux-sidebar-item][data-current] {
+    background-color: color-mix(in oklab, var(--color-maroon) 8%, transparent);
+    box-shadow: inset -2px 0 0 0 var(--color-maroon);
+}
+
+.dark [data-flux-sidebar-item][data-current] {
+    background-color: color-mix(in oklab, var(--color-gold) 12%, transparent);
+    box-shadow: inset -2px 0 0 0 var(--color-gold);
+}
+
+/* Headings are set, not defaulted. */
+h1, h2, h3,
+[data-flux-heading] {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
 }
 
 
