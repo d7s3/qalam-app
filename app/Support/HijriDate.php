@@ -252,6 +252,83 @@ class HijriDate
         ];
     }
 
+    /**
+     * The names each Hijri month is written by, and its number.
+     *
+     * Two of them are written three ways in ordinary use — ربيع الآخر and
+     * ربيع الثاني are the same month, and so are جمادى الآخرة and جمادى
+     * الثانية — so all of them are accepted rather than one imposed.
+     *
+     * @var array<string, int>
+     */
+    private const MONTH_NAMES = [
+        'محرم' => 1, 'المحرم' => 1,
+        'صفر' => 2,
+        'ربيع الأول' => 3, 'ربيع اول' => 3, 'ربيع الاول' => 3,
+        'ربيع الآخر' => 4, 'ربيع الاخر' => 4, 'ربيع الثاني' => 4, 'ربيع ثاني' => 4,
+        'جمادى الأولى' => 5, 'جمادى الاولى' => 5, 'جمادى الأول' => 5, 'جمادى الاول' => 5,
+        'جمادى الآخرة' => 6, 'جمادى الاخرة' => 6, 'جمادى الثانية' => 6, 'جمادى الثاني' => 6,
+        'رجب' => 7,
+        'شعبان' => 8,
+        'رمضان' => 9,
+        'شوال' => 10,
+        'ذو القعدة' => 11, 'ذي القعدة' => 11, 'ذوالقعدة' => 11,
+        'ذو الحجة' => 12, 'ذي الحجة' => 12, 'ذوالحجة' => 12,
+    ];
+
+    /**
+     * The Gregorian day a Hijri one falls on.
+     *
+     * The inverse of `parts()`, and needed wherever the academy hands over a
+     * date in the calendar it actually plans by. Built in Riyadh's own zone:
+     * the calendar answers in milliseconds at local midnight, and reading that
+     * anywhere else lands on the day before.
+     */
+    public static function toGregorian(int $year, int $month, int $day): ?DateTimeInterface
+    {
+        if ($month < 1 || $month > 12 || $day < 1 || $day > 30) {
+            return null;
+        }
+
+        $calendar = self::calendar();
+        $calendar->clear();
+        $calendar->setDate($year, $month - 1, $day);
+
+        $made = Carbon::createFromTimestampMs($calendar->getTime(), self::TIMEZONE)->startOfDay();
+
+        // A day the month does not have rolls into the next one, and a rolled
+        // date is not the date that was asked for.
+        $back = self::parts($made);
+
+        return $back['year'] === $year && $back['month'] === $month && $back['day'] === $day
+            ? $made
+            : null;
+    }
+
+    /** The number of a month written by any of the names it is written by. */
+    public static function monthNumber(string $name): ?int
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', $name));
+
+        return self::MONTH_NAMES[$name] ?? null;
+    }
+
+    /**
+     * A number written in Arabic-Indic digits, as a number.
+     *
+     * The academy's own sheets are written in ٠١٢٣, and `(int)` reads every
+     * one of them as zero without complaining.
+     */
+    public static function digits(string $value): string
+    {
+        return strtr(trim($value), [
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+        ]);
+    }
+
     private static function calendar(): IntlCalendar
     {
         return IntlCalendar::createInstance(self::TIMEZONE, self::LOCALE);

@@ -1,12 +1,24 @@
 <?php
 
+use App\Support\AcademicCalendarSheet;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
+use Livewire\WithFileUploads;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Models\AcademicCalendarEvent;
 use Carbon\Carbon;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 
 new class extends Component {
+    use WithFileUploads;
+
+    /** The year's sheet, on its way in. */
+    public $calendarSheet;
+
+    /** What the last import said, kept so the reader can read it. */
+    public array $importReport = [];
+
     public $year;
     public $selectedDate = null;
     public $selectedDateHijri = '';
@@ -490,6 +502,54 @@ new class extends Component {
         Flux::toast($status ? __('تم إظهار الأحداث المحددة') : __('تم إخفاء الأحداث المحددة'), variant: 'success');
     }
 
+    /**
+     * Read a year off the sheet it was planned on.
+     *
+     * A calendar is drawn in a spreadsheet long before anybody types it in, and
+     * retyping thirty rows into a form is how a calendar comes to be
+     * half-entered and then trusted.
+     *
+     * A row that cannot be read names itself and its line, and the rest still
+     * land: one bad date should not cost the other twenty-nine.
+     */
+    public function importSheet(): void
+    {
+        $this->validate(
+            ['calendarSheet' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:4096']],
+            [],
+            ['calendarSheet' => 'الملف'],
+        );
+
+        // Read as the format it was uploaded as: an upload arrives under a
+        // temporary name with no extension, and a CSV read as a workbook throws.
+        $read = AcademicCalendarSheet::read(
+            $this->calendarSheet->getRealPath(),
+            $this->calendarSheet->getClientOriginalExtension(),
+        );
+
+        $applied = AcademicCalendarSheet::apply($read['rows'], Auth::guard('manager')->user());
+
+        $written = $applied['written'];
+        $errors = array_merge($read['errors'], $applied['errors']);
+
+        $this->reset('calendarSheet');
+        $this->importReport = ['written' => $written, 'errors' => $errors];
+
+        Flux::toast(
+            text: $written > 0 ? "أُدرج {$written} قيداً في التقويم." : 'لم يُقرأ أي سطر.',
+            variant: $written > 0 ? 'success' : 'danger',
+        );
+    }
+
+    public function downloadTemplate(): StreamedResponse
+    {
+        return response()->streamDownload(
+            fn () => print AcademicCalendarSheet::template(),
+            'academic-calendar-template.csv',
+            ['Content-Type' => 'text/csv; charset=UTF-8'],
+        );
+    }
+
     public function with()
     {
         $cal = \IntlCalendar::createInstance('Asia/Riyadh', 'ar_SA@calendar=islamic-umalqura');
@@ -742,6 +802,70 @@ new class extends Component {
             </div>
         </div>
     </div>
+    {{-- استيراد التقويم من ملف --}}
+    <div x-data="{ open: false }" class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+        <button @click="open = !open" type="button" class="w-full flex items-center justify-between p-4 text-right hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+            <span class="flex items-center gap-2.5">
+                <flux:icon icon="arrow-up-tray" class="size-5 text-maroon" />
+                <span>
+                    <span class="block font-bold text-zinc-800 dark:text-zinc-100">استيراد التقويم من ملف</span>
+                    <span class="block text-xs text-zinc-500 dark:text-zinc-400">
+                        ارفع سنتك كما خُطّطت في إكسل، فتسقط في التقويم بلا إعادة كتابة.
+                    </span>
+                </span>
+            </span>
+            <flux:icon icon="chevron-down" class="size-4 text-zinc-400" x-bind:class="open && 'rotate-180'" />
+        </button>
+
+        <div x-show="open" x-collapse class="border-t border-zinc-100 dark:border-zinc-800 p-4 space-y-4">
+            <div class="flex items-end gap-3 flex-wrap">
+                <flux:field class="flex-1 min-w-56">
+                    <flux:label>الملف</flux:label>
+                    <flux:input type="file" wire:model="calendarSheet" accept=".csv,.xlsx,.txt" />
+                    <flux:error name="calendarSheet" />
+                </flux:field>
+
+                <flux:button wire:click="importSheet" variant="primary" icon="arrow-up-tray" wire:loading.attr="disabled">
+                    استورد
+                </flux:button>
+                <flux:button wire:click="downloadTemplate" variant="ghost" icon="arrow-down-tray">
+                    نموذج فارغ
+                </flux:button>
+            </div>
+
+            <div class="rounded-xl bg-zinc-50 dark:bg-zinc-800/40 p-3 text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
+                <div class="font-bold text-zinc-700 dark:text-zinc-200">أرفع ورقتك كما هي — أقرأ شكلين:</div>
+                <div dir="rtl"><b>تقويمكم المرسوم شبكةً:</b> عنوانٌ فيه السنة الهجرية، وصفٌّ يسمّي أيام الأسبوع، ثمّ سطرٌ لكل أسبوع تحمل خاناته رقم اليوم الهجري وتحته ما فيه سطراً سطراً، والشهر في عمودٍ يُكتب عند انقلابه. أهتدي إلى الشهر ولو لم يُكتب في كل سطر، وأردّ الهجريّ إلى الميلاديّ، والحدثُ المكرَّر في يومين متلاصقين أجعله مدّةً واحدة.</div>
+                <div dir="rtl"><b>أو سطرٌ لكل حدث، بهذه الأعمدة:</b> اسم الحدث · من · إلى · النوع · أيام الأسبوع · البرامج · الوصف · الأثر التربوي</div>
+                <div>«النوع» يُكتب فيه <b>فترة دوام</b> أو <b>حدث</b>. و«أيام الأسبوع» تُترك فارغة لتشمل الأيام كلها.</div>
+                <div>و«البرامج» تُترك فارغة ليشمل الحدث المركز كلّه، أو تُكتب أسماؤها مفصولة بفاصلة.</div>
+                <div>وحدثٌ باسمه وتاريخ بدايته نفسيهما <b>يُحدَّث ولا يُكرَّر</b>، فلك أن ترفع الملف مرتين بلا خوف.</div>
+            </div>
+
+            @if ($importReport !== [])
+                <div class="rounded-xl border p-3 space-y-2 text-sm
+                    {{ ($importReport['errors'] ?? []) === []
+                        ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-950/20'
+                        : 'border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20' }}">
+                    <div class="font-bold text-zinc-800 dark:text-zinc-100">
+                        أُدرج {{ $importReport['written'] ?? 0 }} قيداً.
+                    </div>
+
+                    @if (($importReport['errors'] ?? []) !== [])
+                        <div class="text-xs text-zinc-600 dark:text-zinc-300">
+                            <div class="font-bold mb-1">وسطورٌ لم تُقرأ — والباقي أُدرج:</div>
+                            <ul class="space-y-0.5 list-disc ps-4">
+                                @foreach ($importReport['errors'] as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                </div>
+            @endif
+        </div>
+    </div>
+
     {{-- Event Lists Section --}}
     <div x-data="{ showAttendance: true, showOtherEvents: false }" class="space-y-4">
         {{-- Attendance Periods Collapsible --}}
