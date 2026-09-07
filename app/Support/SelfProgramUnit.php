@@ -90,6 +90,21 @@ class SelfProgramUnit
         return array_keys(self::KNOWN);
     }
 
+    /** Whether a unit is one the vocabulary knows how to count. */
+    public static function isKnown(?string $unit): bool
+    {
+        return isset(self::KNOWN[$unit ?? '']);
+    }
+
+    /**
+     * The plural a field is labelled by — «صفحات», «أحاديث» — which is how the
+     * five name their own units, so a sixth reads like them.
+     */
+    public static function plural(string $unit): string
+    {
+        return self::KNOWN[$unit]['few'] ?? $unit;
+    }
+
     /**
      * Say an amount in its unit, the way it would be read aloud.
      *

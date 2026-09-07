@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Circle;
+use App\Models\Manager;
 use App\Models\SelfProgramItem;
 use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
@@ -148,4 +149,93 @@ it('shows each writer only the weeks he wrote for', function () {
 
     expect($teacherSees->pluck('circle_id')->all())->toBe([$this->mine->id]);
     expect($supervisorSees->pluck('circle_id')->all())->toBe([null]);
+});
+
+/**
+ * The manager and the administrator write the programme through the very same
+ * screen the supervisor does — three routes, one component — so the units have
+ * to hold for them without anything being repeated for each office.
+ */
+describe('the offices above', function () {
+    it('lets the manager write a week in the units of its fields', function () {
+        $week = weekFor($this->programme->id, null, 1, 20);
+
+        Livewire::actingAs(Manager::factory()->create(), 'manager')
+            ->test('supervisor.self-program-weeks')
+            ->set('asRole', 'manager')
+            ->call('openWeek', $week->id)
+            ->set('rows.masmou.hours', 2)
+            ->set('rows.masmou.minutes', 30)
+            ->set('rows.mahfoudh.unit', 'حديث')
+            ->set('rows.mahfoudh.target_amount', 4.5)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $items = $week->fresh('items')->items->keyBy(fn ($i) => $i->track->value);
+
+        expect((float) $items['masmou']->target_amount)->toBe(150.0)
+            ->and($items['masmou']->unit)->toBe('دقيقة')
+            ->and((float) $items['mahfoudh']->target_amount)->toBe(5.0)
+            ->and($items['mahfoudh']->unit)->toBe('حديث');
+    });
+
+    it('holds the administrator to them too', function () {
+        $week = weekFor($this->programme->id, null, 2, 20);
+
+        Livewire::actingAs(Manager::factory()->create(['is_super_admin' => true]), 'manager')
+            ->test('supervisor.self-program-weeks')
+            ->set('asRole', 'manager')
+            ->call('openWeek', $week->id)
+            ->set('rows.maqrou.target_amount', 7.3)
+            ->set('rows.tahdheer.unit', 'دقيقة')
+            ->set('rows.tahdheer.minutes', 45)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $items = $week->fresh('items')->items->keyBy(fn ($i) => $i->track->value);
+
+        // Seeing everything is not the same as being able to write anything:
+        // pages are halves at most, and التحضير by listening is a length of time.
+        expect((float) $items['maqrou']->target_amount)->toBe(7.5)
+            ->and((float) $items['tahdheer']->target_amount)->toBe(45.0)
+            ->and($items['tahdheer']->unit)->toBe('دقيقة');
+    });
+});
+
+/**
+ * A sixth field the academy adds is fitted the same way the five are, so the
+ * rule does not stop at what was seeded.
+ */
+it('fits a field the academy adds to the same vocabulary', function () {
+    Livewire::actingAs(Manager::factory()->create(), 'manager')
+        ->test('shared.self-program-tracks')
+        ->set('asRole', 'manager')
+        ->set('newLabel', 'الاستماع للسيرة')
+        ->set('newUnit', 'دقيقة')
+        ->call('addTrack')
+        ->assertHasNoErrors();
+
+    $added = SelfProgramTrack::where('label', 'الاستماع للسيرة')->firstOrFail();
+
+    expect($added->isDuration())->toBeTrue()
+        ->and($added->fixedUnit())->toBe('دقيقة')
+        ->and($added->unitOptions())->toBe(['دقيقة' => 'دقائق']);
+});
+
+it('leaves a field counted in the academy\'s own word alone', function () {
+    Livewire::actingAs(Manager::factory()->create(), 'manager')
+        ->test('shared.self-program-tracks')
+        ->set('asRole', 'manager')
+        ->set('newLabel', 'المجالس')
+        ->set('newUnit', 'مجلس')
+        ->call('addTrack')
+        ->assertHasNoErrors();
+
+    $added = SelfProgramTrack::where('label', 'المجالس')->firstOrFail();
+
+    // Unknown to the vocabulary, so counted plainly rather than guessed at.
+    expect($added->unitOptions())->toBe([])
+        ->and($added->defaultUnit())->toBe('مجلس')
+        ->and($added->isDuration())->toBeFalse()
+        ->and($added->unitFor('أي شيء'))->toBe('أي شيء');
 });

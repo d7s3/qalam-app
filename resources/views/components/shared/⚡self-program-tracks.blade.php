@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\SelfProgramTrack;
+use App\Support\SelfProgramUnit;
 use App\Models\SelfProgramTrackExclusion;
 use App\Models\Stage;
 use App\Support\Scope;
@@ -58,10 +59,18 @@ new class extends Component
             return;
         }
 
+        // A unit the vocabulary knows gets the same treatment the five get:
+        // its own counting, and its own form. A word of the academy's own is
+        // taken as it was written and counted plainly.
+        $unit = trim($this->newUnit) ?: 'وحدة';
+        $known = SelfProgramUnit::isKnown($unit);
+
         SelfProgramTrack::create([
             'key' => $key,
             'label' => $this->newLabel,
-            'default_unit' => $this->newUnit ?: 'وحدة',
+            'default_unit' => $unit,
+            'fixed_unit' => $known ? $unit : null,
+            'unit_choices' => $known ? [$unit => SelfProgramUnit::plural($unit)] : null,
             'is_system' => false,
             'sort_order' => (int) SelfProgramTrack::max('sort_order') + 1,
         ]);
@@ -164,9 +173,17 @@ new class extends Component
             <flux:input wire:model="newLabel" placeholder="{{ __('مثال: السيرة') }}" />
             <flux:error name="newLabel" />
         </flux:field>
-        <flux:field class="w-40">
+        <flux:field class="w-44">
             <flux:label>{{ __('وحدته') }}</flux:label>
-            <flux:input wire:model="newUnit" placeholder="{{ __('درس') }}" />
+            <flux:input wire:model="newUnit" list="known-units"
+                placeholder="{{ __('صفحة، دقيقة، حديث…') }}" />
+            {{-- The vocabulary offered, not imposed: a field of the academy's
+                 own may be counted in a word of its own. --}}
+            <datalist id="known-units">
+                @foreach (SelfProgramUnit::all() as $known)
+                    <option value="{{ $known }}"></option>
+                @endforeach
+            </datalist>
         </flux:field>
         <flux:button variant="primary" class="!bg-maroon hover:!bg-burgundy" wire:click="addTrack">
             {{ __('إضافة') }}
