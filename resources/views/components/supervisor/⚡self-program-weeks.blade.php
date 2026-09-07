@@ -31,6 +31,9 @@ new class extends Component
 
     public bool $showGrid = false;
 
+    /** Days ticked in the grid header, waiting to be joined into one column. */
+    public array $selectedDays = [];
+
     /** Whether the year-at-once tools are showing. */
     public bool $showYearTools = false;
 
@@ -219,6 +222,67 @@ new class extends Component
     /**
      * Add the week that follows the last one, seven days after it.
      */
+    /**
+     * Join the ticked days into one column.
+     *
+     * A weekend run together, or the three days of a trip: the student is asked
+     * for one amount across them rather than a share of each. Days already in a
+     * group are pulled out of it first, so joining two of three leaves the third
+     * standing on its own rather than in a group of one.
+     */
+    public function mergeSelected(): void
+    {
+        $week = $this->week;
+
+        if (! $week || count($this->selectedDays) < 2) {
+            Flux::toast(text: 'اختر يومين فأكثر.', variant: 'danger');
+
+            return;
+        }
+
+        abort_unless($this->stages->contains('id', $this->stageId), 403);
+
+        $chosen = array_values(array_unique($this->selectedDays));
+        sort($chosen);
+
+        $groups = collect($week->merged_days ?? [])
+            ->map(fn ($group) => array_values(array_diff((array) $group, $chosen)))
+            ->filter(fn (array $group) => count($group) > 1)
+            ->values()
+            ->push($chosen)
+            ->all();
+
+        $week->update(['merged_days' => $groups]);
+
+        $this->selectedDays = [];
+        unset($this->weeks);
+
+        Flux::toast(text: 'دُمجت الأيام.', variant: 'success');
+    }
+
+    /** Undo one grouping, leaving its days standing on their own again. */
+    public function unmerge(string $firstDay): void
+    {
+        $week = $this->week;
+
+        if (! $week) {
+            return;
+        }
+
+        abort_unless($this->stages->contains('id', $this->stageId), 403);
+
+        $groups = collect($week->merged_days ?? [])
+            ->reject(fn ($group) => ((array) $group)[0] === $firstDay)
+            ->values()
+            ->all();
+
+        $week->update(['merged_days' => $groups]);
+
+        unset($this->weeks);
+
+        Flux::toast(text: 'فُكّ الدمج.', variant: 'success');
+    }
+
     /**
      * Read the week's day plan into the form.
      *
@@ -788,8 +852,15 @@ new class extends Component
 
                 @if ($showGrid)
                     @php
-                        $gridDays = app(\App\Services\SelfProgramService::class)->workingDays($this->week);
+                        $gridColumns = app(\App\Services\SelfProgramService::class)->dayColumns($this->week);
                     @endphp
+
+                    <div class="flex items-center gap-2 flex-wrap text-xs">
+                        <span class="text-zinc-500">{{ __('لدمج أيام في خانة واحدة: علّمها ثم اضغط ادمج.') }}</span>
+                        <flux:button size="xs" variant="ghost" icon="arrows-pointing-in" wire:click="mergeSelected">
+                            {{ __('ادمج المحدَّد') }}
+                        </flux:button>
+                    </div>
 
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm border-collapse">
@@ -798,10 +869,26 @@ new class extends Component
                                     <th class="p-2 text-right text-xs font-bold text-zinc-500 sticky start-0 bg-white dark:bg-zinc-900">
                                         {{ __('المجال') }}
                                     </th>
-                                    @foreach ($gridDays as $day)
-                                        <th class="p-2 text-center text-xs font-bold text-zinc-500 min-w-40">
-                                            <x-hijri-date :date="$day" style="weekdayOnly" />
-                                            <span class="block text-[10px] font-normal text-zinc-400" dir="ltr">{{ substr($day, 5) }}</span>
+                                    @foreach ($gridColumns as $column)
+                                        <th class="p-2 text-center text-xs font-bold text-zinc-500 min-w-40 align-top">
+                                            @foreach ($column['days'] as $day)
+                                                <div class="flex items-center justify-center gap-1">
+                                                    @unless ($column['merged'])
+                                                        <input type="checkbox" value="{{ $day }}" wire:model="selectedDays" class="accent-maroon" />
+                                                    @endunless
+                                                    <span>
+                                                        <x-hijri-date :date="$day" style="weekdayOnly" />
+                                                        <span class="text-[10px] font-normal text-zinc-400" dir="ltr">{{ substr($day, 5) }}</span>
+                                                    </span>
+                                                </div>
+                                            @endforeach
+
+                                            @if ($column['merged'])
+                                                <button type="button" wire:click="unmerge('{{ $column['key'] }}')"
+                                                    class="mt-1 text-[10px] font-normal text-maroon hover:underline">
+                                                    {{ __('فكّ الدمج') }}
+                                                </button>
+                                            @endif
                                         </th>
                                     @endforeach
                                 </tr>
@@ -812,8 +899,12 @@ new class extends Component
                                         <td class="p-2 font-bold text-zinc-800 dark:text-zinc-100 whitespace-nowrap sticky start-0 bg-white dark:bg-zinc-900">
                                             {{ $track->label() }}
                                         </td>
-                                        @foreach ($gridDays as $day)
-                                            <td class="p-1.5 align-top" wire:key="cell-{{ $track->key }}-{{ $day }}">
+                                        @foreach ($gridColumns as $column)
+                                            @php
+                                                $day = $column['key'];
+                                            @endphp
+                                            <td class="p-1.5 align-top {{ $column['merged'] ? 'bg-zinc-50/70 dark:bg-zinc-800/30' : '' }}"
+                                                wire:key="cell-{{ $track->key }}-{{ $day }}">
                                                 <flux:input size="sm"
                                                     wire:model="grid.{{ $track->key }}.{{ $day }}.content"
                                                     placeholder="{{ __('المحتوى') }}" />

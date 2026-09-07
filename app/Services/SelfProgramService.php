@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Models\AcademicCalendarEvent;
 use App\Models\SelfProgramDayOverride;
 use App\Models\SelfProgramItem;
+use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Student;
 use App\Models\StudentSelfProgramEntry;
+use App\Support\HijriDate;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -287,6 +289,128 @@ class SelfProgramService
      * @return array<string, float>
      */
     /**
+     * The programme read at a wider scale: a row per field, a column per week
+     * or per month.
+     *
+     * The week's own grid shows what each day holds. A month or a term is not
+     * read that way — thirty columns are not a table anybody reads — so the
+     * column becomes the period and the cell becomes what was asked of it
+     * against what was done.
+     *
+     * @return array{columns: array<int, array<string, string>>, rows: array<int, array<string, mixed>>}
+     */
+    public function periodGrid(Student $student, string $from, string $to, string $by = 'week'): array
+    {
+        $weeks = SelfProgramWeek::self()
+            ->where(function ($q) use ($student) {
+                $q->when($student->circle_id, fn ($c) => $c->where('circle_id', $student->circle_id))
+                    ->orWhere(fn ($w) => $w->whereNull('circle_id')->where('stage_id', $student->effective_stage_id));
+            })
+            ->whereDate('starts_on', '<=', $to)
+            ->whereDate('ends_on', '>=', $from)
+            ->with('items')
+            ->orderBy('starts_on')
+            ->get();
+
+        if ($weeks->isEmpty()) {
+            return ['columns' => [], 'rows' => []];
+        }
+
+        $entries = StudentSelfProgramEntry::where('student_id', $student->id)
+            ->whereIn('self_program_item_id', $weeks->pluck('items')->flatten()->pluck('id'))
+            ->get()
+            ->groupBy('self_program_item_id')
+            ->map(fn (Collection $rows) => (float) $rows->sum('amount_done'));
+
+        $columns = [];
+        $totals = [];
+
+        foreach ($weeks as $week) {
+            $key = $by === 'month'
+                ? $week->starts_on->format('Y-m')
+                : 'w'.$week->id;
+
+            $columns[$key] ??= [
+                'key' => $key,
+                'label' => $by === 'month'
+                    ? HijriDate::monthYear($week->starts_on)
+                    : __('الأسبوع :n', ['n' => $week->week_number]),
+                'from' => $week->starts_on->format('Y-m-d'),
+            ];
+
+            foreach ($week->items as $item) {
+                $trackKey = $item->track?->key ?? (string) $item->id;
+
+                $totals[$trackKey][$key]['target'] = ($totals[$trackKey][$key]['target'] ?? 0) + (float) $item->target_amount;
+                $totals[$trackKey][$key]['done'] = ($totals[$trackKey][$key]['done'] ?? 0) + ($entries[$item->id] ?? 0);
+            }
+        }
+
+        $rows = [];
+
+        foreach (SelfProgramTrack::ordered() as $track) {
+            if (! isset($totals[$track->key])) {
+                continue;
+            }
+
+            $cells = [];
+
+            foreach ($columns as $key => $column) {
+                $cells[$key] = $totals[$track->key][$key] ?? ['target' => 0.0, 'done' => 0.0];
+            }
+
+            $rows[] = [
+                'track' => $track,
+                'unit' => $track->defaultUnit(),
+                'cells' => $cells,
+                'target' => array_sum(array_column($cells, 'target')),
+                'done' => array_sum(array_column($cells, 'done')),
+            ];
+        }
+
+        return ['columns' => array_values($columns), 'rows' => $rows];
+    }
+
+    /**
+     * The columns a week is read in: a working day each, except where days
+     * were merged and then one column for the group.
+     *
+     * A weekend run together, or the three days of a trip: the student is asked
+     * for one amount across them rather than a share of each.
+     *
+     * @return array<int, array{key: string, days: array<int, string>, merged: bool}>
+     */
+    public function dayColumns(SelfProgramWeek $week): array
+    {
+        $days = $this->workingDays($week);
+        $groups = collect($week->merged_days ?? [])
+            ->map(fn ($group) => array_values(array_intersect($days, (array) $group)))
+            ->filter(fn (array $group) => count($group) > 1)
+            ->values();
+
+        $taken = $groups->flatten()->all();
+        $columns = [];
+
+        foreach ($days as $day) {
+            if (in_array($day, $taken, true)) {
+                // The group is opened at its first day and skipped thereafter,
+                // so the column keeps the week's order.
+                $group = $groups->first(fn (array $g) => $g[0] === $day);
+
+                if ($group) {
+                    $columns[] = ['key' => $group[0], 'days' => $group, 'merged' => true];
+                }
+
+                continue;
+            }
+
+            $columns[] = ['key' => $day, 'days' => [$day], 'merged' => false];
+        }
+
+        return $columns;
+    }
+
+    /**
      * The week as a grid: a row per field, a column per working day.
      *
      * The shape the academy already writes its week in — Sunday carries one
@@ -307,7 +431,7 @@ class SelfProgramService
             return ['days' => [], 'rows' => []];
         }
 
-        $days = $this->workingDays($week);
+        $columns = $this->dayColumns($week);
         $rows = [];
 
         foreach ($week->items->sortBy(fn (SelfProgramItem $item) => $item->track?->sort_order ?? 99) as $item) {
@@ -317,11 +441,18 @@ class SelfProgramService
 
             $cells = [];
 
-            foreach ($days as $day) {
-                $cells[$day] = [
-                    'content' => $content[$day] ?? null,
-                    'expected' => (float) ($plan[$day] ?? 0),
-                    'done' => (float) ($done[$day] ?? 0),
+            foreach ($columns as $column) {
+                // A merged column asks for one amount across its days and shows
+                // what was done on any of them.
+                $cells[$column['key']] = [
+                    'content' => collect($column['days'])
+                        ->map(fn (string $day) => $content[$day] ?? null)
+                        ->filter()
+                        ->implode(' · ') ?: null,
+                    'expected' => collect($column['days'])->sum(fn (string $day) => (float) ($plan[$day] ?? 0)),
+                    'done' => collect($column['days'])->sum(fn (string $day) => (float) ($done[$day] ?? 0)),
+                    'days' => $column['days'],
+                    'merged' => $column['merged'],
                 ];
             }
 
@@ -335,7 +466,7 @@ class SelfProgramService
             ];
         }
 
-        return ['days' => $days, 'rows' => $rows];
+        return ['days' => array_column($columns, 'key'), 'columns' => $columns, 'rows' => $rows];
     }
 
     public function doneByDay(SelfProgramItem $item, Student $student): array

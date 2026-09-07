@@ -22,6 +22,7 @@ class SelfProgramWeek extends Model
         'week_number',
         'starts_on',
         'ends_on',
+        'merged_days',
         'created_by_id',
         'created_by_type',
     ];
@@ -38,6 +39,7 @@ class SelfProgramWeek extends Model
     protected $casts = [
         'starts_on' => 'date',
         'ends_on' => 'date',
+        'merged_days' => 'array',
         'week_number' => 'integer',
     ];
 

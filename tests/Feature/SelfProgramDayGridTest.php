@@ -207,3 +207,82 @@ it('clears a cell emptied in both fields', function () {
     // blanks in it.
     expect(SelfProgramDayOverride::count())->toBe(0);
 });
+
+it('joins merged days into one column', function () {
+    $this->week->update(['merged_days' => [['2026-09-09', '2026-09-10']]]);
+
+    $columns = app(SelfProgramService::class)->dayColumns($this->week->fresh());
+
+    $merged = collect($columns)->firstWhere('merged', true);
+
+    expect($merged['days'])->toBe(['2026-09-09', '2026-09-10']);
+    expect($merged['key'])->toBe('2026-09-09');
+
+    // One column where there were two, and the rest untouched.
+    expect(collect($columns)->pluck('key'))->not->toContain('2026-09-10');
+});
+
+it('asks one amount across a merged column and counts either day', function () {
+    $this->week->update(['merged_days' => [['2026-09-09', '2026-09-10']]]);
+
+    StudentSelfProgramEntry::create([
+        'student_id' => $this->student->id,
+        'self_program_item_id' => $this->item->id,
+        'entry_date' => '2026-09-10',
+        'amount_done' => 4,
+    ]);
+
+    $grid = app(SelfProgramService::class)->weekGrid($this->student, $this->week->fresh());
+    $cell = $grid['rows'][0]['cells']['2026-09-09'];
+
+    expect($cell['merged'])->toBeTrue();
+    expect($cell['done'])->toBe(4.0);
+});
+
+it('reads the wider scales by period rather than by day', function () {
+    StudentSelfProgramEntry::create([
+        'student_id' => $this->student->id,
+        'self_program_item_id' => $this->item->id,
+        'entry_date' => '2026-09-08',
+        'amount_done' => 9,
+    ]);
+
+    $wide = app(SelfProgramService::class)
+        ->periodGrid($this->student, '2026-09-01', '2026-09-30', 'week');
+
+    expect($wide['columns'])->toHaveCount(1);
+    expect($wide['rows'])->toHaveCount(1);
+
+    $cell = $wide['rows'][0]['cells'][$wide['columns'][0]['key']];
+
+    expect($cell['target'])->toBe(27.0);
+    expect($cell['done'])->toBe(9.0);
+});
+
+it('lets the supervisor merge and unmerge from the grid', function () {
+    $component = Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test('supervisor.self-program-weeks')
+        ->set('asRole', 'supervisor')
+        ->set('stageId', $this->programme->id)
+        ->call('openWeek', $this->week->id)
+        ->set('selectedDays', ['2026-09-09', '2026-09-10'])
+        ->call('mergeSelected');
+
+    expect($this->week->fresh()->merged_days)->toBe([['2026-09-09', '2026-09-10']]);
+
+    $component->call('unmerge', '2026-09-09');
+
+    expect($this->week->fresh()->merged_days)->toBe([]);
+});
+
+it('refuses a merge of fewer than two days', function () {
+    Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test('supervisor.self-program-weeks')
+        ->set('asRole', 'supervisor')
+        ->set('stageId', $this->programme->id)
+        ->call('openWeek', $this->week->id)
+        ->set('selectedDays', ['2026-09-09'])
+        ->call('mergeSelected');
+
+    expect($this->week->fresh()->merged_days)->toBeNull();
+});

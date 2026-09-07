@@ -111,6 +111,9 @@ new class extends Component
     /**
      * Record what the student says he did on the chosen day.
      */
+    /** Which scale the grid is read at: the week, the month, or the term. */
+    public string $scale = 'week';
+
     /** The field waiting on "have you recited it?", if one is. */
     public ?int $askingRecitationFor = null;
 
@@ -225,14 +228,34 @@ new class extends Component
                 'week' => null, 'tracks' => [], 'overall' => 0, 'days' => [], 'plans' => [],
                 'unlocked' => false, 'arrears' => $arrears, 'bridged' => [],
                 'enrichment' => null, 'enrichmentProgress' => null,
-                'grid' => ['days' => [], 'rows' => []],
+                'grid' => ['days' => [], 'columns' => [], 'rows' => []], 'wide' => null,
             ];
         }
 
         $progress = $service->weekProgress($student, $week);
 
-        // The week as it was written: a row per field, a column per day.
+        // The week as it was written: a row per field, a column per day. The
+        // wider scales are not read that way — thirty columns are not a table
+        // anybody reads — so there the column becomes the period.
         $grid = $service->weekGrid($student, $week);
+
+        $today = Carbon::today();
+
+        $wide = match ($this->scale) {
+            'month' => $service->periodGrid(
+                $student,
+                $today->copy()->startOfMonth()->format('Y-m-d'),
+                $today->copy()->endOfMonth()->format('Y-m-d'),
+                'week',
+            ),
+            'term' => $service->periodGrid(
+                $student,
+                $today->copy()->subMonths(3)->startOfMonth()->format('Y-m-d'),
+                $today->copy()->endOfMonth()->format('Y-m-d'),
+                'month',
+            ),
+            default => null,
+        };
         $enrichment = $this->enrichmentWeek();
 
         $plans = [];
@@ -246,6 +269,7 @@ new class extends Component
         return [
             'week' => $week,
             'grid' => $grid,
+            'wide' => $wide,
             'tracks' => $progress['tracks'],
             'overall' => $progress['overall'],
             'days' => $service->workingDays($week),
@@ -302,12 +326,84 @@ new class extends Component
     {{-- جدول الأسبوع --}}
     @if (! empty($grid['days']))
         <flux:card class="space-y-3">
-            <div>
-                <flux:heading size="lg">{{ __('جدول أسبوعك') }}</flux:heading>
-                <flux:subheading class="mt-0.5">
-                    {{ __('ما هو مقرَّر لكل يوم، وما أنجزته منه. والخانة الفارغة يومٌ لم يُقرَّر لك فيه شيء.') }}
-                </flux:subheading>
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                    <flux:heading size="lg">
+                        {{ ['week' => __('جدول أسبوعك'), 'month' => __('شهرك'), 'term' => __('فصلك')][$scale] }}
+                    </flux:heading>
+                    <flux:subheading class="mt-0.5">
+                        {{ $scale === 'week'
+                            ? __('ما هو مقرَّر لكل يوم، وما أنجزته منه. والخانة الفارغة يومٌ لم يُقرَّر لك فيه شيء.')
+                            : __('المنجَز من المطلوب في كل فترة.') }}
+                    </flux:subheading>
+                </div>
+
+                <div class="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shrink-0">
+                    @foreach (['week' => __('أسبوع'), 'month' => __('شهر'), 'term' => __('٤ أشهر')] as $value => $label)
+                        <button wire:click="$set('scale', '{{ $value }}')" wire:key="scale-{{ $value }}"
+                            class="px-3 py-1.5 text-xs font-bold transition-colors
+                                {{ $scale === $value
+                                    ? 'bg-maroon text-white'
+                                    : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800' }}">
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
             </div>
+
+            @if ($scale !== 'week')
+                @if ($wide && $wide['rows'] !== [])
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm border-collapse">
+                            <thead>
+                                <tr>
+                                    <th class="p-2 text-right text-xs font-bold text-zinc-500 sticky start-0 bg-white dark:bg-zinc-900">
+                                        {{ __('المجال') }}
+                                    </th>
+                                    @foreach ($wide['columns'] as $column)
+                                        <th class="p-2 text-center text-xs font-bold text-zinc-500 min-w-28">{{ $column['label'] }}</th>
+                                    @endforeach
+                                    <th class="p-2 text-center text-xs font-bold text-zinc-500">{{ __('المجموع') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($wide['rows'] as $row)
+                                    <tr class="border-t border-zinc-100 dark:border-zinc-800" wire:key="wide-{{ $row['track']->key }}">
+                                        <td class="p-2 font-bold text-zinc-800 dark:text-zinc-100 whitespace-nowrap sticky start-0 bg-white dark:bg-zinc-900">
+                                            {{ $row['track']->label() }}
+                                        </td>
+                                        @foreach ($wide['columns'] as $column)
+                                            @php
+                                                $cell = $row['cells'][$column['key']];
+                                                $met = $cell['target'] > 0 && $cell['done'] >= $cell['target'];
+                                                $partly = ! $met && $cell['done'] > 0;
+                                            @endphp
+                                            <td class="p-2 text-center text-[11px] tabular-nums
+                                                {{ $met ? 'bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' : ($partly ? 'bg-amber-50/60 dark:bg-amber-950/20' : 'text-zinc-500') }}">
+                                                @if ($cell['target'] > 0)
+                                                    {{ rtrim(rtrim(number_format($cell['done'], 2, '.', ''), '0'), '.') }}
+                                                    /
+                                                    {{ rtrim(rtrim(number_format($cell['target'], 2, '.', ''), '0'), '.') }}
+                                                @else
+                                                    <span class="text-zinc-300 dark:text-zinc-700">—</span>
+                                                @endif
+                                            </td>
+                                        @endforeach
+                                        <td class="p-2 text-center text-[11px] font-bold tabular-nums text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
+                                            {{ rtrim(rtrim(number_format($row['done'], 2, '.', ''), '0'), '.') }}
+                                            /
+                                            {{ rtrim(rtrim(number_format($row['target'], 2, '.', ''), '0'), '.') }}
+                                            <span class="block text-[10px] font-normal text-zinc-400">{{ $row['unit'] }}</span>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <flux:text class="text-zinc-400">{{ __('لا برنامج مكتوب في هذه الفترة.') }}</flux:text>
+                @endif
+            @else
 
             <div class="overflow-x-auto">
                 <table class="w-full text-sm border-collapse">
@@ -380,6 +476,7 @@ new class extends Component
                     <span class="text-zinc-300 dark:text-zinc-700">—</span>{{ __('لا شيء لهذا اليوم') }}
                 </span>
             </div>
+            @endif
         </flux:card>
     @endif
 
