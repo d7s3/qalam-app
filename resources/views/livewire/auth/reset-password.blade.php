@@ -20,7 +20,7 @@
 
             <!-- Password -->
             <flux:input name="password" :label="__('كلمة المرور الجديدة')" type="password" required
-                autocomplete="new-password" :placeholder="__('كلمة المرور الجديدة')" viewable />
+                autocomplete="new-password" :placeholder="__('٦ أحرف على الأقل')" viewable />
 
             <!-- Confirm Password -->
             <flux:input name="password_confirmation" :label="__('تأكيد كلمة المرور')" type="password" required

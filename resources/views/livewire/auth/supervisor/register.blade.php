@@ -21,7 +21,7 @@
         </flux:field>
 
         <flux:input name="password" :label="__('كلمة المرور')" wire:model="password" type="password" required
-            autocomplete="new-password" :placeholder="__('كلمة المرور')" viewable />
+            autocomplete="new-password" :placeholder="__('٦ أحرف على الأقل')" viewable />
 
         <flux:input name="password_confirmation" :label="__('تأكيد كلمة المرور')" wire:model="password_confirmation"
             type="password" required autocomplete="new-password" :placeholder="__('تأكيد كلمة المرور')" viewable />
