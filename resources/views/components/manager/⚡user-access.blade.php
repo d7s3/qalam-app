@@ -482,8 +482,24 @@ new class extends Component
                         <flux:card>
                             <flux:heading size="lg">{{ __('كم يبلغ في هذا الدور') }}</flux:heading>
                             <flux:subheading class="mt-0.5">
-                                {{ __('اتركه على «حسب الدور» ليعمل كما يعمل أمثاله. وحدّده لتصنع طبقة جديدة — مدير برنامج هو دور مدير المركز محدوداً ببرامج بعينها.') }}
+                                {{ __('اتركه على «حسب الدور» ليعمل كما يعمل أمثاله. وحدّده لتصنع طبقة جديدة.') }}
                             </flux:subheading>
+
+                            {{-- الطبقة التي بين مدير المركز ومشرف الدفعة، مسمّاةً --}}
+                            @if ($roleKey === 'manager' && in_array($scopeType, ['stages', 'circles'], true))
+                                <div class="mt-3 flex items-start gap-2.5 rounded-xl border border-gold/40 bg-gold/5 px-4 py-3">
+                                    <flux:icon icon="user-circle" class="mt-0.5 size-5 shrink-0 text-maroon dark:text-gold" />
+                                    <div class="text-sm">
+                                        <p class="font-bold text-zinc-800 dark:text-zinc-100">
+                                            {{ __('بهذا يصير :label', ['label' => \App\Support\CohortManager::LABEL]) }}
+                                        </p>
+                                        <p class="mt-0.5 text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                            {{ __('يرى ما اخترتَه له كاملاً — دفعاته ومشرفيها ومعلّميها وطلّابها وكلّ ما جُدول فيه — ولا يرى ما سواه.') }}
+                                            {{ __('وتبقى للمركز صفحاته: النسخ الاحتياطي، والأدوار وصلاحياتها، ونطاقات الناس، وإنشاء البرامج.') }}
+                                        </p>
+                                    </div>
+                                </div>
+                            @endif
 
                             <div class="mt-4 space-y-4">
                                 <flux:field>

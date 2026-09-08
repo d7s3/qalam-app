@@ -5,6 +5,7 @@ namespace App\Services\Reports;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\HijriDate;
+use App\Support\RoleTitle;
 use Illuminate\Support\Collection;
 
 /**
@@ -158,11 +159,9 @@ class TasksReport implements Report
 
     private function roleLabel(?User $person): string
     {
-        $labels = ['manager' => 'مدير المركز', 'supervisor' => 'مشرف دفعة', 'teacher' => 'معلم دفعة'];
-
-        foreach ($labels as $key => $label) {
-            if ($person?->roles->contains('role', $key)) {
-                return $label;
+        foreach (['manager', 'supervisor', 'teacher'] as $role) {
+            if ($person?->roles->contains('role', $role)) {
+                return RoleTitle::for($person, $role);
             }
         }
 

@@ -1,12 +1,4 @@
 @php
-    $roleLabels = [
-        'manager' => 'مدير',
-        'supervisor' => 'مشرف',
-        'teacher' => 'معلم دفعة',
-        'student' => 'طالب',
-        'guardian' => 'ولي أمر',
-        'staff' => 'موظف',
-    ];
     $validGuards = ['manager', 'supervisor', 'teacher', 'student', 'guardian', 'staff'];
     // The active role is derived from the current route's own name prefix
     // first (e.g. "supervisor.dashboard" -> "supervisor"), not by scanning
@@ -53,7 +45,7 @@
                 <button type="button" class="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                     <div class="text-right hidden xl:block">
                         <div class="text-sm font-bold text-zinc-800 dark:text-zinc-100">{{ $currentUser->name }}</div>
-                        <div class="text-xs text-zinc-400">{{ $roleLabels[$activeGuard] ?? '' }}</div>
+                        <div class="text-xs text-zinc-400">{{ $activeGuard ? \App\Support\RoleTitle::for($currentUser, $activeGuard) : '' }}</div>
                     </div>
                     <flux:avatar :src="$currentUser->avatarUrl()" :name="$currentUser->name" :initials="$currentUser->initials()" size="sm" />
                     <flux:icon icon="chevron-down" class="size-4 text-zinc-400" />
@@ -73,12 +65,12 @@
                         <div class="px-1 pb-1.5">
                             <div class="text-xs font-bold text-zinc-400 dark:text-zinc-500 mb-1.5">{{ __('التبديل بين أدوارك') }}</div>
                             <div class="flex flex-wrap gap-1.5">
-                                <flux:badge size="sm" color="lime">{{ $roleLabels[$activeGuard] ?? $activeGuard }}</flux:badge>
+                                <flux:badge size="sm" color="lime">{{ \App\Support\RoleTitle::for($currentUser, $activeGuard) }}</flux:badge>
                                 @foreach($otherRoles as $role)
                                     <form method="POST" action="{{ route('switch-role', ['guard' => $role]) }}">
                                         @csrf
                                         <button type="submit" class="text-xs font-bold px-2 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700">
-                                            {{ $roleLabels[$role] ?? $role }}
+                                            {{ \App\Support\RoleTitle::for($currentUser, $role) }}
                                         </button>
                                     </form>
                                 @endforeach

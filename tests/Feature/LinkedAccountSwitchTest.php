@@ -72,9 +72,13 @@ it('shows the correct active role after switching back and forth, even once ever
     // The small role label under the user's name in the desktop header is
     // the unambiguous "currently active role" indicator (distinct from the
     // "switch to X" buttons, which show every *other* role's label too).
+    //
+    // It is the academy's own name for the office now, read from the roles
+    // table rather than from a map kept in the header — so renaming an office
+    // renames it here too, and «مشرف» became «مشرف دفعة» with the rest.
     $this->get(route('supervisor.dashboard'))
         ->assertSuccessful()
-        ->assertSee('<div class="text-xs text-zinc-400">مشرف</div>', false);
+        ->assertSee('<div class="text-xs text-zinc-400">مشرف دفعة</div>', false);
 
     // Switching back must not get stuck showing "supervisor" just because
     // that guard happens to come first in a fixed priority list — the

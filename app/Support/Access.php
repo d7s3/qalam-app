@@ -74,6 +74,16 @@ class Access
             return false;
         }
 
+        // A manager held over programmes rather than over the centre runs his
+        // programme, not the academy: the backups, the roles, the reaches and
+        // the making of programmes stay with the centre. Asked here with the
+        // other two narrowings, and for their reason — a page the academy has
+        // not registered yet is open to everyone, and this must hold whether or
+        // not anybody has got round to describing the page.
+        if ($role === 'manager' && CohortManager::withholds($user, $routeName)) {
+            return false;
+        }
+
         $role = self::heldRole($user, $role);
 
         $screen = self::screenFor($routeName);
