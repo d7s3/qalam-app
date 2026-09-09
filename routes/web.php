@@ -17,6 +17,7 @@ use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\Supervisor;
 use App\Models\Teacher;
+use App\Models\User;
 use App\Services\MessagingService;
 use App\Support\KnowledgeHadiths;
 use Illuminate\Http\Request;
@@ -423,6 +424,16 @@ Route::middleware(['auth:staff', 'approved', 'page.enabled', 'surveys.required']
 });
 
 // Magic Link Routes
+/**
+ * The door an invitation opens.
+ *
+ * Signed, so the link proves it came from us and stops working on its own; no
+ * guard, because the man has no password yet and that is the whole point.
+ */
+Route::get('/invitation/{user}', fn (User $user) => view('auth.accept-invitation', ['user' => $user]))
+    ->middleware('signed')
+    ->name('invitation.accept');
+
 Route::get('/magic/{token}', function ($token) {
     $student = Student::findByAccessToken($token) ?? abort(404);
 

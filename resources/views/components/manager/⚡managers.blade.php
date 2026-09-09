@@ -4,6 +4,7 @@ use App\Models\Circle;
 use App\Models\Manager;
 use App\Models\Stage;
 use App\Models\UserRole;
+use App\Notifications\AccountInvitation;
 use App\Support\Access;
 use App\Support\ManagerTier;
 use Flux\Flux;
@@ -25,9 +26,10 @@ use Livewire\Component;
  * choose the reach, and the name follows. A man made over a programme carries
  * every manager's screen inside it and none of the centre's own.
  *
- * His own address is asked for and no password is: he sets his own from
- * «نسيت كلمة المرور», so nobody invents a password for another person and
- * nobody has to pass one along.
+ * His own address is asked for and no password is. The account writes to him
+ * itself with a link that lets him choose one, so nobody invents a password for
+ * another person, nobody passes one along, and nobody has to remember to tell
+ * him where the door is.
  */
 new class extends Component
 {
@@ -45,6 +47,9 @@ new class extends Component
     public string $search = '';
 
     public ?int $editing = null;
+
+    /** Whose invitation link to show, when the letter could not be posted. */
+    public ?int $showLinkFor = null;
 
     /** Only the centre's own manager makes managers. */
     public function mount(): void
@@ -136,14 +141,66 @@ new class extends Component
 
         $this->writeReach($manager);
 
+        $sent = $this->invite($manager);
+
         $this->reset(['name', 'email', 'phone', 'reaches']);
         unset($this->managers);
 
         Flux::modal('manager-modal')->close();
         Flux::toast(
-            __('أُنشئ :label. يضبط كلمته من «نسيت كلمة المرور».', ['label' => ManagerTier::LABELS[$this->tier]]),
-            variant: 'success',
+            $sent
+                ? __('أُنشئ :label، وأُرسلت له دعوةٌ لضبط كلمته.', ['label' => ManagerTier::LABELS[$this->tier]])
+                : __('أُنشئ :label، لكنّ الدعوة لم تُرسل — انسخ رابطها من «أعد الدعوة».', ['label' => ManagerTier::LABELS[$this->tier]]),
+            variant: $sent ? 'success' : 'warning',
         );
+    }
+
+    /**
+     * Write to him, and say plainly when it could not be done.
+     *
+     * A mail server that is misconfigured or unreachable must not take the
+     * account down with it: it was made, the reach is written, and the letter is
+     * the one thing that failed — so the failure is reported and the account
+     * kept, rather than the whole thing rolled back over an SMTP timeout.
+     */
+    private function invite(Manager $manager): bool
+    {
+        try {
+            $manager->notify(new AccountInvitation(
+                auth('manager')->user()?->name ?? config('brand.name'),
+            ));
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
+
+    /** Send it again — the link lasts three days, and people miss things. */
+    public function resendInvitation(int $id): void
+    {
+        $manager = Manager::findOrFail($id);
+
+        // Asked once and remembered: calling it twice — once for the words and
+        // once for the colour — would post the man two letters.
+        $sent = $this->invite($manager);
+
+        Flux::toast(
+            $sent
+                ? __('أُرسلت الدعوة إلى :email.', ['email' => $manager->email])
+                : __('تعذّر الإرسال. راجع إعداد البريد، أو انسخ رابط الدعوة.'),
+            variant: $sent ? 'success' : 'warning',
+        );
+
+        $this->showLinkFor = $sent ? null : $manager->id;
+    }
+
+    /** The link itself, for an academy whose mail is not set up yet. */
+    public function invitationLink(int $id): string
+    {
+        return AccountInvitation::linkFor(Manager::findOrFail($id));
     }
 
     /**
@@ -386,11 +443,30 @@ new class extends Component
                     </div>
 
                     <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400" dir="ltr">{{ $manager->email }}</div>
+
+                    @if ($showLinkFor === $manager->id)
+                        {{-- Mail could not go out, so the link is handed over by
+                             hand rather than lost with the letter. --}}
+                        <div class="mt-2 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
+                            <p class="text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                                {{ __('لم يخرج البريد — أرسل له هذا الرابط بنفسك (صالح ٣ أيام):') }}
+                            </p>
+                            <p class="mt-1 text-[11px] text-amber-800 dark:text-amber-200 break-all" dir="ltr">
+                                {{ $this->invitationLink($manager->id) }}
+                            </p>
+                        </div>
+                    @endif
                 </div>
 
                 <div class="flex flex-wrap items-center gap-1.5">
                     <flux:button size="sm" variant="filled" icon="pencil-square" wire:click="edit({{ $manager->id }})">
                         {{ __('عدّل') }}
+                    </flux:button>
+
+                    <flux:button size="sm" variant="ghost" icon="envelope"
+                        wire:click="resendInvitation({{ $manager->id }})"
+                        wire:confirm="{{ __('سترسل دعوةً جديدة إلى :email، ويبطل الرابط القديم بعد ثلاثة أيام. متابعة؟', ['email' => $manager->email]) }}">
+                        {{ __('أعد الدعوة') }}
                     </flux:button>
 
                     @unless ($manager->is_super_admin || $manager->id === auth('manager')->id())
