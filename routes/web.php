@@ -157,6 +157,7 @@ Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager
             ->name('reports.'.$report);
     }
     Route::view('/staff-members', 'manager.staff-members')->name('staff-members');
+    Route::view('/managers', 'manager.managers')->name('managers');
     Route::view('/forms', 'manager.forms')->name('forms');
     Route::get('/forms/create', fn () => view('manager.form-create'))->name('forms.create');
     Route::get('/forms/{id}/edit', fn ($id) => view('manager.form-edit', ['formId' => $id]))->name('forms.edit');

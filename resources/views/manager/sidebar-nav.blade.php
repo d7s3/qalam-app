@@ -51,6 +51,11 @@
         الرسائل
     </flux:sidebar.item>
 @endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.managers'))
+    <flux:sidebar.item icon="user-group" :href="route('manager.managers')" :current="request()->routeIs('manager.managers')" wire:navigate>
+        المديرون
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.stages'))
     <flux:sidebar.item icon="rectangle-stack" :href="route('manager.stages')"
         :current="request()->routeIs('manager.stages')" wire:navigate>

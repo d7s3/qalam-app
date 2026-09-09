@@ -9,10 +9,11 @@ use App\Models\Supervisor;
 use App\Models\UserRole;
 use App\Models\UserScreenOverride;
 use App\Support\Access;
-use App\Support\CohortManager;
+use App\Support\ManagerTier;
 use App\Support\RoleTitle;
 use App\Support\Scope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -26,7 +27,7 @@ uses(RefreshDatabase::class);
  * pages that are the centre's own.
  */
 beforeEach(function () {
-    CohortManager::forget();
+    ManagerTier::forget();
     Scope::forget();
 
     $this->mine = Stage::factory()->create(['name' => 'برنامج أ']);
@@ -69,7 +70,7 @@ it('leaves the centre manager reaching everything, as before', function () {
 });
 
 it('is called by his own name, not the centre manager\'s', function () {
-    expect(RoleTitle::for($this->director, 'manager'))->toBe('مدير الدفعة')
+    expect(RoleTitle::for($this->director, 'manager'))->toBe('مدير البرنامج')
         ->and(RoleTitle::for($this->centre, 'manager'))->toBe('مدير المركز')
         ->and(RoleTitle::for($this->mySupervisor, 'supervisor'))->toBe('مشرف دفعة');
 });
@@ -118,9 +119,118 @@ it('never narrows the administrator, whatever is written on his holding', functi
     ]);
     $admin->load('roles');
 
-    CohortManager::forget();
+    ManagerTier::forget();
 
-    expect(CohortManager::is($admin))->toBeFalse()
+    expect(ManagerTier::of($admin))->toBe(ManagerTier::CENTRE)
         ->and(Access::canSee($admin, 'manager', 'manager.settings'))->toBeTrue()
         ->and(Scope::for($admin, 'manager')->reachesAll())->toBeTrue();
+});
+
+/**
+ * The office comes in three, and the academy runs on برنامج ← دفعة — so a man
+ * over a programme and a man over one cohort inside it are two different
+ * offices, and the first build called them both «مدير الدفعة».
+ */
+describe('the three tiers', function () {
+    it('names each by how much of the academy it covers', function () {
+        $overCohort = Manager::factory()->create();
+        $overCohort->roles()->where('role', 'manager')->update([
+            'scope_type' => UserRole::SCOPE_CIRCLES,
+            'scope_ids' => [$this->myCohort->id],
+        ]);
+        $overCohort->load('roles');
+        ManagerTier::forget();
+
+        expect(ManagerTier::of($this->centre))->toBe(ManagerTier::CENTRE)
+            ->and(ManagerTier::of($this->director))->toBe(ManagerTier::PROGRAMME)
+            ->and(ManagerTier::of($overCohort))->toBe(ManagerTier::COHORT)
+            ->and(RoleTitle::for($this->centre, 'manager'))->toBe('مدير المركز')
+            ->and(RoleTitle::for($this->director, 'manager'))->toBe('مدير البرنامج')
+            ->and(RoleTitle::for($overCohort, 'manager'))->toBe('مدير الدفعة');
+    });
+
+    it('gives a cohort manager his cohort and nothing beside it', function () {
+        $second = Circle::factory()->create(['stage_id' => $this->mine->id]);
+        Student::factory()->create(['name' => 'ماجد', 'circle_id' => $second->id, 'stage_id' => $this->mine->id]);
+
+        $overCohort = Manager::factory()->create();
+        $overCohort->roles()->where('role', 'manager')->update([
+            'scope_type' => UserRole::SCOPE_CIRCLES,
+            'scope_ids' => [$this->myCohort->id],
+        ]);
+        $overCohort->load('roles');
+        ManagerTier::forget();
+        Scope::forget();
+
+        // His programme's other cohort is not his, though the programme is one.
+        expect(Scope::for($overCohort, 'manager')->applyToStudents(Student::query())->pluck('name')->all())
+            ->toBe(['سالم']);
+    });
+});
+
+/**
+ * Supervisors and teachers could be created from the manager's area; managers
+ * could not, so the tiers existed and nobody could be made into one.
+ */
+describe('making them', function () {
+    it('makes a manager at the reach that was chosen', function () {
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->set('name', 'مدير برنامج أ')
+            ->set('email', 'director@example.com')
+            ->set('tier', ManagerTier::PROGRAMME)
+            ->set('reaches', [$this->mine->id])
+            ->call('create')
+            ->assertHasNoErrors();
+
+        $made = Manager::where('email', 'director@example.com')->firstOrFail();
+        ManagerTier::forget();
+
+        expect(ManagerTier::of($made))->toBe(ManagerTier::PROGRAMME)
+            ->and($made->is_approved)->toBeTrue()
+            ->and(Scope::for($made, 'manager')->stageIds()->all())->toBe([$this->mine->id])
+            // No password passes through anybody: he sets his own.
+            ->and($made->password)->not->toBeEmpty();
+    });
+
+    it('refuses to make one below the centre reaching nothing', function () {
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->set('name', 'بلا مدى')
+            ->set('email', 'nowhere@example.com')
+            ->set('tier', ManagerTier::COHORT)
+            ->set('reaches', [])
+            ->call('create');
+
+        expect(Manager::where('email', 'nowhere@example.com')->exists())->toBeFalse();
+    });
+
+    it('keeps the making of managers with the centre', function () {
+        expect(Access::canSee($this->director, 'manager', 'manager.managers'))->toBeFalse()
+            ->and(Access::canSee($this->centre, 'manager', 'manager.managers'))->toBeTrue();
+
+        Livewire::actingAs($this->director, 'manager')
+            ->test('manager.managers')
+            ->assertStatus(403);
+    });
+});
+
+/**
+ * A `@php` block inside a loop writes into the template's own scope, so naming
+ * the loop's variable after a component property silently overwrites it — the
+ * reach panel read the last manager in the list instead of the reach chosen,
+ * and offered the centre's description whatever was picked.
+ */
+it('lets the chosen reach survive the list above it', function () {
+    Stage::factory()->create(['name' => 'برنامج ج']);
+
+    Livewire::actingAs($this->centre, 'manager')
+        ->test('manager.managers')
+        ->set('tier', ManagerTier::PROGRAMME)
+        ->assertSee('برامجه')
+        ->assertDontSee('يرى الأكاديمية كلّها')
+        ->set('tier', ManagerTier::COHORT)
+        ->assertSee('دفعاته')
+        ->set('tier', ManagerTier::CENTRE)
+        ->assertSee('يرى الأكاديمية كلّها');
 });

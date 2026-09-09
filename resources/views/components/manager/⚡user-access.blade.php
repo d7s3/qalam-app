@@ -491,7 +491,7 @@ new class extends Component
                                     <flux:icon icon="user-circle" class="mt-0.5 size-5 shrink-0 text-maroon dark:text-gold" />
                                     <div class="text-sm">
                                         <p class="font-bold text-zinc-800 dark:text-zinc-100">
-                                            {{ __('بهذا يصير :label', ['label' => \App\Support\CohortManager::LABEL]) }}
+                                            {{ __('بهذا يصير :label', ['label' => \App\Support\ManagerTier::LABELS[$scopeType === 'stages' ? 'programme' : 'cohort']]) }}
                                         </p>
                                         <p class="mt-0.5 text-zinc-500 dark:text-zinc-400 leading-relaxed">
                                             {{ __('يرى ما اخترتَه له كاملاً — دفعاته ومشرفيها ومعلّميها وطلّابها وكلّ ما جُدول فيه — ولا يرى ما سواه.') }}

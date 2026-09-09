@@ -14,9 +14,9 @@ use App\Models\User;
  * held over one programme is not the manager of the centre.
  *
  * The roles table is the source: the academy renames its offices there and the
- * new name appears wherever anybody is named. The one thing added on top is the
- * tier that has no row of its own — the cohort's manager, who is the manager's
- * role narrowed to programmes.
+ * new name appears wherever anybody is named. The one thing added on top are the
+ * tiers that have no row of their own — the manager of a programme and the
+ * manager of a cohort, who are the manager's role with a reach written on it.
  */
 class RoleTitle
 {
@@ -30,8 +30,11 @@ class RoleTitle
      */
     public static function for(?User $user, string $role): string
     {
-        if ($role === 'manager' && CohortManager::is($user)) {
-            return CohortManager::LABEL;
+        // The manager's office comes in three, differing only in how much of
+        // the academy each covers, so the reach names them rather than the
+        // roles table — which holds one row for all three.
+        if ($role === 'manager') {
+            return ManagerTier::label($user);
         }
 
         return self::of($role);
