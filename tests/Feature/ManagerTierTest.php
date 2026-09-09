@@ -326,3 +326,77 @@ describe('editing a manager', function () {
             ->assertSet('email', 'admin@example.com');
     });
 });
+
+/**
+ * Shutting an account and removing it are different things, and the safe one is
+ * the one to reach for — so both are offered and each says what it does.
+ */
+describe('closing a manager account', function () {
+    it('shuts him out without unmaking what he did', function () {
+        $made = Manager::factory()->create(['is_approved' => true]);
+        $approved = Manager::factory()->create(['approved_by' => $made->id]);
+
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->call('setActive', $made->id, false);
+
+        expect($made->fresh()->is_approved)->toBeFalse()
+            // His signature is still on what he signed.
+            ->and($approved->fresh()->approved_by)->toBe($made->id);
+    });
+
+    it('deletes the account and leaves the approval standing', function () {
+        $made = Manager::factory()->create();
+        $approved = Manager::factory()->create(['approved_by' => $made->id]);
+
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->call('destroy', $made->id);
+
+        expect(Manager::find($made->id))->toBeNull()
+            // The column that records who approved is emptied, not the row.
+            ->and($approved->fresh())->not->toBeNull()
+            ->and($approved->fresh()->approved_by)->toBeNull();
+    });
+
+    it('never lets the administrator be shut or removed', function () {
+        $admin = Manager::factory()->create(['is_super_admin' => true]);
+
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->call('destroy', $admin->id)
+            ->assertStatus(403);
+
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->call('setActive', $admin->id, false)
+            ->assertStatus(403);
+
+        expect(Manager::find($admin->id))->not->toBeNull();
+    });
+
+    it('never lets a man shut himself out', function () {
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->call('destroy', $this->centre->id)
+            ->assertStatus(403);
+
+        expect(Manager::find($this->centre->id))->not->toBeNull();
+    });
+
+    it('always leaves somebody able to reach the centre', function () {
+        // This screen is the centre's own, so whoever deletes reaches the whole
+        // centre himself — and cannot delete himself. One such man is therefore
+        // always left standing, without a rule of its own saying so.
+        Manager::whereKeyNot($this->centre->id)->get()
+            ->each(fn (Manager $m) => $m->forceFill(['is_super_admin' => false])->delete());
+
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->call('destroy', $this->centre->id)
+            ->assertStatus(403);
+
+        expect(Manager::count())->toBe(1)
+            ->and(Manager::first()->id)->toBe($this->centre->id);
+    });
+});

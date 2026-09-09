@@ -197,6 +197,72 @@ new class extends Component
         Flux::toast(__('حُفظت البيانات.'), variant: 'success');
     }
 
+    /**
+     * Shut an account without unmaking the man.
+     *
+     * This is the one to reach for. He cannot sign in, and every trace of what
+     * he did — whom he approved, what he wrote, what he was assigned — stays
+     * exactly where it is, under his own name. Turning him back on is one
+     * click, which is not true of the other.
+     */
+    public function setActive(int $id, bool $active): void
+    {
+        $manager = $this->guarded($id);
+
+        $manager->update([
+            'is_approved' => $active,
+            'approved_by' => $active ? auth('manager')->id() : $manager->approved_by,
+        ]);
+
+        unset($this->managers);
+
+        Flux::toast($active ? __('أُعيد تفعيله.') : __('عُطِّل حسابه.'), variant: 'success');
+    }
+
+    /**
+     * Remove the account itself.
+     *
+     * What he did under his own name survives him: the columns that record who
+     * approved, who granted and who set a thing are emptied rather than taken
+     * away, so the approval stands and only the name beside it goes. What is his
+     * own — his attendance, his tasks, his holdings of roles — goes with him.
+     *
+     * Irreversible, which is why «عطِّل» sits beside it.
+     */
+    public function destroy(int $id): void
+    {
+        $manager = $this->guarded($id);
+
+        $manager->delete();
+
+        unset($this->managers);
+
+        Flux::toast(__('حُذف الحساب.'), variant: 'success');
+    }
+
+    /**
+     * The manager a destructive action may be aimed at.
+     *
+     * Neither the administrator nor oneself: the first because his mark
+     * overrules every check in the application, the second because a man who
+     * shuts his own account is locked out by his own click.
+     *
+     * The second is also what keeps the academy from being locked out entirely.
+     * This screen is the centre's own, so whoever is deleting reaches the whole
+     * centre himself — and since he cannot delete himself, one such man is
+     * always left standing. A separate "not the last one" guard was written
+     * here and then removed: it could never fire.
+     */
+    private function guarded(int $id): Manager
+    {
+        $manager = Manager::with('roles')->findOrFail($id);
+
+        abort_if($manager->is_super_admin, 403);
+        abort_if($manager->id === auth('manager')->id(), 403);
+
+        return $manager;
+    }
+
     /** Move a manager already made from one reach to another. */
     public function retier(int $id, string $tier): void
     {
@@ -308,6 +374,10 @@ new class extends Component
                     <div class="flex items-center gap-2">
                         <span class="font-bold text-zinc-900 dark:text-white">{{ $manager->name }}</span>
 
+                        @unless ($manager->is_approved)
+                            <flux:badge size="sm" color="zinc">{{ __('معطَّل') }}</flux:badge>
+                        @endunless
+
                         @if ($manager->is_super_admin)
                             <flux:badge size="sm" color="red">{{ __('صلاحية عليا') }}</flux:badge>
                         @else
@@ -322,6 +392,24 @@ new class extends Component
                     <flux:button size="sm" variant="filled" icon="pencil-square" wire:click="edit({{ $manager->id }})">
                         {{ __('عدّل') }}
                     </flux:button>
+
+                    @unless ($manager->is_super_admin || $manager->id === auth('manager')->id())
+                        <flux:button size="sm" variant="ghost"
+                            :icon="$manager->is_approved ? 'pause-circle' : 'play-circle'"
+                            wire:click="setActive({{ $manager->id }}, {{ $manager->is_approved ? 'false' : 'true' }})"
+                            wire:confirm="{{ $manager->is_approved
+                                ? __('سيُمنع :name من الدخول، ويبقى كلّ ما سجّله. متابعة؟', ['name' => $manager->name])
+                                : __('سيعود :name إلى الدخول. متابعة؟', ['name' => $manager->name]) }}">
+                            {{ $manager->is_approved ? __('عطِّل') : __('فعِّل') }}
+                        </flux:button>
+
+                        <flux:button size="sm" variant="ghost" icon="trash"
+                            class="text-red-secondary hover:!text-white hover:!bg-red-secondary"
+                            wire:click="destroy({{ $manager->id }})"
+                            wire:confirm="{{ __('حذفٌ لا رجعة فيه لحساب :name. يبقى ما اعتمده ووقّعه بلا اسمٍ بجانبه، ويذهب ما هو له وحده. والأسلم «عطِّل». متابعة؟', ['name' => $manager->name]) }}">
+                            {{ __('احذف') }}
+                        </flux:button>
+                    @endunless
 
                     @unless ($manager->is_super_admin)
                         @foreach (\App\Support\ManagerTier::LABELS as $key => $label)
