@@ -44,6 +44,8 @@ new class extends Component
 
     public string $search = '';
 
+    public ?int $editing = null;
+
     /** Only the centre's own manager makes managers. */
     public function mount(): void
     {
@@ -142,6 +144,57 @@ new class extends Component
             __('أُنشئ :label. يضبط كلمته من «نسيت كلمة المرور».', ['label' => ManagerTier::LABELS[$this->tier]]),
             variant: 'success',
         );
+    }
+
+    /**
+     * Open a manager's own details for changing.
+     *
+     * A super administrator is edited by a super administrator only. Any centre
+     * manager could otherwise change his address and then take the account
+     * through «نسيت كلمة المرور» — which would hand himself the one mark that
+     * overrules every check in the application.
+     */
+    public function edit(int $id): void
+    {
+        $manager = Manager::findOrFail($id);
+
+        abort_if($manager->is_super_admin && ! auth('manager')->user()?->is_super_admin, 403);
+
+        $this->editing = $manager->id;
+        $this->name = $manager->name;
+        $this->email = $manager->email;
+        $this->phone = (string) ($manager->phone ?? '');
+
+        Flux::modal('edit-modal')->show();
+    }
+
+    /** Save what was changed. The reach is not touched here; it has its own. */
+    public function update(): void
+    {
+        $manager = Manager::findOrFail($this->editing);
+
+        abort_if($manager->is_super_admin && ! auth('manager')->user()?->is_super_admin, 403);
+
+        $this->validate([
+            'name' => ['required', 'string', 'min:2', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$manager->id],
+            'phone' => ['nullable', 'string', 'max:20'],
+        ], [], [
+            'name' => __('الاسم'),
+            'email' => __('البريد'),
+        ]);
+
+        $manager->update([
+            'name' => $this->name,
+            'email' => $this->email,
+            'phone' => $this->phone ?: null,
+        ]);
+
+        $this->reset(['name', 'email', 'phone', 'editing']);
+        unset($this->managers);
+
+        Flux::modal('edit-modal')->close();
+        Flux::toast(__('حُفظت البيانات.'), variant: 'success');
     }
 
     /** Move a manager already made from one reach to another. */
@@ -265,17 +318,21 @@ new class extends Component
                     <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400" dir="ltr">{{ $manager->email }}</div>
                 </div>
 
-                @unless ($manager->is_super_admin)
-                    <div class="flex flex-wrap items-center gap-1.5">
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <flux:button size="sm" variant="filled" icon="pencil-square" wire:click="edit({{ $manager->id }})">
+                        {{ __('عدّل') }}
+                    </flux:button>
+
+                    @unless ($manager->is_super_admin)
                         @foreach (\App\Support\ManagerTier::LABELS as $key => $label)
-                            <flux:button size="sm" :variant="$key === $his ? 'primary' : 'ghost'"
-                                wire:click="retier({{ $manager->id }}, '{{ $key }}')"
-                                wire:confirm="{{ __('سيصير :name :label. متابعة؟', ['name' => $manager->name, 'label' => $label]) }}">
-                                {{ $label }}
-                            </flux:button>
+                        <flux:button size="sm" :variant="$key === $his ? 'primary' : 'ghost'"
+                            wire:click="retier({{ $manager->id }}, '{{ $key }}')"
+                            wire:confirm="{{ __('سيصير :name :label. متابعة؟', ['name' => $manager->name, 'label' => $label]) }}">
+                            {{ $label }}
+                        </flux:button>
                         @endforeach
-                    </div>
-                @endunless
+                    @endunless
+                </div>
             </flux:card>
         @empty
             <x-empty-note icon="user-group" :title="__('لا مديرين بعد')">
@@ -361,6 +418,45 @@ new class extends Component
                 <flux:button type="submit" variant="primary">
                     {{ __('أنشئ :label', ['label' => $this->tierLabel]) }}
                 </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    {{-- تعديل بيانات مدير --}}
+    <flux:modal name="edit-modal" class="w-full max-w-lg">
+        <form wire:submit="update" class="space-y-5">
+            <div>
+                <flux:heading size="lg">{{ __('تعديل البيانات') }}</flux:heading>
+                <flux:subheading>{{ __('مداه يُغيَّر من أزرار الطبقات، لا من هنا.') }}</flux:subheading>
+            </div>
+
+            <flux:field>
+                <flux:label>{{ __('الاسم') }}</flux:label>
+                <flux:input wire:model="name" />
+                <flux:error name="name" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('البريد الإلكتروني') }}</flux:label>
+                <flux:input wire:model="email" type="email" dir="ltr" />
+                <flux:error name="email" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('الجوال') }} <span class="text-zinc-400">({{ __('اختياري') }})</span></flux:label>
+                <flux:input wire:model="phone" dir="ltr" placeholder="05XXXXXXXX" />
+                <flux:error name="phone" />
+            </flux:field>
+
+            <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                {{ __('كلمة المرور لا تُغيَّر من هنا — يضبطها صاحبها من «نسيت كلمة المرور».') }}
+            </p>
+
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('إلغاء') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">{{ __('احفظ') }}</flux:button>
             </div>
         </form>
     </flux:modal>

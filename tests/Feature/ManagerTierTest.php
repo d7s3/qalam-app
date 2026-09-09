@@ -269,3 +269,60 @@ describe('where the managers are found', function () {
             ->assertSee('مدير جديد');
     });
 });
+
+/**
+ * The screen could make a manager and move him between reaches, and could not
+ * change his name — an omission, not a decision.
+ */
+describe('editing a manager', function () {
+    it('saves his own details', function () {
+        $made = Manager::factory()->create(['name' => 'قبل', 'email' => 'before@example.com']);
+
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->call('edit', $made->id)
+            ->assertSet('name', 'قبل')
+            ->set('name', 'بعد')
+            ->set('email', 'after@example.com')
+            ->set('phone', '0512345678')
+            ->call('update')
+            ->assertHasNoErrors();
+
+        expect($made->fresh())
+            ->name->toBe('بعد')
+            ->email->toBe('after@example.com')
+            ->phone->toBe('0512345678');
+    });
+
+    it('refuses an address another account already holds', function () {
+        $taken = Manager::factory()->create(['email' => 'taken@example.com']);
+        $made = Manager::factory()->create(['email' => 'mine@example.com']);
+
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.managers')
+            ->call('edit', $made->id)
+            ->set('email', 'taken@example.com')
+            ->call('update')
+            ->assertHasErrors('email');
+
+        expect($made->fresh()->email)->toBe('mine@example.com')
+            ->and($taken->fresh()->email)->toBe('taken@example.com');
+    });
+
+    it('leaves the administrator to an administrator', function () {
+        $admin = Manager::factory()->create(['is_super_admin' => true, 'email' => 'admin@example.com']);
+        $plain = Manager::factory()->create();
+
+        // A centre manager who is not himself marked could otherwise change the
+        // address and take the account through «نسيت كلمة المرور».
+        Livewire::actingAs($plain, 'manager')
+            ->test('manager.managers')
+            ->call('edit', $admin->id)
+            ->assertStatus(403);
+
+        Livewire::actingAs($admin, 'manager')
+            ->test('manager.managers')
+            ->call('edit', $admin->id)
+            ->assertSet('email', 'admin@example.com');
+    });
+});
