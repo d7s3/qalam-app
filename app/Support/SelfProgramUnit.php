@@ -167,7 +167,13 @@ class SelfProgramUnit
      */
     private static function counted(float $amount, string $unit, ?array $forms): string
     {
-        $forms ??= ['two' => $unit, 'few' => $unit];
+        // A word the vocabulary does not know has no dual and no plural we can
+        // invent, so it keeps its number and stands as it is. Falling back to
+        // the singular for two swallowed the number entirely — «درسان» became
+        // «درس», and two lessons read as one.
+        if ($forms === null) {
+            return self::number($amount).' '.$unit;
+        }
 
         if (fmod($amount, 1.0) !== 0.0) {
             return self::number($amount).' '.$unit;

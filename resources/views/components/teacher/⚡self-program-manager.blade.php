@@ -211,13 +211,38 @@ new class extends Component
         $this->validate(['newStartsOn' => ['required', 'date']], [], ['newStartsOn' => 'تاريخ البداية']);
 
         $starts = Carbon::parse($this->newStartsOn)->startOfDay();
+        $ends = $starts->copy()->addDays(6);
+
+        // One enrichment week per stretch of days, for the same reason the
+        // programme's own weeks may not overlap: two of them leave the student
+        // reading one and measured against the other.
+        $clash = SelfProgramWeek::clashOn(
+            null,
+            $circle->id,
+            SelfProgramWeek::TYPE_ENRICHMENT,
+            $starts->toDateString(),
+            $ends->toDateString(),
+        );
+
+        if ($clash) {
+            Flux::toast(
+                text: __('الأسبوع :n يغطّي هذه الأيام بالفعل (:from — :to).', [
+                    'n' => $clash->week_number,
+                    'from' => $clash->starts_on->toDateString(),
+                    'to' => $clash->ends_on->toDateString(),
+                ]),
+                variant: 'warning',
+            );
+
+            return;
+        }
 
         $week = SelfProgramWeek::create([
             'circle_id' => $circle->id,
             'program_type' => SelfProgramWeek::TYPE_ENRICHMENT,
             'week_number' => ($this->weeks->max('week_number') ?? 0) + 1,
             'starts_on' => $starts,
-            'ends_on' => $starts->copy()->addDays(6),
+            'ends_on' => $ends,
             'created_by_id' => Auth::guard('teacher')->id(),
             'created_by_type' => Auth::guard('teacher')->user()::class,
         ]);

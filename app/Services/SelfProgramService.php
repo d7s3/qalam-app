@@ -10,6 +10,7 @@ use App\Models\SelfProgramWeek;
 use App\Models\Student;
 use App\Models\StudentSelfProgramEntry;
 use App\Support\HijriDate;
+use App\Support\SelfProgramUnit;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -215,7 +216,15 @@ class SelfProgramService
             $remaining = max(0.0, $target - $doneBefore);
             $daysLeft = count($days) - $index;
 
-            $plan[$day] = $overrides[$day] ?? round($remaining / $daysLeft, 2);
+            // Rounded to something the unit can actually hold. The rule that
+            // forbids half a hadith when a supervisor writes one was not being
+            // applied to what we then asked the student for, so the programme
+            // suggested «٥٫٤ أبيات» — an amount nobody can recite — and asked
+            // for four tenths of a minute of listening.
+            $plan[$day] = $overrides[$day] ?? SelfProgramUnit::normalise(
+                $remaining / $daysLeft,
+                $item->displayUnit(),
+            );
         }
 
         return $plan;
@@ -405,6 +414,7 @@ class SelfProgramService
 
         $columns = [];
         $totals = [];
+        $units = [];
 
         foreach ($weeks as $week) {
             $key = $by === 'month'
@@ -424,6 +434,10 @@ class SelfProgramService
 
                 $totals[$trackKey][$key]['target'] = ($totals[$trackKey][$key]['target'] ?? 0) + (float) $item->target_amount;
                 $totals[$trackKey][$key]['done'] = ($totals[$trackKey][$key]['done'] ?? 0) + ($entries[$item->id] ?? 0);
+                // The unit comes from the weeks themselves, as the week grid's
+                // does. Taking the field's instead made the same field read
+                // «درس» in one table on the page and «دقيقة» in the next.
+                $units[$trackKey] = $item->displayUnit();
             }
         }
 
@@ -442,7 +456,7 @@ class SelfProgramService
 
             $rows[] = [
                 'track' => $track,
-                'unit' => $track->defaultUnit(),
+                'unit' => $units[$track->key] ?? $track->defaultUnit(),
                 'cells' => $cells,
                 'target' => array_sum(array_column($cells, 'target')),
                 'done' => array_sum(array_column($cells, 'done')),

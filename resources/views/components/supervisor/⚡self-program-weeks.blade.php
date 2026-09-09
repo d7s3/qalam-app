@@ -532,6 +532,31 @@ new class extends Component
         abort_unless($this->stages->contains('id', $this->stageId), 403);
 
         $starts = Carbon::parse($this->newStartsOn)->startOfDay();
+        $ends = $starts->copy()->addDays(6);
+
+        // Two weeks over the same days would leave the student's «which week is
+        // mine» answered by whichever the database returned first: he would read
+        // one programme and be measured against the other.
+        $clash = SelfProgramWeek::clashOn(
+            $this->stageId,
+            $this->writesForCohort() ? $this->circleId : null,
+            SelfProgramWeek::TYPE_SELF,
+            $starts->toDateString(),
+            $ends->toDateString(),
+        );
+
+        if ($clash) {
+            Flux::toast(
+                text: __('الأسبوع :n يغطّي هذه الأيام بالفعل (:from — :to). ابدأ بعده أو عدّله.', [
+                    'n' => $clash->week_number,
+                    'from' => $clash->starts_on->toDateString(),
+                    'to' => $clash->ends_on->toDateString(),
+                ]),
+                variant: 'warning',
+            );
+
+            return;
+        }
 
         $week = SelfProgramWeek::create([
             'stage_id' => $this->stageId,
@@ -539,7 +564,7 @@ new class extends Component
             'program_type' => SelfProgramWeek::TYPE_SELF,
             'week_number' => ($this->weeks->max('week_number') ?? 0) + 1,
             'starts_on' => $starts,
-            'ends_on' => $starts->copy()->addDays(6),
+            'ends_on' => $ends,
             'created_by_id' => $this->author()?->id,
             'created_by_type' => $this->author() ? $this->author()::class : null,
         ]);

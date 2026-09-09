@@ -644,3 +644,134 @@ it('isolates every done-over-target pair from the paragraph direction', function
     expect($pairs[0])->not->toBeEmpty()
         ->and(substr_count($markup, 'dir="ltr" class="inline-block"'))->toBe(count($pairs[0]));
 });
+
+/**
+ * Two silences that were told as one.
+ *
+ * A placed student with no week yet is waiting for somebody to write it. A
+ * student nobody has placed is waiting for nobody — and «your supervisor has
+ * not written yet» sent him looking for a person who does not exist for him.
+ */
+it('tells an unplaced student why his programme is empty', function () {
+    $unplaced = Student::factory()->create(['circle_id' => null, 'stage_id' => null]);
+
+    Livewire::actingAs($unplaced, 'student')
+        ->test('student.self-program')
+        ->assertSee('لم تُسكَّن في برنامج بعد')
+        ->assertDontSee('لم يضع مشرف برنامجك');
+});
+
+it('still tells a placed student that his week is not written', function () {
+    $stage = Stage::factory()->create();
+    $placed = Student::factory()->create(['stage_id' => $stage->id, 'circle_id' => null]);
+
+    Livewire::actingAs($placed, 'student')
+        ->test('student.self-program')
+        ->assertSee('لم يضع مشرف برنامجك')
+        ->assertDontSee('لم تُسكَّن');
+});
+
+/**
+ * Weeks are numbered, and the unique index holds the numbers apart — which says
+ * nothing about their dates. Two weeks over the same days left «which week is
+ * mine» answered by whichever the database returned first.
+ */
+it('refuses a week over days another already covers', function () {
+    $supervisor = Supervisor::factory()->create();
+    $programme = Stage::factory()->create();
+    $supervisor->stages()->attach($programme->id);
+
+    $screen = Livewire::actingAs($supervisor, 'supervisor')
+        ->test('supervisor.self-program-weeks')
+        ->set('asRole', 'supervisor')
+        ->set('stageId', $programme->id)
+        ->set('newStartsOn', '2026-11-01')
+        ->call('addWeek');
+
+    expect(SelfProgramWeek::whereDate('starts_on', '2026-11-01')->count())->toBe(1);
+
+    // Starting three days in still runs through the first week's days.
+    $screen->set('newStartsOn', '2026-11-04')->call('addWeek');
+
+    expect(SelfProgramWeek::where('stage_id', $programme->id)->count())->toBe(1);
+
+    // The day after it ends is free.
+    $screen->set('newStartsOn', '2026-11-08')->call('addWeek');
+
+    expect(SelfProgramWeek::where('stage_id', $programme->id)->count())->toBe(2);
+});
+
+/**
+ * The unit a week was written in is the unit it is read in — everywhere.
+ *
+ * The field's own unit used to win over the item's, which quietly reread every
+ * week written before the vocabulary existed: an item asking for two lessons of
+ * listening became two minutes, and ninety minutes then reported as far past
+ * complete. And the week's table took the item's unit while the term's took the
+ * field's, so one field read «درس» in one table and «دقيقة» in the next on the
+ * same page.
+ */
+it('reads a week in the unit it was written in, and flags a word the field dropped', function () {
+    $week = SelfProgramWeek::create([
+        'stage_id' => $this->stage->id,
+        'program_type' => SelfProgramWeek::TYPE_SELF,
+        'week_number' => 90,
+        'starts_on' => now()->subDays(2)->format('Y-m-d'),
+        'ends_on' => now()->addDays(4)->format('Y-m-d'),
+    ]);
+
+    $item = $week->items()->create([
+        'track' => SelfProgramTrack::MASMOU,
+        'target_amount' => 2,
+        // Written before the field was measured in time.
+        'unit' => 'درس',
+    ]);
+
+    expect($item->displayUnit())->toBe('درس')
+        ->and($item->isDuration())->toBeFalse()
+        ->and($item->hasStaleUnit())->toBeTrue()
+        ->and($item->say(2))->toBe('2 درس');
+
+    // And a unit the field does accept is not flagged.
+    $fresh = $week->items()->create([
+        'track' => SelfProgramTrack::MAHFOUDH,
+        'target_amount' => 3,
+        'unit' => 'حديث',
+    ]);
+
+    expect($fresh->hasStaleUnit())->toBeFalse()
+        ->and($fresh->say(3))->toBe('3 أحاديث');
+});
+
+/** A suggestion has to be an amount the unit can hold. */
+it('rounds the day\'s suggestion to something that can be recited', function () {
+    $week = SelfProgramWeek::create([
+        'stage_id' => $this->stage->id,
+        'program_type' => SelfProgramWeek::TYPE_SELF,
+        'week_number' => 91,
+        'starts_on' => now()->startOfWeek()->format('Y-m-d'),
+        'ends_on' => now()->startOfWeek()->addDays(6)->format('Y-m-d'),
+    ]);
+
+    $item = $week->items()->create([
+        'track' => SelfProgramTrack::MAHFOUDH,
+        'target_amount' => 27,
+        'unit' => 'بيت',
+    ]);
+
+    $plan = app(SelfProgramService::class)->dailyPlan($item, $this->student);
+
+    // Twenty-seven verses over the week no longer asks for 5.4 of one.
+    foreach ($plan as $amount) {
+        expect(fmod($amount, 1.0))->toBe(0.0);
+    }
+});
+
+/** A word the vocabulary does not know keeps its number rather than losing it. */
+it('says an amount in a unit the academy added itself', function () {
+    expect(SelfProgramUnit::say(1, 'مجلس'))->toBe('1 مجلس')
+        ->and(SelfProgramUnit::say(2, 'مجلس'))->toBe('2 مجلس')
+        ->and(SelfProgramUnit::say(7, 'مجلس'))->toBe('7 مجلس')
+        // And the four it does know still read as Arabic.
+        ->and(SelfProgramUnit::say(2, 'حديث'))->toBe('حديثان');
+});

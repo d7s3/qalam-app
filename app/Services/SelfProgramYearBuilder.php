@@ -45,7 +45,17 @@ class SelfProgramYearBuilder
             ->where('circle_id', $circleId);
 
         $number = (int) ($existing->max('week_number') ?? 0);
-        $taken = $existing->pluck('starts_on')->map(fn ($d) => Carbon::parse($d)->toDateString())->all();
+
+        // The days already spoken for, as ranges rather than start dates. A
+        // week beginning on a Sunday that nothing else begins on can still run
+        // straight through one that began on the Saturday before it, and
+        // comparing only the first day let exactly that be created.
+        $taken = $existing->get(['starts_on', 'ends_on'])
+            ->map(fn (SelfProgramWeek $week) => [
+                Carbon::parse($week->starts_on)->toDateString(),
+                Carbon::parse($week->ends_on)->toDateString(),
+            ])
+            ->all();
 
         $created = 0;
         $skipped = 0;
@@ -54,7 +64,9 @@ class SelfProgramYearBuilder
             $ends = $cursor->copy()->addDays(6);
 
             $isTaught = AcademicCalendarEvent::workingDaysBetween($cursor, $ends, $stageId) !== [];
-            $isNew = ! in_array($cursor->toDateString(), $taken, true);
+            $from = $cursor->toDateString();
+            $to = $ends->toDateString();
+            $isNew = ! collect($taken)->contains(fn (array $range) => $range[0] <= $to && $range[1] >= $from);
 
             if ($isTaught && $isNew) {
                 SelfProgramWeek::create([
@@ -66,6 +78,7 @@ class SelfProgramYearBuilder
                     'ends_on' => $ends,
                 ])->ensureAllTracks();
 
+                $taken[] = [$cursor->toDateString(), $ends->toDateString()];
                 $created++;
             } elseif (! $isTaught) {
                 $skipped++;

@@ -56,6 +56,52 @@ class SelfProgramWeek extends Model
     }
 
     /** @return HasMany<SelfProgramItem, $this> */
+    /**
+     * A week already covering any of these days, for the same readers.
+     *
+     * Weeks are numbered, and the unique index holds the numbers apart — which
+     * says nothing about their dates. Two weeks numbered 2 and 3 could both run
+     * from the sixth to the twelfth, and a student asking «what is my week»
+     * would be handed whichever the database returned first. He would see one
+     * programme, do it, and be marked against the other.
+     *
+     * A cohort's week and its programme's are not rivals: the cohort's is the
+     * more particular of the two and the reading rules already prefer it. So
+     * only weeks with the same reach are compared.
+     *
+     * @return Builder<self>
+     */
+    public static function overlapping(
+        ?int $stageId,
+        ?int $circleId,
+        string $programType,
+        string $from,
+        string $to,
+        ?int $exceptId = null,
+    ) {
+        return static::query()
+            ->when($stageId, fn ($q) => $q->where('stage_id', $stageId), fn ($q) => $q->whereNull('stage_id'))
+            ->where('program_type', $programType)
+            ->when($circleId, fn ($q) => $q->where('circle_id', $circleId), fn ($q) => $q->whereNull('circle_id'))
+            ->when($exceptId, fn ($q) => $q->whereKeyNot($exceptId))
+            // Matched as dates: the cast writes `Y-m-d H:i:s`, and a plain
+            // comparison against `Y-m-d` would find nothing at all.
+            ->whereDate('starts_on', '<=', $to)
+            ->whereDate('ends_on', '>=', $from);
+    }
+
+    /** The week already covering these days, if there is one. */
+    public static function clashOn(
+        ?int $stageId,
+        ?int $circleId,
+        string $programType,
+        string $from,
+        string $to,
+        ?int $exceptId = null,
+    ): ?self {
+        return static::overlapping($stageId, $circleId, $programType, $from, $to, $exceptId)->first();
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(SelfProgramItem::class);

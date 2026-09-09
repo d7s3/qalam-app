@@ -552,11 +552,26 @@ new class extends Component
     @endif
 
     @if (! $week)
+        @php
+            // Two different silences. A placed student is waiting for a week
+            // somebody will write; an unplaced one is waiting for nobody, and
+            // telling him his supervisor has not written yet sends him to look
+            // for a person who does not exist.
+            $me = auth('student')->user();
+            $placed = $me?->stage_id || $me?->circle_id;
+        @endphp
+
         <flux:card class="text-center py-12">
-            <flux:icon icon="calendar" class="size-10 mx-auto text-zinc-300 dark:text-zinc-600" />
-            <flux:heading size="lg" class="mt-3">{{ __('لا يوجد أسبوع مفتوح') }}</flux:heading>
-            <flux:subheading class="mt-1">
-                {{ __('لم يضع مشرف برنامجك محتوى لهذا الأسبوع بعد.') }}
+            <flux:icon :icon="$placed ? 'calendar' : 'user-plus'" class="size-10 mx-auto text-zinc-300 dark:text-zinc-600" />
+
+            <flux:heading size="lg" class="mt-3">
+                {{ $placed ? __('لا يوجد أسبوع مفتوح') : __('لم تُسكَّن في برنامج بعد') }}
+            </flux:heading>
+
+            <flux:subheading class="mt-1 max-w-md mx-auto leading-relaxed">
+                {{ $placed
+                    ? __('لم يضع مشرف برنامجك محتوى لهذا الأسبوع بعد.')
+                    : __('البرنامج الذاتي يأتيك من برنامجك، ولستَ مسنَداً إلى واحدٍ بعد. راجع إدارة المركز لتسكينك، وعندها يظهر لك محتواك هنا.') }}
             </flux:subheading>
         </flux:card>
     @else

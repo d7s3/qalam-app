@@ -74,9 +74,36 @@ class SelfProgramItem extends Model
         return $this->content_label ?: __('افتح المحتوى');
     }
 
+    /**
+     * The unit this item was actually written in.
+     *
+     * The field's own unit used to win over the item's, which quietly reread
+     * every week written before the vocabulary existed: an item asking for two
+     * lessons of listening became two minutes, and ninety minutes of listening
+     * then reported as a hundred and forty-five per cent of it.
+     *
+     * What was written is what is shown. A field settles the unit of everything
+     * written from now on — that happens where it is written — and says nothing
+     * about what is already on the page.
+     */
     public function displayUnit(): string
     {
-        return $this->track->fixedUnit() ?? ($this->unit ?: $this->track->defaultUnit());
+        return $this->unit ?: $this->track->defaultUnit();
+    }
+
+    /**
+     * Whether this item is measured in a word its field no longer accepts.
+     *
+     * True only of weeks written before the field had a vocabulary. The amount
+     * beside it means what it meant when somebody wrote it, and nobody but that
+     * person can say what it is in the new unit — so it is flagged, not
+     * converted.
+     */
+    public function hasStaleUnit(): bool
+    {
+        return $this->unit !== null
+            && $this->unit !== ''
+            && ! $this->track->allowsUnit($this->unit);
     }
 
     /** Whether this item is a length of time rather than a count of things. */
