@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsurePageIsEnabled;
+use App\Http\Middleware\EnsureStartingPasswordWasChanged;
 use App\Http\Middleware\EnsureUserIsApproved;
 use App\Http\Middleware\RequirePendingSurveys;
 use App\Http\Middleware\RoleMiddleware;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'approved' => EnsureUserIsApproved::class,
+            'password.changed' => EnsureStartingPasswordWasChanged::class,
             'role' => RoleMiddleware::class,
             'page.enabled' => EnsurePageIsEnabled::class,
             'surveys.required' => RequirePendingSurveys::class,

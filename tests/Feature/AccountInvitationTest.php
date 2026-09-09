@@ -4,6 +4,7 @@ use App\Models\Manager;
 use App\Models\Stage;
 use App\Notifications\AccountInvitation;
 use App\Support\ManagerTier;
+use App\Support\StartingPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -38,15 +39,15 @@ it('writes to a manager the moment he is made', function () {
     Notification::assertSentTo($made, AccountInvitation::class);
 });
 
-it('sends a link and never a password', function () {
-    $invited = Manager::factory()->create(['name' => 'المدعوّ']);
+it('carries the starting code and a link, and never the stored password', function () {
+    $invited = Manager::factory()->create(['name' => 'المدعوّ', 'email' => 'invited@example.com']);
 
-    $mail = (new AccountInvitation('مدير المركز'))->toMail($invited);
-    $rendered = $mail->render();
+    $rendered = (new AccountInvitation('مدير المركز'))->toMail($invited)->render();
 
-    expect($rendered)->toContain('اضبط كلمة المرور')
+    expect($rendered)->toContain(StartingPassword::code())
+        ->and($rendered)->toContain('invited@example.com')
         ->and($rendered)->toContain('/invitation/'.$invited->id)
-        // Nothing that could be mistaken for a password travels with it.
+        // The hash never travels, whatever else does.
         ->and($rendered)->not->toContain($invited->password);
 });
 

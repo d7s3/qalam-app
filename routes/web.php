@@ -102,7 +102,7 @@ Route::middleware('auth:manager,supervisor,teacher,student,guardian,staff')->gro
     })->name('dashboard');
 });
 
-Route::middleware(['auth:manager', 'approved', 'page.enabled'])->prefix('manager')->name('manager.')->group(function () {
+Route::middleware(['auth:manager', 'approved', 'password.changed', 'page.enabled'])->prefix('manager')->name('manager.')->group(function () {
     Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
     Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
@@ -173,14 +173,14 @@ Route::middleware('guest:manager,supervisor,teacher,student,guardian')
     ->name('register');
 
 // مسارات لوحة التحكم (Dashboard Routes) لكل دور
-Route::middleware(['auth:manager', 'approved'])->get('/manager/dashboard', fn () => view('manager.dashboard'))->name('manager.dashboard');
+Route::middleware(['auth:manager', 'approved', 'password.changed'])->get('/manager/dashboard', fn () => view('manager.dashboard'))->name('manager.dashboard');
 
 // تنزيل النسخ الاحتياطية عبر بثّ HTTP عادي (خارج دورة Livewire) لتفادي تحميل الملف كاملاً في الذاكرة.
-Route::middleware(['auth:manager', 'approved'])->prefix('manager')->name('manager.')->group(function () {
+Route::middleware(['auth:manager', 'approved', 'password.changed'])->prefix('manager')->name('manager.')->group(function () {
     Route::get('/backup/download', [BackupController::class, 'downloadCurrent'])->name('backup.download');
     Route::get('/backup/download/{filename}', [BackupController::class, 'downloadStored'])->name('backup.download.stored');
 });
-Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.required'])->prefix('supervisor')->name('supervisor.')->group(function () {
+Route::middleware(['auth:supervisor', 'approved', 'password.changed', 'page.enabled', 'surveys.required'])->prefix('supervisor')->name('supervisor.')->group(function () {
     Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/portal', 'shared.portal')->name('portal');
@@ -242,7 +242,7 @@ Route::middleware(['auth:supervisor', 'approved', 'page.enabled', 'surveys.requi
 
     Route::view('/guide', 'shared.guide')->name('guide');
 });
-Route::middleware(['auth:teacher', 'approved', 'page.enabled', 'surveys.required'])->prefix('teacher')->name('teacher.')->group(function () {
+Route::middleware(['auth:teacher', 'approved', 'password.changed', 'page.enabled', 'surveys.required'])->prefix('teacher')->name('teacher.')->group(function () {
     Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
     Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
@@ -352,7 +352,7 @@ Route::middleware(['auth:teacher', 'approved', 'page.enabled', 'surveys.required
         ]);
     })->name('download-plan-pdf');
 });
-Route::middleware(['auth:student', 'approved', 'page.enabled', 'surveys.required'])->prefix('student')->name('student.')->group(function () {
+Route::middleware(['auth:student', 'approved', 'password.changed', 'page.enabled', 'surveys.required'])->prefix('student')->name('student.')->group(function () {
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/my-day', 'shared.my-day')->name('my-day');
     Route::get('/dashboard', fn () => view('student.dashboard'))->name('dashboard');
@@ -387,7 +387,7 @@ Route::middleware(['auth:student', 'approved', 'page.enabled', 'surveys.required
 });
 Route::view('/student/complete-profile', 'student.complete-profile')->middleware(['auth:student'])->name('student.complete-profile');
 Route::view('/teacher/complete-profile', 'teacher.complete-profile')->middleware(['auth:teacher'])->name('teacher.complete-profile');
-Route::middleware(['auth:guardian', 'approved', 'page.enabled', 'surveys.required'])->prefix('parent')->name('guardian.')->group(function () {
+Route::middleware(['auth:guardian', 'approved', 'password.changed', 'page.enabled', 'surveys.required'])->prefix('parent')->name('guardian.')->group(function () {
     Route::view('/child-day', 'guardian.child-day')->name('child-day');
     Route::get('/dashboard', fn () => view('guardian.dashboard'))->name('dashboard');
     Route::get('/student/{id}', fn ($id) => view('guardian.student', ['studentId' => $id]))->name('student');
@@ -410,7 +410,7 @@ Route::middleware(['auth:guardian', 'approved', 'page.enabled', 'surveys.require
     Route::view('/guide', 'shared.guide')->name('guide');
 });
 
-Route::middleware(['auth:staff', 'approved', 'page.enabled', 'surveys.required'])->prefix('staff')->name('staff.')->group(function () {
+Route::middleware(['auth:staff', 'approved', 'password.changed', 'page.enabled', 'surveys.required'])->prefix('staff')->name('staff.')->group(function () {
     Route::view('/dashboard', 'staff.dashboard')->name('dashboard');
     Route::view('/messages', 'staff.messages')->name('messages');
     Route::view('/guide', 'shared.guide')->name('guide');
@@ -430,6 +430,16 @@ Route::middleware(['auth:staff', 'approved', 'page.enabled', 'surveys.required']
  * Signed, so the link proves it came from us and stops working on its own; no
  * guard, because the man has no password yet and that is the whole point.
  */
+/**
+ * Where a person changes the code he was handed for one of his own.
+ *
+ * Outside every area's own group, because the middleware that sends him here
+ * runs inside them all — and a page reached by a redirect must not redirect.
+ */
+Route::view('/set-password', 'auth.starting-password')
+    ->middleware('auth:manager,supervisor,teacher,student,guardian,staff')
+    ->name('password.starting');
+
 Route::get('/invitation/{user}', fn (User $user) => view('auth.accept-invitation', ['user' => $user]))
     ->middleware('signed')
     ->name('invitation.accept');

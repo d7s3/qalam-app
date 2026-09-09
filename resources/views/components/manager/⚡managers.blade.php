@@ -7,6 +7,7 @@ use App\Models\UserRole;
 use App\Notifications\AccountInvitation;
 use App\Support\Access;
 use App\Support\ManagerTier;
+use App\Support\StartingPassword;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
@@ -26,10 +27,10 @@ use Livewire\Component;
  * choose the reach, and the name follows. A man made over a programme carries
  * every manager's screen inside it and none of the centre's own.
  *
- * His own address is asked for and no password is. The account writes to him
- * itself with a link that lets him choose one, so nobody invents a password for
- * another person, nobody passes one along, and nobody has to remember to tell
- * him where the door is.
+ * His own address is asked for and no password is. The account opens on the
+ * academy's starting code and writes to him with it, and the code cannot
+ * survive his first sign-in — he is taken to one screen and kept there until he
+ * has chosen his own.
  */
 new class extends Component
 {
@@ -132,9 +133,9 @@ new class extends Component
             'name' => $this->name,
             'phone' => $this->phone ?: null,
             'email' => $this->email,
-            // Unguessable and never shown: he sets his own from the sign-in
-            // page's «نسيت كلمة المرور», so no password passes through anybody.
-            'password' => Hash::make(Str::random(40)),
+            // The academy's starting code, which the first sign-in takes off him.
+            'password' => Hash::make(StartingPassword::code()),
+            'must_change_password' => true,
             'is_approved' => true,
             'approved_by' => auth('manager')->id(),
         ]);
@@ -149,8 +150,11 @@ new class extends Component
         Flux::modal('manager-modal')->close();
         Flux::toast(
             $sent
-                ? __('أُنشئ :label، وأُرسلت له دعوةٌ لضبط كلمته.', ['label' => ManagerTier::LABELS[$this->tier]])
-                : __('أُنشئ :label، لكنّ الدعوة لم تُرسل — انسخ رابطها من «أعد الدعوة».', ['label' => ManagerTier::LABELS[$this->tier]]),
+                ? __('أُنشئ :label، وأُرسل له رمزه المبدئي.', ['label' => ManagerTier::LABELS[$this->tier]])
+                : __('أُنشئ :label، ولم يخرج البريد — أعطِه الرمز :code بنفسك.', [
+                    'label' => ManagerTier::LABELS[$this->tier],
+                    'code' => StartingPassword::code(),
+                ]),
             variant: $sent ? 'success' : 'warning',
         );
     }
@@ -201,6 +205,13 @@ new class extends Component
     public function invitationLink(int $id): string
     {
         return AccountInvitation::linkFor(Manager::findOrFail($id));
+    }
+
+    /** The code a new account opens on, shown so it can be said aloud. */
+    #[Computed]
+    public function startingCode(): string
+    {
+        return StartingPassword::code();
     }
 
     /**
@@ -444,6 +455,12 @@ new class extends Component
 
                     <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400" dir="ltr">{{ $manager->email }}</div>
 
+                    @if ($manager->must_change_password)
+                        <div class="mt-1 text-[11px] text-zinc-400">
+                            {{ __('لم يدخل بعد — رمزه المبدئي :code', ['code' => $this->startingCode]) }}
+                        </div>
+                    @endif
+
                     @if ($showLinkFor === $manager->id)
                         {{-- Mail could not go out, so the link is handed over by
                              hand rather than lost with the letter. --}}
@@ -522,7 +539,9 @@ new class extends Component
             <flux:field>
                 <flux:label>{{ __('البريد الإلكتروني') }}</flux:label>
                 <flux:input wire:model="email" type="email" dir="ltr" placeholder="name@example.com" />
-                <flux:description>{{ __('يدخل به، ويضبط كلمته بنفسه من «نسيت كلمة المرور».') }}</flux:description>
+                <flux:description>
+                    {{ __('يدخل به مع الرمز المبدئي :code، ويُطالَب بتغييره فور دخوله.', ['code' => $this->startingCode]) }}
+                </flux:description>
                 <flux:error name="email" />
             </flux:field>
 

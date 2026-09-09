@@ -63,6 +63,7 @@ class User extends Authenticatable
         'permissions',
         'is_super_admin',
         'is_recitation_only',
+        'must_change_password',
         'circle_id',
         'guardian_id',
         'stage_id',
@@ -96,6 +97,7 @@ class User extends Authenticatable
             'permissions' => 'array',
             'is_super_admin' => 'boolean',
             'is_recitation_only' => 'boolean',
+            'must_change_password' => 'boolean',
             'birth_date' => 'date',
             'joined_at' => 'date',
         ];
