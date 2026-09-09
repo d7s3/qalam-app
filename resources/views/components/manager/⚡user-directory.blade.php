@@ -1,23 +1,52 @@
 <?php
 
+use App\Support\Access;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
+/**
+ * Everyone in the academy, by the office they hold.
+ *
+ * The managers were missing from here, and they were the one office nobody
+ * could create: supervisors, teachers, guardians and students all had their tab
+ * and their «new» button, so an administrator looking for where to make a
+ * manager looked here, found four tabs, and reasonably concluded it could not
+ * be done. It was put in the sidebar on its own instead, which is not where
+ * anybody was looking.
+ */
 new class extends Component
 {
     public string $activeTab = 'students';
 
-    protected const TABS = ['students', 'teachers', 'supervisors', 'guardians'];
+    protected const TABS = ['students', 'teachers', 'supervisors', 'guardians', 'managers'];
 
     public function mount(string $initialTab = 'students'): void
     {
-        $this->activeTab = in_array($initialTab, self::TABS, true) ? $initialTab : 'students';
+        $this->activeTab = $this->allows($initialTab) ? $initialTab : 'students';
     }
 
     public function setTab(string $tab): void
     {
-        if (in_array($tab, self::TABS, true)) {
+        if ($this->allows($tab)) {
             $this->activeTab = $tab;
         }
+    }
+
+    /**
+     * Whether this reader may stand on a tab.
+     *
+     * The managers' tab is the centre's own — a manager over one programme does
+     * not make managers — so it is asked about rather than assumed, and the
+     * same answer draws the tab and guards the standing on it.
+     */
+    public function allows(string $tab): bool
+    {
+        if (! in_array($tab, self::TABS, true)) {
+            return false;
+        }
+
+        return $tab !== 'managers'
+            || Access::canSee(Auth::guard('manager')->user(), 'manager', 'manager.managers');
     }
 
     protected const TAB_LABELS = [
@@ -25,12 +54,17 @@ new class extends Component
         'teachers' => 'المعلمون',
         'supervisors' => 'المشرفون',
         'guardians' => 'الأوصياء',
+        'managers' => 'المديرون',
     ];
 
     public function with(): array
     {
         return [
-            'tabLabels' => self::TAB_LABELS,
+            'tabLabels' => array_filter(
+                self::TAB_LABELS,
+                fn (string $tab) => $this->allows($tab),
+                ARRAY_FILTER_USE_KEY,
+            ),
         ];
     }
 };
@@ -57,5 +91,7 @@ new class extends Component
         <livewire:manager.supervisors :key="'user-directory-supervisors'" />
     @elseif($activeTab === 'guardians')
         <livewire:manager.guardians :key="'user-directory-guardians'" />
+    @elseif($activeTab === 'managers')
+        <livewire:manager.managers :key="'user-directory-managers'" />
     @endif
 </div>

@@ -234,3 +234,38 @@ it('lets the chosen reach survive the list above it', function () {
         ->set('tier', ManagerTier::CENTRE)
         ->assertSee('يرى الأكاديمية كلّها');
 });
+
+/**
+ * Where an administrator actually looks for it.
+ *
+ * Supervisors, teachers, guardians and students each had a tab on «المستخدمون»
+ * with a «new» button on it; the managers had neither, so the office nobody
+ * could create was also the office with nowhere to look. The tab is the answer,
+ * and it is the centre's own — a manager over one programme does not make
+ * managers, so he is not shown it.
+ */
+describe('where the managers are found', function () {
+    it('gives the managers a tab beside the other offices', function () {
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.user-directory')
+            ->assertSee('المديرون')
+            ->call('setTab', 'managers')
+            ->assertSet('activeTab', 'managers');
+    });
+
+    it('does not offer that tab below the centre', function () {
+        Livewire::actingAs($this->director, 'manager')
+            ->test('manager.user-directory')
+            ->assertDontSee('المديرون')
+            // Nor may he stand on it by asking for it.
+            ->call('setTab', 'managers')
+            ->assertSet('activeTab', 'students');
+    });
+
+    it('opens the page directly for the centre', function () {
+        $this->actingAs($this->centre, 'manager')
+            ->get(route('manager.managers'))
+            ->assertSuccessful()
+            ->assertSee('مدير جديد');
+    });
+});

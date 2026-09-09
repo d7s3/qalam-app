@@ -51,11 +51,6 @@
         الرسائل
     </flux:sidebar.item>
 @endif
-@if(\App\Support\RolePages::isEnabled('manager', 'manager.managers'))
-    <flux:sidebar.item icon="user-group" :href="route('manager.managers')" :current="request()->routeIs('manager.managers')" wire:navigate>
-        المديرون
-    </flux:sidebar.item>
-@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.stages'))
     <flux:sidebar.item icon="rectangle-stack" :href="route('manager.stages')"
         :current="request()->routeIs('manager.stages')" wire:navigate>
@@ -77,7 +72,7 @@
 
     @if(\App\Support\RolePages::isEnabled('manager', 'manager.students') || \App\Support\RolePages::isEnabled('manager', 'manager.teachers') || \App\Support\RolePages::isEnabled('manager', 'manager.supervisors') || \App\Support\RolePages::isEnabled('manager', 'manager.guardians'))
         <flux:sidebar.item icon="users" :href="route('manager.students')"
-            :current="request()->routeIs(['manager.students', 'manager.teachers', 'manager.supervisors', 'manager.guardians'])" wire:navigate>
+            :current="request()->routeIs(['manager.students', 'manager.teachers', 'manager.supervisors', 'manager.guardians', 'manager.managers'])" wire:navigate>
             المستخدمون
         </flux:sidebar.item>
     @endif
