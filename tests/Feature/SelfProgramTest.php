@@ -627,22 +627,23 @@ describe('the unit fits the field', function () {
 });
 
 /**
- * A slash between two numbers is a neutral character: inside a right-to-left
- * paragraph it takes the paragraph's direction, and «10 / 13.5» rendered on
- * screen as «13.5 / 10». Every cell of the student's grid read backwards — he
- * was shown his target as his progress and his progress as his target — while
- * the markup, and so every test that read it, was perfectly correct.
+ * The pair «done / target» is read in Arabic order, and that is a thing only a
+ * browser can answer.
  *
- * Only the browser could see it. This holds the isolation that fixes it.
+ * A slash between two numbers is neutral: inside a right-to-left paragraph it
+ * takes the paragraph's direction, so the run whose progress comes first in the
+ * markup is laid out rightmost — which is exactly where a reader coming from the
+ * right meets it first. The rendering was right all along.
+ *
+ * It was «fixed» here once, by forcing each pair into a left-to-right island,
+ * and that inverted it: the target came to sit where the reader looks first.
+ * The markup reads the same either way, so no test here could tell — the guard
+ * lives in tests/Browser, where pixels can be measured.
  */
-it('isolates every done-over-target pair from the paragraph direction', function () {
+it('leaves the pair to the paragraph, which lays it out for an Arabic reader', function () {
     $markup = file_get_contents(resource_path('views/components/student/⚡self-program.blade.php'));
 
-    // No pair may be printed without an explicit left-to-right island round it.
-    preg_match_all("/number_format\(\\\$(?:cell|row)\['done'\]/", $markup, $pairs);
-
-    expect($pairs[0])->not->toBeEmpty()
-        ->and(substr_count($markup, 'dir="ltr" class="inline-block"'))->toBe(count($pairs[0]));
+    expect($markup)->not->toContain('dir="ltr" class="inline-block"');
 });
 
 /**

@@ -11,6 +11,15 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <!--
+            The browser suite opens a real page. It is the only suite able to
+            answer what a person sees rather than what the markup says — which
+            is how a grid whose every cell read backwards passed fifteen hundred
+            tests that all read the markup and all agreed.
+        -->
+        <testsuite name="Browser">
+            <directory>tests/Browser</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

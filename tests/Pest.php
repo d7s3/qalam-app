@@ -19,6 +19,15 @@ pest()->extend(TestCase::class)
     ->in('Feature');
 
 /*
+| The browser suite runs against a real page rather than a rendered string, so
+| it is the only place able to answer what a person actually sees — direction,
+| overflow, the theme. It gets the same database treatment as the rest.
+*/
+pest()->extend(TestCase::class)
+    ->use(RefreshDatabase::class)
+    ->in('Browser');
+
+/*
 |--------------------------------------------------------------------------
 | Expectations
 |--------------------------------------------------------------------------
