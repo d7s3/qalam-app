@@ -408,18 +408,14 @@ new class extends Component
                                             <td class="p-2 text-center text-[11px] tabular-nums
                                                 {{ $met ? 'bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' : ($partly ? 'bg-amber-50/60 dark:bg-amber-950/20' : 'text-zinc-500') }}">
                                                 @if ($cell['target'] > 0)
-                                                    {{ rtrim(rtrim(number_format($cell['done'], 2, '.', ''), '0'), '.') }}
-                                                    /
-                                                    {{ rtrim(rtrim(number_format($cell['target'], 2, '.', ''), '0'), '.') }}
+                                                    <span dir="ltr" class="inline-block">{{ rtrim(rtrim(number_format($cell['done'], 2, '.', ''), '0'), '.') }} / {{ rtrim(rtrim(number_format($cell['target'], 2, '.', ''), '0'), '.') }}</span>
                                                 @else
                                                     <span class="text-zinc-300 dark:text-zinc-700">—</span>
                                                 @endif
                                             </td>
                                         @endforeach
                                         <td class="p-2 text-center text-[11px] font-bold tabular-nums text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
-                                            {{ rtrim(rtrim(number_format($row['done'], 2, '.', ''), '0'), '.') }}
-                                            /
-                                            {{ rtrim(rtrim(number_format($row['target'], 2, '.', ''), '0'), '.') }}
+                                            <span dir="ltr" class="inline-block">{{ rtrim(rtrim(number_format($row['done'], 2, '.', ''), '0'), '.') }} / {{ rtrim(rtrim(number_format($row['target'], 2, '.', ''), '0'), '.') }}</span>
                                             <span class="block text-[10px] font-normal text-zinc-400">{{ $row['unit'] }}</span>
                                         </td>
                                     </tr>
@@ -470,9 +466,7 @@ new class extends Component
 
                                         @if ($cell['expected'] > 0)
                                             <div class="mt-1 text-[11px] tabular-nums {{ $met ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-500' }}">
-                                                {{ rtrim(rtrim(number_format($cell['done'], 2, '.', ''), '0'), '.') }}
-                                                /
-                                                {{ rtrim(rtrim(number_format($cell['expected'], 2, '.', ''), '0'), '.') }}
+                                                <span dir="ltr" class="inline-block">{{ rtrim(rtrim(number_format($cell['done'], 2, '.', ''), '0'), '.') }} / {{ rtrim(rtrim(number_format($cell['expected'], 2, '.', ''), '0'), '.') }}</span>
                                             </div>
                                         @elseif (! $cell['content'])
                                             <span class="text-zinc-300 dark:text-zinc-700">—</span>
@@ -481,9 +475,7 @@ new class extends Component
                                 @endforeach
 
                                 <td class="p-2 text-center text-[11px] font-bold tabular-nums text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
-                                    {{ rtrim(rtrim(number_format($row['done'], 2, '.', ''), '0'), '.') }}
-                                    /
-                                    {{ rtrim(rtrim(number_format($row['target'], 2, '.', ''), '0'), '.') }}
+                                    <span dir="ltr" class="inline-block">{{ rtrim(rtrim(number_format($row['done'], 2, '.', ''), '0'), '.') }} / {{ rtrim(rtrim(number_format($row['target'], 2, '.', ''), '0'), '.') }}</span>
                                     <span class="block text-[10px] font-normal text-zinc-400">{{ $row['unit'] }}</span>
                                 </td>
                             </tr>

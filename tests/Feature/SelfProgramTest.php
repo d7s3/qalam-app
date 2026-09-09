@@ -625,3 +625,22 @@ describe('the unit fits the field', function () {
             ->and(SelfProgramUnit::say(120, 'دقيقة'))->toBe('ساعتان');
     });
 });
+
+/**
+ * A slash between two numbers is a neutral character: inside a right-to-left
+ * paragraph it takes the paragraph's direction, and «10 / 13.5» rendered on
+ * screen as «13.5 / 10». Every cell of the student's grid read backwards — he
+ * was shown his target as his progress and his progress as his target — while
+ * the markup, and so every test that read it, was perfectly correct.
+ *
+ * Only the browser could see it. This holds the isolation that fixes it.
+ */
+it('isolates every done-over-target pair from the paragraph direction', function () {
+    $markup = file_get_contents(resource_path('views/components/student/⚡self-program.blade.php'));
+
+    // No pair may be printed without an explicit left-to-right island round it.
+    preg_match_all("/number_format\(\\\$(?:cell|row)\['done'\]/", $markup, $pairs);
+
+    expect($pairs[0])->not->toBeEmpty()
+        ->and(substr_count($markup, 'dir="ltr" class="inline-block"'))->toBe(count($pairs[0]));
+});
