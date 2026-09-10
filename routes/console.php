@@ -21,3 +21,7 @@ Schedule::command('students:sync-current-status')->dailyAt('00:10');
 // Early enough that a warning is waiting when the day starts, and once a day so
 // nobody is told the same thing twice.
 Schedule::command('tasks:remind')->dailyAt('06:00');
+
+// Before the reminders go out, so a task raised this morning by its own pattern
+// is reminded about on the same morning rather than waiting a day for its turn.
+Schedule::command('tasks:follow-up')->dailyAt('05:30');

@@ -5,6 +5,8 @@ namespace App\Models;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Task extends Model
 {
@@ -22,13 +24,45 @@ class Task extends Model
         'completed_by',
         'remind_days_before',
         'reminded_at',
+        'stage',
+        'batch_key',
+        'task_series_id',
+        'occurs_on',
+        'escalated_at',
     ];
 
     protected $casts = [
         'due_date' => 'date',
+        'occurs_on' => 'date',
         'completed_at' => 'datetime',
         'reminded_at' => 'datetime',
+        'escalated_at' => 'datetime',
         'remind_days_before' => 'integer',
+    ];
+
+    /**
+     * Where a task stands, beyond done and not-done.
+     *
+     * `status` keeps its old words, so everything that reads it — the report,
+     * the day's agenda — goes on reading it unchanged. This says which column
+     * of the board the task sits in, and «waiting» is the one that earns its
+     * place: a task nobody has touched for a fortnight and a task waiting on
+     * somebody else look identical in a list, and they are not the same problem.
+     */
+    public const TODO = 'todo';
+
+    public const DOING = 'doing';
+
+    public const WAITING = 'waiting';
+
+    public const FINISHED = 'finished';
+
+    /** @var array<string, string> */
+    public const STAGES = [
+        self::TODO => 'لم تبدأ',
+        self::DOING => 'جارية',
+        self::WAITING => 'بانتظار غيري',
+        self::FINISHED => 'منجزة',
     ];
 
     /** Finished, however the status word for it is spelled. */
@@ -53,6 +87,54 @@ class Task extends Model
                 $task->completed_by = null;
             }
         });
+    }
+
+    /** @return HasMany<TaskStep, $this> */
+    public function steps(): HasMany
+    {
+        return $this->hasMany(TaskStep::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** @return HasMany<TaskComment, $this> */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(TaskComment::class)->oldest();
+    }
+
+    /** @return HasMany<TaskActivity, $this> */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(TaskActivity::class)->latest();
+    }
+
+    /** @return BelongsTo<TaskSeries, $this> */
+    public function series(): BelongsTo
+    {
+        return $this->belongsTo(TaskSeries::class, 'task_series_id');
+    }
+
+    /**
+     * How far through its own steps a task is.
+     *
+     * Null when it has none: a task without steps is not nought per cent done,
+     * it simply does not answer this question, and showing it as an empty bar
+     * says something untrue about it.
+     */
+    public function stepProgress(): ?int
+    {
+        $steps = $this->relationLoaded('steps') ? $this->steps : $this->steps()->get();
+
+        if ($steps->isEmpty()) {
+            return null;
+        }
+
+        return (int) round($steps->where('is_done', true)->count() / $steps->count() * 100);
+    }
+
+    /** The stage as it is written on the board. */
+    public function stageLabel(): string
+    {
+        return self::STAGES[$this->stage] ?? $this->stage;
     }
 
     public function isDone(): bool
