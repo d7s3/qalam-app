@@ -111,6 +111,8 @@ Route::middleware(['auth:manager', 'approved', 'password.changed', 'page.enabled
     Route::view('/period-values', 'shared.period-values')->name('period-values');
     Route::view('/event-visibility', 'shared.event-visibility')->name('event-visibility');
     Route::view('/my-day', 'shared.my-day')->name('my-day');
+    Route::view('/task-board', 'shared.task-board')->name('task-board');
+    Route::view('/task-automation', 'shared.task-automation')->name('task-automation');
     Route::livewire('/pending-approvals', PendingApprovals::class)->name('pending-approvals');
     Route::view('/stages', 'manager.stages')->name('stages');
     Route::view('/circles', 'manager.circles')->name('circles');
@@ -188,6 +190,8 @@ Route::middleware(['auth:supervisor', 'approved', 'password.changed', 'page.enab
     Route::view('/period-values', 'shared.period-values')->name('period-values');
     Route::view('/event-visibility', 'shared.event-visibility')->name('event-visibility');
     Route::view('/my-day', 'shared.my-day')->name('my-day');
+    Route::view('/task-board', 'shared.task-board')->name('task-board');
+    Route::view('/task-automation', 'shared.task-automation')->name('task-automation');
     Route::view('/placement-requests', 'supervisor.placement-requests')->name('placement-requests');
     Route::get('/dashboard', fn () => view('supervisor.dashboard'))->name('dashboard');
     Route::view('/teachers', 'supervisor.teachers')->name('teachers');
@@ -248,6 +252,8 @@ Route::middleware(['auth:teacher', 'approved', 'password.changed', 'page.enabled
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/portal', 'shared.portal')->name('portal');
     Route::view('/my-day', 'shared.my-day')->name('my-day');
+    Route::view('/task-board', 'shared.task-board')->name('task-board');
+    Route::view('/task-automation', 'shared.task-automation')->name('task-automation');
     $appShellRoute = function ($tab) {
         return function () use ($tab) {
             return view('teacher.app-shell', ['initialTab' => $tab]);

@@ -28,6 +28,16 @@
             {{ __('يومي') }}
         </flux:sidebar.item>
     @endif
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.task-board'))
+    <flux:sidebar.item icon="rectangle-stack" :href="route('teacher.task-board')" :current="request()->routeIs('teacher.task-board')" wire:navigate>
+        لوحة المهام
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('teacher', 'teacher.task-automation'))
+    <flux:sidebar.item icon="arrow-path" :href="route('teacher.task-automation')" :current="request()->routeIs('teacher.task-automation')" wire:navigate>
+        المهام التلقائية
+    </flux:sidebar.item>
+@endif
     @php
         $teacherUnreadMessages = \App\Services\MessagingService::unreadCountFor('teacher', auth('teacher')->id());
     @endphp

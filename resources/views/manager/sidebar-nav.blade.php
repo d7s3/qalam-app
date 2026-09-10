@@ -42,6 +42,16 @@
         {{ __('يومي') }}
     </flux:sidebar.item>
 @endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.task-board'))
+    <flux:sidebar.item icon="rectangle-stack" :href="route('manager.task-board')" :current="request()->routeIs('manager.task-board')" wire:navigate>
+        لوحة المهام
+    </flux:sidebar.item>
+@endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.task-automation'))
+    <flux:sidebar.item icon="arrow-path" :href="route('manager.task-automation')" :current="request()->routeIs('manager.task-automation')" wire:navigate>
+        المهام التلقائية
+    </flux:sidebar.item>
+@endif
 @php
     $managerUnreadMessages = \App\Services\MessagingService::unreadCountFor('manager', auth('manager')->id());
 @endphp
