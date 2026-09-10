@@ -39,7 +39,10 @@ new class extends Component {
     public function mount()
     {
 
-        $this->students = Student::orderBy('name')->get();
+        $this->students = \App\Support\Scope::forRoute()
+            ->applyToStudents(Student::query())
+            ->orderBy('name')
+            ->get();
         $this->examLevels = ExamLevel::orderBy('name')->get();
         $this->dateTime = now()->format('Y-m-d\TH:i');
     }

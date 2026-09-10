@@ -5,6 +5,7 @@ namespace App\Livewire\Manager;
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,7 @@ class YearlyAttendance extends Component
         $this->selectedDate = $date;
         $this->selectedDateHijri = "$hijriDay $monthName $this->year";
 
-        $this->circlesAttendance = Circle::with([
+        $this->circlesAttendance = Scope::forRole('manager')->applyToCircles(Circle::query())->with([
             'teachers',
             'attendances' => function ($query) {
                 $query->whereDate('date', $this->selectedDate);
@@ -67,7 +68,7 @@ class YearlyAttendance extends Component
         $cal->set(\IntlCalendar::FIELD_DAY_OF_MONTH, $monthLength);
         $endDate = date('Y-m-d', $cal->getTime() / 1000);
 
-        $totalCirclesCount = Circle::count();
+        $totalCirclesCount = Scope::forRole('manager')->applyToCircles(Circle::query())->count();
         $allAttendances = AttendanceModel::whereBetween('date', [$startDate, $endDate])
             ->select('date', DB::raw('count(distinct circle_id) as circles_completed'))
             ->groupBy('date')

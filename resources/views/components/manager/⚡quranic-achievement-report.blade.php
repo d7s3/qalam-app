@@ -29,12 +29,12 @@ new class extends Component {
 
     public function getStagesProperty()
     {
-        return Stage::orderBy('name')->get();
+        return \App\Support\Scope::forRoute()->applyToStages(Stage::query())->orderBy('name')->get();
     }
 
     public function getCirclesProperty()
     {
-        $query = Circle::query();
+        $query = \App\Support\Scope::forRoute()->applyToCircles(Circle::query());
         if ($this->stageId) {
             $query->where('stage_id', $this->stageId);
         }

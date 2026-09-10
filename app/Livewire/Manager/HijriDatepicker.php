@@ -5,6 +5,7 @@ namespace App\Livewire\Manager;
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Modelable;
@@ -83,7 +84,7 @@ class HijriDatepicker extends Component
         $monthName = HijriDate::monthYear($this->currentViewTimestamp);
 
         // Fetch overall circle count
-        $totalCirclesCount = Circle::count();
+        $totalCirclesCount = Scope::forRole('manager')->applyToCircles(Circle::query())->count();
 
         // Calculate bounds
         $cal->set(\IntlCalendar::FIELD_DAY_OF_MONTH, 1);

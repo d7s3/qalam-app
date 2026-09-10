@@ -6,6 +6,7 @@ use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
 use App\Models\Student;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Flux\Flux;
 use Livewire\Component;
 
@@ -27,13 +28,16 @@ class StudentAttendanceList extends Component
     {
         $this->circleId = $circleId;
         $this->date = $date;
-        $this->circle = Circle::with('teachers')->findOrFail($circleId);
+        // A cohort outside this office is not merely empty on the page —
+        // it is not his to open at all.
+        $this->circle = Scope::forRole('manager')->applyToCircles(Circle::with('teachers'))->findOrFail($circleId);
         $this->loadStudents();
     }
 
     public function loadStudents()
     {
-        $this->students = Student::where('circle_id', $this->circleId)
+        $this->students = Scope::forRole('manager')
+            ->applyToStudents(Student::where('circle_id', $this->circleId))
             ->whereRoleState(fn ($q) => $q->where('is_approved', true))
             ->with(['statusHistories' => function ($query) {
                 $query->whereDate('start_date', '<=', $this->date)->orderBy('start_date', 'desc')->orderByDesc('id');

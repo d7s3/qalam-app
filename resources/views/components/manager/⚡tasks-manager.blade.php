@@ -87,8 +87,12 @@ new class extends Component {
     #[Computed]
     public function assignableUsers()
     {
-        $supervisors = \App\Models\Supervisor::all();
-        $teachers = \App\Models\Teacher::all();
+        // Work is put on the people of this office, not the academy's:
+        // offering a stranger's teacher is offering to ask something of
+        // somebody who does not answer to the man asking.
+        $reach = \App\Support\Scope::forRoute();
+        $supervisors = $reach->applyToSupervisors(\App\Models\Supervisor::query())->get();
+        $teachers = $reach->applyToTeachers(\App\Models\Teacher::query())->get();
 
         return [
             'App\Models\Supervisor' => [

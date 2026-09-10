@@ -5,6 +5,7 @@ namespace App\Livewire\Manager;
 use App\Models\Attendance;
 use App\Models\Circle;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -76,7 +77,7 @@ class AttendanceReports extends Component
             $d->addDay();
         }
 
-        $circles = Circle::with('stage')
+        $circles = Scope::forRole('manager')->applyToCircles(Circle::with('stage'))
             ->withCount(['students' => fn ($q) => $q->where('status', 'active')])
             ->orderBy('stage_id')->orderBy('name')->get();
         $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون برنامج');
@@ -143,7 +144,7 @@ class AttendanceReports extends Component
 
         // Fetch all circles grouped by stage (with student count, excluding
         // students still under registration)
-        $circles = Circle::with('stage')
+        $circles = Scope::forRole('manager')->applyToCircles(Circle::with('stage'))
             ->withCount(['students' => fn ($q) => $q->where('status', 'active')])
             ->orderBy('stage_id')->orderBy('name')->get();
         $groupedCircles = $circles->groupBy(fn ($c) => $c->stage->name ?? 'بدون برنامج');
