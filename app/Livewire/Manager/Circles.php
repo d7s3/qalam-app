@@ -5,6 +5,7 @@ namespace App\Livewire\Manager;
 use App\Models\Circle;
 use App\Models\Stage;
 use App\Models\Teacher;
+use App\Support\Scope;
 use Flux\Flux;
 use Livewire\Component;
 
@@ -40,7 +41,9 @@ class Circles extends Component
     public function loadData()
     {
         $this->stages = Stage::all();
-        $query = Circle::with(['stage', 'teachers'])->withCount('students');
+        // A man over one programme sees its cohorts, not the academy's.
+        $query = Scope::forRole('manager')
+            ->applyToCircles(Circle::with(['stage', 'teachers'])->withCount('students'));
 
         if ($this->search) {
             $query->where('name', 'like', '%'.$this->search.'%');

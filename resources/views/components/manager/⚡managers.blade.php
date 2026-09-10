@@ -76,14 +76,19 @@ new class extends Component
     #[Computed]
     public function programmes(): Collection
     {
-        return Stage::orderBy('name')->get();
+        return Access::canSee(auth('manager')->user(), 'manager', 'manager.stages')
+            ? Stage::orderBy('name')->get()
+            : \App\Support\Scope::forRole('manager')->applyToStages(Stage::query())->orderBy('name')->get();
     }
 
     /** @return Collection<int, Circle> */
     #[Computed]
     public function cohorts(): Collection
     {
-        return Circle::with('stage')->orderBy('name')->get();
+        return \App\Support\Scope::forRole('manager')
+            ->applyToCircles(Circle::with('stage'))
+            ->orderBy('name')
+            ->get();
     }
 
     /** What choosing this reach makes him. */

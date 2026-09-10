@@ -3,8 +3,12 @@
 namespace App\Support;
 
 use App\Models\Circle;
+use App\Models\Guardian;
+use App\Models\Stage;
 use App\Models\Student;
+use App\Models\Supervisor;
 use App\Models\Task;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Models\UserRole;
 use Illuminate\Database\Eloquent\Builder;
@@ -383,6 +387,98 @@ class Scope
         // the cohorts costs one query rather than a list of ids and then a
         // fetch by that list.
         return $query->whereIn('id', $this->circleQuery()->select('circles.id'));
+    }
+
+    /**
+     * Narrow a query over teachers to those of the cohorts within reach.
+     *
+     * A teacher belongs to the academy through his cohorts, so a man over one
+     * programme sees the teachers of that programme's cohorts and no others.
+     * A teacher attached to nothing is nobody's to see but the centre's.
+     *
+     * @param  Builder<Teacher>  $query
+     * @return Builder<Teacher>
+     */
+    public function applyToTeachers(Builder $query): Builder
+    {
+        if ($this->reachesAll()) {
+            return $query;
+        }
+
+        $circles = $this->circleIds();
+
+        if ($circles === null) {
+            return $query;
+        }
+
+        return $query->whereHas('circles', fn ($q) => $q->whereIn('circles.id', $circles));
+    }
+
+    /**
+     * Narrow a query over supervisors to those of the programmes within reach.
+     *
+     * A supervisor belongs through his programmes, as a teacher does through his
+     * cohorts — so a man over one programme sees the supervisors standing over
+     * that same programme, which is to say his own colleagues in it.
+     *
+     * @param  Builder<Supervisor>  $query
+     * @return Builder<Supervisor>
+     */
+    public function applyToSupervisors(Builder $query): Builder
+    {
+        if ($this->reachesAll()) {
+            return $query;
+        }
+
+        $stages = $this->stageIds();
+
+        if ($stages === null) {
+            return $query;
+        }
+
+        return $query->whereHas('stages', fn ($q) => $q->whereIn('stages.id', $stages));
+    }
+
+    /**
+     * Narrow a query over programmes to those within reach.
+     *
+     * @param  Builder<Stage>  $query
+     * @return Builder<Stage>
+     */
+    public function applyToStages(Builder $query): Builder
+    {
+        if ($this->reachesAll()) {
+            return $query;
+        }
+
+        $stages = $this->stageIds();
+
+        if ($stages === null) {
+            return $query;
+        }
+
+        return $query->whereIn('stages.id', $stages);
+    }
+
+    /**
+     * Narrow a query over guardians to those with a child within reach.
+     *
+     * A guardian is in the academy only through his children, so he is seen by
+     * whoever sees one of them.
+     *
+     * @param  Builder<Guardian>  $query
+     * @return Builder<Guardian>
+     */
+    public function applyToGuardians(Builder $query): Builder
+    {
+        if ($this->reachesAll()) {
+            return $query;
+        }
+
+        return $query->whereHas(
+            'students',
+            fn ($q) => $this->applyToStudents($q),
+        );
     }
 
     /**

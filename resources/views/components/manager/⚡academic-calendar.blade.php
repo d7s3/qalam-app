@@ -96,7 +96,14 @@ new class extends Component {
     #[Computed]
     public function availableManagers() { return \App\Models\Manager::all(); }
     #[Computed]
-    public function availableStages() { return \App\Models\Stage::all(); }
+    /** The programmes this office may write events for — its own, and no more. */
+    public function availableStages()
+    {
+        return \App\Support\Scope::forRole('manager')
+            ->applyToStages(\App\Models\Stage::query())
+            ->orderBy('name')
+            ->get();
+    }
     #[Computed]
     public function availableCircles() { return \App\Models\Circle::all(); }
 

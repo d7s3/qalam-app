@@ -4,6 +4,7 @@ namespace App\Livewire\Manager;
 
 use App\Models\Guardian;
 use App\Models\Student;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
@@ -52,7 +53,12 @@ class Guardians extends Component
 
     public function loadData()
     {
-        $query = Guardian::with('students');
+        // Narrowed to this office's reach: a man over one programme runs
+        // that programme, and its people are the only people his screens
+        // have any business naming.
+        $scope = Scope::forRole('manager');
+
+        $query = $scope->applyToGuardians(Guardian::with('students'));
 
         if ($this->search) {
             $query->where(function ($q) {

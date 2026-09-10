@@ -4,6 +4,7 @@ namespace App\Livewire\Manager;
 
 use App\Models\Stage;
 use App\Models\Supervisor;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -45,7 +46,12 @@ class Supervisors extends Component
 
     public function loadData()
     {
-        $query = Supervisor::with('stages');
+        // Narrowed to this office's reach: a man over one programme runs
+        // that programme, and its people are the only people his screens
+        // have any business naming.
+        $scope = Scope::forRole('manager');
+
+        $query = $scope->applyToSupervisors(Supervisor::with('stages'));
 
         if ($this->search) {
             $query->where(function ($q) {

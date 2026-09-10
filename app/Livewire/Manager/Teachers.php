@@ -6,6 +6,7 @@ use App\Models\Circle;
 use App\Models\Teacher;
 use App\Support\Access;
 use App\Support\RecitationOnlyTeacher;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -44,8 +45,13 @@ class Teachers extends Component
 
     public function loadData()
     {
-        $this->circles = Circle::with('stage')->get();
-        $query = Teacher::with('circles');
+        // The cohorts and the teachers alike are narrowed to this office's
+        // reach: a man over one programme runs that programme, and its
+        // people are the only people his screens have any business naming.
+        $scope = Scope::forRole('manager');
+
+        $this->circles = $scope->applyToCircles(Circle::with('stage'))->get();
+        $query = $scope->applyToTeachers(Teacher::with('circles'));
 
         if ($this->search) {
             $query->where(function ($q) {

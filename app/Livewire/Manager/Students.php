@@ -6,6 +6,7 @@ use App\Concerns\CopiesStudentMagicLinks;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
@@ -42,18 +43,19 @@ class Students extends Component
 
     public function mount()
     {
-        $this->circles = Circle::with('stage')->get();
+        $this->circles = Scope::forRole('manager')->applyToCircles(Circle::with('stage'))->get();
         $this->guardiansList = Guardian::whereRoleState(fn ($q) => $q->where('is_approved', true))->get();
     }
 
     protected function selectableStudentsQuery()
     {
-        return Student::query();
+        return Scope::forRole('manager')->applyToStudents(Student::query());
     }
 
     protected function filteredStudentsQuery()
     {
-        $query = Student::with(['circle.stage', 'guardian']);
+        // A man over one programme names its boys and no others.
+        $query = Scope::forRole('manager')->applyToStudents(Student::with(['circle.stage', 'guardian']));
 
         if ($this->search) {
             $query->where(function ($q) {
