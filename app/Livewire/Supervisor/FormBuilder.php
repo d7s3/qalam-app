@@ -9,6 +9,7 @@ use App\Models\Stage;
 use App\Models\User;
 use App\Services\SurveyAssignmentService;
 use App\Services\SurveyTextParser;
+use App\Support\Scope;
 use App\Support\SurveyFieldTypes;
 use Flux\Flux;
 use Illuminate\Support\Facades\Storage;
@@ -458,8 +459,14 @@ class FormBuilder extends Component
     {
         return view('livewire.supervisor.form-builder', [
             'fieldTypes' => SurveyFieldTypes::all(),
-            'stages' => Stage::orderBy('name')->get(['id', 'name']),
-            'circleList' => Circle::orderBy('name')->get(['id', 'name', 'stage_id']),
+            // Only what this author reaches. `clampToAuthor` already refuses to
+            // publish beyond it, so offering the academy's programmes here did
+            // not let a form escape — it let a supervisor read the names of
+            // every programme, and tick one that was then dropped in silence.
+            'stages' => Scope::forRoute()->applyToStages(Stage::query())
+                ->orderBy('name')->get(['id', 'name']),
+            'circleList' => Scope::forRoute()->applyToCircles(Circle::query())
+                ->orderBy('name')->get(['id', 'name', 'stage_id']),
             'audienceRoles' => [
                 'guardian' => 'أولياء الأمور',
                 'student' => 'الطلاب',

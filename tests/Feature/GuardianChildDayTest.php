@@ -70,7 +70,11 @@ it('shows what the circle is working on, for the home to reinforce', function ()
 it('carries his answer through without letting the guardian give it', function () {
     OccurrenceAttendance::create([
         'academic_calendar_event_id' => $this->lesson->id,
-        'date' => now()->format('Y-m-d'),
+        // The screen reads the day in Riyadh and the application's clock is
+        // UTC, so writing this with a bare `now()` files it under yesterday
+        // for the three hours after Riyadh midnight — and the test failed only
+        // in those three hours, which reads as flakiness rather than as a date.
+        'date' => now('Asia/Riyadh')->format('Y-m-d'),
         'user_id' => $this->child->id,
         'role' => 'student',
         'status' => OccurrenceAttendance::PRESENT,
