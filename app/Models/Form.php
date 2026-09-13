@@ -19,6 +19,7 @@ class Form extends Model
         'description',
         'header_image_path',
         'color',
+        'accent_color',
         'slug',
         'fields',
         'policy_text',
@@ -33,7 +34,33 @@ class Form extends Model
         'is_blocking',
         'created_by_id',
         'created_by_type',
+        'is_public',
+        'public_token',
+        'public_intro',
+        'closes_on',
     ];
+
+    /**
+     * Whether a stranger may answer this form today.
+     *
+     * Three things have to be true and they are asked together, because a form
+     * that is open but unpublished, or open but past its date, is a link that
+     * takes somebody's time and keeps nothing.
+     */
+    public function isOpenToPublic(): bool
+    {
+        return $this->is_public
+            && $this->status === 'published'
+            && (! $this->closes_on || ! $this->closes_on->isPast());
+    }
+
+    /** The link a stranger is given, which the token makes unguessable. */
+    public function publicUrl(): ?string
+    {
+        return $this->public_token
+            ? route('forms.apply', ['token' => $this->public_token])
+            : null;
+    }
 
     protected static function booted(): void
     {
@@ -52,6 +79,8 @@ class Form extends Model
     protected function casts(): array
     {
         return [
+            'is_public' => 'boolean',
+            'closes_on' => 'date',
             'fields' => 'array',
             'is_public_report' => 'boolean',
             'is_supervisor_shared' => 'boolean',

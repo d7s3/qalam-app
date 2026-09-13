@@ -15,6 +15,11 @@ class FormResponse extends Model
         'answers',
         'student_id',
         'is_processed',
+        // An applicant has no user row, so his answers carry the details the
+        // academy reaches him by until he has an account of his own.
+        'respondent_name',
+        'respondent_phone',
+        'respondent_email',
     ];
 
     /**

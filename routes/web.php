@@ -11,6 +11,7 @@ use App\Livewire\Public\CoinRedemption as PublicCoinRedemption;
 use App\Livewire\Public\FormReport;
 use App\Livewire\Public\FormSubmit;
 use App\Livewire\Public\ResultsDisplay as PublicResultsDisplay;
+use App\Models\Form;
 use App\Models\FormAssignment;
 use App\Models\Guardian;
 use App\Models\Student;
@@ -445,6 +446,20 @@ Route::middleware(['auth:staff', 'approved', 'password.changed', 'page.enabled',
 Route::view('/set-password', 'auth.starting-password')
     ->middleware('auth:manager,supervisor,teacher,student,guardian,staff')
     ->name('password.starting');
+
+/**
+ * A form answered by somebody with no account.
+ *
+ * No guard, because the point is that he has none yet — the token is what makes
+ * the link unguessable, and the form itself decides whether it is still open.
+ */
+Route::get('/apply/{token}', function (string $token) {
+    $form = Form::where('public_token', $token)->firstOrFail();
+
+    abort_unless($form->isOpenToPublic(), 410, 'انتهى التسجيل في هذا النموذج.');
+
+    return view('public.apply', ['form' => $form]);
+})->name('forms.apply');
 
 Route::get('/invitation/{user}', fn (User $user) => view('auth.accept-invitation', ['user' => $user]))
     ->middleware('signed')
