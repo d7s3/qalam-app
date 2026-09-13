@@ -155,8 +155,16 @@ class NawabighApplicationSeeder extends Seeder
         // man who will not undertake it has told the academy something useful
         // before the seat was given rather than after it was lost.
         $add('yesno', 'أتعهّد بالتزام ابني بالحضور من الأحد إلى الأربعاء، من الخامسة إلى الثامنة مساءً، في حال قبوله', true);
+        // Asked as the four states a family is actually in, rather than as a
+        // means of transport. A father who has a ride one way and not the other
+        // is a seat the programme can still keep — and telling him apart from a
+        // father who has none is what lets somebody arrange it before the term
+        // starts instead of losing the boy in the second week.
         $add('select', 'كيف سيصل الطالب ويعود؟', true, [
-            'بتوصيل الأسرة', 'بنقل المدرسة إن توفّر', 'بوسيلة أخرى',
+            'لدينا مواصلات ولا إشكال فيها',
+            'لدينا مواصلات للذهاب ولا يوجد للعودة، ونبحث عن حلّ بمقابل مناسب',
+            'لدينا مواصلات للعودة ولا يوجد للذهاب، ونبحث عن حلّ بمقابل مناسب',
+            'لا يوجد مواصلات، ونبحث عن حلّ بمقابل مناسب',
         ]);
 
         // ── ما يُرجى ──
