@@ -197,7 +197,7 @@ it('opens every list a father might fall outside of, and leaves him the last wor
         }
     }
 
-    expect($closed)->toBe(['الصف الدراسي'], 'قوائم لم تُفتح: '.implode('، ', $closed))
+    expect($closed)->toBe(['الصف الدراسي في السنة الحالية'], 'قوائم لم تُفتح: '.implode('، ', $closed))
         // And the last word is his, for whatever no list held.
         ->and($fields->last()['type'])->toBe('long_text')
         ->and($fields->last()['label'])->toContain('لم تسعه الخيارات');
@@ -254,4 +254,48 @@ it('puts an outsider\'s answers where the committee can read them', function () 
         // Still nobody's student, which is what «unprocessed» means here.
         ->and($arrived->first()->student_id)->toBeNull()
         ->and($screen->viewData('unprocessedCount'))->toBe(1);
+});
+
+/**
+ * Nothing in the form may say the seat is won by the answers.
+ *
+ * A father who believes the reading committee is scoring him praises his son,
+ * inflates what the boy can do and hides what he cannot — and the committee is
+ * left with a stack of forms that describe nobody. So the form asks for the
+ * truth and says why it helps, and says nothing at all about who is accepted.
+ */
+it('never hints that acceptance is decided by what the father writes', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+    $everything = implode(' ', [
+        $form->public_intro,
+        $form->success_text,
+        $form->description,
+        collect($form->fields)->pluck('label')->implode(' '),
+    ]);
+
+    foreach (['يُبنى عليه القبول', 'تُظهره الاستمارة', 'على أساس الإجابات', 'يُقبل بحسب'] as $claim) {
+        expect($everything)->not->toContain($claim, "الاستمارة توحي بأن القبول مبني على الإجابات: {$claim}");
+    }
+
+    // And it does say, plainly, why accuracy is worth the father's trouble.
+    expect($form->public_intro)->toContain('الإجابة الدقيقة تساعدنا');
+});
+
+/**
+ * A birth date asked in Hijri cannot be a date field.
+ *
+ * The date input is a Gregorian calendar picker whatever its label says, so a
+ * father typing ١٤٣٧ would be fighting the widget — or, worse, would pick a
+ * Gregorian date and nobody would know which calendar the answer is in.
+ */
+it('asks the birth date in Hijri, and not through a Gregorian picker', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $birth = collect(Form::where('slug', 'nawabigh')->firstOrFail()->fields)
+        ->firstWhere(fn (array $f) => str_contains($f['label'], 'تاريخ الميلاد'));
+
+    expect($birth['label'])->toContain('هجري')
+        ->and($birth['type'])->toBe('text');
 });

@@ -49,7 +49,7 @@ class NawabighApplicationSeeder extends Seeder
          * offering «غير ذلك» beside them invites an answer nobody can place.
          * A list that is genuinely the whole world says so by not opening.
          */
-        $closedLists = ['الصف الدراسي'];
+        $closedLists = ['الصف الدراسي في السنة الحالية'];
 
         $add = function (string $type, string $label, bool $required = false, array $options = [], bool $isName = false) use (&$fields, $closedLists) {
             if ($options !== [] && ! in_array($label, $closedLists, true) && ! in_array('غير ذلك', $options, true)) {
@@ -70,9 +70,9 @@ class NawabighApplicationSeeder extends Seeder
 
         // ── الطالب ──
         $add('section', 'بيانات الطالب');
-        $add('text', 'اسم الطالب الكامل', true, [], true);
-        $add('date', 'تاريخ الميلاد', true);
-        $add('select', 'الصف الدراسي', true, [
+        $add('text', 'الاسم الرباعي للطالب', true, [], true);
+        $add('text', 'تاريخ الميلاد (هجري)', true);
+        $add('select', 'الصف الدراسي في السنة الحالية', true, [
             'الأول الابتدائي', 'الثاني الابتدائي', 'الثالث الابتدائي',
             'الرابع الابتدائي', 'الخامس الابتدائي', 'السادس الابتدائي',
             'الأول المتوسط', 'الثاني المتوسط',
@@ -192,9 +192,9 @@ class NawabighApplicationSeeder extends Seeder
                 'description' => 'استمارة الالتحاق بالدفعة الأولى من برنامج نوابغ المستقبل.',
                 'public_intro' => 'برنامجٌ نوعيّ يبني شخصية الطالب بناءً متكاملاً، يستهدف نخبة الطلاب المتميّزين '
                     .'من الصف الأول الابتدائي حتى الثاني المتوسط، عبر خمسة مسارات: القرآني والعلمي '
-                    .'والقيمي والمهاري والترفيهي. أجب عمّا يلي بدقّة، فالإجابات هي ما يُبنى عليه القبول.',
-                'success_text' => 'وصلتنا استمارتك. سنراجعها ونتواصل معك على رقم الجوال الذي كتبته. '
-                    .'المقاعد محدودة، والأولوية بحسب ما تُظهره الاستمارة.',
+                    ."والقيمي والمهاري والترفيهي.\n"
+                    .'الإجابة الدقيقة تساعدنا على مزيد من الإفادة وحسن التوجيه لأبنائنا الطلاب.',
+                'success_text' => 'وصلتنا استمارتك. سنراجعها ونتواصل معك على رقم الجوال الذي كتبته.',
                 'policy_text' => 'ما تكتبه هنا يُستعمل لدراسة طلب الالتحاق وحده، ولا يُطّلع عليه إلا لجنة القبول.',
                 'color' => self::TEAL,
                 'accent_color' => self::CORAL,

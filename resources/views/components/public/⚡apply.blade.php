@@ -183,16 +183,19 @@ new class extends Component
                     {{ $form->title }}
                 </h1>
 
-                {{-- قيمٌ ترسخ · عقولٌ تنبغ · وأثرٌ يمتد --}}
+                {{-- قيمٌ ترسخ · عقولٌ تنمو · وأثرٌ يمتد --}}
                 <div class="mx-auto mt-6 flex max-w-md flex-wrap items-center justify-center gap-x-7 gap-y-2 text-sm font-bold">
-                    @foreach ([['قيمٌ ترسخ', 'brand'], ['عقولٌ تنبغ', 'accent'], ['وأثرٌ يمتد', 'brand']] as [$word, $tone])
+                    @foreach ([['قيمٌ ترسخ', 'brand'], ['عقولٌ تنمو', 'accent'], ['وأثرٌ يمتد', 'brand']] as [$word, $tone])
                         <span style="color: var(--{{ $tone }});">{{ $word }}</span>
                     @endforeach
                 </div>
 
-                @if ($form->public_intro)
-                    <p class="mx-auto mt-7 max-w-2xl leading-loose text-zinc-600">{{ $form->public_intro }}</p>
-                @endif
+                {{-- Each line its own paragraph, so a form can set a sentence
+                     apart from the description above it. --}}
+                @foreach (preg_split('/\R/u', (string) $form->public_intro, -1, PREG_SPLIT_NO_EMPTY) as $i => $line)
+                    <p class="mx-auto mt-7 max-w-2xl leading-loose {{ $i === 0 ? 'text-zinc-600' : 'font-semibold' }}"
+                        @style(['color: var(--brand)' => $i > 0])>{{ $line }}</p>
+                @endforeach
 
                 @if ($form->closes_on)
                     <p class="mt-6 inline-block rounded-2xl bg-white px-5 py-3 text-sm font-bold shadow-sm"

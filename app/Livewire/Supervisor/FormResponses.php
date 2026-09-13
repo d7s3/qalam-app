@@ -7,7 +7,9 @@ use App\Models\Form;
 use App\Models\FormResponse;
 use App\Models\Stage;
 use App\Models\Student;
+use App\Models\User;
 use App\Services\FormResponsesExporter;
+use App\Support\Scope;
 use App\Support\SurveyResults;
 use Carbon\Carbon;
 use Flux\Flux;
@@ -18,6 +20,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FormResponses extends Component
 {
+    /** The three offices that open this screen, narrowest first. */
+    private const OFFICES = ['teacher', 'supervisor', 'manager'];
+
     public int $formId;
 
     public Form $form;
@@ -125,27 +130,76 @@ class FormResponses extends Component
         $this->filterFieldValue = '';
     }
 
+    /**
+     * The signed-in reader and the role they are acting in.
+     *
+     * The screen was written for a supervisor and then hung on the manager's
+     * and the teacher's routes too, where every `guard('supervisor')` answers
+     * null — which is how opening a form's responses as a manager became a
+     * blank exception instead of a page.
+     *
+     * @return array{0: User, 1: string}
+     */
+    private function reader(): array
+    {
+        // The role the route names, when the route names one of ours: a person
+        // who holds two of these offices at once must be answered for by the
+        // door he came through, not by whichever guard is checked first.
+        $role = Scope::resolveRole();
+
+        if (in_array($role, self::OFFICES, true) && ($user = auth()->guard($role)->user())) {
+            return [$user, $role];
+        }
+
+        // Otherwise whoever is signed in, narrowest office first — the same
+        // order Scope falls back in, so an ambiguity resolves towards seeing
+        // less rather than more.
+        foreach (self::OFFICES as $guard) {
+            if ($user = auth()->guard($guard)->user()) {
+                return [$user, $guard];
+            }
+        }
+
+        abort(403);
+    }
+
     public function mount(int $formId): void
     {
         $this->formId = $formId;
-        $supervisorId = auth()->guard('supervisor')->id();
+        [$reader, $role] = $this->reader();
 
-        // The owner, or any supervisor when the form is shared, may manage responses.
+        // The owner, or any supervisor when the form is shared, may manage
+        // responses — and a manager, who answers for the academy, may open any.
         $this->form = Form::where('id', $formId)
-            ->where(function ($q) use ($supervisorId) {
-                $q->where('supervisor_id', $supervisorId)
-                    ->orWhere('is_supervisor_shared', true);
-            })
+            ->when($role !== 'manager', fn ($q) => $q->where(function ($own) use ($reader, $role) {
+                $own->where(fn ($mine) => $mine->where('created_by_id', $reader->id)->where('created_by_type', $role));
+
+                if ($role === 'supervisor') {
+                    $own->orWhere('supervisor_id', $reader->id)
+                        ->orWhere('is_supervisor_shared', true);
+                }
+            }))
             ->firstOrFail();
     }
 
-    /** @return array<int, int> stage ids the acting supervisor manages */
+    /**
+     * Stage ids this reader may place a student into.
+     *
+     * Asked of Scope rather than of one guard, so the answer is the same one
+     * every other screen gives — and a reach of «everything» is spelt out as
+     * the real list, because it is fed to Rule::in as well as to a query.
+     *
+     * @return array<int, int>
+     */
     private function supervisorStageIds(): array
     {
-        return auth()->guard('supervisor')->user()->stages()->pluck('stages.id')->all();
+        [, $role] = $this->reader();
+
+        return Scope::forRole($role)->stageIds()?->all()
+            ?? Stage::query()->pluck('id')->all();
     }
 
-    /** @return array<int, int> circle ids within the acting supervisor's stages */
+    /** @return array<int, int> circle ids within the stages this reader reaches */
     private function supervisorCircleIds(): array
     {
         return Circle::whereIn('stage_id', $this->supervisorStageIds())->pluck('id')->all();
