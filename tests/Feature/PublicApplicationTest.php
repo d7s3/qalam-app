@@ -151,3 +151,26 @@ it('seeds نوابغ with its five tracks and its own colour', function () {
         ->and(collect($form->fields)->pluck('label')->implode(' '))->toContain('أتعهّد بالتزام ابني')
         ->and(collect($form->fields)->pluck('label')->implode(' '))->not->toContain('التزامه جزئياً');
 });
+
+/**
+ * The values track asks for scenes, never for scores.
+ *
+ * A father asked to rate his son's prayer out of five answers five, and a
+ * column of fives tells a reading committee nothing it can act on. A father
+ * asked what actually happens at prayer time writes a sentence somebody can
+ * read a boy out of — so the judging is left to the people who read them, which
+ * is where it belongs.
+ */
+it('leaves the values track open, and puts no scale in it', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $fields = collect(Form::where('slug', 'nawabigh')->firstOrFail()->fields);
+
+    $start = $fields->search(fn (array $f) => ($f['label'] ?? '') === '٣ · المسار القيمي');
+    $values = $fields->slice($start + 1)->takeUntil(fn (array $f) => $f['type'] === 'section');
+
+    expect($values)->not->toBeEmpty()
+        // Every question in it is prose, and nothing in it is judged for them.
+        ->and($values->pluck('type')->unique()->all())->toBe(['long_text'])
+        ->and($values->pluck('type')->intersect(['likert', 'rating', 'nps', 'select']))->toBeEmpty();
+});

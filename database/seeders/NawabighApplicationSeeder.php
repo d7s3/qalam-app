@@ -101,18 +101,26 @@ class NawabighApplicationSeeder extends Seeder
         $add('yesno', 'هل شارك في مسابقة أو أولمبياد أو معرض علمي؟');
         $add('long_text', 'إن شارك، فما هي ومتى؟');
 
-        // ── المسار القيمي ──
+        /**
+         * ── المسار القيمي ──
+         *
+         * Open questions only, and deliberately. A father asked to rate his
+         * son's prayer out of five answers five, and a scale of ones and twos
+         * tells a reading committee nothing it could act on. A father asked
+         * what actually happens at prayer time writes a sentence somebody can
+         * read a boy out of.
+         *
+         * So none of these judge. Each asks for a scene — what he did, what was
+         * said, what happened next — and the judging is left to the people who
+         * read them, which is where it belongs.
+         */
         $add('section', '٣ · المسار القيمي');
-        $add('likert', 'محافظته على الصلاة في وقتها', true);
-        $add('likert', 'صدقه وأمانته مع من حوله', true);
-        $add('likert', 'برّه بوالديه وصلته بأهله', true);
-        $add('select', 'إذا واجه أمراً صعباً فإنّه غالباً', true, [
-            'يحاول وحده حتى ينجح',
-            'يسأل ثمّ يحاول',
-            'ينتظر من يساعده',
-            'يتركه وينشغل بغيره',
-        ]);
-        $add('long_text', 'خلق تفخر به فيه، وآخر تودّ أن يتحسّن');
+        $add('long_text', 'صِف موقفاً رأيتَ فيه ابنك يتصرّف تصرّفاً أعجبك. ماذا فعل بالضبط؟', true);
+        $add('long_text', 'ماذا يحدث في بيتكم عند وقت الصلاة؟ صِف ما يجري فعلاً، لا ما تتمنّاه.', true);
+        $add('long_text', 'إذا أخطأ ابنك أو كُسر شيء بسببه، ماذا يفعل عادةً؟', true);
+        $add('long_text', 'احكِ موقفاً احتاج فيه ابنك أن يصبر أو يتنازل لأخيه أو صاحبه. كيف تصرّف؟');
+        $add('long_text', 'إذا واجه أمراً صعباً — واجباً أو حفظاً أو خصومة — فكيف يتعامل معه؟ اذكر مثالاً قريباً.');
+        $add('long_text', 'ما الخلق الذي تودّ أن يعمل عليه البرنامج مع ابنك؟ ولماذا هو بالذات؟', true);
 
         // ── المسار المهاري ──
         $add('section', '٤ · المسار المهاري');
