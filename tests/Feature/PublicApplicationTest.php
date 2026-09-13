@@ -3,6 +3,7 @@
 use App\Models\Form;
 use App\Models\FormResponse;
 use App\Models\Student;
+use App\Models\Supervisor;
 use Database\Seeders\NawabighApplicationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -169,8 +170,88 @@ it('leaves the values track open, and puts no scale in it', function () {
     $start = $fields->search(fn (array $f) => ($f['label'] ?? '') === '٣ · المسار القيمي');
     $values = $fields->slice($start + 1)->takeUntil(fn (array $f) => $f['type'] === 'section');
 
-    expect($values)->not->toBeEmpty()
-        // Every question in it is prose, and nothing in it is judged for them.
+    expect($values)->toHaveCount(2)
+        // Two questions only, both prose, and nothing in it judged for them.
         ->and($values->pluck('type')->unique()->all())->toBe(['long_text'])
-        ->and($values->pluck('type')->intersect(['likert', 'rating', 'nps', 'select']))->toBeEmpty();
+        ->and($values->pluck('label')->implode(' '))->toContain('تتمنّى أن ترى في ابنك من أخلاق')
+        ->and($values->pluck('label')->implode(' '))->toContain('نقاط قوّة ابنك');
+});
+
+/**
+ * A list a father may have something outside of ends with «غير ذلك», and the
+ * form ends with a space to write it in.
+ *
+ * The school years are the exception and deliberately: they are all the years
+ * there are, and offering «غير ذلك» beside them invites an answer nobody can
+ * place.
+ */
+it('opens every list a father might fall outside of, and leaves him the last word', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $fields = collect(Form::where('slug', 'nawabigh')->firstOrFail()->fields);
+    $closed = [];
+
+    foreach ($fields->whereIn('type', ['select', 'multiselect']) as $field) {
+        if (! in_array('غير ذلك', $field['options'], true)) {
+            $closed[] = $field['label'];
+        }
+    }
+
+    expect($closed)->toBe(['الصف الدراسي'], 'قوائم لم تُفتح: '.implode('، ', $closed))
+        // And the last word is his, for whatever no list held.
+        ->and($fields->last()['type'])->toBe('long_text')
+        ->and($fields->last()['label'])->toContain('لم تسعه الخيارات');
+});
+
+/**
+ * The answers have to arrive somewhere somebody can open.
+ *
+ * The screen that reads a form's responses lets in its owner, or anybody when
+ * the form is shared. A form seeded with neither collects applications into a
+ * place no admissions committee can reach — which is worse than not collecting
+ * them, because everybody believes it is working.
+ */
+it('puts an outsider\'s answers where the committee can read them', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+    $screen = Livewire::test('public.apply', ['token' => $form->public_token]);
+
+    // Every required question answered, since the form refuses a half-filled
+    // application and this is about where a finished one lands.
+    foreach ($form->fields as $field) {
+        if ($field['type'] === 'section' || ! ($field['required'] ?? false)) {
+            continue;
+        }
+
+        $screen->set("answers.{$field['id']}", match ($field['type']) {
+            'select' => $field['options'][0],
+            'multiselect' => [$field['options'][0]],
+            'date' => '2016-05-01',
+            'yesno' => 'نعم',
+            default => str_contains($field['label'], 'الجوال') ? '0512345678'
+                : (($field['is_student_name'] ?? false) ? 'سالم المتقدّم' : 'جواب'),
+        });
+    }
+
+    $screen->call('submit')->assertHasNoErrors();
+
+    $supervisor = Supervisor::factory()->create();
+
+    // He owns nothing and the form is nobody's; the sharing is what lets him in.
+    // Read from the screen's own data rather than its markup: the table draws a
+    // name through a guessed field map, and a test that reads the page would be
+    // testing the guess instead of whether the answer arrived.
+    $screen = Livewire::actingAs($supervisor, 'supervisor')
+        ->test('supervisor.form-responses', ['formId' => $form->id])
+        ->assertSuccessful();
+
+    $arrived = collect($screen->viewData('responses'));
+
+    expect($arrived)->toHaveCount(1)
+        ->and($arrived->first()->respondent_name)->toBe('سالم المتقدّم')
+        ->and($arrived->first()->respondent_phone)->toBe('0512345678')
+        // Still nobody's student, which is what «unprocessed» means here.
+        ->and($arrived->first()->student_id)->toBeNull()
+        ->and($screen->viewData('unprocessedCount'))->toBe(1);
 });

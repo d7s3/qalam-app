@@ -41,7 +41,21 @@ class NawabighApplicationSeeder extends Seeder
     {
         $fields = [];
 
-        $add = function (string $type, string $label, bool $required = false, array $options = [], bool $isName = false) use (&$fields) {
+        /**
+         * A list a father may have something outside of ends with «غير ذلك»,
+         * and the form ends with a space to write it in.
+         *
+         * Not every list: the school years are all the years there are, and
+         * offering «غير ذلك» beside them invites an answer nobody can place.
+         * A list that is genuinely the whole world says so by not opening.
+         */
+        $closedLists = ['الصف الدراسي'];
+
+        $add = function (string $type, string $label, bool $required = false, array $options = [], bool $isName = false) use (&$fields, $closedLists) {
+            if ($options !== [] && ! in_array($label, $closedLists, true) && ! in_array('غير ذلك', $options, true)) {
+                $options[] = 'غير ذلك';
+            }
+
             $fields[] = [
                 'id' => 'f_'.Str::random(10),
                 'type' => $type,
@@ -104,23 +118,16 @@ class NawabighApplicationSeeder extends Seeder
         /**
          * ── المسار القيمي ──
          *
-         * Open questions only, and deliberately. A father asked to rate his
-         * son's prayer out of five answers five, and a scale of ones and twos
-         * tells a reading committee nothing it could act on. A father asked
-         * what actually happens at prayer time writes a sentence somebody can
-         * read a boy out of.
-         *
-         * So none of these judge. Each asks for a scene — what he did, what was
-         * said, what happened next — and the judging is left to the people who
-         * read them, which is where it belongs.
+         * Two questions, both open. Scales were tried here and taken out: a
+         * father asked to rate his own son's prayer out of five answers five,
+         * and a column of fives tells a reading committee nothing it can act
+         * on. What a father hopes for and where he sees strength are the two
+         * things only he can say, and everything else about a boy's character
+         * is better learnt from meeting him than from a form.
          */
         $add('section', '٣ · المسار القيمي');
-        $add('long_text', 'صِف موقفاً رأيتَ فيه ابنك يتصرّف تصرّفاً أعجبك. ماذا فعل بالضبط؟', true);
-        $add('long_text', 'ماذا يحدث في بيتكم عند وقت الصلاة؟ صِف ما يجري فعلاً، لا ما تتمنّاه.', true);
-        $add('long_text', 'إذا أخطأ ابنك أو كُسر شيء بسببه، ماذا يفعل عادةً؟', true);
-        $add('long_text', 'احكِ موقفاً احتاج فيه ابنك أن يصبر أو يتنازل لأخيه أو صاحبه. كيف تصرّف؟');
-        $add('long_text', 'إذا واجه أمراً صعباً — واجباً أو حفظاً أو خصومة — فكيف يتعامل معه؟ اذكر مثالاً قريباً.');
-        $add('long_text', 'ما الخلق الذي تودّ أن يعمل عليه البرنامج مع ابنك؟ ولماذا هو بالذات؟', true);
+        $add('long_text', 'ماذا تتمنّى أن ترى في ابنك من أخلاق؟', true);
+        $add('long_text', 'أين ترى نقاط قوّة ابنك؟', true);
 
         // ── المسار المهاري ──
         $add('section', '٤ · المسار المهاري');
@@ -171,9 +178,12 @@ class NawabighApplicationSeeder extends Seeder
         $add('section', 'أخيراً');
         $add('long_text', 'ما الذي ترجوه لابنك من هذا البرنامج؟', true);
         $add('select', 'كيف عرفتم عن البرنامج؟', false, [
-            'من المدرسة', 'من صديق أو قريب', 'من وسائل التواصل',
-            'من حلقة التحفيظ', 'غير ذلك',
+            'من المدرسة', 'من صديق أو قريب', 'من وسائل التواصل', 'من حلقة التحفيظ',
         ]);
+
+        // The last word is the father's. Every list above narrows him to what
+        // somebody thought of in advance; this asks for what none of them held.
+        $add('long_text', 'هل من شيء عن ابنك لم تسعه الخيارات أعلاه؟ اكتبه هنا.');
 
         Form::updateOrCreate(
             ['slug' => 'nawabigh'],
@@ -194,6 +204,10 @@ class NawabighApplicationSeeder extends Seeder
                 'is_public' => true,
                 'public_token' => Form::where('slug', 'nawabigh')->value('public_token') ?: Str::random(24),
                 'audience' => [],
+                // Nobody owns this form, so without this the screen that reads
+                // its answers refuses everybody — the applications would arrive
+                // and sit where no admissions committee could open them.
+                'is_supervisor_shared' => true,
             ],
         );
 
