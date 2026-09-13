@@ -299,3 +299,38 @@ it('asks the birth date in Hijri, and not through a Gregorian picker', function 
     expect($birth['label'])->toContain('هجري')
         ->and($birth['type'])->toBe('text');
 });
+
+/**
+ * Seeding twice must not orphan the applications already received.
+ *
+ * An answer is stored under the id of the field it answered. When those ids
+ * were drawn at random, a second run of the seeder — to fix a word, to add a
+ * question — renamed every field, and every application already in the database
+ * was left keyed to questions that no longer existed: present, complete, and
+ * readable by nobody.
+ */
+it('keeps its field ids when it is seeded again', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+    $first = collect(Form::where('slug', 'nawabigh')->firstOrFail()->fields)->pluck('id');
+
+    // An application arrives between the two runs, as one would.
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+    FormResponse::create([
+        'form_id' => $form->id,
+        'answers' => [$first->get(1) => 'سالم بن عبدالله'],
+        'respondent_name' => 'سالم بن عبدالله',
+    ]);
+
+    $this->seed(NawabighApplicationSeeder::class);
+    $second = collect(Form::where('slug', 'nawabigh')->firstOrFail()->fields)->pluck('id');
+
+    expect($second->all())->toBe($first->all())
+        ->and($first->unique())->toHaveCount($first->count());
+
+    // And the answer still names the question it answered.
+    $answer = FormResponse::where('form_id', $form->id)->firstOrFail();
+    $asked = collect($form->fresh()->fields)->firstWhere('id', array_key_first($answer->answers));
+
+    expect($asked)->not->toBeNull()
+        ->and($answer->answers[$asked['id']])->toBe('سالم بن عبدالله');
+});

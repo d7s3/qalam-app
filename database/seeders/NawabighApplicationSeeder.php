@@ -57,7 +57,12 @@ class NawabighApplicationSeeder extends Seeder
             }
 
             $fields[] = [
-                'id' => 'f_'.Str::random(10),
+                // Worked out from the question, not drawn at random: an answer
+                // is stored under the id of the field it answered, so a second
+                // run of this seeder with random ids would leave every
+                // application already received keyed to questions that no
+                // longer exist — readable by nobody.
+                'id' => 'f_'.substr(sha1(count($fields).'|'.$label), 0, 10),
                 'type' => $type,
                 'label' => $label,
                 'required' => $type === 'section' ? false : $required,
