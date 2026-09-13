@@ -197,10 +197,27 @@ it('opens every list a father might fall outside of, and leaves him the last wor
         }
     }
 
-    expect($closed)->toBe(['الصف الدراسي في السنة الحالية'], 'قوائم لم تُفتح: '.implode('، ', $closed))
-        // And the last word is his, for whatever no list held.
-        ->and($fields->last()['type'])->toBe('long_text')
-        ->and($fields->last()['label'])->toContain('لم تسعه الخيارات');
+    // A scale is closed by its nature — «غير ذلك» beside «ممتاز» and «ضعيف» is
+    // not another grade, it is a way out of answering — and the school years
+    // are all the years there are.
+    $expected = [
+        'الصف الدراسي في السنة الحالية',
+        'إتقانه لما حفظ',
+        'مستواه الدراسي العام في آخر فصل',
+        'قدرته على الحفظ',
+        'قدرته على الفهم',
+        'رقم الجوال (للاتصال)',
+    ];
+
+    sort($closed);
+    sort($expected);
+
+    expect($closed)->toBe($expected, 'قوائم لم تُفتح: '.implode('، ', $closed))
+        // And the form ends with two open pages: one for whatever no list held
+        // about the boy, and one that is not about the boy at all.
+        ->and($fields->slice(-2)->pluck('type')->all())->toBe(['long_text', 'long_text'])
+        ->and($fields->slice(-2)->first()['label'])->toContain('شيء إضافي عن الابن')
+        ->and($fields->last()['label'])->toContain('مساحة حرّة');
 });
 
 /**
@@ -229,7 +246,8 @@ it('puts an outsider\'s answers where the committee can read them', function () 
             'multiselect' => [$field['options'][0]],
             'date' => '2016-05-01',
             'yesno' => 'نعم',
-            default => str_contains($field['label'], 'الجوال') ? '0512345678'
+            default => str_contains($field['label'], 'الجوال') || str_contains($field['label'], 'واتساب')
+                ? '0512345678'
                 : (($field['is_student_name'] ?? false) ? 'سالم المتقدّم' : 'جواب'),
         });
     }
@@ -333,4 +351,211 @@ it('keeps its field ids when it is seeded again', function () {
 
     expect($asked)->not->toBeNull()
         ->and($answer->answers[$asked['id']])->toBe('سالم بن عبدالله');
+});
+
+/**
+ * «غير ذلك» has to record the thing itself.
+ *
+ * Every list in this form was opened with «غير ذلك» so a father would never be
+ * cornered into an answer that is not his — and then the option recorded the
+ * two words and nothing else. A committee reading «غير ذلك» in forty forms has
+ * learnt only that forty fathers had something to say.
+ */
+it('keeps what a father writes beside an open choice, in place of the choice', function () {
+    $form = publicForm([
+        'fields' => [
+            ['id' => 'name', 'type' => 'text', 'label' => 'الاسم', 'required' => true, 'options' => [], 'is_student_name' => true],
+            ['id' => 'tie', 'type' => 'select', 'label' => 'صلته', 'required' => true, 'options' => ['الأب', 'غير ذلك']],
+            ['id' => 'likes', 'type' => 'multiselect', 'label' => 'يميل إلى', 'required' => false, 'options' => ['الرسم', 'غير ذلك']],
+        ],
+    ]);
+
+    Livewire::test('public.apply', ['token' => $form->public_token])
+        ->set('answers.name', 'سالم')
+        ->set('answers.tie', 'غير ذلك')
+        ->set('written.tie', 'عمّه')
+        ->set('answers.likes', ['الرسم', 'غير ذلك'])
+        ->set('written.likes', 'تربية النحل')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $answers = FormResponse::where('form_id', $form->id)->firstOrFail()->answers;
+
+    expect($answers['tie'])->toBe('عمّه')
+        // The ticked choices he did make are untouched; only the open one is
+        // replaced by what he wrote in it.
+        ->and($answers['likes'])->toBe(['الرسم', 'تربية النحل']);
+});
+
+it('refuses a box that opened and was left empty', function () {
+    $form = publicForm([
+        'fields' => [
+            ['id' => 'name', 'type' => 'text', 'label' => 'الاسم', 'required' => true, 'options' => [], 'is_student_name' => true],
+            ['id' => 'tie', 'type' => 'select', 'label' => 'صلته', 'required' => true, 'options' => ['الأب', 'غير ذلك']],
+        ],
+    ]);
+
+    Livewire::test('public.apply', ['token' => $form->public_token])
+        ->set('answers.name', 'سالم')
+        ->set('answers.tie', 'غير ذلك')
+        ->call('submit')
+        // Choosing «غير ذلك» and writing nothing is the question unanswered,
+        // whatever the list above it says.
+        ->assertHasErrors(['written.tie']);
+
+    expect(FormResponse::count())->toBe(0);
+});
+
+/**
+ * A question may name its own opening option.
+ *
+ * «رقم آخر» asks for a number, not for the words «غير ذلك» — so the box is
+ * opened by the choice the question names rather than by one fixed phrase.
+ */
+it('opens the box on whichever choice the question names', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+    $calling = collect($form->fields)->firstWhere('label', 'رقم الجوال (للاتصال)');
+
+    expect($calling['write_in'])->toBe(['رقم آخر'])
+        ->and($calling['options'])->toBe(['نفس رقم الواتساب', 'رقم آخر']);
+
+    $screen = Livewire::test('public.apply', ['token' => $form->public_token]);
+
+    expect($screen->instance()->wantsWriting($calling))->toBeFalse();
+
+    $screen->set("answers.{$calling['id']}", 'رقم آخر');
+
+    expect($screen->instance()->wantsWriting($calling))->toBeTrue();
+});
+
+/**
+ * The WhatsApp number is the only way back to the family.
+ *
+ * A number written in Arabic-Indic digits, or with spaces and dashes through
+ * it, is a number nobody can paste into WhatsApp — so the shape is shown above
+ * the box and then held to.
+ */
+it('holds the WhatsApp number to a shape somebody can actually dial', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+    $number = collect($form->fields)->firstWhere('label', 'رقم الواتساب');
+
+    expect($number['hint'])->toContain('05xxxxxxxx');
+
+    $answer = fn (string $typed) => Livewire::test('public.apply', ['token' => $form->public_token])
+        ->set("answers.{$number['id']}", $typed)
+        ->call('submit');
+
+    foreach (['٠٥٠١٢٣٤٥٦٧', '050 123 4567', '0501-234567', '12345'] as $wrong) {
+        $answer($wrong)->assertHasErrors(["answers.{$number['id']}"]);
+    }
+
+    foreach (['0501234567', '966501234567', '+966501234567'] as $right) {
+        $answer($right)->assertHasNoErrors(["answers.{$number['id']}"]);
+    }
+});
+
+/** The two capacities this programme leans on are asked outright, and on one scale. */
+it('asks about memorising and understanding on a scale of words', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $fields = collect(Form::where('slug', 'nawabigh')->firstOrFail()->fields);
+    $scale = ['متميّز جداً', 'ممتاز', 'متوسط', 'أقلّ من المتوسط', 'ضعيف'];
+
+    foreach (['قدرته على الحفظ', 'قدرته على الفهم'] as $label) {
+        $question = $fields->firstWhere('label', $label);
+
+        expect($question)->not->toBeNull("سؤال مفقود: {$label}")
+            ->and($question['type'])->toBe('select')
+            ->and($question['required'])->toBeTrue()
+            // No «غير ذلك» on a scale: it is not another grade, it is a way out
+            // of answering.
+            ->and($question['options'])->toBe($scale);
+    }
+
+    // And mastery of what he has memorised is words too, never a number out of
+    // five — a father marking his son six and one marking him seven mean
+    // nothing beside each other.
+    expect($fields->firstWhere('label', 'إتقانه لما حفظ')['type'])->toBe('select');
+});
+
+/**
+ * The number the academy keeps has to be a number.
+ *
+ * The form asks for two: the WhatsApp number, and a calling number that is
+ * usually «نفس رقم الواتساب» — words, not a number. Lifting the first field
+ * whose label says «جوال» stored that sentence as the only way back to the
+ * family, and nobody would have found out until somebody tried to ring.
+ */
+it('lifts a number the academy can actually ring', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+    $fill = function (string $calling, string $written = '') use ($form) {
+        $screen = Livewire::test('public.apply', ['token' => $form->public_token]);
+
+        foreach ($form->fields as $field) {
+            if ($field['type'] === 'section' || ! ($field['required'] ?? false)) {
+                continue;
+            }
+
+            $screen->set("answers.{$field['id']}", match (true) {
+                $field['label'] === 'رقم الجوال (للاتصال)' => $calling,
+                str_contains($field['label'], 'واتساب') => '0501234567',
+                $field['type'] === 'select' => $field['options'][0],
+                $field['type'] === 'multiselect' => [$field['options'][0]],
+                $field['type'] === 'yesno' => 'نعم',
+                default => ($field['is_student_name'] ?? false) ? 'سالم' : 'جواب',
+            });
+
+            if ($field['label'] === 'رقم الجوال (للاتصال)' && $written !== '') {
+                $screen->set("written.{$field['id']}", $written);
+            }
+        }
+
+        $screen->call('submit')->assertHasNoErrors();
+
+        return FormResponse::where('form_id', $form->id)->latest('id')->firstOrFail();
+    };
+
+    // He has one number, and says so in words.
+    expect($fill('نفس رقم الواتساب')->respondent_phone)->toBe('0501234567');
+
+    // He has another, and writes it — and that is the one kept, not «رقم آخر».
+    $second = $fill('رقم آخر', '0559876543');
+
+    expect($second->respondent_phone)->toBe('0501234567')
+        ->and(collect($second->answers)->contains('0559876543'))->toBeTrue()
+        ->and(collect($second->answers)->contains('رقم آخر'))->toBeFalse();
+});
+
+/**
+ * And it has to be a number whichever question comes first.
+ *
+ * In نوابغ the WhatsApp number happens to be asked before the calling one, so
+ * taking the first field whose label mentions a phone lands on a real number by
+ * luck of ordering. Move the questions — or write another form — and the luck
+ * runs out, so the value is checked and not just the label.
+ */
+it('passes over a phone question whose answer is not a phone', function () {
+    $form = publicForm([
+        'fields' => [
+            ['id' => 'name', 'type' => 'text', 'label' => 'الاسم', 'required' => true, 'options' => [], 'is_student_name' => true],
+            ['id' => 'calling', 'type' => 'select', 'label' => 'رقم الجوال (للاتصال)', 'required' => true, 'options' => ['نفس رقم الواتساب', 'رقم آخر']],
+            ['id' => 'whats', 'type' => 'text', 'label' => 'رقم الواتساب', 'required' => true, 'options' => []],
+        ],
+    ]);
+
+    Livewire::test('public.apply', ['token' => $form->public_token])
+        ->set('answers.name', 'سالم')
+        ->set('answers.calling', 'نفس رقم الواتساب')
+        ->set('answers.whats', '0501234567')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(FormResponse::where('form_id', $form->id)->firstOrFail()->respondent_phone)
+        ->toBe('0501234567');
 });

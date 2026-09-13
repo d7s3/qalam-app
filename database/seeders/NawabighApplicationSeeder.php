@@ -49,14 +49,25 @@ class NawabighApplicationSeeder extends Seeder
          * offering «غير ذلك» beside them invites an answer nobody can place.
          * A list that is genuinely the whole world says so by not opening.
          */
-        $closedLists = ['الصف الدراسي في السنة الحالية'];
+        $closedLists = [
+            // All the years there are.
+            'الصف الدراسي في السنة الحالية',
+            // A scale is closed by its nature: «غير ذلك» beside «ممتاز» and
+            // «ضعيف» is not another grade, it is a way out of answering.
+            'إتقانه لما حفظ',
+            'قدرته على الحفظ',
+            'قدرته على الفهم',
+            'مستواه الدراسي العام في آخر فصل',
+            // Two states, and the second already opens a box for the number.
+            'رقم الجوال (للاتصال)',
+        ];
 
-        $add = function (string $type, string $label, bool $required = false, array $options = [], bool $isName = false) use (&$fields, $closedLists) {
+        $add = function (string $type, string $label, bool $required = false, array $options = [], bool $isName = false, array $extra = []) use (&$fields, $closedLists) {
             if ($options !== [] && ! in_array($label, $closedLists, true) && ! in_array('غير ذلك', $options, true)) {
                 $options[] = 'غير ذلك';
             }
 
-            $fields[] = [
+            $fields[] = $extra + [
                 // Worked out from the question, not drawn at random: an answer
                 // is stored under the id of the field it answered, so a second
                 // run of this seeder with random ids would leave every
@@ -89,7 +100,17 @@ class NawabighApplicationSeeder extends Seeder
         $add('section', 'وليّ الأمر');
         $add('text', 'اسم وليّ الأمر', true);
         $add('select', 'صلته بالطالب', true, ['الأب', 'الأم', 'الأخ', 'الجدّ', 'غير ذلك']);
-        $add('text', 'رقم الجوال (واتساب)', true);
+        // The shape is shown and then enforced. A number typed in Arabic-Indic
+        // digits, or with spaces and dashes through it, is a number nobody can
+        // paste into WhatsApp — and it is the only way back to the family.
+        $add('text', 'رقم الواتساب', true, [], false, [
+            'hint' => 'بالأرقام الإنجليزية، هكذا: 05xxxxxxxx أو 9665xxxxxxxx',
+            'pattern' => '/^(?:05\\d{8}|\\+?9665\\d{8})$/',
+            'pattern_says' => 'اكتب الرقم بالأرقام الإنجليزية على إحدى الصيغتين: 05xxxxxxxx أو 9665xxxxxxxx',
+        ]);
+        $add('select', 'رقم الجوال (للاتصال)', true, ['نفس رقم الواتساب', 'رقم آخر'], false, [
+            'write_in' => ['رقم آخر'],
+        ]);
         $add('text', 'البريد الإلكتروني');
 
         // ── المسار القرآني ──
@@ -98,9 +119,12 @@ class NawabighApplicationSeeder extends Seeder
             'أقلّ من جزء', 'جزء', 'جزءان إلى ثلاثة',
             'من أربعة إلى خمسة', 'من ستة إلى عشرة', 'أكثر من عشرة أجزاء',
         ]);
-        $add('likert', 'إتقانه لما حفظ', true);
+        // Words rather than a number out of five: a father marking his son six
+        // and a father marking him seven mean nothing beside each other, and
+        // «جيد جداً» means the same thing in every house.
+        $add('select', 'إتقانه لما حفظ', true, ['ممتاز', 'جيد جداً', 'جيد', 'متوسط', 'ضعيف']);
         $add('yesno', 'هل يقرأ بأحكام التجويد؟', true);
-        $add('yesno', 'هل هو ملتحق بحلقة تحفيظ الآن؟', true);
+        $add('yesno', 'هل الطالب ملتحق حالياً بحلقة لتحفيظ القرآن؟', true);
         $add('text', 'اسم الحلقة ومكانها، إن كان ملتحقاً');
 
         // ── المسار العلمي ──
@@ -116,6 +140,16 @@ class NawabighApplicationSeeder extends Seeder
         $add('multiselect', 'المواد التي يحتاج فيها دعماً', false, [
             'القرآن والعلوم الشرعية', 'اللغة العربية', 'الرياضيات',
             'العلوم', 'اللغة الإنجليزية', 'الحاسب', 'الاجتماعيات',
+        ]);
+        // Memorising and understanding are the two things this programme leans
+        // on hardest, and a father knows them about his son before any teacher
+        // does. Asked apart, because a boy strong in one and not the other is
+        // exactly the boy a programme needs to know about in advance.
+        $add('select', 'قدرته على الحفظ', true, [
+            'متميّز جداً', 'ممتاز', 'متوسط', 'أقلّ من المتوسط', 'ضعيف',
+        ]);
+        $add('select', 'قدرته على الفهم', true, [
+            'متميّز جداً', 'ممتاز', 'متوسط', 'أقلّ من المتوسط', 'ضعيف',
         ]);
         $add('yesno', 'هل شارك في مسابقة أو أولمبياد أو معرض علمي؟');
         $add('long_text', 'إن شارك، فما هي ومتى؟');
@@ -137,10 +171,14 @@ class NawabighApplicationSeeder extends Seeder
         // ── المسار المهاري ──
         $add('section', '٤ · المسار المهاري');
         $add('multiselect', 'ما الذي يجيده أو يميل إليه؟', false, [
-            'الإلقاء والخطابة', 'الكتابة والقصّ', 'الرسم والتصميم',
-            'البرمجة والتقنية', 'العمل اليدوي والتركيب', 'التجارب العلمية',
-            'الحساب الذهني', 'قيادة المجموعة وتنظيمها',
+            'الحفظ', 'الفهم السريع', 'الإلقاء والخطابة', 'الكتابة والقصّ',
+            'الرسم والتصميم', 'البرمجة والتقنية', 'العمل اليدوي والتركيب',
+            'التجارب العلمية', 'الحساب الذهني', 'قيادة المجموعة وتنظيمها',
         ]);
+        // A ticked box says which skill; it never says what the boy actually
+        // does with it. This is where a father tells the committee the thing no
+        // list could have held.
+        $add('long_text', 'حدّثنا عن مهاراته: ماذا يصنع بها، وأين ظهرت؟');
         $add('select', 'كيف يتعلّم الأشياء الجديدة أسرع؟', true, [
             'حين يسمع الشرح', 'حين يرى ويشاهد',
             'حين يجرّب بيده', 'حين يشرحه لغيره',
@@ -173,10 +211,10 @@ class NawabighApplicationSeeder extends Seeder
         // father who has none is what lets somebody arrange it before the term
         // starts instead of losing the boy in the second week.
         $add('select', 'كيف سيصل الطالب ويعود؟', true, [
-            'لدينا مواصلات ولا إشكال فيها',
-            'لدينا مواصلات للذهاب ولا يوجد للعودة، ونبحث عن حلّ بمقابل مناسب',
-            'لدينا مواصلات للعودة ولا يوجد للذهاب، ونبحث عن حلّ بمقابل مناسب',
-            'لا يوجد مواصلات، ونبحث عن حلّ بمقابل مناسب',
+            'لديه مواصلات متوفّرة',
+            'نرغب في توفير وسيلة مواصلات للذهاب والرجوع',
+            'نرغب في توفير وسيلة مواصلات للذهاب فقط',
+            'نرغب في توفير وسيلة مواصلات للرجوع فقط',
         ]);
 
         // ── ما يُرجى ──
@@ -188,7 +226,11 @@ class NawabighApplicationSeeder extends Seeder
 
         // The last word is the father's. Every list above narrows him to what
         // somebody thought of in advance; this asks for what none of them held.
-        $add('long_text', 'هل من شيء عن ابنك لم تسعه الخيارات أعلاه؟ اكتبه هنا.');
+        $add('long_text', 'هل تريد أن تخبرنا بشيء إضافي عن الابن؟');
+        // Not about the boy at all. A father who has been answering forty
+        // questions about his son has usually been thinking about the programme
+        // too, and nowhere above asks him.
+        $add('long_text', 'مساحة حرّة — نسعد بسماع أفكارك ومقترحاتك');
 
         Form::updateOrCreate(
             ['slug' => 'nawabigh'],

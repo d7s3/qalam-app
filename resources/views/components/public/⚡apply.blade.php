@@ -27,6 +27,17 @@ new class extends Component
     /** @var array<string, mixed> */
     public array $answers = [];
 
+    /**
+     * What a father wrote beside a choice that opened a box for him.
+     *
+     * Kept apart from the answers while he types and folded into them when he
+     * sends: «غير ذلك» on its own records nothing a committee can read, which
+     * is what every open list in this form was doing before.
+     *
+     * @var array<string, string>
+     */
+    public array $written = [];
+
     public bool $done = false;
 
     public function mount(string $token): void
@@ -39,6 +50,7 @@ new class extends Component
 
         foreach ($this->questions() as $field) {
             $this->answers[$field['id']] = $field['type'] === 'multiselect' ? [] : null;
+            $this->written[$field['id']] = '';
         }
     }
 
@@ -49,6 +61,27 @@ new class extends Component
             $this->form->fields ?? [],
             fn (array $field) => ! SurveyFieldTypes::isLayout($field['type'] ?? 'text'),
         ));
+    }
+
+    /**
+     * The options on this question that open a box to write in.
+     *
+     * A list ending in «غير ذلك» opens one by default; a question may name its
+     * own instead — «رقم آخر» asks for the number, not for the words.
+     *
+     * @return array<int, string>
+     */
+    public function writeIns(array $field): array
+    {
+        return $field['write_in'] ?? (in_array('غير ذلك', $field['options'] ?? [], true) ? ['غير ذلك'] : []);
+    }
+
+    /** Whether this question's box is open, because one of those was chosen. */
+    public function wantsWriting(array $field): bool
+    {
+        $chosen = (array) ($this->answers[$field['id']] ?? []);
+
+        return array_intersect($this->writeIns($field), $chosen) !== [];
     }
 
     /** Everything in the form, dividers included, in the order it is read. */
@@ -76,17 +109,30 @@ new class extends Component
             };
 
             $names[$key] = $field['label'];
+
+            // A box that opened and stayed empty is a question left unanswered,
+            // whatever the choice above it says.
+            if ($this->wantsWriting($field)) {
+                $rules["written.{$field['id']}"] = ['required', 'string', 'max:500'];
+                $names["written.{$field['id']}"] = $field['label'];
+            }
+
+            if ($pattern = $field['pattern'] ?? null) {
+                $rules[$key][] = 'regex:'.$pattern;
+            }
         }
 
-        $this->validate($rules, [], $names);
+        $this->validate($rules, $this->patternMessages(), $names);
+
+        $answers = $this->folded();
 
         // The applicant's own contact details, lifted out of his answers so the
         // academy can reach him without reading the whole form to find a number.
-        $reach = $this->contactDetails();
+        $reach = $this->contactDetails($answers);
 
         FormResponse::create([
             'form_id' => $this->form->id,
-            'answers' => $this->answers,
+            'answers' => $answers,
             'respondent_name' => $reach['name'],
             'respondent_phone' => $reach['phone'],
             'respondent_email' => $reach['email'],
@@ -95,13 +141,62 @@ new class extends Component
         $this->done = true;
     }
 
-    /** @return array{name: ?string, phone: ?string, email: ?string} */
-    private function contactDetails(): array
+    /**
+     * The answers with what he wrote put in place of the choice that asked.
+     *
+     * Stored as the words themselves rather than as «غير ذلك»: the committee
+     * reads answers, and «غير ذلك» is not one.
+     *
+     * @return array<string, mixed>
+     */
+    private function folded(): array
+    {
+        $answers = $this->answers;
+
+        foreach ($this->questions() as $field) {
+            $written = trim((string) ($this->written[$field['id']] ?? ''));
+
+            if ($written === '' || ! $this->wantsWriting($field)) {
+                continue;
+            }
+
+            $answers[$field['id']] = is_array($answers[$field['id']] ?? null)
+                ? array_values(array_map(
+                    fn ($choice) => in_array($choice, $this->writeIns($field), true) ? $written : $choice,
+                    $answers[$field['id']],
+                ))
+                : $written;
+        }
+
+        return $answers;
+    }
+
+    /** @return array<string, string> */
+    private function patternMessages(): array
+    {
+        $messages = [];
+
+        foreach ($this->questions() as $field) {
+            if ($said = $field['pattern_says'] ?? null) {
+                $messages["answers.{$field['id']}.regex"] = $said;
+            }
+        }
+
+        return $messages;
+    }
+
+    /**
+     * @param  array<string, mixed>  $answers  the folded answers, so a number
+     *                                         written beside «رقم آخر» is the
+     *                                         one the academy keeps
+     * @return array{name: ?string, phone: ?string, email: ?string}
+     */
+    private function contactDetails(array $answers): array
     {
         $found = ['name' => null, 'phone' => null, 'email' => null];
 
         foreach ($this->questions() as $field) {
-            $value = $this->answers[$field['id']] ?? null;
+            $value = $answers[$field['id']] ?? null;
 
             if (! is_string($value) || $value === '') {
                 continue;
@@ -109,8 +204,16 @@ new class extends Component
 
             $label = $field['label'] ?? '';
 
+            // Asked about a number, and holding one. The form has a second
+            // number question whose answer is «نفس رقم الواتساب» — words, not a
+            // number — and taking the first field whose label says «جوال» would
+            // store that sentence as the only way back to the family.
+            $asksForNumber = str_contains($label, 'جوال')
+                || str_contains($label, 'هاتف')
+                || str_contains($label, 'واتساب');
+
             $found['name'] ??= ($field['is_student_name'] ?? false) ? $value : null;
-            $found['phone'] ??= str_contains($label, 'جوال') || str_contains($label, 'هاتف') ? $value : null;
+            $found['phone'] ??= $asksForNumber && preg_match('/^\+?\d[\d\s-]{6,}$/', $value) ? $value : null;
             $found['email'] ??= filter_var($value, FILTER_VALIDATE_EMAIL) ? $value : null;
         }
 
@@ -230,6 +333,10 @@ new class extends Component
                             @endif
                         </label>
 
+                        @if ($field['hint'] ?? null)
+                            <p class="mt-1.5 text-sm text-zinc-500">{{ $field['hint'] }}</p>
+                        @endif
+
                         <div class="mt-3">
                             @switch($type)
                                 @case('long_text')
@@ -255,7 +362,7 @@ new class extends Component
                                     @break
 
                                 @case('select')
-                                    <select wire:model="answers.{{ $field['id'] }}" class="{{ $box }}">
+                                    <select wire:model.live="answers.{{ $field['id'] }}" class="{{ $box }}">
                                         <option value="">{{ __('اختر') }}</option>
                                         @foreach ($field['options'] ?? [] as $option)
                                             <option value="{{ $option }}">{{ $option }}</option>
@@ -269,7 +376,7 @@ new class extends Component
                                             <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700">
                                                 <input type="checkbox" class="rounded"
                                                     style="accent-color: var(--brand);"
-                                                    wire:model="answers.{{ $field['id'] }}" value="{{ $option }}" />
+                                                    wire:model.live="answers.{{ $field['id'] }}" value="{{ $option }}" />
                                                 {{ $option }}
                                             </label>
                                         @endforeach
@@ -296,6 +403,15 @@ new class extends Component
                                 @default
                                     <input type="text" wire:model="answers.{{ $field['id'] }}" class="{{ $box }}" />
                             @endswitch
+
+                            @if ($this->wantsWriting($field))
+                                <input type="text" wire:model="written.{{ $field['id'] }}"
+                                    class="{{ $box }} mt-3"
+                                    placeholder="{{ __('اكتبه هنا') }}" />
+                                @error('written.'.$field['id'])
+                                    <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
+                                @enderror
+                            @endif
 
                             @error('answers.'.$field['id'])
                                 <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
