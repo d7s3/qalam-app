@@ -260,6 +260,13 @@ class NawabighApplicationSeeder extends Seeder
 
         $form = Form::where('slug', 'nawabigh')->first();
 
-        $this->command?->info('نوابغ: '.count($fields).' حقلاً — '.$form->publicUrl());
+        // A message printed after the work is done must never undo the work.
+        // On the first deployment this line killed the seeder — route() throws
+        // against a route table cached before /apply existed — with the form
+        // already written and the rest of the deployment, the asset build and
+        // the cache rebuild, never run.
+        $link = rescue(fn () => $form->publicUrl(), 'شغّل php artisan optimize:clear ليظهر الرابط', report: false);
+
+        $this->command?->info('نوابغ: '.count($fields).' حقلاً — '.$link);
     }
 }
