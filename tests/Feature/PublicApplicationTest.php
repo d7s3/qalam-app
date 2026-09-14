@@ -583,6 +583,7 @@ it('closes with the fee and with what the form is not', function () {
         ->and($form->closing_note)->toContain('خمسة أيام أسبوعياً')
         ->and($form->closing_note)->toContain('أربع ساعات يومياً')
         ->and($form->closing_note)->toContain('الأنشطة الداخلية الأسبوعية')
+        ->and($form->closing_note)->toContain('٣ أشهر تعليمية')
         // Its own field, not folded into the privacy line.
         ->and($form->policy_text)->not->toContain('٩٥٠');
 
