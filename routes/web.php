@@ -20,14 +20,14 @@ use App\Models\Supervisor;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\MessagingService;
-use App\Support\KnowledgeHadiths;
+use App\Support\LearningSayings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Mccarlosen\LaravelMpdf\Facades\LaravelMpdf;
 
-// A fresh hadith on every visit, read from code rather than the database so the
+// A fresh saying on every visit, read from code rather than the database so the
 // busiest unauthenticated route in the application still runs no query.
-Route::get('/', fn () => view('welcome', ['hadith' => KnowledgeHadiths::random()]))->name('home');
+Route::get('/', fn () => view('welcome', ['saying' => LearningSayings::random()]))->name('home');
 
 Route::get('/pending-approval', fn () => view('pending-approval'))
     ->middleware('auth:manager,supervisor,teacher,student,guardian,staff')

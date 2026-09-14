@@ -2,20 +2,20 @@
     The tall panel beside the sign-in form.
 
     It carries the same three things the portal's own doorway does, in the same
-    order: the mark, the geometric ground, and a hadith on seeking knowledge
-    with its source and grading. The loose line drawings that used to fill it —
+    order: the mark, the geometric ground, and a saying on learning with its
+    attribution. The loose line drawings that used to fill it —
     a lantern, a crescent, a mushaf on a rehl — are gone for the reason
     `brand-ornament` was written: a repeating geometric ground reads as ornament
     at any size, where a single clip-art figure only reads as clip art.
 --}}
 @props([
-    'hadith' => null,
+    'saying' => null,
     'variant' => 'light',
 ])
 
 @php
     $isDark = $variant === 'dark';
-    $saying = $hadith ?? \App\Support\KnowledgeHadiths::random();
+    $saying ??= \App\Support\LearningSayings::random();
 @endphp
 
 <div {{ $attributes->merge([
@@ -33,7 +33,7 @@
         <span class="text-xs font-medium mt-0.5 {{ $isDark ? 'text-white/70' : 'text-neutral-grey' }}">{{ config('brand.tagline') }}</span>
     </a>
 
-    {{-- الحديث --}}
+    {{-- المقولة --}}
     <div class="relative z-10 my-8 flex flex-1 items-center">
         <div class="w-full rounded-[1.75rem] border p-8 text-center backdrop-blur-sm
             {{ $isDark ? 'border-gold/25 bg-black/15' : 'border-maroon/15 bg-white/50' }}">
@@ -51,10 +51,6 @@
             <div class="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
                 <span class="text-[11px] font-medium {{ $isDark ? 'text-white/55' : 'text-maroon/60' }}">
                     {{ $saying['source'] }}
-                </span>
-                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold
-                    {{ $isDark ? 'bg-gold/15 text-gold' : 'bg-maroon/8 text-maroon/70' }}">
-                    {{ $saying['grade'] }}
                 </span>
             </div>
         </div>

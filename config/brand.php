@@ -44,7 +44,7 @@ return [
      * sciences broadly, another only memorisation — so the sentence belongs
      * here beside the name rather than written into four templates.
      */
-    'tagline' => env('BRAND_TAGLINE', 'منصة رقمية متكاملة للعلوم الشرعية وحلقاتها'),
+    'tagline' => env('BRAND_TAGLINE', 'منصة رقمية متكاملة للتعليم وحلقاته'),
 
     /**
      * Paths under public/, so a new organisation drops its files in and names

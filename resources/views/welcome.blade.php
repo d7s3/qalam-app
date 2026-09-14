@@ -128,14 +128,11 @@
                     </div>
 
                     <p class="relative mt-4 lg:mt-5 font-zain text-base md:text-xl leading-[1.85] lg:leading-[1.9] text-maroon text-balance">
-                        «{{ $hadith['text'] }}»
+                        «{{ $saying['text'] }}»
                     </p>
 
                     <div class="relative mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-                        <span class="text-[11px] font-medium text-maroon/60">{{ $hadith['source'] }}</span>
-                        <span class="inline-flex items-center rounded-full bg-maroon/8 px-2 py-0.5 text-[10px] font-bold text-maroon/70">
-                            {{ $hadith['grade'] }}
-                        </span>
+                        <span class="text-[11px] font-medium text-maroon/60">{{ $saying['source'] }}</span>
                     </div>
                 </div>
             </div>

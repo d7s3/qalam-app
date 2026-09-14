@@ -294,7 +294,11 @@ it('never hints that acceptance is decided by what the father writes', function 
     ]);
 
     foreach (['يُبنى عليه القبول', 'تُظهره الاستمارة', 'على أساس الإجابات', 'يُقبل بحسب'] as $claim) {
-        expect($everything)->not->toContain($claim, "الاستمارة توحي بأن القبول مبني على الإجابات: {$claim}");
+        // A plain boolean: toContain takes its needles variadically, so «not»
+        // with a message beside a needle asks whether BOTH are present — and
+        // the message never is, so the guard passes whatever the form says.
+        expect(str_contains($everything, $claim))
+            ->toBeFalse("الاستمارة توحي بأن القبول مبني على الإجابات: {$claim}");
     }
 
     // And it does say, plainly, why accuracy is worth the father's trouble.

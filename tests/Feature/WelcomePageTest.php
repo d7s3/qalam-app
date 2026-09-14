@@ -1,6 +1,6 @@
 <?php
 
-use App\Support\KnowledgeHadiths;
+use App\Support\LearningSayings;
 
 it('renders the portal with a single unified login entry point', function () {
     $response = $this->get(route('home'));
@@ -65,65 +65,69 @@ it('drops the licence line when no licence is configured', function () {
     $this->get(route('home'))->assertOk()->assertDontSee('رقم الترخيص:');
 });
 
-it('opens with a hadith on seeking knowledge, named and graded', function () {
-    // The academy's subject is the sacred sciences, so the saying on its front
-    // door carries its attribution and its grading where a visitor can read
-    // them — an unsourced text is the first thing the field would notice.
+it('opens with a saying on learning, and names who said it', function () {
+    // An unattributed line on a front door is worth nothing to a reader, and
+    // the attribution is also what keeps the page honest about whose words
+    // these are.
     $response = $this->get(route('home'))->assertOk();
 
-    $hadith = $response->viewData('hadith');
+    $saying = $response->viewData('saying');
 
-    expect($hadith)->toHaveKeys(['text', 'source', 'grade']);
+    expect($saying)->toHaveKeys(['text', 'source']);
 
-    $response->assertSee($hadith['text'], false)
-        ->assertSee($hadith['source'], false)
-        ->assertSee($hadith['grade'], false);
+    $response->assertSee($saying['text'], false)
+        ->assertSee($saying['source'], false);
 });
 
-it('carries no verse of the Quran on the portal', function () {
-    // The page speaks for an academy of the sacred sciences broadly, not for
-    // memorisation alone.
-    $this->get(route('home'))->assertOk()->assertDontSee('﴿', false);
-});
+/**
+ * The doorway speaks for every school that is handed this platform.
+ *
+ * It used to open with a hadith, which speaks for one kind of academy and not
+ * for the rest. A religious text here — a verse, a hadith, an invocation —
+ * would narrow the platform to the organisation it was first written for.
+ */
+it('carries no religious text on the portal', function () {
+    $page = $this->get(route('home'))->assertOk()->getContent();
 
-it('admits only sahih and hasan hadiths', function () {
-    $grades = collect(KnowledgeHadiths::all())->pluck('grade');
-
-    expect($grades)->not->toBeEmpty();
-
-    foreach ($grades as $grade) {
-        // Diacritics stripped first: "حسّنه" carries a shadda, and "صححه" is
-        // not the literal word "صحيح" though it says the same thing.
-        $bare = preg_replace('/[\x{0610}-\x{061A}\x{064B}-\x{065F}\x{0670}]/u', '', $grade);
-
-        expect($bare)->toMatch('/صحيح|صححه|حسن/u');
+    foreach (['﴿', '﴾', 'ﷺ', 'صلى الله عليه', 'رضي الله عن', 'رواه ', 'حديث'] as $religious) {
+        // Asked as a plain boolean: toContain takes its needles variadically,
+        // so a message passed beside one is read as a second needle and the
+        // guard quietly stops guarding.
+        expect(str_contains($page, $religious))
+            ->toBeFalse("الصفحة العامة تحمل نصاً دينياً: {$religious}");
     }
 });
 
-it('gives every hadith its source', function () {
-    foreach (KnowledgeHadiths::all() as $hadith) {
-        expect(trim($hadith['text']))->not->toBe('')
-            ->and(trim($hadith['source']))->not->toBe('')
-            ->and(trim($hadith['grade']))->not->toBe('');
+it('gives every saying its attribution', function () {
+    $sayings = LearningSayings::all();
+
+    expect($sayings)->not->toBeEmpty();
+
+    foreach ($sayings as $saying) {
+        expect(trim($saying['text']))->not->toBe('')
+            ->and(trim($saying['source']))->not->toBe('')
+            // No grading: a saying is attributed, not authenticated, and the
+            // pill that used to carry «صحيح» went with the hadiths.
+            ->and($saying)->not->toHaveKey('grade');
     }
 });
 
 it('does not always show the same one', function () {
-    $seen = collect(range(1, 60))->map(fn () => KnowledgeHadiths::random()['text'])->unique();
+    $seen = collect(range(1, 60))->map(fn () => LearningSayings::random()['text'])->unique();
 
     expect($seen->count())->toBeGreaterThan(1);
 });
 
 it('describes the organisation the way it configures itself', function () {
-    config(['brand.tagline' => 'منصة العلوم الشرعية']);
+    config(['brand.tagline' => 'منصة تعليمية']);
 
     $this->get(route('home'))
         ->assertOk()
-        ->assertSee('منصة العلوم الشرعية')
+        ->assertSee('منصة تعليمية')
         ->assertDontSee('لتحفيظ القرآن الكريم');
 });
 
-it('carries the same hadith treatment onto the sign-in page', function () {
+it('carries the same saying treatment onto the sign-in page', function () {
     // The sign-in page is the same front door, and it kept the verse and the
     // line drawings after the portal itself dropped them.
     $response = $this->get(route('login'))->assertOk();
