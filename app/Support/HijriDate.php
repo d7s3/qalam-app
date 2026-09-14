@@ -277,6 +277,29 @@ class HijriDate
     ];
 
     /**
+     * The twelve months, once each, in the spelling to offer somebody choosing.
+     *
+     * MONTH_NAMES accepts every spelling in ordinary use so a typed date is not
+     * refused over ربيع الآخر versus ربيع الثاني; a list to pick from must show
+     * each month once, so it is taken from there rather than written twice and
+     * left to drift.
+     *
+     * @return array<int, string>
+     */
+    public static function monthsToChooseFrom(): array
+    {
+        $months = [];
+
+        foreach (self::MONTH_NAMES as $name => $number) {
+            $months[$number] ??= $name;
+        }
+
+        ksort($months);
+
+        return $months;
+    }
+
+    /**
      * The Gregorian day a Hijri one falls on.
      *
      * The inverse of `parts()`, and needed wherever the academy hands over a

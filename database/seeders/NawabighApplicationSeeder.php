@@ -87,7 +87,9 @@ class NawabighApplicationSeeder extends Seeder
         // ── الطالب ──
         $add('section', 'بيانات الطالب');
         $add('text', 'الاسم الرباعي للطالب', true, [], true);
-        $add('text', 'تاريخ الميلاد (هجري)', true);
+        // Chosen from three lists rather than typed: a picker, and a picker in
+        // the calendar actually asked for.
+        $add('text', 'تاريخ الميلاد (هجري)', true, [], false, ['picker' => 'hijri']);
         $add('select', 'الصف الدراسي في السنة الحالية', true, [
             'الأول الابتدائي', 'الثاني الابتدائي', 'الثالث الابتدائي',
             'الرابع الابتدائي', 'الخامس الابتدائي', 'السادس الابتدائي',

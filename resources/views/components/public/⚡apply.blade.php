@@ -38,6 +38,17 @@ new class extends Component
      */
     public array $written = [];
 
+    /**
+     * A Hijri date being assembled, day and month and year apart.
+     *
+     * The browser's own date control is a Gregorian calendar whatever the label
+     * above it says, so a father asked for ١٤٣٧ would be fighting it. Three
+     * lists are a picker too, and they are a picker in the calendar asked for.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public array $hijri = [];
+
     public bool $done = false;
 
     public function mount(string $token): void
@@ -51,6 +62,10 @@ new class extends Component
         foreach ($this->questions() as $field) {
             $this->answers[$field['id']] = $field['type'] === 'multiselect' ? [] : null;
             $this->written[$field['id']] = '';
+
+            if ($this->picksHijri($field)) {
+                $this->hijri[$field['id']] = ['day' => '', 'month' => '', 'year' => ''];
+            }
         }
     }
 
@@ -76,6 +91,12 @@ new class extends Component
         return $field['write_in'] ?? (in_array('غير ذلك', $field['options'] ?? [], true) ? ['غير ذلك'] : []);
     }
 
+    /** Whether this question is answered by choosing a Hijri day, month and year. */
+    public function picksHijri(array $field): bool
+    {
+        return ($field['picker'] ?? null) === 'hijri';
+    }
+
     /** Whether this question's box is open, because one of those was chosen. */
     public function wantsWriting(array $field): bool
     {
@@ -93,6 +114,21 @@ new class extends Component
     public function submit(): void
     {
         abort_unless($this->form->isOpenToPublic(), 410);
+
+        // The three lists become the answer before anything is validated, so a
+        // required date is judged on what was chosen rather than on an empty
+        // string the father never had a box for.
+        foreach ($this->questions() as $field) {
+            if (! $this->picksHijri($field)) {
+                continue;
+            }
+
+            $chosen = $this->hijri[$field['id']] ?? [];
+
+            $this->answers[$field['id']] = ($chosen['day'] ?? '') && ($chosen['month'] ?? '') && ($chosen['year'] ?? '')
+                ? sprintf('%s/%02d/%02d هـ', $chosen['year'], $chosen['month'], $chosen['day'])
+                : '';
+        }
 
         $rules = [];
         $names = [];
@@ -338,16 +374,43 @@ new class extends Component
                         @endif
 
                         <div class="mt-3">
-                            @switch($type)
-                                @case('long_text')
+                            @switch(true)
+                                @case($this->picksHijri($field))
+                                    {{-- Three lists rather than the browser's date control,
+                                         which is a Gregorian calendar however the label reads. --}}
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <select wire:model="hijri.{{ $field['id'] }}.day" class="{{ $box }}">
+                                            <option value="">{{ __('اليوم') }}</option>
+                                            @foreach (range(1, 30) as $day)
+                                                <option value="{{ $day }}">{{ $day }}</option>
+                                            @endforeach
+                                        </select>
+
+                                        <select wire:model="hijri.{{ $field['id'] }}.month" class="{{ $box }}">
+                                            <option value="">{{ __('الشهر') }}</option>
+                                            @foreach (\App\Support\HijriDate::monthsToChooseFrom() as $number => $name)
+                                                <option value="{{ $number }}">{{ $name }}</option>
+                                            @endforeach
+                                        </select>
+
+                                        <select wire:model="hijri.{{ $field['id'] }}.year" class="{{ $box }}">
+                                            <option value="">{{ __('السنة') }}</option>
+                                            @foreach (range(\App\Support\HijriDate::parts(now())['year'] - 5, \App\Support\HijriDate::parts(now())['year'] - 20) as $year)
+                                                <option value="{{ $year }}">{{ $year }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    @break
+
+                                @case($type === 'long_text')
                                     <textarea wire:model="answers.{{ $field['id'] }}" rows="3" class="{{ $box }}"></textarea>
                                     @break
 
-                                @case('date')
+                                @case($type === 'date')
                                     <input type="date" wire:model="answers.{{ $field['id'] }}" class="{{ $box }}" dir="ltr" />
                                     @break
 
-                                @case('yesno')
+                                @case($type === 'yesno')
                                     <div class="flex gap-2">
                                         @foreach (['نعم', 'لا'] as $choice)
                                             <label class="flex-1 cursor-pointer rounded-xl border px-4 py-2.5 text-center text-sm transition
@@ -361,7 +424,7 @@ new class extends Component
                                     </div>
                                     @break
 
-                                @case('select')
+                                @case($type === 'select')
                                     <select wire:model.live="answers.{{ $field['id'] }}" class="{{ $box }}">
                                         <option value="">{{ __('اختر') }}</option>
                                         @foreach ($field['options'] ?? [] as $option)
@@ -370,7 +433,7 @@ new class extends Component
                                     </select>
                                     @break
 
-                                @case('multiselect')
+                                @case($type === 'multiselect')
                                     <div class="grid gap-2 sm:grid-cols-2">
                                         @foreach ($field['options'] ?? [] as $option)
                                             <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700">
@@ -383,9 +446,9 @@ new class extends Component
                                     </div>
                                     @break
 
-                                @case('rating')
-                                @case('likert')
-                                @case('nps')
+                                @case($type === 'rating')
+                                @case($type === 'likert')
+                                @case($type === 'nps')
                                     @php $top = $type === 'nps' ? 10 : ($field['scale'] ?? 5); @endphp
                                     <div class="flex flex-wrap gap-1.5">
                                         @foreach (range(1, $top) as $n)

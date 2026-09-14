@@ -241,6 +241,16 @@ it('puts an outsider\'s answers where the committee can read them', function () 
             continue;
         }
 
+        // A date is chosen from three lists now, not typed, so setting the
+        // answer directly would be overwritten the moment they are assembled.
+        if (($field['picker'] ?? null) === 'hijri') {
+            $screen->set("hijri.{$field['id']}.day", '12')
+                ->set("hijri.{$field['id']}.month", '5')
+                ->set("hijri.{$field['id']}.year", '1437');
+
+            continue;
+        }
+
         $screen->set("answers.{$field['id']}", match ($field['type']) {
             'select' => $field['options'][0],
             'multiselect' => [$field['options'][0]],
@@ -506,6 +516,14 @@ it('lifts a number the academy can actually ring', function () {
                 continue;
             }
 
+            if (($field['picker'] ?? null) === 'hijri') {
+                $screen->set("hijri.{$field['id']}.day", '12')
+                    ->set("hijri.{$field['id']}.month", '5')
+                    ->set("hijri.{$field['id']}.year", '1437');
+
+                continue;
+            }
+
             $screen->set("answers.{$field['id']}", match (true) {
                 $field['label'] === 'رقم الجوال (للاتصال)' => $calling,
                 str_contains($field['label'], 'واتساب') => '0501234567',
@@ -616,4 +634,49 @@ it('promises the same week the fee is charged for', function () {
         // hours, which is what the fee line has to say it is.
         ->and($pledge['label'])->toContain('من الخامسة إلى الثامنة والنصف')
         ->and($form->closing_note)->toContain('ثلاث ساعات ونصف يومياً');
+});
+
+/**
+ * The birth date is chosen, and chosen in the calendar it was asked for.
+ *
+ * It was a plain text box because the browser's date control is a Gregorian
+ * calendar however the label above it reads — a father typing ١٤٣٧ would have
+ * been fighting it. Three lists are a picker too, and they pick Hijri.
+ */
+it('picks the birth date from three Hijri lists', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+    $birth = collect($form->fields)->first(fn (array $f) => str_contains($f['label'], 'تاريخ الميلاد'));
+
+    expect($birth['picker'])->toBe('hijri');
+
+    $screen = Livewire::test('public.apply', ['token' => $form->public_token]);
+
+    foreach ($form->fields as $field) {
+        if ($field['type'] === 'section' || ! ($field['required'] ?? false) || $field['id'] === $birth['id']) {
+            continue;
+        }
+
+        $screen->set("answers.{$field['id']}", match (true) {
+            str_contains($field['label'], 'واتساب') => '0501234567',
+            $field['type'] === 'select' => $field['options'][0],
+            $field['type'] === 'multiselect' => [$field['options'][0]],
+            $field['type'] === 'yesno' => 'نعم',
+            default => ($field['is_student_name'] ?? false) ? 'سالم' : 'جواب',
+        });
+    }
+
+    // A date left half-chosen is no date, and the question is required.
+    $screen->set("hijri.{$birth['id']}.day", '12')
+        ->set("hijri.{$birth['id']}.month", '5')
+        ->call('submit')
+        ->assertHasErrors(["answers.{$birth['id']}"]);
+
+    $screen->set("hijri.{$birth['id']}.year", '1437')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(FormResponse::where('form_id', $form->id)->latest('id')->firstOrFail()->answers[$birth['id']])
+        ->toBe('1437/05/12 هـ');
 });
