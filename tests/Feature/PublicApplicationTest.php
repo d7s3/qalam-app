@@ -595,3 +595,20 @@ it('closes with the fee and with what the form is not', function () {
         expect(str_contains($page, $said))->toBeTrue("الخاتمة لا تظهر للمتقدّم: {$said}");
     }
 });
+
+/**
+ * The pledge and the fee describe the same week.
+ *
+ * The fee says five days; the pledge said Sunday to Wednesday, which is four.
+ * A father reading both learns that the academy does not know its own timetable
+ * — and one of the two numbers is what he will hold it to.
+ */
+it('promises the same week the fee is charged for', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+    $pledge = collect($form->fields)->first(fn (array $f) => str_contains($f['label'], 'أتعهّد'));
+
+    expect($pledge['label'])->toContain('من الأحد إلى الخميس')
+        ->and($form->closing_note)->toContain('خمسة أيام أسبوعياً');
+});

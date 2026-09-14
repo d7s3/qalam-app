@@ -204,7 +204,7 @@ class NawabighApplicationSeeder extends Seeder
         // a father to undertake it binds the answer to the acceptance, and a
         // man who will not undertake it has told the academy something useful
         // before the seat was given rather than after it was lost.
-        $add('yesno', 'أتعهّد بالتزام ابني بالحضور من الأحد إلى الأربعاء، من الخامسة إلى الثامنة مساءً، في حال قبوله', true);
+        $add('yesno', 'أتعهّد بالتزام ابني بالحضور من الأحد إلى الخميس، من الخامسة إلى الثامنة مساءً، في حال قبوله', true);
         // Asked as the four states a family is actually in, rather than as a
         // means of transport. A father who has a ride one way and not the other
         // is a seat the programme can still keep — and telling him apart from a
