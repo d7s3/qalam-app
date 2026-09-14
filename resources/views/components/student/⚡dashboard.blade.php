@@ -365,6 +365,11 @@ new class extends Component {
 
         return [
             'student' => $student,
+            // Whether a حلقة has placed him in the memorisation at all. The
+            // pages behind it were already withheld; the panels on this page
+            // were not, so a student in no circle was shown his progress
+            // through a Quran he was never set to memorise.
+            'isQuranic' => \App\Support\QuranicStudent::applies($student),
             'todayStr' => $todayStr,
             'verseOfDay' => \App\Services\QuranVerseOfDayService::today(),
             'circleNews' => \App\Services\StudentActivityFeedService::circleNews($student, $leaderboard),
@@ -595,6 +600,7 @@ new class extends Component {
             <div class="order-1 lg:order-2 flex flex-col gap-6">
                 <div class="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6">
                     {{-- تقدمك في الحفظ --}}
+                    @if($isQuranic)
                     <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
                         <flux:heading size="sm" class="mb-4">{{ __('تقدمك في الحفظ') }}</flux:heading>
 
@@ -649,6 +655,7 @@ new class extends Component {
                             <p class="text-sm text-zinc-400 text-center py-6">{{ __('لم تبدأ الحفظ بعد') }}</p>
                         @endif
                     </div>
+                    @endif
 
                     {{-- جلسات اليوم --}}
                     <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 flex flex-col">
@@ -872,6 +879,7 @@ new class extends Component {
             </div>
 
             {{-- Quran journey: progress rings + timeline, both driven by surahMap() --}}
+            @if($isQuranic)
             <div class="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
                 <x-student.partials.section-heading :title="__('تقدم الحفظ')" icon="chart-bar" />
                 <div class="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
@@ -903,6 +911,7 @@ new class extends Component {
                     @endforeach
                 </div>
             </div>
+            @endif
             @endunless
 
             {{-- Achievements + leaderboard mini widget: badges earned and the

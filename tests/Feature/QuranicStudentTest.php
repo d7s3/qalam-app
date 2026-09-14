@@ -119,3 +119,43 @@ it('leaves the super administrator above it', function () {
 
     expect(Access::canSee($admin, 'student', 'student.plan'))->toBeTrue();
 });
+
+/**
+ * The dashboard has to obey the same rule its navigation does.
+ *
+ * `Access::canSee` withheld the memorisation pages from a student outside a
+ * حلقة, and the panels on his own dashboard were never put behind it — so he
+ * was shown «تقدمك في الحفظ», a ring for every surah and a «مسارك القرآني»
+ * through a Quran nobody had set him to memorise. The rest of the memorisation
+ * panels were hidden only because he had no plan and no sessions to fill them,
+ * which is a different thing from being hidden.
+ */
+it('keeps the memorisation panels off the dashboard of a student in no circle', function () {
+    QuranicStudent::forget();
+
+    $html = $this->actingAs(Student::factory()->create(['circle_id' => null]), 'student')
+        ->get(route('student.dashboard'))
+        ->assertOk()
+        ->getContent();
+
+    foreach (['تقدمك في الحفظ', 'تقدم الحفظ', 'مسارك القرآني'] as $panel) {
+        expect(str_contains($html, $panel))
+            ->toBeFalse("لوحة طالبٍ بلا حلقة تعرض: {$panel}");
+    }
+});
+
+it('shows them to the student of a حلقة', function () {
+    QuranicStudent::forget();
+
+    $html = $this->actingAs(Student::factory()->create(['circle_id' => $this->halaqah->id]), 'student')
+        ->get(route('student.dashboard'))
+        ->assertOk()
+        ->getContent();
+
+    // Withholding them from everybody would be the other way of getting this
+    // test to pass, so the presence is asserted too.
+    foreach (['تقدمك في الحفظ', 'تقدم الحفظ', 'مسارك القرآني'] as $panel) {
+        expect(str_contains($html, $panel))
+            ->toBeTrue("لوحة طالب الحلقة لا تعرض: {$panel}");
+    }
+});
