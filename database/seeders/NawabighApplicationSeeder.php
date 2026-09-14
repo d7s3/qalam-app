@@ -204,7 +204,7 @@ class NawabighApplicationSeeder extends Seeder
         // a father to undertake it binds the answer to the acceptance, and a
         // man who will not undertake it has told the academy something useful
         // before the seat was given rather than after it was lost.
-        $add('yesno', 'أتعهّد بالتزام ابني بالحضور من الأحد إلى الخميس، من الخامسة إلى الثامنة مساءً، في حال قبوله', true);
+        $add('yesno', 'أتعهّد بالتزام ابني بالحضور من الأحد إلى الخميس، من الخامسة إلى الثامنة والنصف مساءً، في حال قبوله', true);
         // Asked as the four states a family is actually in, rather than as a
         // means of transport. A father who has a ride one way and not the other
         // is a seat the programme can still keep — and telling him apart from a
@@ -243,7 +243,7 @@ class NawabighApplicationSeeder extends Seeder
                     .'الإجابة الدقيقة تساعدنا على مزيد من الإفادة وحسن التوجيه لأبنائنا الطلاب.',
                 'closing_note' => "هذا التسجيل ليس إعلاناً بالقبول، وسيتمّ التواصل مع المقبولين.\n"
                     .'الرسوم: ٩٥٠ ريالاً للفصل الدراسي الأول (٣ أشهر تعليمية)، وتشمل الحضور خمسة أيام أسبوعياً '
-                    .'بواقع أربع ساعات يومياً، والأنشطة الداخلية الأسبوعية.',
+                    .'بواقع ثلاث ساعات ونصف يومياً، والأنشطة الداخلية الأسبوعية.',
                 'success_text' => 'وصلتنا استمارتك. سنراجعها ونتواصل معك على رقم الجوال الذي كتبته.',
                 'policy_text' => 'ما تكتبه هنا يُستعمل لدراسة طلب الالتحاق وحده، ولا يُطّلع عليه إلا لجنة القبول.',
                 'color' => self::TEAL,

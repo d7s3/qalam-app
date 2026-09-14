@@ -581,7 +581,7 @@ it('closes with the fee and with what the form is not', function () {
     expect($form->closing_note)->toContain('ليس إعلاناً بالقبول')
         ->and($form->closing_note)->toContain('٩٥٠')
         ->and($form->closing_note)->toContain('خمسة أيام أسبوعياً')
-        ->and($form->closing_note)->toContain('أربع ساعات يومياً')
+        ->and($form->closing_note)->toContain('ثلاث ساعات ونصف يومياً')
         ->and($form->closing_note)->toContain('الأنشطة الداخلية الأسبوعية')
         ->and($form->closing_note)->toContain('٣ أشهر تعليمية')
         // Its own field, not folded into the privacy line.
@@ -611,5 +611,9 @@ it('promises the same week the fee is charged for', function () {
     $pledge = collect($form->fields)->first(fn (array $f) => str_contains($f['label'], 'أتعهّد'));
 
     expect($pledge['label'])->toContain('من الأحد إلى الخميس')
-        ->and($form->closing_note)->toContain('خمسة أيام أسبوعياً');
+        ->and($form->closing_note)->toContain('خمسة أيام أسبوعياً')
+        // And the same sitting: five to half past eight is three and a half
+        // hours, which is what the fee line has to say it is.
+        ->and($pledge['label'])->toContain('من الخامسة إلى الثامنة والنصف')
+        ->and($form->closing_note)->toContain('ثلاث ساعات ونصف يومياً');
 });
