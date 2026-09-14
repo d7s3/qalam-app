@@ -217,7 +217,7 @@
 
         <div class="relative max-w-4xl mx-auto flex flex-col items-center gap-5 text-center">
             <span class="grid size-20 place-items-center rounded-3xl bg-[#fdfaf3] ring-1 ring-gold/30">
-                <img src="{{ asset(config('brand.logo')) }}" alt="{{ config('brand.name') }}"
+                <img src="{{ asset(config('brand.mark')) }}" alt="{{ config('brand.name') }}"
                      class="h-14 w-auto object-contain" />
             </span>
 

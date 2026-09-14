@@ -51,6 +51,23 @@ return [
      * them here without a line of code changing.
      */
     'logo' => env('BRAND_LOGO', 'images/altag_logo.png'),
+
+    /**
+     * The mark on its own — the roundel without the wordmark beside it.
+     *
+     * A full lockup is wide, and the places that show it most are the narrowest
+     * the interface has: a sidebar brand, a header pill, a mobile topbar. Shrunk
+     * to fit their height the wordmark becomes a smudge. Falls back to the full
+     * logo, so an organisation that has only one file keeps today's behaviour.
+     */
+    'mark' => env('BRAND_MARK', env('BRAND_LOGO', 'images/altag_logo.png')),
+
+    /**
+     * The version for dark grounds, where a dark mark disappears. Falls back to
+     * the main logo, which is what a single-file organisation wants.
+     */
+    'logo_light' => env('BRAND_LOGO_LIGHT', env('BRAND_LOGO', 'images/altag_logo.png')),
+
     'favicon' => env('BRAND_FAVICON', 'favicon.svg'),
     'apple_icon' => env('BRAND_APPLE_ICON', 'apple-touch-icon.png'),
 
@@ -90,6 +107,17 @@ return [
         'on_dark' => env('BRAND_COLOR_ON_DARK', '#9d2e33'),
         'deepest' => env('BRAND_COLOR_DEEPEST', '#3f1a19'),
         'gold' => env('BRAND_COLOR_GOLD', '#c9a063'),
+
+        /**
+         * The paper the interface is printed on, and a deeper shade of it for
+         * rails and inset panels.
+         *
+         * It has to stay paper: body text, tables and cards sit on it all day,
+         * so a ground taken straight from a logo is usually too saturated to
+         * read against. Tint the brand colour rather than using it.
+         */
+        'paper' => env('BRAND_COLOR_PAPER', '#fdfaf3'),
+        'paper_deep' => env('BRAND_COLOR_PAPER_DEEP', '#f7efe0'),
     ],
 
 ];

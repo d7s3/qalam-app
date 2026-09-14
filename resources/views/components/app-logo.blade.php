@@ -6,7 +6,8 @@
     // Name and mark both come from the brand config, so handing the app to
     // another organisation is a change to .env rather than to this file.
     $brandName = config('brand.name');
-    $brandLogo = asset(config('brand.logo'));
+    // The mark, not the lockup: a sidebar brand is one line tall.
+    $brandLogo = asset(config('brand.mark'));
 @endphp
 
 @if($sidebar)

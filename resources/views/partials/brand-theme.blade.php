@@ -23,6 +23,8 @@
         --color-accent-dark: {{ $brand['deepest'] }};
         --color-gold: {{ $brand['gold'] }};
         --color-accent: {{ $brand['primary'] }};
+        --color-paper: {{ $brand['paper'] }};
+        --color-paper-deep: {{ $brand['paper_deep'] }};
     }
 
     .dark {

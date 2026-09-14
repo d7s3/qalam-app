@@ -39,7 +39,7 @@
                 <div class="text-[10px] text-gold/80">{{ config('brand.tagline') }}</div>
             </div>
             <span class="grid size-11 place-items-center rounded-2xl bg-[#fdfaf3] ring-1 ring-gold/30 shadow-sm">
-                <img src="{{ asset(config('brand.logo')) }}" alt="{{ config('brand.name') }}" class="h-8 w-auto object-contain" />
+                <img src="{{ asset(config('brand.mark')) }}" alt="{{ config('brand.name') }}" class="h-8 w-auto object-contain" />
             </span>
         </a>
     </div>

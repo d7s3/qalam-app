@@ -6,7 +6,10 @@
 </title>
 
 <link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" href="{{ asset(config('brand.favicon')) }}" type="image/svg+xml">
+{{-- Typed from the file rather than assumed: an organisation that has a PNG
+     mark and no SVG one was being served it as image/svg+xml. --}}
+<link rel="icon" href="{{ asset(config('brand.favicon')) }}"
+    type="{{ str_ends_with(config('brand.favicon'), '.svg') ? 'image/svg+xml' : 'image/png' }}">
 <link rel="apple-touch-icon" href="{{ asset(config('brand.apple_icon')) }}">
 
 <link rel="preconnect" href="https://fonts.bunny.net">

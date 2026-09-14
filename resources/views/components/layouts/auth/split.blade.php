@@ -4,7 +4,9 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-white antialiased dark:bg-zinc-950">
+    {{-- The organisation's own paper, the same ground the signed-in shell
+     stands on, so the door and the room behind it match. --}}
+    <body class="min-h-screen bg-paper antialiased dark:bg-zinc-950">
         <x-site-header />
 
         <div class="relative grid min-h-[calc(100dvh-4rem)] lg:grid-cols-2">

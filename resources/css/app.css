@@ -96,48 +96,48 @@
      * hundred such uses against an identity of two colours.
      *
      * Rather than edit them one by one, the families that carried no meaning
-     * are re-cut from the brand itself: the accents become the maroon, the
+     * are re-cut from the brand itself: the accents become the brand brown, the
      * quiet informational tones become the warm grey the identity already
      * names, and the one warm accent becomes the gold.
      *
      * Green, amber and rose are left exactly as they were. Those say present,
      * late and absent — they mean something, and meaning keeps its colour.
      */
-    --color-indigo-50: #fbf4f3;
-    --color-indigo-100: #f6e6e4;
-    --color-indigo-200: #ecccc8;
-    --color-indigo-300: #dda9a3;
-    --color-indigo-400: #c87a72;
-    --color-indigo-500: #a94a44;
-    --color-indigo-600: #9d2e33;
-    --color-indigo-700: #7a2727;
-    --color-indigo-800: #521f1e;
-    --color-indigo-900: #3f1a19;
-    --color-indigo-950: #2a1211;
+    --color-indigo-50: #faf8f1;
+    --color-indigo-100: #f2ebda;
+    --color-indigo-200: #e4d6b6;
+    --color-indigo-300: #cbb384;
+    --color-indigo-400: #a68e4f;
+    --color-indigo-500: #8a7540;
+    --color-indigo-600: #7e6a39;
+    --color-indigo-700: #6b5a30;
+    --color-indigo-800: #554726;
+    --color-indigo-900: #453f34;
+    --color-indigo-950: #2e2a22;
 
-    --color-violet-50: #fbf4f3;
-    --color-violet-100: #f6e6e4;
-    --color-violet-200: #ecccc8;
-    --color-violet-300: #dda9a3;
-    --color-violet-400: #c87a72;
-    --color-violet-500: #a94a44;
-    --color-violet-600: #9d2e33;
-    --color-violet-700: #7a2727;
-    --color-violet-800: #521f1e;
-    --color-violet-900: #3f1a19;
-    --color-violet-950: #2a1211;
+    --color-violet-50: #faf8f1;
+    --color-violet-100: #f2ebda;
+    --color-violet-200: #e4d6b6;
+    --color-violet-300: #cbb384;
+    --color-violet-400: #a68e4f;
+    --color-violet-500: #8a7540;
+    --color-violet-600: #7e6a39;
+    --color-violet-700: #6b5a30;
+    --color-violet-800: #554726;
+    --color-violet-900: #453f34;
+    --color-violet-950: #2e2a22;
 
-    --color-purple-50: #fbf4f3;
-    --color-purple-100: #f6e6e4;
-    --color-purple-200: #ecccc8;
-    --color-purple-300: #dda9a3;
-    --color-purple-400: #c87a72;
-    --color-purple-500: #a94a44;
-    --color-purple-600: #9d2e33;
-    --color-purple-700: #7a2727;
-    --color-purple-800: #521f1e;
-    --color-purple-900: #3f1a19;
-    --color-purple-950: #2a1211;
+    --color-purple-50: #faf8f1;
+    --color-purple-100: #f2ebda;
+    --color-purple-200: #e4d6b6;
+    --color-purple-300: #cbb384;
+    --color-purple-400: #a68e4f;
+    --color-purple-500: #8a7540;
+    --color-purple-600: #7e6a39;
+    --color-purple-700: #6b5a30;
+    --color-purple-800: #554726;
+    --color-purple-900: #453f34;
+    --color-purple-950: #2e2a22;
     --color-blue-50: #faf9f8;
     --color-blue-100: #f3f1ef;
     --color-blue-200: #e6e3e0;
@@ -178,8 +178,8 @@
     --color-teal-200: #f2e3c2;
     --color-teal-300: #e6cd99;
     --color-teal-400: #d9b57c;
-    --color-teal-500: #c9a063;
-    --color-teal-600: #b0854a;
+    --color-teal-500: #bca05c;
+    --color-teal-600: #a68a49;
     --color-teal-700: #8f6a3b;
     --color-teal-800: #6d5130;
     --color-teal-900: #533e27;
