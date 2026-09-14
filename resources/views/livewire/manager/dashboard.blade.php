@@ -1,5 +1,9 @@
 <div class="space-y-8 p-6" dir="rtl">
 
+    {{-- What the academy did, before what it is: the six figures and the
+         relations between them, counted inside the reader's own reach. --}}
+    <livewire:shared.activity-pulse />
+
     {{-- ══════════════════════════════════════════ --}}
     {{--  SECTION 1 – ATTENDANCE                   --}}
     {{-- ══════════════════════════════════════════ --}}

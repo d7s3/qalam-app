@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class OdeVerse extends Model
 {
+    // Its factory has always existed; the trait that makes it callable
+    // had not been put on the model.
+    use HasFactory;
+
     protected $fillable = [
         'ode_id',
         'verse_number',
