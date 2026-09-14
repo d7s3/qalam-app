@@ -421,6 +421,19 @@ new class extends Component
                 @endif
             @endforeach
 
+            {{-- What he has to read before he sends, not after: what it costs,
+                 and that sending is not being accepted. Set in the form's own
+                 colour rather than in the grey the privacy line uses. --}}
+            @if ($form->closing_note)
+                <div class="rounded-2xl border-2 p-5 leading-loose"
+                    style="border-color: color-mix(in srgb, var(--brand) 30%, transparent);
+                           background: color-mix(in srgb, var(--brand) 6%, white);">
+                    @foreach (preg_split('/\R/u', $form->closing_note, -1, PREG_SPLIT_NO_EMPTY) as $line)
+                        <p class="text-sm font-semibold text-zinc-700 @if (! $loop->first) mt-3 @endif">{{ $line }}</p>
+                    @endforeach
+                </div>
+            @endif
+
             @if ($form->policy_text)
                 <p class="px-1 text-xs leading-loose text-zinc-500">{{ $form->policy_text }}</p>
             @endif

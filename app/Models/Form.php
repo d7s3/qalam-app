@@ -37,6 +37,7 @@ class Form extends Model
         'is_public',
         'public_token',
         'public_intro',
+        'closing_note',
         'closes_on',
     ];
 

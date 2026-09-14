@@ -563,3 +563,35 @@ it('passes over a phone question whose answer is not a phone', function () {
     expect(FormResponse::where('form_id', $form->id)->firstOrFail()->respondent_phone)
         ->toBe('0501234567');
 });
+
+/**
+ * What a father must read before he sends, not after.
+ *
+ * Two things belong at the end of an application and nowhere else: what the
+ * term costs, and that sending the form is not being accepted into it. Putting
+ * them in `policy_text` would set them in the small grey type the privacy line
+ * uses, which is where things go to be unread — and a family that discovers the
+ * fee after believing its son was accepted has been badly treated.
+ */
+it('closes with the fee and with what the form is not', function () {
+    $this->seed(NawabighApplicationSeeder::class);
+
+    $form = Form::where('slug', 'nawabigh')->firstOrFail();
+
+    expect($form->closing_note)->toContain('ليس إعلاناً بالقبول')
+        ->and($form->closing_note)->toContain('٩٥٠')
+        ->and($form->closing_note)->toContain('خمسة أيام أسبوعياً')
+        ->and($form->closing_note)->toContain('أربع ساعات يومياً')
+        ->and($form->closing_note)->toContain('الأنشطة الداخلية الأسبوعية')
+        // Its own field, not folded into the privacy line.
+        ->and($form->policy_text)->not->toContain('٩٥٠');
+
+    // And it reaches the page a stranger opens.
+    $page = $this->get(route('forms.apply', ['token' => $form->public_token]))
+        ->assertSuccessful()
+        ->getContent();
+
+    foreach (['ليس إعلاناً بالقبول', '٩٥٠', 'الأنشطة الداخلية الأسبوعية'] as $said) {
+        expect(str_contains($page, $said))->toBeTrue("الخاتمة لا تظهر للمتقدّم: {$said}");
+    }
+});
