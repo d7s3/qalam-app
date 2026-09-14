@@ -8,6 +8,7 @@ use App\Models\Staff;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\Teacher;
+use App\Support\RoleHierarchy;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Timebox;
 use Illuminate\Validation\ValidationException;
@@ -93,18 +94,58 @@ class Login extends Component
     }
 
     /**
+     * The offices a person holds, ranked when neither carries the other.
+     *
+     * Only a tie-break: the hierarchy decides between the three that carry one
+     * another, and this settles the rest — a person who is both a manager and
+     * somebody's guardian works here and is a parent after hours.
+     */
+    protected const SENIORITY = ['manager', 'supervisor', 'staff', 'teacher', 'guardian', 'student'];
+
+    /**
      * Cheap indexed lookup (no password hashing involved) to find which
      * guard's table the email belongs to, if any.
+     *
+     * All of them are asked, not the first that answers. One person may hold
+     * several offices — the offices share a table and differ by a role row —
+     * and the loop used to stop at whichever came first in a list ordered for
+     * speed rather than for rank. A centre manager who also teaches a cohort
+     * was landed at the teacher's desk every morning and had to switch roles
+     * to reach his own.
      */
     protected function resolveGuardForEmail(string $email): ?string
     {
+        $held = [];
+
         foreach (self::GUARD_MODELS as $guard => $model) {
             if ($model::where('email', $email)->exists()) {
-                return $guard;
+                $held[] = $guard;
             }
         }
 
-        return null;
+        return $this->seniorOf($held);
+    }
+
+    /**
+     * The most senior of the offices held, which is the desk to open at.
+     *
+     * Asked of RoleHierarchy rather than hardcoded, because the academy can
+     * re-arrange who carries whom from its own settings screen, and the answer
+     * has to follow it.
+     *
+     * @param  array<int, string>  $held
+     */
+    protected function seniorOf(array $held): ?string
+    {
+        usort($held, function (string $a, string $b) {
+            $carries = count(RoleHierarchy::inheritedBy($b)) <=> count(RoleHierarchy::inheritedBy($a));
+
+            return $carries !== 0
+                ? $carries
+                : array_search($a, self::SENIORITY, true) <=> array_search($b, self::SENIORITY, true);
+        });
+
+        return $held[0] ?? null;
     }
 
     /**
