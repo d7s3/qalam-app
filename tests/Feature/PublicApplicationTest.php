@@ -604,7 +604,7 @@ it('closes with the fee and with what the form is not', function () {
         ->and($form->closing_note)->toContain('٣ أشهر تعليمية')
         // الخصم يُقال بطرفيه: ما كانت وما صارت. رقمٌ وحده لا يُقرأ خصماً.
         ->and($form->closing_note)->toContain('١٥٠٠')
-        ->and($form->closing_note)->toContain('خصماً خاصاً لهذا الترم')
+        ->and($form->closing_note)->toContain('خصم خاص لهذا الترم')
         // Its own field, not folded into the privacy line.
         ->and($form->policy_text)->not->toContain('٩٥٠');
 

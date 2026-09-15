@@ -2108,7 +2108,13 @@ new class extends Component {
                                         class="flex items-center gap-2 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-3 py-1.5 rounded-full border border-amber-200 dark:border-amber-800/50">
                                         <flux:icon icon="clock" class="size-3.5" />
                                         @php
-                                            $daysRemaining = now('Asia/Riyadh')->startOfDay()->diffInDays($leaderboard->end_date->startOfDay(), false);
+                                            // The competition ends on a calendar day, and today is read in
+                                            // Riyadh while a `date` cast lands at midnight UTC — so subtracting
+                                            // one from the other left three hours over and the badge read
+                                            // «متبقي 45.125 يوم». Both ends are rebuilt at midnight in the one
+                                            // timezone the academy lives in, and the answer is whole.
+                                            $endsOn = \Illuminate\Support\Carbon::parse($leaderboard->end_date->format('Y-m-d'), 'Asia/Riyadh');
+                                            $daysRemaining = (int) now('Asia/Riyadh')->startOfDay()->diffInDays($endsOn, false);
                                         @endphp
                                         @if($daysRemaining > 0)
                                             {{ __('متبقي :days يوم', ['days' => $daysRemaining]) }}

@@ -43,6 +43,21 @@ class AppServiceProvider extends ServiceProvider
     {
         Date::use(CarbonImmutable::class);
 
+        /**
+         * The language dates speak in.
+         *
+         * Every word on every screen is Arabic, but `app.locale` is `en` and
+         * Carbon reads its language from there — so the one place a date is
+         * written in prose rather than digits, `diffForHumans()`, answered «8
+         * hours ago» in the middle of an Arabic sentence. A guardian's notice
+         * board said it four times over.
+         *
+         * Set here rather than by moving `app.locale`, because that key also
+         * chooses which translation files are consulted and this application
+         * ships none — its keys are the Arabic strings themselves.
+         */
+        CarbonImmutable::setLocale('ar');
+
         Relation::enforceMorphMap([
             'student' => Student::class,
             'teacher' => Teacher::class,
