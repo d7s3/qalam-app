@@ -9,6 +9,7 @@ use App\Models\Stage;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\SelfProgramService;
+use App\Support\QuranMode;
 use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -133,15 +134,18 @@ describe('the teacher screen', function () {
     });
 
     it('saves the circle settings', function () {
+        // The switch became a choice of three; «إجمالي» is where the old «off»
+        // went — the cohort recites but keeps no day-by-day plan.
         Livewire::actingAs($this->teacher, 'teacher')
             ->test('teacher.self-program-manager')
-            ->set('isQuranic', false)
+            ->set('mode', QuranMode::Summary->value)
             ->set('unlockOnCompletion', true)
             ->call('saveSettings');
 
         $circle = $this->circle->fresh();
 
-        expect($circle->is_quranic)->toBeFalse()
+        expect($circle->quranMode())->toBe(QuranMode::Summary)
+            ->and($circle->is_quranic)->toBeFalse()
             ->and($circle->self_program_unlock_on_completion)->toBeTrue();
     });
 

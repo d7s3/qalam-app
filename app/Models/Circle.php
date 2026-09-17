@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\QuranMode;
 use Database\Factories\CircleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'description', 'stage_id', 'is_quranic', 'self_program_unlock_on_completion'])]
+#[Fillable(['name', 'description', 'stage_id', 'is_quranic', 'quran_mode', 'self_program_unlock_on_completion'])]
 class Circle extends Model
 {
     /** @use HasFactory<CircleFactory> */
@@ -22,8 +23,34 @@ class Circle extends Model
      */
     protected $casts = [
         'is_quranic' => 'boolean',
+        'quran_mode' => QuranMode::class,
         'self_program_unlock_on_completion' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        // `is_quranic` went on meaning what it always meant — «does this cohort
+        // keep a day-by-day plan» — so every reader of it reads correctly still.
+        // Kept in step here rather than at each screen that writes a cohort,
+        // because a screen written later would not know to.
+        static::saving(function (self $circle) {
+            if ($circle->isDirty('quran_mode')) {
+                $circle->is_quranic = $circle->quranMode()->isDetailed();
+            } elseif ($circle->isDirty('is_quranic')) {
+                // A cohort with the switch off still had its wird and still
+                // wrote it itself; that is «إجمالي», not «بلا».
+                $circle->quran_mode = $circle->is_quranic ? QuranMode::Detailed : QuranMode::Summary;
+            }
+        });
+    }
+
+    /** How this cohort runs its Quran, with the old default for a row written before the column. */
+    public function quranMode(): QuranMode
+    {
+        return $this->quran_mode instanceof QuranMode
+            ? $this->quran_mode
+            : ($this->is_quranic ? QuranMode::Detailed : QuranMode::Summary);
+    }
 
     /**
      * What to call this one.

@@ -40,9 +40,10 @@ class SelfProgramBridge
             return;
         }
 
-        // Only a circle that memorises has recitations to read from; elsewhere
-        // the wird is the student's own to confirm.
-        if (! $student->circle?->is_quranic) {
+        // Only a cohort keeping a day-by-day plan has graded days to read from.
+        // On «إجمالي» there is no plan and no grade: the wird is written by the
+        // student or by his teacher directly, and nothing must write over it.
+        if (! $student->circle?->quranMode()->isDetailed()) {
             return;
         }
 

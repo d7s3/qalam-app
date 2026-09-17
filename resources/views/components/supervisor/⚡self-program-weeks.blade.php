@@ -14,6 +14,7 @@ use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -62,6 +63,14 @@ new class extends Component
     public array $rows = [];
 
     public string $newStartsOn = '';
+
+    /** The open week's first day, while it is being moved. */
+    public string $editStartsOn = '';
+
+    public bool $editingDates = false;
+
+    /** Whether the «are you sure» for deleting the open week is showing. */
+    public bool $confirmingDelete = false;
 
     /**
      * The office this page was opened under.
@@ -579,6 +588,159 @@ new class extends Component
         Flux::toast(text: 'أُضيف الأسبوع.', variant: 'success');
     }
 
+    /**
+     * Open the week's own days for changing.
+     *
+     * A week could be added and its content written, and then it was fixed:
+     * a programme that began a week later than planned had to be deleted and
+     * retyped, because nothing on this screen could move it. A week is seven
+     * days, so only the first is asked for and the rest follow.
+     */
+    public function editDates(): void
+    {
+        $week = $this->guardOpenWeek();
+
+        $this->editStartsOn = $week->starts_on->toDateString();
+        $this->editingDates = true;
+    }
+
+    /**
+     * Move the open week to a new first day, and its written days with it.
+     *
+     * The daily plan is stored against real dates, not against «day three of
+     * the week» — so a week moved without its overrides would arrive empty and
+     * leave its content stranded on dates nobody reads. They travel by the same
+     * offset the year builder uses when it copies a week across the year.
+     *
+     * What the students already recorded stays where it is: an entry says what
+     * a boy did on a Tuesday, and moving the plan does not move his Tuesday.
+     */
+    public function saveDates(): void
+    {
+        $week = $this->guardOpenWeek();
+
+        $this->validate(
+            ['editStartsOn' => ['required', 'date']],
+            [],
+            ['editStartsOn' => 'تاريخ البداية'],
+        );
+
+        $starts = Carbon::parse($this->editStartsOn)->startOfDay();
+        $ends = $starts->copy()->addDays(6);
+        $shift = $week->starts_on->diffInDays($starts, false);
+
+        if ($shift === 0) {
+            $this->editingDates = false;
+
+            return;
+        }
+
+        $clash = SelfProgramWeek::clashOn(
+            $week->stage_id,
+            $week->circle_id,
+            SelfProgramWeek::TYPE_SELF,
+            $starts->toDateString(),
+            $ends->toDateString(),
+            $week->id,
+        );
+
+        if ($clash) {
+            Flux::toast(
+                text: __('الأسبوع :n يغطّي هذه الأيام بالفعل (:from — :to).', [
+                    'n' => $clash->week_number,
+                    'from' => $clash->starts_on->toDateString(),
+                    'to' => $clash->ends_on->toDateString(),
+                ]),
+                variant: 'warning',
+            );
+
+            return;
+        }
+
+        DB::transaction(function () use ($week, $starts, $ends, $shift) {
+            foreach (SelfProgramDayOverride::whereIn('self_program_item_id', $week->items->pluck('id'))->get() as $day) {
+                $day->update(['day_date' => $day->day_date->copy()->addDays($shift)]);
+            }
+
+            $week->update([
+                'starts_on' => $starts,
+                'ends_on' => $ends,
+                // And the days it joins into one column travel with it.
+                'merged_days' => collect($week->merged_days ?? [])
+                    ->map(fn ($group) => collect($group)
+                        ->map(fn ($day) => Carbon::parse($day)->addDays($shift)->toDateString())
+                        ->all())
+                    ->all(),
+            ]);
+        });
+
+        $this->editingDates = false;
+        unset($this->week, $this->weeks, $this->weekState, $this->currentWeekId);
+        $this->loadGrid();
+
+        Flux::toast(text: 'نُقل الأسبوع بمحتواه.', variant: 'success');
+    }
+
+    /**
+     * What a student would lose if the open week went.
+     *
+     * The items cascade, and the entries and day overrides hang off them — so
+     * deleting a week takes every «أنجزت» its students recorded under it. That
+     * is not a thing to discover afterwards, so it is counted and said out loud
+     * before the button is pressed.
+     */
+    #[Computed]
+    public function deleteCost(): int
+    {
+        $week = $this->week;
+
+        if (! $week) {
+            return 0;
+        }
+
+        return \App\Models\StudentSelfProgramEntry::whereIn(
+            'self_program_item_id',
+            $week->items->pluck('id'),
+        )->count();
+    }
+
+    public function confirmDelete(): void
+    {
+        $this->guardOpenWeek();
+        $this->confirmingDelete = true;
+    }
+
+    /**
+     * Remove the open week entirely.
+     *
+     * The numbers of the weeks after it are left alone: they are what the
+     * supervisor and the students have been calling them all term, and quietly
+     * renumbering would rename a week somebody is standing in.
+     */
+    public function deleteWeek(): void
+    {
+        $week = $this->guardOpenWeek();
+
+        $week->delete();
+
+        $this->confirmingDelete = false;
+        unset($this->week, $this->weeks, $this->weekState, $this->currentWeekId);
+        $this->openLatestWeek();
+        $this->loadGrid();
+
+        Flux::toast(text: __('حُذف الأسبوع :n.', ['n' => $week->week_number]), variant: 'success');
+    }
+
+    /** The open week, refused to anyone whose reach does not cover it. */
+    private function guardOpenWeek(): SelfProgramWeek
+    {
+        $week = $this->week;
+
+        abort_unless($week && $this->stages->contains('id', $week->stage_id), 403);
+
+        return $week;
+    }
+
     public function save(): void
     {
         $week = $this->week;
@@ -982,8 +1144,38 @@ new class extends Component
                             <x-hijri-date :date="$this->week->starts_on" /> — <x-hijri-date :date="$this->week->ends_on" />
                         </flux:subheading>
                     </div>
-                    <flux:button variant="primary" wire:click="save" icon="check">{{ __('حفظ') }}</flux:button>
+                    <div class="flex items-center gap-2">
+                        <flux:button size="sm" variant="ghost" icon="calendar" wire:click="editDates">
+                            {{ __('تعديل الأيام') }}
+                        </flux:button>
+                        <flux:button size="sm" variant="ghost" icon="trash" class="text-red-600" wire:click="confirmDelete">
+                            {{ __('حذف') }}
+                        </flux:button>
+                        <flux:button variant="primary" wire:click="save" icon="check">{{ __('حفظ') }}</flux:button>
+                    </div>
                 </div>
+
+                {{-- نقل الأسبوع: يوم واحد يُسأل عنه، والستّة الباقية تتبعه. --}}
+                @if ($editingDates)
+                    <div class="mt-4 p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
+                        <div class="flex flex-wrap items-end gap-3">
+                            <div class="w-48">
+                                <flux:label>{{ __('أول يوم في الأسبوع') }}</flux:label>
+                                <flux:input type="date" wire:model="editStartsOn" />
+                                <flux:error name="editStartsOn" />
+                            </div>
+                            <flux:button variant="primary" size="sm" wire:click="saveDates" icon="check">
+                                {{ __('نقل') }}
+                            </flux:button>
+                            <flux:button variant="ghost" size="sm" wire:click="$set('editingDates', false)">
+                                {{ __('إلغاء') }}
+                            </flux:button>
+                        </div>
+                        <p class="mt-2.5 text-xs text-zinc-500">
+                            {{ __('ينتقل الأسبوع بمحتواه اليومي إلى الأيام الجديدة. وما سجّله الطلاب من إنجازٍ يبقى في تاريخه.') }}
+                        </p>
+                    </div>
+                @endif
 
                 <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
                     @foreach ($tracks as $track)
@@ -1247,4 +1439,37 @@ new class extends Component
             </flux:card>
         @endif
     @endif
+
+    <flux:modal wire:model="confirmingDelete" class="md:w-[520px]" dir="rtl">
+        @if ($this->week)
+            <div class="space-y-5">
+                <div>
+                    <flux:heading size="lg">{{ __('حذف الأسبوع') }} {{ $this->week->week_number }}؟</flux:heading>
+                    <flux:subheading class="mt-1">
+                        <x-hijri-date :date="$this->week->starts_on" /> — <x-hijri-date :date="$this->week->ends_on" />
+                    </flux:subheading>
+                </div>
+
+                @if ($this->deleteCost > 0)
+                    <div class="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
+                        <p class="text-sm font-bold text-red-700 dark:text-red-300">
+                            {{ __('سيُحذف معه :n إنجازاً سجّله الطلاب في هذا الأسبوع.', ['n' => $this->deleteCost]) }}
+                        </p>
+                        <p class="mt-1 text-xs text-red-600/80 dark:text-red-400/80">
+                            {{ __('لا يمكن استرجاعها.') }}
+                        </p>
+                    </div>
+                @else
+                    <p class="text-sm text-zinc-500">
+                        {{ __('لم يسجّل أحدٌ إنجازاً في هذا الأسبوع بعد، فلن يفقد أحدٌ شيئاً.') }}
+                    </p>
+                @endif
+
+                <div class="flex items-center justify-end gap-2">
+                    <flux:button variant="ghost" wire:click="$set('confirmingDelete', false)">{{ __('إلغاء') }}</flux:button>
+                    <flux:button variant="danger" icon="trash" wire:click="deleteWeek">{{ __('احذف الأسبوع') }}</flux:button>
+                </div>
+            </div>
+        @endif
+    </flux:modal>
 </div>

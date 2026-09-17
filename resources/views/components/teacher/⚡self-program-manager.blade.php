@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
@@ -22,7 +23,8 @@ new class extends Component
     public string $tab = 'enrichment';
 
     /** Circle settings, mirrored so the toggles have somewhere to bind. */
-    public bool $isQuranic = true;
+    /** The cohort's Quran mode, as the settings form holds it. */
+    public string $mode = 'detailed';
 
     public bool $unlockOnCompletion = false;
 
@@ -41,6 +43,9 @@ new class extends Component
     public string $overrideDay = '';
 
     public ?float $overrideAmount = null;
+
+    /** Today's wird per student, on a cohort that keeps no day-by-day plan. */
+    public array $wird = [];
 
     public function mount(): void
     {
@@ -138,7 +143,7 @@ new class extends Component
     {
         $circle = $this->circle;
 
-        $this->isQuranic = (bool) ($circle?->is_quranic ?? true);
+        $this->mode = ($circle?->quranMode() ?? \App\Support\QuranMode::Detailed)->value;
         $this->unlockOnCompletion = (bool) ($circle?->self_program_unlock_on_completion ?? false);
         $this->weekId = $this->weeks->last()?->id;
         $this->overrideItemId = $this->selfWeek?->items->first()?->id;
@@ -154,14 +159,98 @@ new class extends Component
         return $circle;
     }
 
+    /** How this cohort runs its Quran. */
+    #[Computed]
+    public function quranMode(): \App\Support\QuranMode
+    {
+        return $this->circle?->quranMode() ?? \App\Support\QuranMode::None;
+    }
+
+    /**
+     * The Quran wird of this week, on a cohort that records it as a sum.
+     *
+     * On «تفصيلي» the wird is written by the bridge from graded days, and a
+     * second hand on it would count the same pages twice — so it is offered
+     * only where there is no plan to read from.
+     */
+    #[Computed]
+    public function wirdItem(): ?\App\Models\SelfProgramItem
+    {
+        if ($this->quranMode !== \App\Support\QuranMode::Summary) {
+            return null;
+        }
+
+        return $this->selfWeek?->items->first(fn ($item) => $item->track?->isQuranWird());
+    }
+
+    /** What is already down for today, so the boxes open on it rather than empty. */
+    #[Computed]
+    public function wirdToday(): array
+    {
+        $item = $this->wirdItem;
+
+        if (! $item) {
+            return [];
+        }
+
+        return \App\Models\StudentSelfProgramEntry::where('self_program_item_id', $item->id)
+            ->whereDate('entry_date', Carbon::today())
+            ->with('recordedBy')
+            ->get()
+            ->keyBy('student_id')
+            ->all();
+    }
+
+    /**
+     * Put a student's wird down for today, in the teacher's hand.
+     *
+     * The same row the student writes, deliberately: the table's unique index
+     * is (student, field, day, source), and a second source would be a second
+     * row that adds up — the wird counted twice for one reading. Whoever writes
+     * it last owns the figure, and the row says who that was.
+     */
+    public function saveWird(int $studentId): void
+    {
+        $item = $this->wirdItem;
+        $circle = $this->guardCircle();
+
+        abort_unless($item instanceof \App\Models\SelfProgramItem, 403);
+
+        $student = Student::where('circle_id', $circle->id)->findOrFail($studentId);
+
+        $this->validate([
+            "wird.{$studentId}" => ['nullable', 'numeric', 'min:0', 'max:9999'],
+        ], [], ["wird.{$studentId}" => 'الورد']);
+
+        app(SelfProgramService::class)->record(
+            $student,
+            $item,
+            (float) ($this->wird[$studentId] ?? 0),
+            Carbon::today(),
+            by: Auth::guard(Scope::resolveRole())->user(),
+        );
+
+        unset($this->wirdToday, $this->progress);
+
+        Flux::toast(text: 'سُجّل الورد.', variant: 'success');
+    }
+
     public function saveSettings(): void
     {
         $circle = $this->guardCircle();
 
+        $this->validate([
+            'mode' => ['required', Rule::enum(\App\Support\QuranMode::class)],
+        ]);
+
         $circle->update([
-            'is_quranic' => $this->isQuranic,
+            // `is_quranic` follows the mode on the model, so it is not written
+            // here: two hands on one fact is how they drift apart.
+            'quran_mode' => $this->mode,
             'self_program_unlock_on_completion' => $this->unlockOnCompletion,
         ]);
+
+        unset($this->quranMode, $this->wirdItem, $this->wirdToday);
 
         unset($this->circles, $this->circle);
 
@@ -398,9 +487,18 @@ new class extends Component
         <flux:card>
             <flux:heading size="lg">{{ __('إعدادات الدفعة') }}</flux:heading>
             <div class="mt-4 space-y-4">
-                <flux:switch wire:model="isQuranic"
-                    label="{{ __('حلقة قرآنية') }}"
-                    description="{{ __('يفتح الحفظ والمراجعة، ويجعل تسجيلك للتسميع يكتب ورد الطالب تلقائياً.') }}" />
+                <div>
+                    <flux:label>{{ __('البرنامج القرآني') }}</flux:label>
+                    <flux:description class="mb-3">{{ __('كيف تجري هذه الدفعة قرآنها — والورد يُقرأ من اختيارك هذا.') }}</flux:description>
+                    <flux:radio.group wire:model="mode" variant="cards" class="flex-col">
+                        @foreach (\App\Support\QuranMode::ordered() as $option)
+                            <flux:radio value="{{ $option->value }}"
+                                label="{{ $option->label() }}"
+                                description="{{ $option->description() }}" />
+                        @endforeach
+                    </flux:radio.group>
+                    <flux:error name="mode" />
+                </div>
                 <flux:switch wire:model="unlockOnCompletion"
                     label="{{ __('إنهاء الأسبوع يفتح التالي') }}"
                     description="{{ __('من أنهى محتوى أسبوعه كاملاً فُتح له الأسبوع التالي قبل موعده.') }}" />
@@ -609,6 +707,9 @@ new class extends Component
                             <flux:table.column>{{ __('الطالب') }}</flux:table.column>
                             <flux:table.column>{{ __('تقدّم الأسبوع') }}</flux:table.column>
                             <flux:table.column>{{ __('الإثرائي') }}</flux:table.column>
+                            @if ($this->wirdItem)
+                                <flux:table.column>{{ __('ورد اليوم') }}</flux:table.column>
+                            @endif
                         </flux:table.columns>
                         <flux:table.rows>
                             @forelse ($this->progress as $row)
@@ -631,10 +732,30 @@ new class extends Component
                                             {{ $row['unlocked'] ? __('مفتوح') : __('مقفل') }}
                                         </flux:badge>
                                     </flux:table.cell>
+                                    @if ($this->wirdItem)
+                                        @php $entry = $this->wirdToday[$row['student']->id] ?? null; @endphp
+                                        <flux:table.cell>
+                                            <div class="flex items-center gap-2">
+                                                <flux:input class="w-24" type="number" step="0.5" min="0"
+                                                    wire:model="wird.{{ $row['student']->id }}"
+                                                    placeholder="{{ $entry?->amount_done ?? '—' }}" />
+                                                <flux:button size="xs" variant="ghost" icon="check"
+                                                    wire:click="saveWird({{ $row['student']->id }})" />
+                                                @if ($entry)
+                                                    <span class="text-[11px] text-zinc-400 whitespace-nowrap">
+                                                        {{ $entry->amount_done }} {{ __('صفحة') }}
+                                                        @if ($entry->recordedBy)
+                                                            · {{ $entry->recordedBy->name }}
+                                                        @endif
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </flux:table.cell>
+                                    @endif
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="3" class="text-center text-zinc-400">
+                                    <flux:table.cell colspan="{{ $this->wirdItem ? 4 : 3 }}" class="text-center text-zinc-400">
                                         {{ __('لا طلاب في هذه الدفعة.') }}
                                     </flux:table.cell>
                                 </flux:table.row>

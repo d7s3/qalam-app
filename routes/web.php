@@ -121,6 +121,7 @@ Route::middleware(['auth:manager', 'approved', 'password.changed', 'page.enabled
     Route::view('/teachers', 'manager.teachers')->name('teachers');
     Route::view('/students', 'manager.students')->name('students');
     Route::view('/self-program-progress', 'manager.self-program-progress')->name('self-program-progress');
+    Route::view('/self-program-record', 'manager.self-program-record')->name('self-program-record');
     Route::view('/guardians', 'manager.guardians')->name('guardians');
     Route::view('/attendance-reports', 'manager.attendance-reports')->name('attendance-reports');
     Route::view('/yearly-attendance', 'manager.yearly-attendance')->name('yearly-attendance');
@@ -211,6 +212,7 @@ Route::middleware(['auth:supervisor', 'approved', 'password.changed', 'page.enab
     Route::view('/students', 'supervisor.students')->name('students');
     Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
     Route::view('/self-program-progress', 'supervisor.self-program-progress')->name('self-program-progress');
+    Route::view('/self-program-record', 'supervisor.self-program-record')->name('self-program-record');
     Route::view('/reports', 'supervisor.reports')->name('reports');
 
     // Screens this office carries from the ones beneath it. The name of
@@ -275,6 +277,7 @@ Route::middleware(['auth:teacher', 'approved', 'password.changed', 'page.enabled
     Route::view('/discipline', 'teacher.discipline')->name('discipline');
     Route::view('/quranic-discipline', 'teacher.quranic-discipline')->name('quranic-discipline');
     Route::view('/self-program', 'teacher.self-program')->name('self-program');
+    Route::view('/self-program-record', 'teacher.self-program-record')->name('self-program-record');
     Route::view('/reports', 'teacher.reports')->name('reports');
     // A named route per report, so each is a link that can be kept and
     // so each has a screen of its own whose permission can be set.
@@ -364,6 +367,7 @@ Route::middleware(['auth:student', 'approved', 'password.changed', 'page.enabled
     Route::view('/my-day', 'shared.my-day')->name('my-day');
     Route::get('/dashboard', fn () => view('student.dashboard'))->name('dashboard');
     Route::view('/self-program', 'student.self-program')->name('self-program');
+    Route::view('/self-program-record', 'student.self-program-record')->name('self-program-record');
     Route::view('/plan', 'student.my-plan')->name('plan');
     Route::view('/plan/create', 'student.plan-creator')->name('plan-creator');
     Route::view('/plan/show/{id}', 'student.show-plan')->name('show-plan');

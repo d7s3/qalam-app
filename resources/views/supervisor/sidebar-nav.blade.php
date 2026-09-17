@@ -82,6 +82,11 @@
             {{ __('تقدّم البرنامج') }}
         </flux:sidebar.item>
     @endif
+@if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.self-program-record'))
+    <flux:sidebar.item icon="clipboard-document-check" :href="route('supervisor.self-program-record')" :current="request()->routeIs('supervisor.self-program-record')" wire:navigate>
+        {{ __('سجلّ الطالب') }}
+    </flux:sidebar.item>
+@endif
     @if(\App\Support\RolePages::isEnabled('supervisor', 'supervisor.teachers'))
         <flux:sidebar.item icon="users" :href="route('supervisor.teachers')" :current="request()->routeIs('supervisor.teachers')" wire:navigate>
             المعلمون

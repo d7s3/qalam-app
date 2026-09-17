@@ -44,6 +44,60 @@ new class extends Component {
         return \App\Support\HijriDate::full($parsed->getTimestamp());
     }
     
+    /**
+     * Record what the student did, in his own hand.
+     *
+     * The grade was the teacher's to write and nobody else's, so a boy who
+     * recited at home on a Thursday had no way to say so: the day sat at «قيد
+     * الانتظار» until somebody remembered it, and the week's points with it. He
+     * writes it himself now and it counts the moment he does — the same points,
+     * the same reports, no second class of grade.
+     *
+     * He may write a day that carries no grade yet, and no other: once a grade
+     * is there it is the teacher's to change, so a boy cannot quietly raise one
+     * he was given. And he may not write tomorrow.
+     */
+    public function record(int $dayId, string $type, int $value): void
+    {
+        abort_unless(in_array($type, ['hifz', 'review'], true), 400);
+        abort_unless(in_array($value, [1, 2, 3], true), 400);
+
+        $studentId = Auth::guard('student')->id();
+
+        $day = StudentPlanDay::whereKey($dayId)
+            ->whereHas('plan', fn ($q) => $q->where('student_id', $studentId))
+            ->firstOrFail();
+
+        abort_if($day->date->isFuture(), 403);
+        abort_unless(is_null($day->{$type.'_achievement'}), 403);
+
+        $day->update([
+            $type.'_achievement' => $value,
+            $type.'_graded_at' => now(),
+        ]);
+
+        \App\Services\GamificationService::syncStudentPlanDayXP($day->fresh());
+
+        // The teacher is told rather than left to find out: the grade counts
+        // already, and his is the hand that corrects it if it is wrong.
+        $student = Auth::guard('student')->user();
+
+        if ($student?->circle_id) {
+            \App\Services\NotificationService::notifyCircleTeachers(
+                $student->circle_id,
+                'grading',
+                __('تسجيل ذاتي'),
+                __(':name سجّل إنجاز :part ليوم :day بنفسه.', [
+                    'name' => $student->name,
+                    'part' => $type === 'hifz' ? __('الحفظ') : __('المراجعة'),
+                    'day' => $day->date->format('Y-m-d'),
+                ]),
+            );
+        }
+
+        \Flux\Flux::toast(__('سُجّل إنجازك.'), variant: 'success');
+    }
+
     // Helper mapper for badges
     public function getAchievementBadge($val) {
         return match((int) $val) {
@@ -92,8 +146,12 @@ new class extends Component {
                 <flux:table.rows>
                     @forelse($days as $day)
                         @php
-                            $isToday = $day->date === $todayStr;
-                            $isFuture = $day->date > $todayStr;
+                            // `date` is cast, so it arrives as a Carbon. Compared against a
+                            // string, PHP calls every object the greater of the two — so every
+                            // day read as «قادم» and none was ever «اليوم», including today's.
+                            $dayStr = $day->date->format('Y-m-d');
+                            $isToday = $dayStr === $todayStr;
+                            $isFuture = $dayStr > $todayStr;
                         @endphp
                         <flux:table.row class="{{ $isToday ? 'bg-emerald-50/50 dark:bg-emerald-900/20' : '' }}">
                             <flux:table.cell class="first:ps-3" >
@@ -126,8 +184,23 @@ new class extends Component {
                                 @if($day->from_ayah_id)
                                     @if($isFuture && is_null($day->hifz_achievement))
                                         <flux:badge color="zinc" size="sm">{{ __('قادم') }}</flux:badge>
-                                    @elseif($isToday && is_null($day->hifz_achievement))
-                                        <flux:badge color="emerald" size="sm" variant="outline">{{ __('قيد الانتظار') }}</flux:badge>
+                                    @elseif(is_null($day->hifz_achievement))
+                                        {{-- لم يُقيَّم بعد، واليوم قد مضى أو هو اليوم: يسجّله الطالب بنفسه. --}}
+                                        <div class="flex items-center gap-1" wire:key="hifz-{{ $day->id }}">
+                                            @foreach ([
+                                                3 => ['ممتاز', 'hover:border-green-400 hover:text-green-700 dark:hover:text-green-300'],
+                                                2 => ['جيد', 'hover:border-blue-400 hover:text-blue-700 dark:hover:text-blue-300'],
+                                                1 => ['مقبول', 'hover:border-amber-400 hover:text-amber-700 dark:hover:text-amber-300'],
+                                            ] as $value => $grade)
+                                                <button type="button"
+                                                    wire:click="record({{ $day->id }}, 'hifz', {{ $value }})"
+                                                    wire:loading.attr="disabled"
+                                                    class="px-2 py-1 rounded-lg border text-[11px] font-bold transition-colors
+                                                        border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 {{ $grade[1] }}">
+                                                    {{ __($grade[0]) }}
+                                                </button>
+                                            @endforeach
+                                        </div>
                                     @else
                                         @php $b = $this->getAchievementBadge($day->hifz_achievement); @endphp
                                         <flux:badge :color="$b['color']" size="sm">{{ $b['label'] }}</flux:badge>
@@ -151,8 +224,23 @@ new class extends Component {
                                 @if($day->review_from_ayah_id)
                                     @if($isFuture && is_null($day->review_achievement))
                                         <flux:badge color="zinc" size="sm">{{ __('قادم') }}</flux:badge>
-                                    @elseif($isToday && is_null($day->review_achievement))
-                                        <flux:badge color="emerald" size="sm" variant="outline">{{ __('قيد الانتظار') }}</flux:badge>
+                                    @elseif(is_null($day->review_achievement))
+                                        {{-- لم يُقيَّم بعد، واليوم قد مضى أو هو اليوم: يسجّله الطالب بنفسه. --}}
+                                        <div class="flex items-center gap-1" wire:key="review-{{ $day->id }}">
+                                            @foreach ([
+                                                3 => ['ممتاز', 'hover:border-green-400 hover:text-green-700 dark:hover:text-green-300'],
+                                                2 => ['جيد', 'hover:border-blue-400 hover:text-blue-700 dark:hover:text-blue-300'],
+                                                1 => ['مقبول', 'hover:border-amber-400 hover:text-amber-700 dark:hover:text-amber-300'],
+                                            ] as $value => $grade)
+                                                <button type="button"
+                                                    wire:click="record({{ $day->id }}, 'review', {{ $value }})"
+                                                    wire:loading.attr="disabled"
+                                                    class="px-2 py-1 rounded-lg border text-[11px] font-bold transition-colors
+                                                        border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 {{ $grade[1] }}">
+                                                    {{ __($grade[0]) }}
+                                                </button>
+                                            @endforeach
+                                        </div>
                                     @else
                                         @php $b = $this->getAchievementBadge($day->review_achievement); @endphp
                                         <flux:badge :color="$b['color']" size="sm">{{ $b['label'] }}</flux:badge>

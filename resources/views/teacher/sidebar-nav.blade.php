@@ -73,6 +73,11 @@
                 {{ __('البرنامج الذاتي') }}
             </flux:sidebar.item>
         @endif
+    @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.self-program-record'))
+        <flux:sidebar.item icon="clipboard-document-check" :href="route('teacher.self-program-record')" :current="request()->routeIs('teacher.self-program-record')" wire:navigate>
+            {{ __('سجلّ الطالب') }}
+        </flux:sidebar.item>
+    @endif
         @if(\App\Support\RolePages::isEnabled('teacher', 'teacher.student-plans'))
             <flux:sidebar.item icon="clipboard-document-list" wire:navigate
                 :current="request()->routeIs('teacher.student-plans')" href="{{ route('teacher.student-plans') }}">

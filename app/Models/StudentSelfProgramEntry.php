@@ -5,10 +5,18 @@ namespace App\Models;
 use App\Services\GamificationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class StudentSelfProgramEntry extends Model
 {
-    /** Confirmed by the student on his own page. */
+    /**
+     * The wird as it was confirmed, rather than read off a graded day.
+     *
+     * Named for the student because it is his wird and he is usually the one
+     * who writes it; on «قرآني إجمالي» his teacher may write the same row
+     * instead, and `recorded_by` says which of them did. One row either way —
+     * a second source would be a second row, and the pages counted twice.
+     */
     public const SOURCE_STUDENT = 'student';
 
     /** Written for him when his teacher recorded a recitation. */
@@ -20,7 +28,22 @@ class StudentSelfProgramEntry extends Model
         'entry_date',
         'amount_done',
         'source',
+        'recorded_by_type',
+        'recorded_by_id',
     ];
+
+    /**
+     * Whose hand wrote it.
+     *
+     * On «إجمالي» the student and his teacher write the same row, so the row is
+     * the only place the answer can live.
+     *
+     * @return MorphTo<Model, $this>
+     */
+    public function recordedBy(): MorphTo
+    {
+        return $this->morphTo();
+    }
 
     protected static function booted(): void
     {

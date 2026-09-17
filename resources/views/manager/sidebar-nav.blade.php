@@ -72,6 +72,11 @@
         {{ __('تقدّم البرنامج') }}
     </flux:sidebar.item>
 @endif
+@if(\App\Support\RolePages::isEnabled('manager', 'manager.self-program-record'))
+    <flux:sidebar.item icon="clipboard-document-check" :href="route('manager.self-program-record')" :current="request()->routeIs('manager.self-program-record')" wire:navigate>
+        {{ __('سجلّ الطالب') }}
+    </flux:sidebar.item>
+@endif
 @if(\App\Support\RolePages::isEnabled('manager', 'manager.circles'))
     <flux:sidebar.item icon="circle-stack" :href="route('manager.circles')" :current="request()->routeIs('manager.circles')"
         wire:navigate>

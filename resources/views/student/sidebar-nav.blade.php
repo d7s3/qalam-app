@@ -21,21 +21,37 @@
             {{ __('البرنامج الذاتي') }}
         </flux:sidebar.item>
     @endif
-    @if(\App\Support\RolePages::isEnabled('student', 'student.plan'))
-        <flux:sidebar.item icon="book-open" :href="route('student.plan')" :current="request()->routeIs('student.plan')" wire:navigate>
-            {{ __('خططي القرآنية') }}
+    @if(\App\Support\RolePages::isEnabled('student', 'student.self-program-record'))
+        <flux:sidebar.item icon="clipboard-document-check" :href="route('student.self-program-record')" :current="request()->routeIs('student.self-program-record')" wire:navigate>
+            {{ __('سجلّ إنجازي') }}
         </flux:sidebar.item>
     @endif
-    @if(\App\Support\RolePages::isEnabled('student', 'student.hifz'))
-        <flux:sidebar.item icon="bookmark" :href="route('student.hifz')" :current="request()->routeIs('student.hifz')" wire:navigate>
-            {{ __('الحفظ') }}
-        </flux:sidebar.item>
-    @endif
-    @if(\App\Support\RolePages::isEnabled('student', 'student.review'))
-        <flux:sidebar.item icon="arrow-path" :href="route('student.review')" :current="request()->routeIs('student.review')" wire:navigate>
-            {{ __('المراجعة') }}
-        </flux:sidebar.item>
-    @endif
+{{-- المسار القرآني جزءٌ من البرنامج الذاتي لا جارٌ له، فينزل تحته بعنوانه. --}}
+@php $quranPages = collect(['student.plan', 'student.hifz', 'student.review'])
+        ->filter(fn ($page) => \App\Support\RolePages::isEnabled('student', $page)); @endphp
+</flux:sidebar.group>
+
+@if($quranPages->isNotEmpty())
+    <flux:sidebar.group heading="{{ __('المسار القرآني') }}" class="grid mt-4">
+        @if($quranPages->contains('student.plan'))
+            <flux:sidebar.item icon="book-open" :href="route('student.plan')" :current="request()->routeIs('student.plan')" wire:navigate>
+                {{ __('خططي القرآنية') }}
+            </flux:sidebar.item>
+        @endif
+        @if($quranPages->contains('student.hifz'))
+            <flux:sidebar.item icon="bookmark" :href="route('student.hifz')" :current="request()->routeIs('student.hifz')" wire:navigate>
+                {{ __('الحفظ') }}
+            </flux:sidebar.item>
+        @endif
+        @if($quranPages->contains('student.review'))
+            <flux:sidebar.item icon="arrow-path" :href="route('student.review')" :current="request()->routeIs('student.review')" wire:navigate>
+                {{ __('المراجعة') }}
+            </flux:sidebar.item>
+        @endif
+    </flux:sidebar.group>
+@endif
+
+<flux:sidebar.group class="grid mt-4">
     @if(\App\Support\RolePages::isEnabled('student', 'student.exams'))
         <flux:sidebar.item icon="academic-cap" :href="route('student.exams')" :current="request()->routeIs('student.exams')" wire:navigate>
             {{ __('الاختبارات') }}

@@ -44,21 +44,36 @@ class QuranicStudent
         'student.plan-creator',
     ];
 
-    /** Whether this student sits in a circle whose content is Quranic. */
+    /**
+     * Whether this student is shown the day-by-day Quranic interface.
+     *
+     * Read off the cohort's mode rather than off `is_quranic`, because a cohort
+     * on «إجمالي» recites and yet keeps no plan: these pages would show him an
+     * empty plan and two empty logs, and ask him to grade days nobody wrote.
+     */
     public static function applies(?User $user): bool
     {
+        return self::mode($user)->isDetailed();
+    }
+
+    /** How this student's cohort runs its Quran. */
+    public static function mode(?User $user): QuranMode
+    {
         if (! $user?->circle_id) {
-            return false;
+            return QuranMode::None;
         }
 
         $key = self::CACHE.":{$user->id}";
 
         if (! app()->bound($key)) {
             self::$cached[$key] = true;
-            app()->instance($key, ['is' => (bool) Circle::whereKey($user->circle_id)->value('is_quranic')]);
+
+            $circle = Circle::whereKey($user->circle_id)->first(['id', 'is_quranic', 'quran_mode']);
+
+            app()->instance($key, ['mode' => $circle?->quranMode() ?? QuranMode::None]);
         }
 
-        return app($key)['is'];
+        return app($key)['mode'];
     }
 
     /** Whether a page is one this student is not shown. */

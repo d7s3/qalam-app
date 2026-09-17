@@ -14,6 +14,7 @@ use App\Support\SelfProgramUnit;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 /**
@@ -685,6 +686,104 @@ class SelfProgramService
     }
 
     /**
+     * A student's record, week by week, and what of it arrived late.
+     *
+     * The programme already let a student settle an old week's work — recorded
+     * under today, because that is when it was done, while still counting
+     * towards the week it belonged to. What it never did was say so: the figure
+     * went in and the week quietly filled, so a boy a fortnight behind and a boy
+     * who kept up read identically, and neither he nor his teacher could tell
+     * them apart.
+     *
+     * Late is not stored; it is read. An entry is late when it was written
+     * after its week had closed — which is the truth of the matter, and cannot
+     * drift out of step with the entries the way a flag would.
+     *
+     * @param  Collection<int, SelfProgramWeek>|null  $weeks  defaults to the student's own
+     * @return array<int, array{
+     *     week: SelfProgramWeek,
+     *     closed: bool,
+     *     overall: float,
+     *     late: float,
+     *     tracks: array<int, array{item: SelfProgramItem, done: float, late: float, target: float, percent: float}>
+     * }>
+     */
+    public function weeklyRecord(Student $student, ?Collection $weeks = null, ?CarbonInterface $on = null): array
+    {
+        $today = ($on ?? Carbon::today())->copy()->startOfDay();
+
+        $weeks ??= SelfProgramWeek::self()
+            ->where(function ($q) use ($student) {
+                $q->when($student->circle_id, fn ($c) => $c->where('circle_id', $student->circle_id))
+                    ->orWhere(fn ($w) => $w->whereNull('circle_id')->where('stage_id', $student->effective_stage_id));
+            })
+            ->with('items')
+            ->orderBy('starts_on')
+            ->get();
+
+        if ($weeks->isEmpty()) {
+            return [];
+        }
+
+        $weeks->each->loadMissing('items');
+        $itemIds = $weeks->pluck('items')->flatten()->pluck('id');
+
+        // One pass over the entries: their dates are needed as well as their
+        // amounts, so the totals cannot be summed in the database alone.
+        $entries = StudentSelfProgramEntry::where('student_id', $student->id)
+            ->whereIn('self_program_item_id', $itemIds)
+            ->get()
+            ->groupBy('self_program_item_id');
+
+        $out = [];
+
+        foreach ($weeks as $week) {
+            $closes = $week->ends_on->copy()->startOfDay();
+            $tracks = [];
+            $percentages = [];
+            $lateTotal = 0.0;
+            $totals = [];
+
+            foreach ($week->items as $item) {
+                $rows = $entries->get($item->id) ?? collect();
+
+                $done = (float) $rows->sum('amount_done');
+                $late = (float) $rows
+                    ->filter(fn (StudentSelfProgramEntry $row) => $row->entry_date->copy()->startOfDay()->greaterThan($closes))
+                    ->sum('amount_done');
+
+                $target = (float) $item->target_amount;
+                $percent = $target > 0 ? min(100.0, $done / $target * 100) : 0.0;
+
+                $totals[$item->id] = $done;
+                $lateTotal += $late;
+
+                $tracks[] = [
+                    'item' => $item,
+                    'done' => $done,
+                    'late' => $late,
+                    'target' => $target,
+                    'percent' => round($percent, 1),
+                ];
+
+                if ($target > 0) {
+                    $percentages[] = $percent;
+                }
+            }
+
+            $out[] = [
+                'week' => $week,
+                'closed' => $closes->lessThan($today),
+                'overall' => $percentages === [] ? 0.0 : round(array_sum($percentages) / count($percentages), 1),
+                'late' => round($lateTotal, 2),
+                'tracks' => $tracks,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Whether the enrichment programme has opened for this week.
      *
      * Callers that have already read the week pass its figure in; the reading
@@ -904,6 +1003,7 @@ class SelfProgramService
         ?CarbonInterface $on = null,
         string $source = StudentSelfProgramEntry::SOURCE_STUDENT,
         bool $recitationConfirmed = false,
+        ?Model $by = null,
     ): ?StudentSelfProgramEntry {
         // Bound as a Carbon rather than a bare "Y-m-d": the `date` cast writes
         // the full "Y-m-d H:i:s" form, and on SQLite the column is text, so a
@@ -940,7 +1040,13 @@ class SelfProgramService
             return null;
         }
 
-        return StudentSelfProgramEntry::updateOrCreate($keys, ['amount_done' => round($amount, 2)]);
+        return StudentSelfProgramEntry::updateOrCreate($keys, [
+            'amount_done' => round($amount, 2),
+            // On «إجمالي» the student and his teacher write the same row, so the
+            // row is the only place that can say whose hand wrote it last.
+            'recorded_by_type' => $by?->getMorphClass(),
+            'recorded_by_id' => $by?->getKey(),
+        ]);
     }
 
     /**

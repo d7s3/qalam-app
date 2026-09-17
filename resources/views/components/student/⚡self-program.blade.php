@@ -100,7 +100,7 @@ new class extends Component
     private function bridged(SelfProgramItem $item): bool
     {
         return $item->track?->isQuranWird()
-            && (bool) Auth::guard('student')->user()->circle?->is_quranic;
+            && \App\Support\QuranicStudent::mode(Auth::guard('student')->user())->isDetailed();
     }
 
     /**
@@ -111,9 +111,15 @@ new class extends Component
      */
     private function openItems(): Collection
     {
+        // The wird belongs to the week, and the week belongs to the programme —
+        // so a دفعة with no Quran of its own was still being shown the field and
+        // asked to fill it. It is dropped for whoever does not recite at all.
+        $recites = \App\Support\QuranicStudent::mode(Auth::guard('student')->user())->recites();
+
         return collect([$this->week(), $this->enrichmentWeek()])
             ->filter()
-            ->flatMap(fn ($week) => $week->items);
+            ->flatMap(fn ($week) => $week->items)
+            ->reject(fn (SelfProgramItem $item) => $item->track?->isQuranWird() && ! $recites);
     }
 
     /**
@@ -194,12 +200,15 @@ new class extends Component
     private function write(SelfProgramItem $item, float $amount, bool $recited = false): void
     {
         try {
+            $student = Auth::guard('student')->user();
+
             app(SelfProgramService::class)->record(
-                Auth::guard('student')->user(),
+                $student,
                 $item,
                 $amount,
                 Carbon::parse($this->day),
                 recitationConfirmed: $recited,
+                by: $student,
             );
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
@@ -238,6 +247,7 @@ new class extends Component
             $item,
             $already + SelfProgramUnit::normalise((float) $this->settleAmounts[$itemId], $item->displayUnit()),
             $today,
+            by: $student,
         );
 
         $this->settleAmounts[$itemId] = null;
