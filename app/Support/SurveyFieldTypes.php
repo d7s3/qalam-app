@@ -27,6 +27,7 @@ class SurveyFieldTypes
             'section' => ['label' => 'فاصل قسم', 'icon' => 'bars-3-bottom-right', 'options' => false, 'scale' => false, 'layout' => true],
             'text' => ['label' => 'نص قصير', 'icon' => 'pencil', 'options' => false, 'scale' => false, 'layout' => false],
             'long_text' => ['label' => 'نص طويل', 'icon' => 'bars-3', 'options' => false, 'scale' => false, 'layout' => false],
+            'mcq' => ['label' => 'اختيار من متعدد (مُصحَّح)', 'icon' => 'check-badge', 'options' => true, 'scale' => false, 'layout' => false],
             'rating' => ['label' => 'مقياس رضا', 'icon' => 'star', 'options' => false, 'scale' => true, 'layout' => false],
             'likert' => ['label' => 'مدى الموافقة', 'icon' => 'adjustments-horizontal', 'options' => false, 'scale' => true, 'layout' => false],
             'nps' => ['label' => 'مقياس الترشيح', 'icon' => 'megaphone', 'options' => false, 'scale' => true, 'layout' => false],
@@ -115,11 +116,31 @@ class SurveyFieldTypes
 
         return match ($type) {
             'nps' => ['min' => 0, 'max' => 10],
-            'likert' => ['min' => 1, 'max' => 5],
+            // A likert question normally runs 1-5, but a scored questionnaire
+            // (e.g. a 1-4 self-report scale) may declare its own bounds.
+            'likert' => [
+                'min' => (int) ($field['scale_min'] ?? 1),
+                'max' => (int) ($field['scale_max'] ?? 5),
+            ],
             // A rating may be set to any ceiling from 3 to 10; five is the default.
             'rating' => ['min' => 1, 'max' => max(3, min(10, (int) ($field['max'] ?? 5)))],
             default => null,
         };
+    }
+
+    /**
+     * The value=>label rungs a likert question shows, in the order they render.
+     *
+     * A scored questionnaire may carry its own wording (e.g. "لا يشبهني" through
+     * "يشبهني جدًا" on a 1-4 scale) instead of the default 1-5 agreement scale,
+     * so the builder preview and the public page both defer to it when present.
+     *
+     * @param  array<string, mixed>  $field
+     * @return array<int, string>
+     */
+    public static function likertLabelsFor(array $field): array
+    {
+        return $field['scale_labels'] ?? self::likertScale();
     }
 
     /**
@@ -133,6 +154,10 @@ class SurveyFieldTypes
         return match ($type) {
             'rating' => ['max' => 5],
             'select', 'multiselect' => ['options' => []],
+            // No correct option yet, one point by default, and no dimension —
+            // a plain mcq is just a select until a scored form's seeder or
+            // builder gives it one.
+            'mcq' => ['options' => [], 'correct_option' => null, 'points' => 1, 'dimension' => null],
             default => [],
         };
     }

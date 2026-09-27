@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class FormResponse extends Model
 {
@@ -20,6 +21,11 @@ class FormResponse extends Model
         'respondent_name',
         'respondent_phone',
         'respondent_email',
+        'score',
+        'manual_scores',
+        'graded_at',
+        'graded_by_id',
+        'graded_by_type',
     ];
 
     /**
@@ -32,6 +38,9 @@ class FormResponse extends Model
         return [
             'answers' => 'array',
             'is_processed' => 'boolean',
+            'score' => 'array',
+            'manual_scores' => 'array',
+            'graded_at' => 'datetime',
         ];
     }
 
@@ -45,5 +54,11 @@ class FormResponse extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    /** @return MorphTo<Model, $this> */
+    public function gradedBy(): MorphTo
+    {
+        return $this->morphTo('graded_by');
     }
 }

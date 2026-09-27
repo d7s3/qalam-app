@@ -261,6 +261,9 @@
                                 @endif
                             </th>
                             <th class="p-4 text-start bg-inherit">تاريخ الرد</th>
+                            @if($isScoredForm)
+                                <th class="p-4 text-start bg-inherit">الدرجة</th>
+                            @endif
                             @foreach($form->fields as $field)
                                 @continue(\App\Support\SurveyFieldTypes::isLayout($field['type']))
                                 <th class="p-4 text-start min-w-[120px] bg-inherit">{{ $field['label'] }}</th>
@@ -281,6 +284,23 @@
                                 <td class="p-4 whitespace-nowrap text-xs text-zinc-400 dark:text-zinc-500">
                                     <x-hijri-date :date="$response->created_at" style="withTime" />
                                 </td>
+                                @if($isScoredForm)
+                                    @php $score = $this->scoreSummary($response); @endphp
+                                    <td class="p-4 whitespace-nowrap">
+                                        @if($score['composite'] !== null)
+                                            <flux:badge size="sm" :color="$score['composite'] >= 70 ? 'emerald' : ($score['composite'] >= 50 ? 'amber' : 'rose')">
+                                                {{ $score['composite'] }}%
+                                            </flux:badge>
+                                        @else
+                                            <span class="text-xs text-zinc-400">—</span>
+                                        @endif
+                                        @if($response->graded_at)
+                                            <div class="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">صُحِّحت الأسئلة المفتوحة</div>
+                                        @elseif(!empty($manualFields))
+                                            <div class="text-[10px] text-amber-600 dark:text-amber-400 mt-1">بانتظار تصحيح الأسئلة المفتوحة</div>
+                                        @endif
+                                    </td>
+                                @endif
                                 @foreach($form->fields as $field)
                                     @continue(\App\Support\SurveyFieldTypes::isLayout($field['type']))
                                     @php
@@ -288,7 +308,13 @@
                                         $answer = $response->answers[$fieldId] ?? null;
                                     @endphp
                                     <td class="p-4">
-                                        @if($field['type'] === 'image' && $answer)
+                                        @if($field['type'] === 'mcq' && $answer !== null && $answer !== '')
+                                            <div class="flex items-center gap-1.5">
+                                                <flux:icon :name="$answer === ($field['correct_option'] ?? null) ? 'check-circle' : 'x-circle'"
+                                                    class="size-4 shrink-0 {{ $answer === ($field['correct_option'] ?? null) ? 'text-emerald-500' : 'text-rose-500' }}" />
+                                                <span class="text-xs" title="{{ $answer }}">{{ $answer }}</span>
+                                            </div>
+                                        @elseif($field['type'] === 'image' && $answer)
                                             <a href="{{ asset('storage/' . $answer) }}" target="_blank" class="block w-10 h-10 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 hover:scale-105 transition-transform">
                                                 <img src="{{ asset('storage/' . $answer) }}" class="w-full h-full object-cover" />
                                             </a>
@@ -301,7 +327,7 @@
                                                 @endforeach
                                             </div>
                                         @elseif($field['type'] === 'likert' && $answer !== null && $answer !== '')
-                                            <span class="text-xs font-medium">{{ \App\Support\SurveyFieldTypes::likertScale()[(int) $answer] ?? $answer }}</span>
+                                            <span class="text-xs font-medium">{{ \App\Support\SurveyFieldTypes::likertLabelsFor($field)[(int) $answer] ?? $answer }}</span>
                                         @elseif(\App\Support\SurveyFieldTypes::isScale($field['type']) && $answer !== null && $answer !== '')
                                             @php $bounds = \App\Support\SurveyFieldTypes::scaleBounds($field); @endphp
                                             <span class="text-xs font-bold tabular-nums">{{ $answer }}<span class="text-zinc-400 font-normal"> / {{ $bounds['max'] }}</span></span>
@@ -325,6 +351,11 @@
                                     @endif
                                 </td>
                                 <td class="p-4 whitespace-nowrap flex items-center gap-2">
+                                    @if($isScoredForm && !empty($manualFields))
+                                        <flux:button wire:click="openGradeModal({{ $response->id }})" size="sm" variant="ghost" class="text-xs">
+                                            تصحيح الأسئلة المفتوحة
+                                        </flux:button>
+                                    @endif
                                     @if(!$response->student_id)
                                         <flux:button wire:click="openCreateModal({{ $response->id }})" size="sm" variant="filled" class="text-xs">
                                             إنشاء حساب طالب
@@ -502,6 +533,41 @@
         <div class="flex justify-end gap-3 pt-4 border-t border-zinc-150 dark:border-zinc-850">
             <flux:button @click="$wire.showLinkModal = false" variant="ghost">إلغاء</flux:button>
             <flux:button wire:click="linkToExistingStudent" variant="primary">ربط البيانات</flux:button>
+        </div>
+    </flux:modal>
+
+    <!-- Modal: Grade the manual (free-text) part of a scored assessment -->
+    <flux:modal wire:model="showGradeModal" class="w-full max-w-2xl space-y-5">
+        <div>
+            <h2 class="text-lg font-bold text-zinc-900 dark:text-white">تصحيح الأسئلة المفتوحة</h2>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                الاختيار من متعدد ومقاييس الموافقة صُحِّحت تلقائيًا عند الإرسال؛ هذا القسم فقط لما يحتاج تقدير إنسان.
+            </p>
+        </div>
+
+        @if($gradingResponse)
+            <div class="space-y-4 max-h-[26rem] overflow-y-auto pr-1">
+                @foreach($manualFields as $field)
+                    @php $answer = $gradingResponse->answers[$field['id']] ?? null; @endphp
+                    <div class="rounded-lg border border-zinc-150 dark:border-zinc-800 p-4 space-y-2">
+                        <p class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{{ $field['label'] }}</p>
+                        <p class="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-line bg-zinc-50 dark:bg-zinc-950/40 rounded-md p-3">
+                            {{ $answer !== null && $answer !== '' ? $answer : '— لم يُجب —' }}
+                        </p>
+                        <flux:field class="w-40">
+                            <flux:label>الدرجة (من {{ $field['max_manual_score'] }})</flux:label>
+                            <flux:input type="number" min="0" :max="$field['max_manual_score']" step="0.5"
+                                wire:model="manualGradeInputs.{{ $field['id'] }}" />
+                            <flux:error name="manualGradeInputs.{{ $field['id'] }}" />
+                        </flux:field>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-zinc-150 dark:border-zinc-850">
+            <flux:button @click="$wire.showGradeModal = false" variant="ghost">إلغاء</flux:button>
+            <flux:button wire:click="saveManualGrades" variant="primary">حفظ التصحيح</flux:button>
         </div>
     </flux:modal>
 

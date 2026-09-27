@@ -2,6 +2,7 @@
 
 use App\Models\Form;
 use App\Models\FormResponse;
+use App\Services\FormScoringService;
 use App\Support\SurveyFieldTypes;
 use Livewire\Component;
 
@@ -137,10 +138,16 @@ new class extends Component
             $key = "answers.{$field['id']}";
             $required = ($field['required'] ?? false) ? 'required' : 'nullable';
 
-            $rules[$key] = match ($field['type']) {
-                'multiselect' => [$required, 'array'],
-                'date' => [$required, 'date'],
-                'long_text' => [$required, 'string', 'max:2000'],
+            $rules[$key] = match (true) {
+                $field['type'] === 'multiselect' => [$required, 'array'],
+                $field['type'] === 'date' => [$required, 'date'],
+                $field['type'] === 'long_text' => [$required, 'string', 'max:2000'],
+                // A tampered scale answer must land inside the range the
+                // question itself declares — a self-report on a 1-4 scale
+                // must not be storable as an 11.
+                ($bounds = SurveyFieldTypes::scaleBounds($field)) !== null => [
+                    $required, 'integer', 'min:'.$bounds['min'], 'max:'.$bounds['max'],
+                ],
                 default => [$required, 'string', 'max:500'],
             };
 
@@ -166,12 +173,20 @@ new class extends Component
         // academy can reach him without reading the whole form to find a number.
         $reach = $this->contactDetails($answers);
 
+        // An ordinary application has no field tagged with a `dimension`, so
+        // this is null for every form but a scored assessment — nothing here
+        // has to know which one it is answering.
+        $score = FormScoringService::isScored($this->form)
+            ? FormScoringService::score($this->form, $answers)
+            : null;
+
         FormResponse::create([
             'form_id' => $this->form->id,
             'answers' => $answers,
             'respondent_name' => $reach['name'],
             'respondent_phone' => $reach['phone'],
             'respondent_email' => $reach['email'],
+            'score' => $score,
         ]);
 
         $this->done = true;
@@ -431,6 +446,39 @@ new class extends Component
                                             <option value="{{ $option }}">{{ $option }}</option>
                                         @endforeach
                                     </select>
+                                    @break
+
+                                {{-- A scored multiple-choice item: one answer, shown as full-width
+                                     cards rather than a dropdown, since the choices are read, not
+                                     recalled from a list. --}}
+                                @case($type === 'mcq')
+                                    <div class="space-y-2">
+                                        @foreach ($field['options'] ?? [] as $option)
+                                            <label class="flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-sm transition
+                                                {{ ($answers[$field['id']] ?? null) === $option ? 'font-bold text-white' : 'border-zinc-200 text-zinc-700' }}"
+                                                style="{{ ($answers[$field['id']] ?? null) === $option ? 'background: var(--brand); border-color: var(--brand);' : '' }}">
+                                                <input type="radio" class="sr-only"
+                                                    wire:model.live="answers.{{ $field['id'] }}" value="{{ $option }}" />
+                                                <span>{{ $option }}</span>
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                    @break
+
+                                {{-- A likert question with its own wording (e.g. a 1-4 self-report
+                                     scale) reads its rungs as words, not as bare numbers. --}}
+                                @case($type === 'likert' && ! empty($field['scale_labels']))
+                                    <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                        @foreach ($field['scale_labels'] as $value => $wording)
+                                            <label class="cursor-pointer rounded-xl border px-3 py-2.5 text-center text-sm font-medium transition
+                                                {{ (int) ($answers[$field['id']] ?? 0) === (int) $value ? 'font-bold text-white' : 'border-zinc-200 text-zinc-600' }}"
+                                                style="{{ (int) ($answers[$field['id']] ?? 0) === (int) $value ? 'background: var(--brand); border-color: var(--brand);' : '' }}">
+                                                <input type="radio" class="sr-only"
+                                                    wire:model.live="answers.{{ $field['id'] }}" value="{{ $value }}" />
+                                                {{ $wording }}
+                                            </label>
+                                        @endforeach
+                                    </div>
                                     @break
 
                                 @case($type === 'multiselect')

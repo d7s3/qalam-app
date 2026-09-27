@@ -9,6 +9,8 @@ use App\Models\Stage;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\FormResponsesExporter;
+use App\Services\FormScoringService;
+use App\Support\NabighExam;
 use App\Support\Scope;
 use App\Support\SurveyResults;
 use Carbon\Carbon;
@@ -94,6 +96,14 @@ class FormResponses extends Component
 
     /** @var array<int, array{name: string, birth_date: string}> keyed by response id */
     public array $reviewEdits = [];
+
+    // Grading modal state, for a form whose fields carry a scoring dimension
+    public bool $showGradeModal = false;
+
+    public ?int $gradeResponseId = null;
+
+    /** @var array<string, string> field id => points typed, kept as text while editing */
+    public array $manualGradeInputs = [];
 
     // Search and filters
     public string $search = '';
@@ -664,6 +674,97 @@ class FormResponses extends Component
         Flux::toast('تم حذف الرد بنجاح', variant: 'success');
     }
 
+    /**
+     * The fields a human, not the answer key, must grade — a free-text answer
+     * that was tagged with a domain and a ceiling when the form was built.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function manualFields(): array
+    {
+        return array_values(array_filter(
+            $this->form->fields ?? [],
+            fn (array $field) => ! empty($field['dimension'] ?? null) && ($field['max_manual_score'] ?? null) !== null,
+        ));
+    }
+
+    /**
+     * What a response is worth so far: the auto-graded mcq/likert sections a
+     * scored form computed the moment it was submitted, folded together with
+     * whatever a human has graded since.
+     *
+     * @return array{sections: array<string, array{earned: float, possible: float, manual_possible: float}>, composite: ?float}|null
+     */
+    public function scoreSummary(FormResponse $response): ?array
+    {
+        if (! FormScoringService::isScored($this->form)) {
+            return null;
+        }
+
+        $sections = FormScoringService::withManualGrades($this->form, $response->score, $response->manual_scores ?? []);
+        $battery = NabighExam::batteryFor($this->form);
+
+        return [
+            'sections' => $sections,
+            'composite' => FormScoringService::weightedComposite($sections, NabighExam::weightsFor($battery)),
+        ];
+    }
+
+    public function openGradeModal(int $responseId): void
+    {
+        $this->resetValidation();
+
+        $response = FormResponse::where('form_id', $this->form->id)->findOrFail($responseId);
+
+        $this->gradeResponseId = $responseId;
+        $this->manualGradeInputs = [];
+        foreach ($this->manualFields() as $field) {
+            $awarded = $response->manual_scores[$field['id']] ?? null;
+            $this->manualGradeInputs[$field['id']] = $awarded === null ? '' : (string) $awarded;
+        }
+
+        $this->showGradeModal = true;
+    }
+
+    /**
+     * Record a human's grade for every free-text item this form leaves to one,
+     * against the response the grader has open.
+     */
+    public function saveManualGrades(): void
+    {
+        $fields = collect($this->manualFields())->keyBy('id');
+
+        $rules = [];
+        $names = [];
+        foreach ($fields as $id => $field) {
+            $rules["manualGradeInputs.{$id}"] = ['nullable', 'numeric', 'min:0', 'max:'.$field['max_manual_score']];
+            $names["manualGradeInputs.{$id}"] = $field['label'];
+        }
+
+        $this->validate($rules, [], $names);
+
+        $response = FormResponse::where('form_id', $this->form->id)->findOrFail($this->gradeResponseId);
+        [$reader, $role] = $this->reader();
+
+        $scores = [];
+        foreach ($fields as $id => $field) {
+            $value = $this->manualGradeInputs[$id] ?? '';
+            if ($value !== '' && $value !== null) {
+                $scores[$id] = (float) $value;
+            }
+        }
+
+        $response->update([
+            'manual_scores' => $scores,
+            'graded_at' => now(),
+            'graded_by_id' => $reader->id,
+            'graded_by_type' => $role,
+        ]);
+
+        $this->showGradeModal = false;
+        Flux::toast('تم حفظ التصحيح بنجاح', variant: 'success');
+    }
+
     private function getReportsData(): array
     {
         $responses = FormResponse::where('form_id', $this->form->id)->get();
@@ -941,6 +1042,10 @@ class FormResponses extends Component
             'reportsData' => $reportsData,
             'unprocessedCount' => $responses->whereNull('student_id')->count(),
             'availableAges' => $availableAges,
+            'isScoredForm' => FormScoringService::isScored($this->form),
+            'manualFields' => $this->manualFields(),
+            'dimensionLabels' => NabighExam::labelsFor(NabighExam::batteryFor($this->form)),
+            'gradingResponse' => $this->gradeResponseId ? FormResponse::find($this->gradeResponseId) : null,
         ]);
     }
 }

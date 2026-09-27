@@ -465,6 +465,17 @@ Route::get('/apply/{token}', function (string $token) {
     return view('public.apply', ['form' => $form]);
 })->name('forms.apply');
 
+/**
+ * The one link a whole intake is given.
+ *
+ * Every exam has its own unguessable token, which is right for a form handed to
+ * one audience but wrong for a poster: a family should not have to know whether
+ * their child sits form A or B, or which battery their grade belongs to. This
+ * page asks the one thing that decides it — the grade — and sends each student
+ * on to the instrument that fits, so a single «نابغة» link serves them all.
+ */
+Route::get('/nabigh', fn () => view('public.nabigh'))->name('nabigh');
+
 Route::get('/invitation/{user}', fn (User $user) => view('auth.accept-invitation', ['user' => $user]))
     ->middleware('signed')
     ->name('invitation.accept');

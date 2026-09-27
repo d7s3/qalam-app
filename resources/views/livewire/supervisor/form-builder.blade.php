@@ -284,6 +284,23 @@
                                     <span class="px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">نعم</span>
                                     <span class="px-3 py-1 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 text-xs font-medium">لا</span>
                                 </div>
+                            @elseif($field['type'] === 'mcq')
+                                <div class="border-t border-zinc-200 dark:border-zinc-800 pt-3 flex flex-wrap items-end gap-4">
+                                    <flux:field class="min-w-[14rem]">
+                                        <flux:label>الإجابة الصحيحة</flux:label>
+                                        <flux:select wire:model="fields.{{ $index }}.correct_option">
+                                            <flux:select.option value="">— اختر من الخيارات أدناه —</flux:select.option>
+                                            @foreach($field['options'] ?? [] as $option)
+                                                @continue($option === '')
+                                                <flux:select.option value="{{ $option }}">{{ $option }}</flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+                                    </flux:field>
+                                    <flux:field class="w-28">
+                                        <flux:label>النقاط</flux:label>
+                                        <flux:input type="number" min="0" step="0.5" wire:model="fields.{{ $index }}.points" />
+                                    </flux:field>
+                                </div>
                             @endif
 
                             <!-- Field Designations (Only for text type fields) -->
