@@ -9,6 +9,8 @@ use App\Models\Student;
 use App\Services\StudentStatusService;
 use Flux\Flux;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -25,6 +27,7 @@ class Students extends Component
 
     public $circle_id = null;
 
+    #[Locked]
     public $editingStudentId = null;
 
     public string $search = '';
@@ -312,12 +315,24 @@ class Students extends Component
 
     public function save(): void
     {
+        $student = $this->editingStudentId
+            ? $this->scopeToSupervisor(Student::query())->find($this->editingStudentId)
+            : null;
+
+        if (! $student) {
+            Flux::toast(__('الطالب غير موجود أو ليس ضمن صلاحياتك'), variant: 'danger');
+
+            return;
+        }
+
         $this->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,'.$this->editingStudentId,
+            'email' => 'required|email|unique:users,email,'.$student->id,
             'circle_id' => 'nullable|exists:circles,id',
-            'guardian_id' => 'nullable|exists:users,id',
+            'guardian_id' => ['nullable', Rule::exists('user_roles', 'user_id')->where('role', 'guardian')],
             'editJoinedAt' => 'nullable|date',
+        ], [
+            'guardian_id.exists' => __('ولي الأمر المختار غير موجود.'),
         ]);
 
         $circleIds = $this->getSupervisorCircleIds();
@@ -329,7 +344,7 @@ class Students extends Component
             return;
         }
 
-        Student::find($this->editingStudentId)->update([
+        $student->update([
             'name' => $this->name,
             'email' => $this->email,
             'circle_id' => $this->circle_id,

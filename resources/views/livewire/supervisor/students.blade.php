@@ -97,7 +97,7 @@
                                 <span class="font-bold text-zinc-900 dark:text-white">{{ $student->name }}</span>
                                 <div class="flex gap-2">
                                     <span class="text-xs text-zinc-500">{{ $student->email }}</span>
-                                    @if ($student->guardian_id)
+                                    @if ($student->guardian)
                                         <span class="text-xs text-zinc-400">| {{ $student->guardian->name }}</span>
                                     @endif
                                 </div>
