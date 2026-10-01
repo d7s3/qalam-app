@@ -203,7 +203,7 @@ it('allows supervisor to link response to existing student', function () {
 
     // Link response to existing student, adopting response name
     Livewire::test(FormResponses::class, ['formId' => $form->id])
-        ->set('selectedResponseId', $response->id)
+        ->call('openLinkModal', $response->id)
         ->set('linkStudentId', $this->student->id)
         ->set('linkNameOption', 'response')
         ->call('linkToExistingStudent')
