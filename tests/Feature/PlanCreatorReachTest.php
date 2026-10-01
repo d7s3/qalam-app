@@ -17,7 +17,7 @@ uses(RefreshDatabase::class);
  * teacher his cohorts', a student only his own. The plan and the student come
  * from the address, so both are asked about again.
  */
-function planDay(): array
+function creatorPlanDays(): array
 {
     return [[
         'date' => '2026-09-13',
@@ -67,7 +67,7 @@ it('writes a plan only for a student the teacher teaches', function () {
     expect(fn () => Livewire::test('shared.plan-creator')
         ->set('studentId', $this->stranger->id)
         ->set('planType', 'hifz')
-        ->set('planDays', planDay())
+        ->set('planDays', creatorPlanDays())
         ->call('save'))
         ->toThrow(ModelNotFoundException::class);
 
@@ -76,7 +76,7 @@ it('writes a plan only for a student the teacher teaches', function () {
     Livewire::test('shared.plan-creator')
         ->set('studentId', $this->student->id)
         ->set('planType', 'hifz')
-        ->set('planDays', planDay())
+        ->set('planDays', creatorPlanDays())
         ->call('save');
 
     expect((bool) StudentPlan::where('student_id', $this->student->id)->value('is_approved'))->toBeTrue();
@@ -95,7 +95,7 @@ it('keeps a student\'s plan to himself', function () {
     expect(fn () => Livewire::test('shared.plan-creator')
         ->set('studentId', $this->stranger->id)
         ->set('planType', 'hifz')
-        ->set('planDays', planDay())
+        ->set('planDays', creatorPlanDays())
         ->call('save'))
         ->toThrow(ModelNotFoundException::class);
 
