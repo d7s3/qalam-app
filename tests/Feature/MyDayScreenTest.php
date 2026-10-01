@@ -10,6 +10,7 @@ use App\Models\Task;
 use App\Models\Teacher;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -19,6 +20,10 @@ uses(RefreshDatabase::class);
  * me, and what I missed while it can still be made good.
  */
 beforeEach(function () {
+    // Inside the lesson's month below: the screen shows today's day, and an
+    // unfrozen clock let this pass only until the month ran out.
+    Carbon::setTestNow('2026-09-10 08:00:00');
+
     $this->programme = Stage::factory()->create();
     $this->cohort = Circle::factory()->create(['stage_id' => $this->programme->id]);
 
