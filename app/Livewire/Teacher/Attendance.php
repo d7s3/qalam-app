@@ -15,6 +15,7 @@ use App\Support\Scope;
 use Carbon\Carbon;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -22,6 +23,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class Attendance extends Component
 {
+    #[Locked]
     public $circles = [];
 
     public ?int $selectedCircle = null;
@@ -55,8 +57,23 @@ class Attendance extends Component
 
     }
 
+    /**
+     * Whether a cohort is one this reader takes the register of. The cohort
+     * is chosen in the browser, so it is checked against his own cohorts —
+     * read from his reach on mount, and a list of models the browser cannot
+     * alter — before anything is read or written for it.
+     */
+    private function reaches(?int $circleId): bool
+    {
+        return $circleId !== null && collect($this->circles)->contains('id', $circleId);
+    }
+
     public function updatedSelectedCircle(): void
     {
+        if (! $this->reaches($this->selectedCircle)) {
+            $this->selectedCircle = null;
+        }
+
         $this->loadStudents();
     }
 
@@ -68,7 +85,7 @@ class Attendance extends Component
     #[On('student-list-updated')]
     public function loadStudents(): void
     {
-        if (! $this->selectedCircle) {
+        if (! $this->selectedCircle || ! $this->reaches($this->selectedCircle)) {
             $this->students = collect();
             $this->records = [];
             $this->studentOrder = [];
@@ -145,6 +162,10 @@ class Attendance extends Component
 
     public function markAllPresent(): void
     {
+        if (! $this->reaches($this->selectedCircle)) {
+            return;
+        }
+
         $teacher = auth()->guard('teacher')->user();
 
         foreach ($this->students as $student) {
@@ -204,7 +225,7 @@ class Attendance extends Component
 
     public function clearDayAttendance(): void
     {
-        if (! $this->selectedCircle || empty($this->date)) {
+        if (! $this->reaches($this->selectedCircle) || empty($this->date)) {
             return;
         }
 
@@ -234,6 +255,14 @@ class Attendance extends Component
 
     private function saveRecord(int $studentId, string $status): void
     {
+        // Only a student of the cohort on screen: a record written for anyone
+        // else would also send his family an absence notice.
+        abort_unless(
+            $this->reaches($this->selectedCircle)
+                && Student::where('circle_id', $this->selectedCircle)->whereKey($studentId)->exists(),
+            403
+        );
+
         $teacher = auth()->guard('teacher')->user();
 
         $existing = AttendanceModel::where('student_id', $studentId)
