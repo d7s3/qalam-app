@@ -217,7 +217,16 @@ class Teachers extends Component
      */
     public function toggleRecitationOnly($id)
     {
-        $teacher = Teacher::findOrFail($id);
+        $circleIds = $this->getSupervisorCircleIds();
+        $teacher = Teacher::whereHas('circles', function ($q) use ($circleIds) {
+            $q->whereIn('circles.id', $circleIds);
+        })->find($id);
+
+        if (! $teacher) {
+            Flux::toast(__('المعلم غير موجود أو ليس ضمن صلاحياتك'), variant: 'danger');
+
+            return;
+        }
 
         $teacher->update(['is_recitation_only' => ! $teacher->is_recitation_only]);
 
