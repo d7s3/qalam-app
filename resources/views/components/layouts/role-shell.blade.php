@@ -2,8 +2,10 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl">
 
 <head>
+    @php
+        $title = \App\Models\Screen::titleFor(request()->route(), filled($title ?? null) ? trim((string) $title) : null);
+    @endphp
     @include('partials.head')
-    <title>{{ $title ?? config('app.name') }}</title>
     @if(auth('student')->check())
         <script>
             document.documentElement.classList.remove('dark');

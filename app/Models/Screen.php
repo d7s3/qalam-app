@@ -43,6 +43,28 @@ class Screen extends Model
     }
 
     /**
+     * The name a page goes by in the browser tab.
+     *
+     * A screen carried by seniority is named for itself, not for the shell it
+     * renders in; any other page for its own label in the permissions list —
+     * which the academy may rename — unless the page named itself.
+     */
+    public static function titleFor(?\Illuminate\Routing\Route $route, ?string $ownTitle = null): ?string
+    {
+        $name = $route?->getName();
+
+        if ($name !== null && str_ends_with($name, '.held')) {
+            return static::where('route_name', (string) $route->parameter('screen'))->value('label') ?? $ownTitle;
+        }
+
+        if (filled($ownTitle) || $name === null) {
+            return $ownTitle;
+        }
+
+        return static::where('route_name', $name)->value('label');
+    }
+
+    /**
      * Whether the screen opens on its own, with nothing to fill into its address.
      *
      * A screen held by seniority is reached at an address that carries only its

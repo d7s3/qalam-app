@@ -197,3 +197,26 @@ describe('a screen that needs a student or a record to open', function () {
             ->assertNotFound();
     });
 });
+
+describe('the name in the browser tab', function () {
+    it('is the screen\'s own label when the page does not name itself', function () {
+        $html = $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.circles'))
+            ->assertOk()
+            ->getContent();
+
+        expect(substr_count($html, '<title>'))->toBe(1)
+            ->and($html)->toMatch('/<title>\s*الدفعات - /u');
+    });
+
+    it('is the carried screen\'s label, not the shell it renders in', function () {
+        $html = $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.held', ['screen' => 'teacher.attendance']))
+            ->assertOk()
+            ->getContent();
+
+        $label = Screen::where('route_name', 'teacher.attendance')->value('label');
+
+        expect($html)->toMatch('/<title>\s*'.preg_quote($label, '/').' - /u');
+    });
+});
