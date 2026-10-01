@@ -53,7 +53,7 @@
             <flux:table.rows>
                 @forelse ($circles as $circle)
                     <flux:table.row :key="$circle->id">
-                        <flux:table.cell class="font-bold text-zinc-900 dark:text-white">
+                        <flux:table.cell class="font-bold text-zinc-900 dark:text-white whitespace-normal break-words">
                             <a href="{{ route('supervisor.circles.report', $circle->id) }}"
                                 class="hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline underline-offset-4">
                                 {{ $circle->name }}
@@ -67,7 +67,7 @@
                                 @forelse($circle->teachers as $teacher)
                                     <flux:badge size="sm" color="green">{{ $teacher->name }}</flux:badge>
                                 @empty
-                                    <span class="text-xs text-zinc-400">لا يوجد معلمين</span>
+                                    <span class="text-xs text-zinc-400">لا يوجد معلمون</span>
                                 @endforelse
                             </div>
                         </flux:table.cell>
@@ -78,8 +78,8 @@
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center gap-1">
-                                <flux:button size="sm" variant="ghost" icon="chart-bar" :href="route('supervisor.circles.report', $circle->id)" title="تقرير الإنجاز" />
-                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" />
+                                <flux:button size="sm" variant="ghost" icon="chart-bar" :href="route('supervisor.circles.report', $circle->id)" title="تقرير الإنجاز" aria-label="تقرير الإنجاز" />
+                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $circle->id }})" title="تعديل الدفعة" aria-label="تعديل الدفعة" />
                             </div>
                         </flux:table.cell>
                     </flux:table.row>

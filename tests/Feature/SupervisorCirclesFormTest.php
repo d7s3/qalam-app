@@ -147,3 +147,17 @@ it('does not let a supervisor view the roster of a circle outside their scope', 
 
     Livewire::test(Circles::class)->call('viewStudents', $otherCircle->id);
 })->throws(ModelNotFoundException::class);
+
+it('keeps a long cohort name and its buttons within a phone\'s width', function () {
+    $stage = Stage::create(['name' => 'المرحلة الأولى']);
+    $supervisor = Supervisor::factory()->create(['is_approved' => true]);
+    $supervisor->stages()->attach($stage->id);
+    Circle::create(['name' => 'دفعة باسم طويل جداً يتجاوز عرض شاشة الجوال بكثير', 'stage_id' => $stage->id]);
+
+    $this->actingAs($supervisor, 'supervisor');
+
+    Livewire::test(Circles::class)
+        ->assertSeeHtml('whitespace-normal break-words')
+        ->assertSeeHtml('aria-label="تعديل الدفعة"')
+        ->assertSee('لا يوجد معلمون');
+});
