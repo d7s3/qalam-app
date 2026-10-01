@@ -148,7 +148,14 @@ class Scope
      */
     public function reachesAll(): bool
     {
-        if ($this->user?->is_super_admin) {
+        // Nobody signed into the office reaches nothing through it. A shared
+        // screen that names an office its reader does not hold must come up
+        // empty, not open on the whole academy.
+        if (! $this->user) {
+            return false;
+        }
+
+        if ($this->user->is_super_admin) {
             return true;
         }
 
@@ -222,7 +229,11 @@ class Scope
     /** @return Collection<int, int>|null */
     private function resolveStageIds(): ?Collection
     {
-        if ($this->reachesAll() || ! $this->user) {
+        if (! $this->user) {
+            return collect();
+        }
+
+        if ($this->reachesAll()) {
             return null;
         }
 
@@ -259,7 +270,11 @@ class Scope
     {
         $query = Circle::query();
 
-        if ($this->reachesAll() || ! $this->user) {
+        if (! $this->user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($this->reachesAll()) {
             return $query;
         }
 
@@ -285,7 +300,11 @@ class Scope
     /** @return Collection<int, int>|null */
     private function resolveCircleIds(): ?Collection
     {
-        if ($this->reachesAll() || ! $this->user) {
+        if (! $this->user) {
+            return collect();
+        }
+
+        if ($this->reachesAll()) {
             return null;
         }
 
@@ -494,7 +513,11 @@ class Scope
      */
     public function taskAssigneeIds(): ?Collection
     {
-        if ($this->reachesAll() || ! $this->user) {
+        if (! $this->user) {
+            return collect();
+        }
+
+        if ($this->reachesAll()) {
             return null;
         }
 

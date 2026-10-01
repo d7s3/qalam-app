@@ -281,3 +281,23 @@ describe('a reach written on the holding', function () {
             ->and(reachedNames($both, 'supervisor'))->toEqualCanonicalizing(['زياد']);
     });
 });
+
+describe('an office nobody is signed into', function () {
+    it('reaches nothing, whatever the office', function (string $role) {
+        $scope = Scope::for(null, $role);
+
+        expect($scope->reachesAll())->toBeFalse()
+            ->and($scope->circleIds()?->all())->toBe([])
+            ->and($scope->stageIds()?->all())->toBe([])
+            ->and($scope->applyToStudents(Student::query())->count())->toBe(0)
+            ->and($scope->circleQuery()->count())->toBe(0)
+            ->and($scope->taskAssigneeIds()?->all())->toBe([]);
+    })->with(['manager', 'supervisor', 'teacher', 'staff']);
+
+    it('gives a teacher nothing by naming the manager\'s office on a shared screen', function () {
+        $this->actingAs($this->teacher, 'teacher');
+        Scope::forget();
+
+        expect(Scope::forRole('manager')->applyToStudents(Student::query())->count())->toBe(0);
+    });
+});
