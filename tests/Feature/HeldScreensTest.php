@@ -260,3 +260,15 @@ it('links the sidebar to the supervisor\'s own gamification, never another\'s', 
         ->get(route('supervisor.dashboard'))
         ->assertSee(route('supervisor.competitions.gamification', $his->id), false);
 });
+
+it('names each tab of the teacher\'s shell for itself', function () {
+    $html = $this->actingAs($this->teacher, 'teacher')
+        ->get(route('teacher.tasmeeh'))
+        ->assertOk()
+        ->getContent();
+
+    $label = Screen::where('route_name', 'teacher.tasmeeh')->value('label');
+
+    expect($html)->toMatch('/<title>\s*'.preg_quote($label, '/').' - /u')
+        ->and($html)->toContain('document.title');
+});

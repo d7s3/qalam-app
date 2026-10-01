@@ -1,8 +1,6 @@
 <x-layouts.role-shell>
-    <x-slot:title>
-        {{ __('لوحة تحكم المعلم') }}
-    </x-slot:title>
-
+    {{-- No title of its own: each tab goes by its screen's label, on load and
+         as the tabs are switched without a page load. --}}
     <x-slot:sidebar>
         <x-role-sidebar />
     </x-slot:sidebar>
@@ -11,6 +9,13 @@
         // Read as a reach rather than as one teacher's cohorts: a supervisor who
         // holds this screen through his office teaches none, and asking him for
         // his circles would have been a call on nothing at all.
+        $tabTitles = \App\Models\Screen::whereIn('route_name', [
+                'teacher.attendance', 'teacher.students', 'teacher.plan-creator',
+                'teacher.tasmeeh', 'teacher.leaderboards', 'teacher.grade-items',
+            ])
+            ->pluck('label', 'route_name')
+            ->mapWithKeys(fn ($label, $route) => [\Illuminate\Support\Str::after($route, '.') => $label.' - '.config('brand.name')]);
+
         $teacher = \App\Support\Scope::forRoute()->user();
         $teacherCircleIds = \App\Support\Scope::forRoute()
             ->applyToCircles(\App\Models\Circle::query())
@@ -81,6 +86,7 @@
     }"
     x-on:switch-tab.window="
         activeTab = $event.detail.tab;
+        document.title = {{ \Illuminate\Support\Js::from($tabTitles) }}[activeTab] ?? document.title;
         if ($event.detail.url && window.location.pathname !== $event.detail.url) {
             history.pushState(null, '', $event.detail.url);
         }
