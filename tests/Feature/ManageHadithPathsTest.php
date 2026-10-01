@@ -122,3 +122,29 @@ it('preloads enrolled students and preserves plan or suspends them accordingly',
         ->where('status', 'active')
         ->exists())->toBeTrue();
 });
+
+it('neither enrolls nor suspends a student outside the supervisor\'s reach', function () {
+    $this->actingAs($this->supervisor, 'supervisor');
+
+    $farCircle = Circle::create(['name' => 'دفعة بعيدة', 'stage_id' => Stage::create(['name' => 'مرحلة أخرى'])->id]);
+    $enrolledElsewhere = Student::factory()->create(['circle_id' => $farCircle->id]);
+    $stranger = Student::factory()->create(['circle_id' => $farCircle->id]);
+
+    $theirPlan = StudentHadithPlan::create([
+        'student_id' => $enrolledElsewhere->id,
+        'hadith_path_id' => $this->hadithPath->id,
+        'start_date' => '2026-06-18',
+        'status' => 'active',
+        'created_by_role' => 'supervisor',
+    ]);
+
+    // The modal preloads every active plan on the path; unticking it all and
+    // sneaking in a stranger must touch neither.
+    Livewire::test(ManageHadithPaths::class)
+        ->call('showEnrollModal', $this->hadithPath->id)
+        ->set('selectedStudentIds', [(string) $stranger->id])
+        ->call('enrollStudents');
+
+    expect($theirPlan->fresh()->status)->toBe('active');
+    expect(StudentHadithPlan::where('student_id', $stranger->id)->exists())->toBeFalse();
+});
