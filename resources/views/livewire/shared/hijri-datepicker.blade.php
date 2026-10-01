@@ -75,8 +75,36 @@ new class extends Component {
 };
 ?>
 
-<div class="relative" x-data="{ open: @entangle('open') }" @click.away="open = false">
-    <button @click="open = !open" type="button" class="{{ $buttonClass }}">
+{{--
+    The month opens in the top layer where the browser has one, so a modal's
+    scrolling body cannot cut it off below the fifteenth; positioned against the
+    button, and above it when there is no room beneath. Without the top layer it
+    falls back to dropping below the button as before.
+--}}
+<div class="relative"
+    x-data="{
+        open: @entangle('open'),
+        place() {
+            const panel = this.$refs.panel;
+            if (! panel.matches(':popover-open')) return;
+            const button = this.$refs.trigger.getBoundingClientRect();
+            const width = panel.offsetWidth || 288, height = panel.offsetHeight || 360;
+            const left = Math.min(Math.max(8, button.right - width), window.innerWidth - width - 8);
+            const below = button.bottom + 8;
+            const top = below + height > window.innerHeight - 8 ? Math.max(8, button.top - height - 8) : below;
+            Object.assign(panel.style, { position: 'fixed', inset: 'auto', margin: '0', top: top + 'px', left: left + 'px' });
+        },
+    }"
+    x-effect="
+        if (typeof $refs.panel.showPopover !== 'function') return;
+        if (open && ! $refs.panel.matches(':popover-open')) { $refs.panel.showPopover(); $nextTick(() => requestAnimationFrame(() => place())); }
+        if (! open && $refs.panel.matches(':popover-open')) { $refs.panel.hidePopover(); }
+    "
+    @click.away="open = false"
+    @keydown.escape.window="open = false"
+    @resize.window="place()"
+    @scroll.window.capture.passive="place()">
+    <button x-ref="trigger" @click="open = !open" type="button" class="{{ $buttonClass }}" :aria-expanded="open">
         <div class="flex flex-col text-right">
             @if($label)
                 <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ $label }}</span>
@@ -88,7 +116,7 @@ new class extends Component {
         <flux:icon icon="calendar" class="size-5 text-zinc-400" />
     </button>
 
-    <div x-show="open" x-transition style="display: none;"
+    <div x-ref="panel" popover="manual" x-show="open" style="display: none;"
         class="absolute z-[100] top-full mt-2 w-72 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
         dir="rtl">
 

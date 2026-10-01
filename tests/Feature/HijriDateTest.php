@@ -9,6 +9,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Support\HijriDate;
 use Illuminate\Support\Carbon;
+use Livewire\Livewire;
 
 it('reads a date in Umm al-Qura Hijri', function () {
     expect(HijriDate::full('2026-08-01'))->toBe('١٨ صفر ١٤٤٨')
@@ -143,4 +144,14 @@ it('carries the Hijri date into the attendance export', function () {
 
     expect($body)->toContain('التاريخ')
         ->and($body)->toContain('١٨ صفر ١٤٤٨');
+});
+
+it('opens the date picker\'s month above any modal that holds it', function () {
+    // In the top layer a modal's scrolling body cannot cut the month off
+    // halfway down; the button stays where the form put it.
+    Livewire::test('shared.hijri-datepicker', ['label' => 'تاريخ النهاية'])
+        ->assertSeeHtml('popover="manual"')
+        ->assertSeeHtml('x-ref="trigger"')
+        ->call('selectDate', '2026-10-11')
+        ->assertSet('date', '2026-10-11');
 });
