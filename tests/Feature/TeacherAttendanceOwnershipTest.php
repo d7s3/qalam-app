@@ -94,3 +94,10 @@ it('gives each mark a thumb-sized target on a phone, and writes the family\'s nu
         ->assertSeeHtml('min-h-11')
         ->assertSeeHtml('https://wa.me/966501234567/');
 });
+
+it('writes a student\'s number for WhatsApp on the students screen', function () {
+    $this->student->update(['phone' => '0551234567']);
+
+    Livewire::test('teacher.student-manager')
+        ->assertSeeHtml('https://wa.me/966551234567');
+});

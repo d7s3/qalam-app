@@ -349,7 +349,7 @@ new class extends Component {
                         <flux:table.cell @click.stop="">
                             @if ($student->phone)
                                 <flux:button as="a"
-                                    href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $student->phone) }}"
+                                    href="https://wa.me/{{ \App\Rules\SaudiPhone::format($student->phone) }}"
                                     target="_blank" size="xs" color="green" icon="chat-bubble-left-ellipsis"
                                     variant="ghost">
                                     {{ __('تواصل') }}
@@ -510,7 +510,7 @@ new class extends Component {
                             </div>
                             @if ($viewingStudent->guardian->phone)
                                 <flux:button as="a" target="_blank"
-                                    href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $viewingStudent->guardian->phone) }}"
+                                    href="https://wa.me/{{ \App\Rules\SaudiPhone::format($viewingStudent->guardian->phone) }}"
                                     size="sm" icon="chat-bubble-left-ellipsis" color="green">
                                     {{ __('واتساب') }}
                                 </flux:button>
