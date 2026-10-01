@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Supervisor\Students;
+use App\Livewire\Supervisor\Teachers;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Manager;
@@ -94,4 +95,15 @@ it('says nothing matched rather than that there are no students', function () {
         ->set('search', 'لا أحد بهذا الاسم')
         ->assertSee('لا نتائج تطابق البحث')
         ->assertDontSee('لا يوجد طلاب ضمن دفعاتك');
+});
+
+it('names what each filter narrows by, not just «all»', function () {
+    Livewire::test(Students::class)
+        ->assertSee('كل الحالات')
+        ->assertSee('كل الدفعات')
+        ->assertSeeHtml('aria-label="تصفية حسب الحالة"');
+
+    Livewire::test(Teachers::class)
+        ->assertSee('كل الحالات')
+        ->assertSee('كل الدفعات');
 });

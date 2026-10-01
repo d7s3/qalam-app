@@ -58,16 +58,16 @@
             <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن معلم..." />
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة">
-                <flux:select.option value="all">الكل</flux:select.option>
+            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة" aria-label="تصفية حسب الدفعة">
+                <flux:select.option value="all">كل الدفعات</flux:select.option>
                 @foreach($circles as $circle)
                     <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
                 @endforeach
             </flux:select>
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="statusFilter" placeholder="تصفية حسب الحالة">
-                <flux:select.option value="all">الكل</flux:select.option>
+            <flux:select wire:model.live="statusFilter" placeholder="تصفية حسب الحالة" aria-label="تصفية حسب الحالة">
+                <flux:select.option value="all">كل الحالات</flux:select.option>
                 <flux:select.option value="pending">في انتظار الموافقة</flux:select.option>
                 <flux:select.option value="approved">تمت الموافقة</flux:select.option>
             </flux:select>
