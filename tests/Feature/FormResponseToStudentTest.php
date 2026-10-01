@@ -8,8 +8,10 @@ use App\Models\FormResponse;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\Supervisor;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -405,4 +407,46 @@ it('releases a linked form response back to the pool when its student is deleted
 
     expect($response->fresh()->student_id)->toBeNull();
     expect($response->fresh()->is_processed)->toBeFalse();
+});
+
+it('opens only a response of the form on screen', function () {
+    $otherForm = Form::create([
+        'supervisor_id' => Supervisor::factory()->create()->id,
+        'title' => 'نموذج غيري',
+        'slug' => 'other-form',
+        'color' => '#14b8a6',
+        'fields' => [['id' => 'f_name', 'type' => 'text', 'label' => 'الاسم', 'is_student_name' => true]],
+    ]);
+    $foreign = FormResponse::create(['form_id' => $otherForm->id, 'answers' => ['f_name' => 'سرّ غيري']]);
+
+    expect(fn () => Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->call('openCreateModal', $foreign->id))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect(fn () => Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->call('openLinkModal', $foreign->id))
+        ->toThrow(ModelNotFoundException::class);
+});
+
+it('refuses to switch the response being turned into a student', function () {
+    $response = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'طالب']]);
+
+    Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->call('openCreateModal', $response->id)
+        ->set('selectedResponseId', $response->id + 1);
+})->throws(CannotUpdateLockedPropertyException::class);
+
+it('links a response only to a student within the supervisor\'s reach', function () {
+    $response = FormResponse::create(['form_id' => $this->form->id, 'answers' => ['f_name' => 'اسم من النموذج']]);
+    $outsider = Student::factory()->create(['circle_id' => Circle::factory()->create()->id, 'name' => 'طالب بعيد']);
+
+    Livewire::test(FormResponses::class, ['formId' => $this->form->id])
+        ->call('openLinkModal', $response->id)
+        ->set('linkStudentId', $outsider->id)
+        ->set('linkNameOption', 'response')
+        ->call('linkToExistingStudent')
+        ->assertHasErrors('linkStudentId');
+
+    expect($outsider->fresh()->name)->toBe('طالب بعيد');
+    expect($response->fresh()->student_id)->toBeNull();
 });
