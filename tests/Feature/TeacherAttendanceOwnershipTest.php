@@ -101,3 +101,9 @@ it('writes a student\'s number for WhatsApp on the students screen', function ()
     Livewire::test('teacher.student-manager')
         ->assertSeeHtml('https://wa.me/966551234567');
 });
+
+it('keeps the students list within a phone\'s width and asks for a phone with the phone keypad', function () {
+    Livewire::test('teacher.student-manager')
+        ->assertSeeHtml('hidden sm:table-cell')
+        ->assertSeeHtml('inputmode="tel"');
+});

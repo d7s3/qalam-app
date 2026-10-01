@@ -309,7 +309,7 @@ new class extends Component {
                     placeholder="{{ __('مثال: محمد أحمد') }}" required />
             </div>
             <div class="w-full md:w-2/5">
-                <flux:input wire:model="phone" label="{{ __('رقم هاتف الطالب') }}" placeholder="{{ __('اختياري') }}" />
+                <flux:input wire:model="phone" type="tel" inputmode="tel" dir="ltr" label="{{ __('رقم هاتف الطالب') }}" placeholder="{{ __('اختياري') }}" />
             </div>
             <flux:button type="submit" variant="primary" icon="user-plus" class="min-w-fit">{{ __('إنشاء طالب') }}
             </flux:button>
@@ -331,10 +331,10 @@ new class extends Component {
             <flux:table.columns>
                 <flux:table.column>{{ __('اسم الطالب') }}</flux:table.column>
                 <flux:table.column>{{ __('واتساب') }}</flux:table.column>
-                <flux:table.column>{{ __('تاريخ الالتحاق') }}</flux:table.column>
+                <flux:table.column class="hidden sm:table-cell">{{ __('تاريخ الالتحاق') }}</flux:table.column>
                 <flux:table.column>{{ __('حالة الطالب') }}</flux:table.column>
-                <flux:table.column>{{ __('حالة البيانات') }}</flux:table.column>
-                <flux:table.column>{{ __('رابط الدخول') }}</flux:table.column>
+                <flux:table.column class="hidden sm:table-cell">{{ __('حالة البيانات') }}</flux:table.column>
+                <flux:table.column class="hidden sm:table-cell">{{ __('رابط الدخول') }}</flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
             </flux:table.columns>
 
@@ -343,7 +343,7 @@ new class extends Component {
                     <flux:table.row wire:key="student-row-{{ $student->id }}"
                         class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         x-on:click="$flux.modal('student-details').show(); $wire.viewStudent({{ $student->id }})">
-                        <flux:table.cell class="font-medium whitespace-nowrap">
+                        <flux:table.cell class="font-medium whitespace-normal sm:whitespace-nowrap">
                             {{ $student->name }}
                         </flux:table.cell>
                         <flux:table.cell @click.stop="">
@@ -358,7 +358,7 @@ new class extends Component {
                                 <span class="text-zinc-400 text-xs">-</span>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell class="first:ps-3" >
+                        <flux:table.cell class="hidden sm:table-cell first:ps-3" >
                             <x-hijri-date :date="$student->joined_at" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
@@ -380,7 +380,7 @@ new class extends Component {
                             @endphp
                             <flux:badge :color="$stColor" size="sm">{{ $stLabel }}</flux:badge>
                         </flux:table.cell>
-                        <flux:table.cell class="first:ps-3" >
+                        <flux:table.cell class="hidden sm:table-cell first:ps-3" >
                             @if ($student->is_data_completed)
                                 <flux:badge color="green" size="sm" icon="check-circle">{{ __('مكتملة') }}
                                 </flux:badge>
@@ -389,7 +389,7 @@ new class extends Component {
                                 </flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell @click.stop="">
+                        <flux:table.cell @click.stop="" class="hidden sm:table-cell">
                             @if ($student->access_token)
                                 <div class="flex items-center gap-2" x-data="{ copied: false, link: '{{ route('magic-link', ['token' => $student->access_token]) }}' }" @click.stop>
                                     <flux:input readonly copyable class="max-w-xs text-xs"
