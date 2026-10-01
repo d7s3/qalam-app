@@ -133,9 +133,28 @@ new class extends Component {
         Flux::modal('attendance-period-modal')->close();
     }
 
+    /**
+     * An event this reader wrote — the only kind this calendar lets him change.
+     * Attendance periods are read by every circle's register, so one written
+     * by the manager is not for a supervisor to remove.
+     */
+    private function ownEvent($id): AcademicCalendarEvent
+    {
+        $event = AcademicCalendarEvent::findOrFail($id);
+        $user = auth()->user();
+
+        abort_if(
+            $event->created_by_id !== $user->id || $event->created_by_type !== get_class($user),
+            403,
+            'غير مصرح لك بتعديل هذا الحدث.'
+        );
+
+        return $event;
+    }
+
     public function deletePeriod($id)
     {
-        AcademicCalendarEvent::findOrFail($id)->delete();
+        $this->ownEvent($id)->delete();
         $this->dispatch('notify', variant: 'success', title: 'تم الحذف', description: 'تم حذف فترة الدوام.');
     }
 
@@ -261,6 +280,14 @@ new class extends Component {
     public function completeTask($taskId)
     {
         $task = \App\Models\Task::findOrFail($taskId);
+        $user = auth()->user();
+
+        abort_unless(
+            ($task->assigned_to_id === $user->id && $task->assigned_to_type === get_class($user))
+                || ($task->created_by_id === $user->id && $task->created_by_type === get_class($user)),
+            403
+        );
+
         $task->update(['status' => 'completed']);
         
         // Refresh dayEvents array
@@ -276,7 +303,7 @@ new class extends Component {
 
     public function deleteEvent($id)
     {
-        AcademicCalendarEvent::findOrFail($id)->delete();
+        $this->ownEvent($id)->delete();
         $this->dayEvents = array_filter($this->dayEvents, fn($e) => $e['id'] != $id);
         
         if (empty($this->dayEvents)) {
@@ -744,10 +771,10 @@ new class extends Component {
                                                 <flux:icon icon="share" class="size-3 text-zinc-400" />
                                             @endif
                                         </div>
-                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div class="flex items-center gap-1 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                             @if($event->created_by_id == auth()->id() && $event->created_by_type == get_class(auth()->user()))
                                                 <flux:button variant="ghost" size="xs" icon="pencil" wire:click="editEvent({{ $event->id }})" />
-                                                <flux:button variant="ghost" size="xs" icon="trash" wire:click="deleteEvent({{ $event->id }})" class="text-red-500" />
+                                                <flux:button variant="ghost" size="xs" icon="trash" wire:click="deleteEvent({{ $event->id }})" wire:confirm="حذف هذا الحدث من التقويم؟" class="text-red-500" aria-label="حذف الحدث" />
                                             @endif
                                         </div>
                                     </div>
@@ -896,12 +923,12 @@ new class extends Component {
                         </div>
                         
                         <template x-if="!event.is_task">
-                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <div class="flex items-center gap-1 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
                                 <template x-if="event.can_edit">
                                     <flux:button variant="ghost" size="xs" icon="pencil" x-on:click="$wire.editEvent(event.id)" />
                                 </template>
                                 <template x-if="event.can_edit">
-                                    <flux:button variant="ghost" size="xs" icon="trash" x-on:click="$wire.deleteEvent(event.id)" class="text-red-500" />
+                                    <flux:button variant="ghost" size="xs" icon="trash" x-on:click="confirm('حذف هذا الحدث من التقويم؟') && $wire.deleteEvent(event.id)" class="text-red-500" aria-label="حذف الحدث" />
                                 </template>
                             </div>
                         </template>
