@@ -139,6 +139,17 @@ describe('the exceeded-limits page', function () {
             ->assertSee('سالم')
             ->assertSee('زياد');
     });
+
+    it('writes the guardian\'s number the way WhatsApp reads it', function () {
+        // Stored as typed locally; WhatsApp needs the country code and no zero.
+        $guardian = Guardian::factory()->create(['phone' => '0501234567']);
+        $this->studentA->update(['guardian_id' => $guardian->id]);
+
+        $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.exceeded-limits'))
+            ->assertOk()
+            ->assertSee('https://wa.me/966501234567/', false);
+    });
 });
 
 describe('when no page names the role', function () {

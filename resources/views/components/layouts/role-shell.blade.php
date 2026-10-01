@@ -95,9 +95,9 @@
                 </form>
             </flux:sidebar.nav>
 
-            @if($usesBrandSidebar)
+            @if($usesBrandSidebar && filled(config('brand.contact.phone')))
                 {{-- كارت الدعم الفني --}}
-                <a href="https://wa.me/966500000000" target="_blank" rel="noopener"
+                <a href="https://wa.me/{{ \App\Rules\SaudiPhone::format(config('brand.contact.phone')) }}" target="_blank" rel="noopener"
                     class="mx-3 mb-3 mt-2 flex items-center gap-3 rounded-xl bg-white/10 hover:bg-white/15 p-3 text-white">
                     <span class="flex items-center justify-center size-9 rounded-full bg-white/15 shrink-0">
                         <flux:icon icon="lifebuoy" class="size-5" />

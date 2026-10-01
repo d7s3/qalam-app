@@ -220,3 +220,13 @@ describe('the name in the browser tab', function () {
         expect($html)->toMatch('/<title>\s*'.preg_quote($label, '/').' - /u');
     });
 });
+
+it('sends the support card to the academy\'s own number', function () {
+    config(['brand.contact.phone' => '0508822794']);
+
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.dashboard'))
+        ->assertOk()
+        ->assertSee('https://wa.me/966508822794', false)
+        ->assertDontSee('966500000000');
+});
