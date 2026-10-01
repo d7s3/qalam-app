@@ -14,6 +14,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 new class extends Component
@@ -29,6 +30,7 @@ new class extends Component
     public bool $unlockOnCompletion = false;
 
     /** The open enrichment week and its five editable tracks. */
+    #[Locked]
     public ?int $weekId = null;
 
     public array $rows = [];
