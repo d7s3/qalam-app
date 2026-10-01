@@ -24,6 +24,8 @@ class HeldScreenController extends Controller
     public function __invoke(string $screen): View
     {
         $registered = Screen::where('route_name', $screen)->firstOrFail();
+
+        abort_unless($registered->opensAlone(), 404);
         $scope = Scope::forRoute();
 
         // Asked in the reader's own role, about the screen's real name — which

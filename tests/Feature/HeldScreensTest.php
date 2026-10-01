@@ -178,3 +178,22 @@ describe('the six that are tabs of one shell', function () {
         expect($html)->toContain("activeTab: 'tasmeeh'");
     });
 });
+
+describe('a screen that needs a student or a record to open', function () {
+    // The held address carries only the screen's name, so a page whose own
+    // address asks for a student cannot be opened from it.
+    it('is not offered among the carried screens', function () {
+        $html = $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.dashboard'))
+            ->assertOk()
+            ->getContent();
+
+        expect($html)->not->toContain(route('supervisor.held', ['screen' => 'teacher.student-recitation-log']));
+    });
+
+    it('answers not found rather than failing when its address is typed', function () {
+        $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.held', ['screen' => 'teacher.student-recitation-log']))
+            ->assertNotFound();
+    });
+});
