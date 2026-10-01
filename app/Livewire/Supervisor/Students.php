@@ -7,6 +7,7 @@ use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Services\StudentStatusService;
+use App\Support\HijriDate;
 use Flux\Flux;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -104,9 +105,13 @@ class Students extends Component
         $query = $this->scopeToSupervisor(Student::with(['circle.stage', 'stage', 'guardian']));
 
         if ($this->search) {
-            $query->where(function ($q) {
-                $q->where('name', 'like', '%'.$this->search.'%')
-                    ->orWhere('email', 'like', '%'.$this->search.'%');
+            // An Arabic keyboard types ٢٢ where the record holds 22.
+            $term = '%'.HijriDate::digits($this->search).'%';
+
+            $query->where(function ($q) use ($term) {
+                $q->where('name', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('phone', 'like', $term);
             });
         }
 

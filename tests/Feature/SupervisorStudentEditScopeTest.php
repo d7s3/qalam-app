@@ -76,3 +76,20 @@ it('does nothing when saved with no student open', function () {
         ->call('save')
         ->assertHasNoErrors();
 });
+
+it('finds a student whether the digits are typed in Arabic or Latin', function () {
+    $this->student->update(['name' => 'طالب الفجر 22', 'phone' => '0501234567']);
+
+    Livewire::test(Students::class)
+        ->set('search', '٢٢')
+        ->assertSee('طالب الفجر 22')
+        ->set('search', '٠٥٠١٢٣')
+        ->assertSee('طالب الفجر 22');
+});
+
+it('says nothing matched rather than that there are no students', function () {
+    Livewire::test(Students::class)
+        ->set('search', 'لا أحد بهذا الاسم')
+        ->assertSee('لا نتائج تطابق البحث')
+        ->assertDontSee('لا يوجد طلاب ضمن دفعاتك');
+});

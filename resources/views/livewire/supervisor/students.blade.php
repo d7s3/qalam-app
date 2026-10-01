@@ -136,7 +136,9 @@
                 @empty
                     <flux:table.row>
                         <flux:table.cell colspan="5" class="text-center py-16">
-                            <flux:text class="text-zinc-400">لا يوجد طلاب ضمن دفعاتك</flux:text>
+                            <flux:text class="text-zinc-400">
+                                {{ $search !== '' || $statusFilter !== 'all' || $circleFilter !== '' ? 'لا نتائج تطابق البحث' : 'لا يوجد طلاب ضمن دفعاتك' }}
+                            </flux:text>
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse
