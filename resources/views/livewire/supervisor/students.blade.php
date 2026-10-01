@@ -170,7 +170,7 @@
                         <flux:input wire:model="name" label="{{ __('الاسم الكامل') }}" required />
                         <flux:input wire:model="email" label="{{ __('البريد الإلكتروني') }}" type="email" required />
 
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <flux:select label="الدفعة الدراسية" wire:model="circle_id" placeholder="اختر الدفعة...">
                                 <flux:select.option value="">بدون دفعة</flux:select.option>
                                 @foreach ($circles as $circle)
@@ -187,7 +187,7 @@
                             </flux:select>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
                                 @php

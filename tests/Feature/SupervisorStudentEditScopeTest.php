@@ -30,6 +30,8 @@ beforeEach(function () {
 it('saves the student that was opened', function () {
     Livewire::test(Students::class)
         ->call('edit', $this->student->id)
+        // One field to a row on a phone, two side by side from a tablet up.
+        ->assertSeeHtml('grid grid-cols-1 sm:grid-cols-2 gap-4')
         ->set('name', 'اسم جديد')
         ->call('save')
         ->assertHasNoErrors();
