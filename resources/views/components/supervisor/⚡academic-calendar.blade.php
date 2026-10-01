@@ -967,8 +967,14 @@ new class extends Component {
                 <flux:input wire:model="eventName" label="اسم الحدث" placeholder="مثال: إجازة مطولة" required />
                 
                 <div class="grid grid-cols-2 gap-4">
-                    <livewire:shared.hijri-datepicker wire:model="startDate" label="تاريخ البداية (هجري)" />
-                    <livewire:shared.hijri-datepicker wire:model="endDate" label="تاريخ النهاية (هجري)" />
+                    <div>
+                        <livewire:shared.hijri-datepicker wire:model="startDate" label="تاريخ البداية (هجري)" />
+                        <flux:error name="startDate" />
+                    </div>
+                    <div>
+                        <livewire:shared.hijri-datepicker wire:model="endDate" label="تاريخ النهاية (هجري)" />
+                        <flux:error name="endDate" />
+                    </div>
                 </div>
 
                 <div class="space-y-2">
@@ -1061,8 +1067,14 @@ new class extends Component {
                 <flux:textarea wire:model="description" label="وصف الفترة" placeholder="مثال: الفصل الدراسي الأول" rows="2" />
                 
                 <div class="grid grid-cols-1 gap-4">
-                    <livewire:shared.hijri-datepicker wire:model="hijriFromDate" label="من تاريخ (هجري)" />
-                    <livewire:shared.hijri-datepicker wire:model="hijriToDate" label="إلى تاريخ (هجري)" />
+                    <div>
+                        <livewire:shared.hijri-datepicker wire:model="hijriFromDate" label="من تاريخ (هجري)" />
+                        <flux:error name="hijriFromDate" />
+                    </div>
+                    <div>
+                        <livewire:shared.hijri-datepicker wire:model="hijriToDate" label="إلى تاريخ (هجري)" />
+                        <flux:error name="hijriToDate" />
+                    </div>
                 </div>
 
                 <div class="space-y-2">
@@ -1083,6 +1095,7 @@ new class extends Component {
                             </label>
                         @endforeach
                     </div>
+                    <flux:error name="selectedWeekdays" />
                 </div>
                 
                 <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/40">

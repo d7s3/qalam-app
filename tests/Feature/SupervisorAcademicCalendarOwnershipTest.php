@@ -96,3 +96,14 @@ it('completes only a task the supervisor gave or was given', function () {
     expect($theirs->fresh()->status)->toBe('pending');
     expect($his->fresh()->status)->toBe('completed');
 });
+
+it('says what is missing when an event is saved without its dates', function () {
+    $calendar = Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test('supervisor.academic-calendar')
+        ->set('eventName', 'إجازة')
+        ->call('saveEvent')
+        ->assertHasErrors(['startDate', 'endDate']);
+
+    $calendar->assertSee($calendar->errors()->first('startDate'))
+        ->assertSee($calendar->errors()->first('endDate'));
+});
