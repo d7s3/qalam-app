@@ -131,7 +131,10 @@
             إنشاء مسابقة تلعيب
         </flux:sidebar.item>
         @php
-            $latestGamification = \App\Models\Leaderboard::where('competition_type', 'gamification')->latest()->first();
+            $latestGamification = \App\Models\Leaderboard::where('competition_type', 'gamification')
+                ->where('supervisor_id', auth('supervisor')->id())
+                ->latest()
+                ->first();
         @endphp
         @if($latestGamification)
             <flux:sidebar.item icon="sparkles" :href="route('supervisor.competitions.gamification', $latestGamification->id)" :current="request()->routeIs('supervisor.competitions.gamification')" wire:navigate>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Circle;
+use App\Models\Leaderboard;
 use App\Models\Manager;
 use App\Models\Role;
 use App\Models\Screen;
@@ -229,4 +230,33 @@ it('sends the support card to the academy\'s own number', function () {
         ->assertOk()
         ->assertSee('https://wa.me/966508822794', false)
         ->assertDontSee('966500000000');
+});
+
+it('links the sidebar to the supervisor\'s own gamification, never another\'s', function () {
+    $others = Leaderboard::create([
+        'supervisor_id' => Supervisor::factory()->create()->id,
+        'circle_id' => Circle::factory()->create()->id,
+        'title' => 'تلعيب غيره',
+        'competition_type' => 'gamification',
+        'start_date' => now(),
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.dashboard'))
+        ->assertOk()
+        ->assertDontSee(route('supervisor.competitions.gamification', $others->id), false);
+
+    $his = Leaderboard::create([
+        'supervisor_id' => $this->supervisor->id,
+        'circle_id' => $this->circle->id,
+        'title' => 'تلعيبه',
+        'competition_type' => 'gamification',
+        'start_date' => now(),
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.dashboard'))
+        ->assertSee(route('supervisor.competitions.gamification', $his->id), false);
 });
