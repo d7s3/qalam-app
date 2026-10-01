@@ -5,6 +5,7 @@ use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use App\Models\Teacher;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -142,6 +143,8 @@ it('forbids moving a grading to the plan day for a student not in the teacher ci
             ->call('matchPlanDate', "quran:{$day->id}:hifz");
     } catch (HttpException $e) {
         expect($e->getStatusCode())->toBe(403);
+    } catch (ModelNotFoundException) {
+        // Refused sooner: the log of a student he does not teach does not open.
     }
 
     expect($day->fresh()->hifz_graded_at->format('Y-m-d'))->toBe('2026-07-08');
@@ -185,8 +188,38 @@ it('forbids a teacher who does not own the student from editing the grading date
             ->call('saveGradingDate');
     } catch (HttpException $e) {
         expect($e->getStatusCode())->toBe(403);
+    } catch (ModelNotFoundException) {
+        // Refused sooner: the log of a student he does not teach does not open.
     }
 
     // Whatever the surfaced status, the grading date must stay untouched.
     expect($day->fresh()->hifz_graded_at->format('Y-m-d'))->toBe('2026-07-08');
+});
+
+it('does not open the log of a student the teacher does not teach', function () {
+    [$teacher] = makeGradedHifzDay();
+    [, $stranger] = makeGradedHifzDay();
+
+    $this->actingAs($teacher, 'teacher');
+
+    expect(fn () => Livewire::test('teacher.student-recitation-log', ['studentId' => $stranger->id]))
+        ->toThrow(ModelNotFoundException::class);
+});
+
+it('grades from the tasmeeh card only a day of the card\'s own student', function () {
+    [$teacher, $student, $day] = makeGradedHifzDay();
+    [, , $strangersDay] = makeGradedHifzDay();
+
+    $this->actingAs($teacher, 'teacher');
+
+    expect(fn () => Livewire::test('teacher.student-tasmeeh-card', ['student' => $student, 'sPlans' => collect(), 'activePlanId' => $day->student_plan_id])
+        ->call('saveAchievement', $strangersDay->id, 'hifz', 1))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect($strangersDay->fresh()->hifz_achievement)->toBe(3);
+
+    Livewire::test('teacher.student-tasmeeh-card', ['student' => $student, 'sPlans' => collect(), 'activePlanId' => $day->student_plan_id])
+        ->call('saveAchievement', $day->id, 'hifz', 1);
+
+    expect($day->fresh()->hifz_achievement)->toBe(1);
 });

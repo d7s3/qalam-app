@@ -62,9 +62,11 @@ new class extends Component {
             $updateData['review_graded_at'] = $value !== null ? $gradeTime : null;
         }
 
-        StudentPlanDay::where('id', $dayId)->update($updateData);
+        // Only a day of this card's own student: the id comes from the browser.
+        $day = StudentPlanDay::whereHas('plan', fn ($plan) => $plan->where('student_id', $this->student->id))
+            ->findOrFail($dayId);
+        $day->update($updateData);
 
-        $day = StudentPlanDay::find($dayId);
         if ($day) {
             \App\Services\GamificationService::syncStudentPlanDayXP($day);
 
