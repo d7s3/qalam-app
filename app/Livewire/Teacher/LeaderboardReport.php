@@ -2,17 +2,24 @@
 
 namespace App\Livewire\Teacher;
 
+use App\Models\Circle;
 use App\Models\Leaderboard;
 use App\Services\LeaderboardService;
+use App\Support\Scope;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class LeaderboardReport extends Component
 {
+    #[Locked]
     public $leaderboardId;
 
     public function mount($leaderboardId)
     {
-        $this->leaderboardId = $leaderboardId;
+        // Only a competition one of the reader's cohorts takes part in.
+        $this->leaderboardId = Leaderboard::takenPartInBy(
+            Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id')
+        )->findOrFail($leaderboardId)->id;
     }
 
     public function render()

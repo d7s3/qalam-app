@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -34,6 +35,21 @@ class Leaderboard extends Model
     public function circles()
     {
         return $this->belongsToMany(Circle::class, 'circle_leaderboard');
+    }
+
+    /**
+     * Competitions any of these cohorts take part in: named on the competition
+     * itself, or among the cohorts a supervisor opened it to.
+     *
+     * @param  iterable<int, int>  $circleIds
+     */
+    public function scopeTakenPartInBy(Builder $query, iterable $circleIds): void
+    {
+        $circleIds = collect($circleIds)->all();
+
+        $query->where(fn (Builder $either) => $either
+            ->whereIn('circle_id', $circleIds)
+            ->orWhereHas('circles', fn (Builder $circles) => $circles->whereIn('circles.id', $circleIds)));
     }
 
     public function isSupervisorCompetition(): bool

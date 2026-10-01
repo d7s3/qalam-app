@@ -6,11 +6,14 @@ use App\Models\Circle;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
 use App\Support\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Leaderboards extends Component
 {
+    #[Locked]
     public $circleId;
 
     public $leaderboards = [];
@@ -22,6 +25,7 @@ class Leaderboards extends Component
 
     public $showModal = false;
 
+    #[Locked]
     public $leaderboardId = null;
 
     // Form fields
@@ -78,6 +82,7 @@ class Leaderboards extends Component
         ];
     }
 
+    #[Locked]
     public $circleIds = [];
 
     public function mount()
@@ -93,10 +98,20 @@ class Leaderboards extends Component
         }
     }
 
+    /**
+     * The competitions this teacher runs: his own cohorts', and none a
+     * supervisor set. Every id the browser sends is looked up through here.
+     *
+     * @return Builder<Leaderboard>
+     */
+    private function own(): Builder
+    {
+        return Leaderboard::whereIn('circle_id', $this->circleIds)->whereNull('supervisor_id');
+    }
+
     public function loadLeaderboards()
     {
-        $this->leaderboards = Leaderboard::whereIn('circle_id', $this->circleIds)
-            ->whereNull('supervisor_id')      // Teacher-created only
+        $this->leaderboards = $this->own()
             ->withCount('criteria')
             ->orderBy('id', 'desc')
             ->get();
@@ -144,7 +159,7 @@ class Leaderboards extends Component
     public function edit($id)
     {
         $this->resetValidation();
-        $leaderboard = Leaderboard::with('criteria')->findOrFail($id);
+        $leaderboard = $this->own()->with('criteria')->findOrFail($id);
 
         $this->leaderboardId = $leaderboard->id;
         $this->title = $leaderboard->title;
@@ -193,7 +208,7 @@ class Leaderboards extends Component
 
     public function toggleActive($id)
     {
-        $board = Leaderboard::findOrFail($id);
+        $board = $this->own()->findOrFail($id);
         $board->is_active = ! $board->is_active;
         $board->save();
         $this->loadLeaderboards();
@@ -201,7 +216,7 @@ class Leaderboards extends Component
 
     public function toggleActiveForGrading($id)
     {
-        $board = Leaderboard::findOrFail($id);
+        $board = $this->own()->findOrFail($id);
 
         if (! $board->is_active_for_grading) {
             // Unset for all other teacher's leaderboards across all their circles
@@ -219,6 +234,9 @@ class Leaderboards extends Component
     public function save()
     {
         $this->validate();
+
+        abort_unless(in_array((int) $this->circleId, array_map('intval', $this->circleIds), true), 403);
+        abort_if($this->leaderboardId && ! $this->own()->whereKey($this->leaderboardId)->exists(), 404);
 
         $settings = [
             'hifz_enabled' => $this->hifz_enabled,
@@ -274,7 +292,7 @@ class Leaderboards extends Component
 
     public function deleteLeaderboard($id)
     {
-        Leaderboard::findOrFail($id)->delete();
+        $this->own()->findOrFail($id)->delete();
         $this->loadLeaderboards();
     }
 
