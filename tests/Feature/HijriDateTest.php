@@ -134,7 +134,7 @@ it('carries the Hijri date into the attendance export', function () {
 
     $this->actingAs($teacher, 'teacher');
 
-    $component = Livewire\Livewire::test(Attendance::class)
+    $component = Livewire::test(Attendance::class)
         ->set('selectedCircle', $circle->id)
         ->set('date', '2026-08-01');
 
