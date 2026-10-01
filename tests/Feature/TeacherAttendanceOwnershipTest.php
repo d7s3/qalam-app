@@ -78,3 +78,19 @@ it('cannot be handed a different list of cohorts from the browser', function () 
     Livewire::test(Attendance::class)
         ->set('circles', [['id' => $this->otherCircle->id]]);
 })->throws(Exception::class);
+
+it('gives each mark a thumb-sized target on a phone, and writes the family\'s number for WhatsApp', function () {
+    $this->student->update(['guardian_id' => Guardian::factory()->create(['phone' => '0501234567'])->id]);
+
+    AttendanceModel::create([
+        'student_id' => $this->student->id,
+        'circle_id' => $this->circle->id,
+        'date' => '2026-09-10',
+        'status' => 'absent',
+    ]);
+
+    Livewire::test(Attendance::class)
+        ->set('selectedCircle', $this->circle->id)
+        ->assertSeeHtml('min-h-11')
+        ->assertSeeHtml('https://wa.me/966501234567/');
+});
