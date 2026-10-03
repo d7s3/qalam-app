@@ -92,3 +92,11 @@ it('shows the parent what is wrong with the reward', function () {
         ->call('saveChallenge', ['rewardType' => 'attendance', 'attendanceDays' => 5, 'prizeType' => 'financial'])
         ->assertSee('أدخل قيمة المكافأة المالية.');
 });
+
+it('tells the parent on the page he lands on that the reward was set', function () {
+    $this->withSession(['status' => 'تم إنشاء المكافأة التحفيزية بنجاح!'])
+        ->get(route('guardian.dashboard'))
+        ->assertOk()
+        ->assertSee('window.Flux?.toast', false)
+        ->assertSee('تم إنشاء المكافأة التحفيزية بنجاح!');
+});

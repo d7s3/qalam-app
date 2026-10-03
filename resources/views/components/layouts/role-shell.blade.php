@@ -144,6 +144,14 @@
     @endpersist
 
     @fluxScripts
+
+    {{-- A word left before a redirect — «saved», «created» — is said on the
+         page the person lands on, as the toast any other save would show. --}}
+    @if (filled($flashed = session('success') ?? session('status')))
+        <script>
+            document.addEventListener('livewire:navigated', () => window.Flux?.toast({ text: @js($flashed), variant: 'success' }), { once: true });
+        </script>
+    @endif
 </body>
 
 </html>
