@@ -7,6 +7,7 @@ use App\Models\TurnReservation;
 use App\Models\TurnReservationSession;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Exceptions\MethodNotFoundException;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -56,3 +57,8 @@ it('books a turn only with his own cohort\'s teacher', function (string $screen)
 
     expect(TurnReservation::where('turn_reservation_session_id', $this->ownSession->id)->where('student_id', $this->student->id)->exists())->toBeTrue();
 })->with(['student.dashboard', 'student.gamification-dashboard']);
+
+it('offers a student no debugging method to call', function () {
+    expect(fn () => Livewire::test('student.gamification-dashboard')->call('testMethod'))
+        ->toThrow(MethodNotFoundException::class);
+});

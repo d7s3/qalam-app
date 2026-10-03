@@ -196,6 +196,8 @@ new class extends Component {
             Flux::toast('رصيد الفريق غير كافٍ لشراء هذا المنتج.', variant: 'danger');
         } elseif ($status === 'only_leader') {
             Flux::toast('فقط قائد المجموعة يمكنه شراء منتجات المجموعة وتحديد تفاصيلها.', variant: 'danger');
+        } elseif ($status === 'item_unavailable') {
+            Flux::toast('هذا المنتج غير متاح حالياً.', variant: 'danger');
         } elseif ($status === 'must_be_in_team') {
             Flux::toast('يجب أن تكون في فريق لشراء هذا المنتج.', variant: 'danger');
         } elseif ($status === 'invalid_target_date') {
@@ -1124,6 +1126,8 @@ new class extends Component {
             Flux::toast('تم الشراء وتفعيل ميزة المتجر بنجاح!', variant: 'success');
             unset($this->targetTeams[$itemId]);
             unset($this->targetDates[$itemId]);
+        } elseif ($status === 'item_unavailable') {
+            Flux::toast('هذا المنتج غير متاح حالياً.', variant: 'danger');
         } elseif ($status === 'must_be_in_team') {
             Flux::toast('يجب أن تكون في فريق لشراء هذا المنتج.', variant: 'danger');
         } elseif ($status === 'only_leader') {
@@ -1186,7 +1190,6 @@ new class extends Component {
 
     public function donateToTeam($amount)
     {
-        \Illuminate\Support\Facades\Log::info("donateToTeam triggered on server with amount: " . $amount);
         $amount = (int)$amount;
         if ($amount <= 0) {
             Flux::toast('الرجاء إدخال مبلغ صحيح للتبرع.', variant: 'danger');
@@ -1220,12 +1223,6 @@ new class extends Component {
             Flux::toast($error ?: 'رصيدك غير كافٍ للتبرع.', variant: 'danger');
         }
         $this->dispatch('donation-finished');
-    }
-
-    public function testMethod()
-    {
-        Flux::toast('تم استدعاء دالة التجربة بنجاح!', variant: 'success');
-        \Illuminate\Support\Facades\Log::info("testMethod triggered successfully on server");
     }
 
     public function renderEmoji($emoji, $class = 'size-5 inline-block align-middle')
