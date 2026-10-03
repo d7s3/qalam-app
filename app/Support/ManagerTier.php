@@ -62,6 +62,10 @@ class ManagerTier
      * page. To give a man these, make him a manager of the centre.
      */
     public const WITHHELD = [
+        // Approving an account, and turning a registrant into a teacher or a
+        // supervisor, is admitting staff to the centre — the same act as
+        // making a manager, and as little a programme's.
+        'manager.pending-approvals',
         'manager.settings',
         'manager.role-permissions',
         'manager.user-access',

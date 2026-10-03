@@ -77,7 +77,7 @@ it('is called by his own name, not the centre manager\'s', function () {
 });
 
 it('keeps the centre\'s own pages with the centre', function () {
-    foreach (['manager.settings', 'manager.role-permissions', 'manager.user-access', 'manager.stages'] as $page) {
+    foreach (['manager.settings', 'manager.role-permissions', 'manager.user-access', 'manager.stages', 'manager.pending-approvals'] as $page) {
         expect(Access::canSee($this->director, 'manager', $page))->toBeFalse($page)
             ->and(Access::canSee($this->centre, 'manager', $page))->toBeTrue($page);
     }
