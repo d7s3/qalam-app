@@ -8,11 +8,12 @@
     </x-slot:sidebar>
 
     <div class="p-6 md:p-8 space-y-8" dir="rtl">
+        {{-- His day first — today's register, recitations and tasks, what a
+             teacher between lessons opens the page for — and the counts after. --}}
+        <livewire:teacher.dashboard />
+
         {{-- What his cohorts did, counted inside his own reach. --}}
         <livewire:shared.activity-pulse />
-
-        <!-- Dashboard Main Volt Component -->
-        <livewire:teacher.dashboard />
 
         <!-- Exceeded Limits (Violations) List -->
         <div>

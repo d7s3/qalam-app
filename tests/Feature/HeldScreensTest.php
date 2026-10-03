@@ -300,3 +300,11 @@ it('gives a supervisor no way to start server processes from the WhatsApp screen
 
     expect(method_exists(WhatsappSettings::class, 'startNodeServer'))->toBeFalse();
 });
+
+it('opens the supervisor\'s and the teacher\'s home pages on their own summary', function () {
+    $supervisorPage = $this->actingAs($this->supervisor, 'supervisor')->get(route('supervisor.dashboard'))->getContent();
+    $teacherPage = $this->actingAs($this->teacher, 'teacher')->get(route('teacher.dashboard'))->getContent();
+
+    expect(strpos($supervisorPage, 'wire:name="supervisor.dashboard"'))->toBeLessThan(strpos($supervisorPage, 'wire:name="shared.activity-pulse"'))
+        ->and(strpos($teacherPage, 'wire:name="teacher.dashboard"'))->toBeLessThan(strpos($teacherPage, 'wire:name="shared.activity-pulse"'));
+});
