@@ -11,6 +11,7 @@ use App\Support\SelfProgramUnit;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -30,7 +31,12 @@ use Livewire\Component;
  */
 new class extends Component
 {
-    /** Which guard is looking. Decides whose record, and how deep. */
+    /**
+     * Which office is looking. Decides whose record, and how deep. Set by the
+     * page and locked: a student naming the guardian's office would otherwise
+     * be shown every student who has no guardian.
+     */
+    #[Locked]
     public string $role = 'student';
 
     public ?int $studentId = null;
@@ -89,11 +95,9 @@ new class extends Component
 
         $query = Student::query()->with('circle')->orderBy('name');
 
-        if ($this->role === 'guardian') {
-            $query->where('guardian_id', Auth::guard('guardian')->id());
-        } elseif ($this->role === 'teacher') {
-            $query->whereIn('circle_id', Scope::forRole('teacher')->user()?->circles()->pluck('circles.id') ?? collect());
-        } elseif ($this->stageId) {
+        if (in_array($this->role, ['guardian', 'teacher'], true)) {
+            Scope::forRole($this->role)->applyToStudents($query);
+        } elseif ($this->stageId && $this->stages->contains('id', $this->stageId)) {
             // A student's stage is his circle's; the direct column only holds
             // for students not yet placed in one.
             $query->where(fn ($q) => $q

@@ -7,10 +7,12 @@ use App\Models\SelfProgramWeek;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentSelfProgramEntry;
+use App\Models\Supervisor;
 use App\Models\Teacher;
 use App\Services\SelfProgramService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 
 uses(RefreshDatabase::class);
 
@@ -185,4 +187,30 @@ it('refuses a student the teacher does not teach', function () {
         ->test('shared.self-program-record', ['role' => 'teacher'])
         ->set('studentId', $elsewhere->id)
         ->assertForbidden();
+});
+
+describe('a reach asked for from the browser', function () {
+    it('does not let a student read others by naming another office', function () {
+        $this->actingAs($this->student, 'student');
+
+        Livewire\Livewire::test('shared.self-program-record', ['role' => 'student'])
+            ->set('role', 'guardian');
+    })->throws(CannotUpdateLockedPropertyException::class);
+
+    it('does not show a supervisor a stage he does not hold', function () {
+        $supervisor = Supervisor::factory()->create();
+        $supervisor->stages()->attach($this->stage->id);
+
+        $otherStage = Stage::factory()->create();
+        Student::factory()->create([
+            'name' => 'طالب مرحلة أخرى',
+            'circle_id' => Circle::factory()->create(['stage_id' => $otherStage->id])->id,
+        ]);
+
+        $this->actingAs($supervisor, 'supervisor');
+
+        Livewire\Livewire::test('shared.self-program-record', ['role' => 'supervisor'])
+            ->set('stageId', $otherStage->id)
+            ->assertDontSee('طالب مرحلة أخرى');
+    });
 });
