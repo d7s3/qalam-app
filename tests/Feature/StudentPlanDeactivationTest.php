@@ -192,3 +192,29 @@ it('never selects an inactive plan in the student tasmeeh card', function () {
         ->assertOk()
         ->assertViewHas('activePlan', null);
 });
+
+it('moves or copies a plan only to one of the teacher\'s own students', function (string $action) {
+    $stranger = Student::factory()->create(['circle_id' => Circle::factory()->create()->id]);
+
+    Livewire::test('teacher.⚡student-plans-list')
+        ->call('openStudentModal', $this->plan->id, $action)
+        ->set('selectedNewStudentId', $stranger->id)
+        ->call('executeStudentAction')
+        ->assertHasErrors('selectedNewStudentId');
+
+    expect($this->plan->fresh()->student_id)->toBe($this->student->id)
+        ->and(StudentPlan::where('student_id', $stranger->id)->exists())->toBeFalse();
+})->with(['change', 'duplicate']);
+
+it('tells the teacher the plan was moved, there and then', function () {
+    $classmate = Student::factory()->create(['circle_id' => $this->circle->id, 'status' => 'active', 'is_approved' => true]);
+
+    Livewire::test('teacher.⚡student-plans-list')
+        ->call('openStudentModal', $this->plan->id, 'change')
+        ->set('selectedNewStudentId', $classmate->id)
+        ->call('executeStudentAction')
+        ->assertHasNoErrors()
+        ->assertDispatched('toast-show');
+
+    expect($this->plan->fresh()->student_id)->toBe($classmate->id);
+});

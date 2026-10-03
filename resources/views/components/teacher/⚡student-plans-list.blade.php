@@ -6,6 +6,8 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\StudentPlan;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use Flux\Flux;
 
 new class extends Component {
     use WithPagination;
@@ -62,11 +64,14 @@ new class extends Component {
 
     public function executeStudentAction()
     {
+        // Only one of the reader's own students may receive the plan: the
+        // choice arrives from the browser, and any user's id used to pass.
         $rules = [
-            'selectedNewStudentId' => 'required|exists:users,id',
+            'selectedNewStudentId' => ['required', Rule::in(Scope::forRoute()->applyToStudents(\App\Models\Student::query())->pluck('id')->all())],
         ];
         $messages = [
             'selectedNewStudentId.required' => 'يرجى اختيار طالب',
+            'selectedNewStudentId.in' => 'الطالب المختار ليس من طلابك.',
         ];
 
         if ($this->modalAction === 'change' && $this->hasAchievements) {
@@ -94,9 +99,9 @@ new class extends Component {
                         'review_graded_at' => null,
                     ]);
                 }
-                session()->flash('success', 'تم نقل الخطة للطالب ومسح الإنجازات السابقة بنجاح');
+                Flux::toast(variant: 'success', text: 'تم نقل الخطة للطالب ومسح الإنجازات السابقة بنجاح');
             } else {
-                session()->flash('success', 'تم نقل الخطة للطالب الجديد بنجاح');
+                Flux::toast(variant: 'success', text: 'تم نقل الخطة للطالب الجديد بنجاح');
             }
         } elseif ($this->modalAction === 'duplicate') {
             $newPlan = $plan->replicate();
@@ -113,7 +118,7 @@ new class extends Component {
                 $newDay->review_graded_at = null;
                 $newDay->save();
             }
-            session()->flash('success', 'تم نسخ الخطة للطالب الجديد بنجاح');
+            Flux::toast(variant: 'success', text: 'تم نسخ الخطة للطالب الجديد بنجاح');
         }
 
         $this->showStudentModal = false;
@@ -139,7 +144,7 @@ new class extends Component {
             route('student.plan'),
         );
 
-        session()->flash('success', 'تم اعتماد الخطة بنجاح');
+        Flux::toast(variant: 'success', text: 'تم اعتماد الخطة بنجاح');
     }
 
     public function deletePlan($id)
@@ -150,7 +155,7 @@ new class extends Component {
             $q->whereIn('circle_id', $circleIds);
         })->findOrFail($id);
         $plan->delete();
-        session()->flash('success', 'تم حذف الخطة بنجاح');
+        Flux::toast(variant: 'success', text: 'تم حذف الخطة بنجاح');
     }
 
     public function togglePlanStatus($id)
@@ -163,7 +168,7 @@ new class extends Component {
 
         $plan->update(['status' => $plan->status === 'active' ? 'inactive' : 'active']);
 
-        session()->flash('success', $plan->status === 'active' ? 'تم تفعيل الخطة بنجاح' : 'تم إلغاء تفعيل الخطة ولن تظهر في صفحة التسميع');
+        Flux::toast(variant: 'success', text: $plan->status === 'active' ? 'تم تفعيل الخطة بنجاح' : 'تم إلغاء تفعيل الخطة ولن تظهر في صفحة التسميع');
     }
 
     protected function selectedAuthorizedPlansQuery()
@@ -184,7 +189,7 @@ new class extends Component {
 
         $count = $this->selectedAuthorizedPlansQuery()->update(['status' => 'active']);
         $this->selectedPlans = [];
-        session()->flash('success', "تم تفعيل {$count} من الخطط بنجاح");
+        Flux::toast(variant: 'success', text: "تم تفعيل {$count} من الخطط بنجاح");
     }
 
     public function bulkDeactivate()
@@ -195,7 +200,7 @@ new class extends Component {
 
         $count = $this->selectedAuthorizedPlansQuery()->update(['status' => 'inactive']);
         $this->selectedPlans = [];
-        session()->flash('success', "تم إلغاء تفعيل {$count} من الخطط ولن تظهر في صفحة التسميع");
+        Flux::toast(variant: 'success', text: "تم إلغاء تفعيل {$count} من الخطط ولن تظهر في صفحة التسميع");
     }
 
     public function openBulkDeleteModal()
@@ -224,7 +229,7 @@ new class extends Component {
         $this->selectedPlans = [];
         $this->showBulkDeleteModal = false;
         $this->bulkDeleteConfirmation = '';
-        session()->flash('success', "تم حذف {$count} من الخطط نهائياً");
+        Flux::toast(variant: 'success', text: "تم حذف {$count} من الخطط نهائياً");
     }
 
     public function with()
