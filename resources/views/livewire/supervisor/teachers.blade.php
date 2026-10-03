@@ -10,9 +10,13 @@
     </div>
 
     <!-- Global Permissions Card -->
-    <flux:card class="border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20">
+    {{-- Set once and rarely touched, so on a phone it starts folded and the
+         teachers — what the page is opened for — come first. --}}
+    <flux:card class="border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20"
+        x-data="{ open: window.matchMedia('(min-width: 768px)').matches }">
         <div class="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div class="flex items-start gap-3 flex-1">
+            <button type="button" class="flex items-start gap-3 flex-1 text-start md:cursor-default"
+                x-on:click="open = ! open" :aria-expanded="open" aria-controls="global-permissions">
                 <div class="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0">
                     <flux:icon icon="shield-check" class="size-5" />
                 </div>
@@ -20,8 +24,9 @@
                     <div class="font-semibold text-sm text-zinc-800 dark:text-zinc-200">الصلاحيات الافتراضية لجميع المعلمين</div>
                     <div class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">هذه الإعدادات تطبق على جميع المعلمين ما لم يكن لديهم استثناء خاص</div>
                 </div>
-            </div>
-            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+                <flux:icon icon="chevron-down" class="size-4 ms-auto mt-1 text-zinc-400 transition-transform md:hidden" ::class="open && 'rotate-180'" />
+            </button>
+            <div id="global-permissions" x-show="open" x-cloak class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
                 <label class="flex items-center gap-2.5 cursor-pointer">
                     <flux:switch wire:model="globalPermissions.can_create_students" />
                     <span class="text-sm text-zinc-700 dark:text-zinc-300">إضافة طلاب جدد</span>

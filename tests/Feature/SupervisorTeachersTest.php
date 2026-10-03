@@ -46,3 +46,9 @@ it('lets a supervisor approve a teacher in scope without an FK violation', funct
     expect((bool) $teacher->fresh()->is_approved)->toBeTrue();
     expect($teacher->fresh()->approved_by)->toBeNull();
 });
+
+it('folds the teachers\' default permissions on a phone, behind a button that says so', function () {
+    Livewire::test(SupervisorTeachers::class)
+        ->assertSeeHtml('aria-controls="global-permissions"')
+        ->assertSeeHtml('x-show="open"');
+});
