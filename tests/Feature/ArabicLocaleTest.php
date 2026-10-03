@@ -79,3 +79,19 @@ it('translates every English phrase the screens pass through __()', function () 
 
     expect($phrases->reject(fn ($phrase) => isset($translations[$phrase]))->values()->all())->toBe([]);
 });
+
+it('stays Arabic whatever the environment file says', function () {
+    $config = require config_path('app.php');
+
+    putenv('APP_LOCALE=en');
+    $_ENV['APP_LOCALE'] = $_SERVER['APP_LOCALE'] = 'en';
+
+    try {
+        expect((require config_path('app.php'))['locale'])->toBe('ar');
+    } finally {
+        putenv('APP_LOCALE=ar');
+        $_ENV['APP_LOCALE'] = $_SERVER['APP_LOCALE'] = 'ar';
+    }
+
+    expect($config['locale'])->toBe('ar');
+});
