@@ -227,8 +227,8 @@ new class extends Component {
             </div>
             <div class="flex justify-between text-xs font-medium text-zinc-400">
                 <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 1 }">البداية</span>
-                <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 2 }">نوع المكافأة</span>
-                <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 3 }">الهدف</span>
+                <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 2 }">نوع الهدف</span>
+                <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 3 }">تفاصيل الهدف</span>
                 <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 4 }">الجائزة</span>
             </div>
         </div>
@@ -270,7 +270,7 @@ new class extends Component {
             x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
             class="space-y-6 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
 
-            <flux:heading size="lg">اختر نوع المكافأة</flux:heading>
+            <flux:heading size="lg">على ماذا يُكافأ ابنك؟</flux:heading>
 
             <flux:radio.group x-model="formData.rewardType" variant="cards"
                 class="grid grid-cols-1 md:grid-cols-3 gap-4">

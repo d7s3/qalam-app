@@ -121,7 +121,7 @@ new class extends Component
                             <div class="font-bold text-zinc-800 dark:text-zinc-100">{{ $circle->name }}</div>
                             <div class="text-xs text-zinc-400">{{ $circle->stage?->name }}</div>
                         </div>
-                        <flux:badge color="zinc" size="sm">{{ $circle->students_count }} {{ __('طالب') }}</flux:badge>
+                        <flux:badge color="zinc" size="sm">{{ $circle->students_count }} {{ match (true) { $circle->students_count === 2 => __('طالبان'), $circle->students_count >= 3 && $circle->students_count <= 10 => __('طلاب'), default => __('طالب') } }}</flux:badge>
                     </div>
                 @endforeach
             </div>

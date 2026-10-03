@@ -327,3 +327,12 @@ it('gives the report filters a Hijri calendar, and a parent only the dates', fun
         ->assertDontSee('التجميع')
         ->assertSee('تصدير PDF');
 });
+
+it('counts a cohort\'s students in good Arabic on the supervisor\'s home page', function () {
+    Student::factory()->count(4)->create(['circle_id' => $this->circle->id]);
+
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.dashboard'))
+        ->assertOk()
+        ->assertSee('5 طلاب');
+});
