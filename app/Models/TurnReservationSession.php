@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class TurnReservationSession extends Model
 {
@@ -34,6 +36,17 @@ class TurnReservationSession extends Model
     public function reservations(): HasMany
     {
         return $this->hasMany(TurnReservation::class);
+    }
+
+    /**
+     * Sessions a student may book a turn in: those run by a teacher of his
+     * own cohort. A student in no cohort has none.
+     */
+    public function scopeOpenTo(Builder $query, Student $student): void
+    {
+        $query->whereIn('teacher_id', DB::table('circle_teacher')
+            ->where('circle_id', $student->circle_id ?? 0)
+            ->select('teacher_id'));
     }
 
     public function isActiveToday(): bool

@@ -398,6 +398,10 @@ new class extends Component {
 
         $gamificationState = null;
         $gamificationLevelInfo = null;
+        // Set only while a competition runs; the view reads it only then too.
+        // Without a default, a competition ending while the page was open made
+        // the student's next tap — booking a turn, say — fail outright.
+        $style = [];
         $freezeableDates = [];
         $nextFreezeUpgrade = null;
         $studentTeam = null;
@@ -870,11 +874,7 @@ new class extends Component {
         $todayStr = \Carbon\Carbon::now('Asia/Riyadh')->format('Y-m-d');
         $activeSession = null;
         if ($student->circle_id) {
-            $teacherIds = \Illuminate\Support\Facades\DB::table('circle_teacher')
-                ->where('circle_id', $student->circle_id)
-                ->pluck('teacher_id');
-
-            $sessions = \App\Models\TurnReservationSession::whereIn('teacher_id', $teacherIds)->get();
+            $sessions = \App\Models\TurnReservationSession::openTo($student)->get();
             foreach ($sessions as $session) {
                 if ($session->isActiveToday()) {
                     $activeSession = $session;
@@ -950,7 +950,8 @@ new class extends Component {
     public function reserveTurn($sessionId)
     {
         $student = Auth::guard('student')->user();
-        $session = \App\Models\TurnReservationSession::find($sessionId);
+        // Only a session of his own cohort's teacher: the id is the browser's.
+        $session = \App\Models\TurnReservationSession::openTo($student)->find($sessionId);
 
         if (!$session || !$session->isActiveNow()) {
             Flux::toast('عذراً، وقت الحجز غير متاح حالياً.', variant: 'danger');
