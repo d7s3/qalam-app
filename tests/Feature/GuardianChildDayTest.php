@@ -48,7 +48,10 @@ it('opens for a guardian and shows his son day', function () {
         // The formative note is what the family reads, not the admin description.
         ->assertSee('السعدي')
         // The deepest markup, which an inline @php would have cut away.
-        ->assertSee('لم يُسجَّل');
+        ->assertSee('لم يُسجَّل')
+        // In right-to-left, which arrow goes back is not obvious; each says.
+        ->assertSee('aria-label="اليوم السابق"', false)
+        ->assertSee('aria-label="اليوم التالي"', false);
 });
 
 it('shows what the circle is working on, for the home to reinforce', function () {
