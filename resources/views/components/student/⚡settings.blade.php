@@ -35,7 +35,7 @@ new class extends Component {
 
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('students')->ignore($user->id)],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'regex:/^(05\d{8}|5\d{8})$/'],
             'birth_date' => ['nullable', 'date'],
         ], [

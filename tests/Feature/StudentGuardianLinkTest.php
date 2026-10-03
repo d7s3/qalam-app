@@ -3,6 +3,7 @@
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
+use App\Models\Teacher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
@@ -66,4 +67,16 @@ it('joins a brother to the guardian his family already has', function () {
 
     expect($this->student->fresh()->guardian_id)->toBe($guardian->id)
         ->and(Guardian::count())->toBe(1);
+});
+
+it('tells a student his new email is taken, rather than failing', function () {
+    $taken = Teacher::factory()->create(['email' => 'taken@example.com']);
+
+    Livewire::test('student.settings')
+        ->set('name', $this->student->name)
+        ->set('email', 'taken@example.com')
+        ->call('updateProfileInformation')
+        ->assertHasErrors('email');
+
+    expect($this->student->fresh()->email)->not->toBe('taken@example.com');
 });
