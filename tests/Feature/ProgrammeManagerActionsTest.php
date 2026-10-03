@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AcademicCalendarEvent;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Manager;
@@ -81,3 +82,54 @@ it('still lets the centre\'s manager delete it', function (string $screen, strin
 
     expect($target::query()->whereKey($target->id)->exists())->toBeFalse();
 })->with('another programme\'s records');
+
+describe('the calendar', function () {
+    function periodFor(array $stageIds, $author): AcademicCalendarEvent
+    {
+        return AcademicCalendarEvent::create([
+            'event_name' => 'فترة دوام الدفعات',
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-12-31',
+            'is_attendance_period' => true,
+            'weekdays' => [1, 2, 3, 4, 5],
+            'stage_ids' => $stageIds,
+            'created_by_id' => $author->id,
+            'created_by_type' => get_class($author),
+        ]);
+    }
+
+    it('does not let a programme\'s manager remove the centre\'s or another programme\'s working period', function (string $whose) {
+        $period = periodFor($whose === 'centre' ? [] : [$this->theirs->id], $this->centre);
+
+        Livewire::actingAs($this->director, 'manager')
+            ->test('manager.academic-calendar')
+            ->call('deletePeriod', $period->id)
+            ->assertForbidden();
+
+        expect(AcademicCalendarEvent::whereKey($period->id)->exists())->toBeTrue();
+    })->with(['centre', 'theirs']);
+
+    it('lets him remove his own programme\'s period, and the centre\'s manager any', function () {
+        $his = periodFor([$this->mine->id], $this->centre);
+        $theirs = periodFor([$this->theirs->id], $this->centre);
+
+        Livewire::actingAs($this->director, 'manager')->test('manager.academic-calendar')->call('deletePeriod', $his->id);
+        Scope::forget();
+        Livewire::actingAs($this->centre, 'manager')->test('manager.academic-calendar')->call('deletePeriod', $theirs->id);
+
+        expect(AcademicCalendarEvent::whereKey([$his->id, $theirs->id])->exists())->toBeFalse();
+    });
+
+    it('does not let him write a period for another programme, or for the whole centre', function (array $stages) {
+        Livewire::actingAs($this->director, 'manager')
+            ->test('manager.academic-calendar')
+            ->set('hijriFromDate', '2026-09-01')
+            ->set('hijriToDate', '2026-09-30')
+            ->set('selectedWeekdays', [1, 2, 3])
+            ->set('periodStageIds', array_map(fn ($key) => (string) $this->{$key}->id, $stages))
+            ->call('saveAttendancePeriod')
+            ->assertHasErrors('periodStageIds');
+
+        expect(AcademicCalendarEvent::where('is_attendance_period', true)->count())->toBe(0);
+    })->with(['another programme' => [['theirs']], 'the whole centre' => [[]]]);
+});

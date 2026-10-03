@@ -25,6 +25,7 @@ new class extends Component {
     public $dayEvents = [];
 
     // Form properties
+    #[\Livewire\Attributes\Locked]
     public $editingEventId = null;
     public $eventName = '';
     public $startDate = '';
@@ -54,6 +55,7 @@ new class extends Component {
     public $selectAll = false;
 
     // Attendance Period Form
+    #[\Livewire\Attributes\Locked]
     public $editingPeriodId = null;
     public $hijriFromDate = '';
     public $hijriToDate = '';
@@ -107,6 +109,35 @@ new class extends Component {
     #[Computed]
     public function availableCircles() { return \App\Models\Circle::all(); }
 
+    /**
+     * Whether this reader may change or remove an event.
+     *
+     * The centre's manager may change anything on the centre's calendar. A
+     * programme's manager may change what he wrote, and the working periods of
+     * his own programmes — never one that runs for the whole centre or for a
+     * programme beside his, since every cohort there reads its days from it.
+     */
+    private function mayChange(AcademicCalendarEvent $event): bool
+    {
+        $scope = \App\Support\Scope::forRole('manager');
+
+        if ($scope->reachesAll()) {
+            return true;
+        }
+
+        $user = auth()->user();
+
+        if ($event->created_by_id === $user?->id && $event->created_by_type === get_class($user)) {
+            return true;
+        }
+
+        $stages = array_map('intval', $event->stage_ids ?? []);
+
+        return $event->is_attendance_period
+            && $stages !== []
+            && array_diff($stages, $scope->stageIds()?->all() ?? []) === [];
+    }
+
     public function createPeriod()
     {
         $this->resetPeriodForm();
@@ -116,6 +147,8 @@ new class extends Component {
     public function editPeriod($id)
     {
         $period = AcademicCalendarEvent::findOrFail($id);
+
+        abort_unless($this->mayChange($period), 403);
 
         $this->editingPeriodId = $period->id;
         $this->hijriFromDate = $period->start_date->format('Y-m-d');
@@ -194,6 +227,22 @@ new class extends Component {
 
         $stageIds = array_values(array_map('intval', $this->periodStageIds));
 
+        // Below the centre a period is written for one's own programmes, and
+        // named ones: a period for no programme in particular is the centre's.
+        if (! \App\Support\Scope::forRole('manager')->reachesAll()) {
+            $own = $this->availableStages->pluck('id')->all();
+
+            if ($stageIds === [] || array_diff($stageIds, $own) !== []) {
+                $this->addError('periodStageIds', __('اختر برنامجاً أو أكثر من برامجك.'));
+
+                return;
+            }
+        }
+
+        if ($this->editingPeriodId) {
+            abort_unless($this->mayChange(AcademicCalendarEvent::findOrFail($this->editingPeriodId)), 403);
+        }
+
         $period = AcademicCalendarEvent::updateOrCreate(
             ['id' => $this->editingPeriodId],
             [
@@ -242,7 +291,11 @@ new class extends Component {
 
     public function deletePeriod($id)
     {
-        AcademicCalendarEvent::findOrFail($id)->delete();
+        $period = AcademicCalendarEvent::findOrFail($id);
+
+        abort_unless($this->mayChange($period), 403);
+
+        $period->delete();
         AcademicCalendarEvent::forgetPeriodCache();
         $this->dispatch('notify', variant: 'success', title: 'تم الحذف', description: 'تم حذف فترة الدوام.');
     }
@@ -400,7 +453,11 @@ new class extends Component {
 
     public function deleteEvent($id)
     {
-        AcademicCalendarEvent::findOrFail($id)->delete();
+        $event = AcademicCalendarEvent::findOrFail($id);
+
+        abort_unless($this->mayChange($event), 403);
+
+        $event->delete();
         $this->dayEvents = array_filter($this->dayEvents, fn($e) => $e['id'] != $id);
         
         if (empty($this->dayEvents)) {
