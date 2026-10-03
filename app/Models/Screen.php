@@ -75,6 +75,29 @@ class Screen extends Model
     {
         $route = Route::getRoutes()->getByName($this->route_name);
 
-        return $route !== null && preg_match('/\{[^}?]+\}/', $route->uri()) !== 1;
+        return $route !== null
+            && preg_match('/\{[^}?]+\}/', $route->uri()) !== 1
+            && $this->heldView() !== null;
+    }
+
+    /**
+     * The view a carried screen is drawn with.
+     *
+     * Its own setting first, then the view its route names — a page declared
+     * with Route::view() says which view it is, and that name need not match
+     * the route's: supervisor.odes.paths is drawn by supervisor.ode-paths.
+     * The route's own name last. Null when none of them is a view.
+     */
+    public function heldView(): ?string
+    {
+        $route = Route::getRoutes()->getByName($this->route_name);
+
+        foreach ([$this->view, $route?->defaults['view'] ?? null, $this->route_name] as $candidate) {
+            if (filled($candidate) && view()->exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 }

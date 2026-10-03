@@ -279,3 +279,11 @@ it('names the form pages in the browser tab', function () {
         ->assertOk()
         ->assertSee('إنشاء نموذج - ', false);
 });
+
+it('opens a carried screen whose page is named differently from its route', function () {
+    // supervisor.odes.paths is drawn by the view supervisor.ode-paths; the
+    // route says so, and the carried address must follow it.
+    $this->actingAs($this->manager, 'manager')
+        ->get(route('manager.held', ['screen' => 'supervisor.odes.paths']))
+        ->assertOk();
+});
