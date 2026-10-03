@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Supervisor\WhatsappSettings;
 use App\Models\Circle;
 use App\Models\Leaderboard;
 use App\Models\Manager;
@@ -13,6 +14,7 @@ use App\Models\UserScreenOverride;
 use App\Support\Access;
 use App\Support\RoleHierarchy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
 
@@ -286,4 +288,15 @@ it('opens a carried screen whose page is named differently from its route', func
     $this->actingAs($this->manager, 'manager')
         ->get(route('manager.held', ['screen' => 'supervisor.odes.paths']))
         ->assertOk();
+});
+
+it('gives a supervisor no way to start server processes from the WhatsApp screen', function () {
+    Http::fake(['*' => Http::response([], 500)]);
+
+    Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test(WhatsappSettings::class)
+        ->assertSee('تواصل مع إدارة المركز')
+        ->assertDontSee('startNodeServer');
+
+    expect(method_exists(WhatsappSettings::class, 'startNodeServer'))->toBeFalse();
 });

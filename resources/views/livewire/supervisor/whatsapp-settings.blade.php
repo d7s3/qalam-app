@@ -64,10 +64,7 @@
 
         @if($status === 'error')
             <div class="p-4 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-xl border border-red-200 dark:border-red-800 text-sm flex flex-col gap-3">
-                <p>يرجى التأكد من تشغيل خادم الواتساب (Node.js).</p>
-                <flux:button wire:click="startNodeServer" size="sm" variant="danger" class="w-fit" icon="play">
-                    محاولة تشغيل الخادم الآن
-                </flux:button>
+                <p>خدمة الواتساب متوقفة حالياً. تواصل مع إدارة المركز لتشغيلها.</p>
             </div>
         @endif
     </flux:card>

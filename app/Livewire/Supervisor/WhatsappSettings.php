@@ -68,26 +68,6 @@ class WhatsappSettings extends Component
         }
     }
 
-    public function startNodeServer(): void
-    {
-        $basePath = base_path('whatsapp-service');
-
-        // Check if running on port 3000
-        $output = shell_exec('lsof -nP -i :3000 2>/dev/null');
-        $isRunning = $output && strpos($output, 'node') !== false;
-
-        if (! $isRunning) {
-            // Using pclose(popen()) guarantees that PHP will not wait for the process to finish
-            pclose(popen("cd {$basePath} && nohup node index.js > node.log 2>&1 &", 'r'));
-            sleep(2); // Wait a moment for it to initialize
-            $this->checkStatus();
-            \Flux::toast('تم إرسال أمر تشغيل الخادم.', variant: 'success');
-        } else {
-            \Flux::toast('الخادم يعمل مسبقاً!', variant: 'warning');
-            $this->checkStatus();
-        }
-    }
-
     public function render()
     {
         return view('livewire.supervisor.whatsapp-settings');
