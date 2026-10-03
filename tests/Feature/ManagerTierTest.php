@@ -13,6 +13,7 @@ use App\Support\ManagerTier;
 use App\Support\RoleTitle;
 use App\Support\Scope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -400,3 +401,19 @@ describe('closing a manager account', function () {
             ->and(Manager::first()->id)->toBe($this->centre->id);
     });
 });
+
+it('does not let a manager change his own reach from the managers screen', function () {
+    Livewire::actingAs($this->centre, 'manager')
+        ->test('manager.managers')
+        ->call('retier', $this->centre->id, ManagerTier::PROGRAMME)
+        ->assertForbidden();
+
+    expect(ManagerTier::of($this->centre->fresh()->load('roles')))->toBe(ManagerTier::CENTRE);
+});
+
+it('keeps the manager whose reach is being set to the one chosen', function () {
+    Livewire::actingAs($this->centre, 'manager')
+        ->test('manager.managers')
+        ->call('retier', $this->director->id, ManagerTier::PROGRAMME)
+        ->set('retiering', $this->centre->id);
+})->throws(CannotUpdateLockedPropertyException::class);
