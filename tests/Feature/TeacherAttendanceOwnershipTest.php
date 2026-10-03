@@ -107,3 +107,23 @@ it('keeps the students list within a phone\'s width and asks for a phone with th
         ->assertSeeHtml('hidden sm:table-cell')
         ->assertSeeHtml('inputmode="tel"');
 });
+
+it('opens on the cohort the teacher last took the register of', function () {
+    $secondCircle = Circle::factory()->create(['stage_id' => $this->circle->stage_id]);
+    $this->teacher->circles()->attach($secondCircle->id);
+
+    Livewire::test(Attendance::class)->set('selectedCircle', $secondCircle->id);
+
+    Livewire::test(Attendance::class)->assertSet('selectedCircle', $secondCircle->id);
+});
+
+it('forgets a remembered cohort the teacher no longer teaches', function () {
+    $secondCircle = Circle::factory()->create(['stage_id' => $this->circle->stage_id]);
+    $this->teacher->circles()->attach($secondCircle->id);
+
+    Livewire::test(Attendance::class)->set('selectedCircle', $secondCircle->id);
+
+    $this->teacher->circles()->detach($secondCircle->id);
+
+    Livewire::test(Attendance::class)->assertSet('selectedCircle', $this->circle->id);
+});

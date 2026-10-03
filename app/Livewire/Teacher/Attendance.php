@@ -17,6 +17,7 @@ use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Session;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -26,6 +27,11 @@ class Attendance extends Component
     #[Locked]
     public $circles = [];
 
+    /**
+     * Remembered between visits: a teacher of two cohorts takes the same one's
+     * register day after day, and should not be asked which each time.
+     */
+    #[Session]
     public ?int $selectedCircle = null;
 
     #[Url]
@@ -50,8 +56,16 @@ class Attendance extends Component
         $teacher = auth()->guard('teacher')->user();
         $this->circles = Scope::forRoute()->applyToCircles(Circle::query())->orderBy('name')->get();
 
-        if ($this->circles->count() === 1) {
+        // A remembered cohort he no longer teaches is let go.
+        if ($this->selectedCircle && ! $this->reaches($this->selectedCircle)) {
+            $this->selectedCircle = null;
+        }
+
+        if (! $this->selectedCircle && $this->circles->count() === 1) {
             $this->selectedCircle = $this->circles->first()->id;
+        }
+
+        if ($this->selectedCircle) {
             $this->loadStudents();
         }
 
