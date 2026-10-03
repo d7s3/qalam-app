@@ -2,6 +2,7 @@
 
 use App\Livewire\Supervisor\WhatsappSettings;
 use App\Models\Circle;
+use App\Models\Guardian;
 use App\Models\Leaderboard;
 use App\Models\Manager;
 use App\Models\Role;
@@ -307,4 +308,22 @@ it('opens the supervisor\'s and the teacher\'s home pages on their own summary',
 
     expect(strpos($supervisorPage, 'wire:name="supervisor.dashboard"'))->toBeLessThan(strpos($supervisorPage, 'wire:name="shared.activity-pulse"'))
         ->and(strpos($teacherPage, 'wire:name="teacher.dashboard"'))->toBeLessThan(strpos($teacherPage, 'wire:name="shared.activity-pulse"'));
+});
+
+it('gives the report filters a Hijri calendar, and a parent only the dates', function () {
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.reports.attendance'))
+        ->assertOk()
+        ->assertSee('النطاق')
+        ->assertSee('popover="manual"', false)
+        ->assertDontSee('type="date"', false);
+
+    $guardian = Guardian::factory()->create(['is_approved' => true]);
+    $this->student->update(['guardian_id' => $guardian->id]);
+
+    $this->actingAs($guardian, 'guardian')
+        ->get(route('guardian.reports.attendance'))
+        ->assertOk()
+        ->assertDontSee('التجميع')
+        ->assertSee('تصدير PDF');
 });

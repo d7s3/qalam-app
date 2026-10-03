@@ -179,6 +179,9 @@ new class extends Component
 
         <flux:card>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                {{-- A parent reads his own children's report; how to gather it and
+                     which cohort to narrow to are questions for the offices. --}}
+                @if ($role !== 'guardian')
                 <flux:field>
                     <flux:label>{{ __('التجميع') }}</flux:label>
                     <flux:select wire:model.live="groupBy">
@@ -189,11 +192,11 @@ new class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>{{ __('يقتصر على') }}</flux:label>
+                    <flux:label>{{ __('النطاق') }}</flux:label>
                     <flux:select wire:model.live="subjectType">
-                        <flux:select.option value="">{{ __('كل ما أبلغه') }}</flux:select.option>
-                        <flux:select.option value="stage">{{ __('برنامج بعينه') }}</flux:select.option>
-                        <flux:select.option value="circle">{{ __('دفعة بعينها') }}</flux:select.option>
+                        <flux:select.option value="">{{ __('الكل') }}</flux:select.option>
+                        <flux:select.option value="stage">{{ __('برنامج محدد') }}</flux:select.option>
+                        <flux:select.option value="circle">{{ __('دفعة محددة') }}</flux:select.option>
                     </flux:select>
                 </flux:field>
 
@@ -210,6 +213,7 @@ new class extends Component
                         </flux:select>
                     </flux:field>
                 @endif
+                @endif
 
                 <div class="flex items-end gap-2">
                     <flux:button size="sm" variant="filled" wire:click="shiftMonth(-1)" icon="chevron-right" />
@@ -219,17 +223,13 @@ new class extends Component
             </div>
 
             <div class="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                <flux:field>
-                    <flux:label>{{ __('من') }}</flux:label>
-                    <flux:input type="date" wire:model.live="from" />
-                </flux:field>
-                <flux:field>
-                    <flux:label>{{ __('إلى') }}</flux:label>
-                    <flux:input type="date" wire:model.live="to" />
-                </flux:field>
-                <div class="flex gap-2">
-                    <flux:button variant="filled" wire:click="exportCsv" icon="table-cells">{{ __('جدول') }}</flux:button>
-                    <flux:button variant="filled" wire:click="exportPdf" icon="document-arrow-down">{{ __('ورقة') }}</flux:button>
+                {{-- The academy reads dates by the Hijri calendar; the picker shows
+                     the Hijri month and keeps the Gregorian date underneath. --}}
+                <livewire:shared.hijri-datepicker wire:model.live="from" :label="__('من')" wire:key="report-from" />
+                <livewire:shared.hijri-datepicker wire:model.live="to" :label="__('إلى')" wire:key="report-to" />
+                <div class="flex flex-wrap gap-2">
+                    <flux:button variant="filled" wire:click="exportCsv" icon="table-cells">{{ __('تصدير جدول') }}</flux:button>
+                    <flux:button variant="filled" wire:click="exportPdf" icon="document-arrow-down">{{ __('تصدير PDF') }}</flux:button>
                 </div>
             </div>
         </flux:card>
