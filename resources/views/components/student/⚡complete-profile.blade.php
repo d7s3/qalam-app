@@ -4,7 +4,6 @@ use Livewire\Component;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
-use App\Models\Guardian;
 use Flux\Flux;
 
 new class extends Component
@@ -13,6 +12,7 @@ new class extends Component
     public $password = '';
     public $password_confirmation = '';
 
+    #[\Livewire\Attributes\Locked]
     public $needsGuardian = false;
     public $guardian_name = '';
     public $guardian_phone = '';
@@ -58,36 +58,9 @@ new class extends Component
         ]);
 
         if ($this->needsGuardian) {
-            // Format phone to 966...
-            $formattedPhone = $this->guardian_phone;
-            if (str_starts_with($formattedPhone, '0')) {
-                $formattedPhone = '966' . substr($formattedPhone, 1);
-            } elseif (str_starts_with($formattedPhone, '5')) {
-                $formattedPhone = '966' . $formattedPhone;
-            }
-
-            // Check if Guardian with this phone already exists
-            $guardian = Guardian::where('phone', $formattedPhone)->first();
-
-            if (!$guardian) {
-                $emailPrefix = $formattedPhone;
-                $guardianEmail = $emailPrefix . '@parent.com';
-                
-                // Add randomness if the generated email already exists
-                while (Guardian::where('email', $guardianEmail)->exists()) {
-                    $guardianEmail = $emailPrefix . rand(10, 99) . '@parent.com';
-                }
-
-                $guardian = Guardian::create([
-                    'name' => $this->guardian_name,
-                    'phone' => $formattedPhone,
-                    'email' => $guardianEmail,
-                    'password' => Hash::make($formattedPhone),
-                    'is_approved' => true,
-                ]);
-            }
-
-            $student->guardian_id = $guardian->id;
+            $student->guardian_id = app(\App\Services\GuardianLinkService::class)
+                ->guardianFor($this->guardian_name, $this->guardian_phone)
+                ->id;
         }
 
         $student->email = $this->email;
