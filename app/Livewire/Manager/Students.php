@@ -8,7 +8,9 @@ use App\Models\Guardian;
 use App\Models\Student;
 use App\Support\Scope;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -25,6 +27,7 @@ class Students extends Component
 
     public $circle_id = null;
 
+    #[Locked]
     public $editingStudentId = null;
 
     public string $search = '';
@@ -40,6 +43,19 @@ class Students extends Component
     public $guardian_id = null;
 
     public string $editJoinedAt = '';
+
+    /**
+     * The student records this reader may act on. The lists were already
+     * narrowed to the reader's reach; every id that arrives with a button —
+     * approve, edit, save, reset a link, delete — is looked up through here too,
+     * so a programme's manager cannot reach into the next programme by id.
+     *
+     * @return Builder<Student>
+     */
+    private function reachable()
+    {
+        return Scope::forRole('manager')->applyToStudents(Student::query());
+    }
 
     public function mount()
     {
@@ -107,7 +123,7 @@ class Students extends Component
 
     public function approve($id)
     {
-        $student = Student::find($id);
+        $student = $this->reachable()->find($id);
 
         if (! $student) {
             Flux::toast(__('الطالب غير موجود'), variant: 'danger');
@@ -129,7 +145,7 @@ class Students extends Component
 
     public function edit($id)
     {
-        $this->viewingStudent = Student::with([
+        $this->viewingStudent = $this->reachable()->with([
             'circle.stage',
             'guardian',
             'plans' => function ($q) {
@@ -171,7 +187,7 @@ class Students extends Component
             'editJoinedAt' => 'nullable|date',
         ]);
 
-        Student::find($this->editingStudentId)->update([
+        $this->reachable()->findOrFail($this->editingStudentId)->update([
             'name' => $this->name,
             'email' => $this->email,
             'circle_id' => $this->circle_id,
@@ -194,7 +210,7 @@ class Students extends Component
 
     public function resetToken($id)
     {
-        $student = Student::find($id);
+        $student = $this->reachable()->find($id);
         if ($student) {
             $student->update([
                 'access_token' => Str::random(32),
@@ -208,7 +224,7 @@ class Students extends Component
 
     public function delete($id)
     {
-        $student = Student::findOrFail($id);
+        $student = $this->reachable()->findOrFail($id);
         $student->delete();
         Flux::toast(__('تم حذف الطالب بنجاح'), variant: 'success');
     }

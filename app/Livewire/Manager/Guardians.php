@@ -6,8 +6,10 @@ use App\Models\Guardian;
 use App\Models\Student;
 use App\Support\Scope;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Guardians extends Component
@@ -20,6 +22,7 @@ class Guardians extends Component
 
     public string $phone = '';
 
+    #[Locked]
     public $editingGuardianId = null;
 
     public string $search = '';
@@ -29,6 +32,19 @@ class Guardians extends Component
     public array $selectedStudents = [];
 
     public string $studentSearch = '';
+
+    /**
+     * The guardian records this reader may act on. The lists were already
+     * narrowed to the reader's reach; every id that arrives with a button —
+     * approve, edit, save, reset a link, delete — is looked up through here too,
+     * so a programme's manager cannot reach into the next programme by id.
+     *
+     * @return Builder<Guardian>
+     */
+    private function reachable()
+    {
+        return Scope::forRole('manager')->applyToGuardians(Guardian::query());
+    }
 
     public function mount()
     {
@@ -88,7 +104,7 @@ class Guardians extends Component
 
     public function approve($id)
     {
-        $guardian = Guardian::find($id);
+        $guardian = $this->reachable()->find($id);
 
         if (! $guardian) {
             Flux::toast(__('ولي الأمر غير موجود'), variant: 'danger');
@@ -108,7 +124,7 @@ class Guardians extends Component
 
     public function edit($id)
     {
-        $this->viewingGuardian = Guardian::with('students')->find($id);
+        $this->viewingGuardian = $this->reachable()->with('students')->find($id);
 
         if (! $this->viewingGuardian) {
             Flux::toast(__('ولي الأمر غير موجود'), variant: 'danger');
@@ -132,21 +148,25 @@ class Guardians extends Component
             'phone' => 'nullable|string|max:20',
         ]);
 
-        $guardian = Guardian::find($this->editingGuardianId);
+        $guardian = $this->reachable()->find($this->editingGuardianId);
         $guardian->update([
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
         ]);
 
+        // Only students this reader reaches are taken from or given to the
+        // guardian: the chosen ids arrive from the browser.
+        $reachableStudents = fn () => Scope::forRole('manager')->applyToStudents(Student::query());
+
         // Remove guardian_id from students that are no longer assigned to this guardian
-        Student::where('guardian_id', $guardian->id)
+        $reachableStudents()->where('guardian_id', $guardian->id)
             ->whereNotIn('id', $this->selectedStudents)
             ->update(['guardian_id' => null]);
 
         // Assign this guardian to the currently selected students
         if (! empty($this->selectedStudents)) {
-            Student::whereIn('id', $this->selectedStudents)
+            $reachableStudents()->whereIn('id', $this->selectedStudents)
                 ->update(['guardian_id' => $guardian->id]);
         }
 
@@ -158,7 +178,7 @@ class Guardians extends Component
 
     public function resetToken($id)
     {
-        $guardian = Guardian::find($id);
+        $guardian = $this->reachable()->find($id);
         if ($guardian) {
             $guardian->update([
                 'access_token' => Str::random(32),
@@ -174,7 +194,7 @@ class Guardians extends Component
 
     public function delete($id)
     {
-        $guardian = Guardian::find($id);
+        $guardian = $this->reachable()->find($id);
 
         if ($guardian) {
             $guardian->delete();

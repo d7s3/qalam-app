@@ -7,6 +7,8 @@ use App\Models\Stage;
 use App\Models\Teacher;
 use App\Support\Scope;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Circles extends Component
@@ -21,6 +23,7 @@ class Circles extends Component
 
     public $stage_id = null;
 
+    #[Locked]
     public $editingCircleId = null;
 
     public string $search = '';
@@ -32,6 +35,19 @@ class Circles extends Component
     public array $selectedTeachers = [];
 
     public $teachersList = [];
+
+    /**
+     * The circle records this reader may act on. The lists were already
+     * narrowed to the reader's reach; every id that arrives with a button —
+     * approve, edit, save, reset a link, delete — is looked up through here too,
+     * so a programme's manager cannot reach into the next programme by id.
+     *
+     * @return Builder<Circle>
+     */
+    private function reachable()
+    {
+        return Scope::forRole('manager')->applyToCircles(Circle::query());
+    }
 
     public function mount()
     {
@@ -87,7 +103,7 @@ class Circles extends Component
         ]);
 
         if ($this->editingCircleId) {
-            $circle = Circle::find($this->editingCircleId);
+            $circle = $this->reachable()->find($this->editingCircleId);
             $circle->update([
                 'name' => $this->name,
                 'description' => $this->description,
@@ -112,7 +128,7 @@ class Circles extends Component
 
     public function edit($id)
     {
-        $circle = Circle::findOrFail($id);
+        $circle = $this->reachable()->findOrFail($id);
         $this->editingCircleId = $circle->id;
         $this->name = $circle->name;
         $this->description = $circle->description ?? '';
@@ -129,7 +145,7 @@ class Circles extends Component
 
     public function delete($id)
     {
-        $circle = Circle::findOrFail($id);
+        $circle = $this->reachable()->findOrFail($id);
         if ($circle->teachers()->count() > 0 || $circle->students()->count() > 0) {
             Flux::toast(__('لا يمكن حذف الدفعة لاحتوائها على معلمين أو طلاب'), variant: 'danger');
 
