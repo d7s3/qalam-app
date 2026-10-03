@@ -272,3 +272,10 @@ it('names each tab of the teacher\'s shell for itself', function () {
     expect($html)->toMatch('/<title>\s*'.preg_quote($label, '/').' - /u')
         ->and($html)->toContain('document.title');
 });
+
+it('names the form pages in the browser tab', function () {
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.forms.create'))
+        ->assertOk()
+        ->assertSee('إنشاء نموذج - ', false);
+});
