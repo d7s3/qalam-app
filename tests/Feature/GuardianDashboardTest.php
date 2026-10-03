@@ -41,9 +41,11 @@ it('renders the guardian dashboard with all children listed', function () {
     $this->get(route('guardian.dashboard'))
         ->assertSuccessful()
         ->assertSee('لوحة تحكم ولي الأمر')
-        ->assertSee('عدد الأبناء')
-        ->assertSee('الابن الأول')
-        ->assertSee('الابن الثاني');
+        // The children come first, before the notifications; an approved
+        // account is not told it is approved.
+        ->assertSeeInOrder(['بيانات الأبناء', 'الابن الأول', 'آخر التنبيهات'])
+        ->assertSee('الابن الثاني')
+        ->assertDontSee('قيد المراجعة');
 });
 
 it('renders the create-challenge page via the single-file component', function () {

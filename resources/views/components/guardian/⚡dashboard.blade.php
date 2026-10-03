@@ -114,87 +114,14 @@ new class extends Component
         </div>
     </div>
 
-    <div class="grid auto-rows-min gap-4 md:grid-cols-3">
-        <div class="relative overflow-hidden rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
-            <div class="flex items-center gap-4">
-                <div class="p-3 bg-blue-100 text-blue-600 rounded-lg dark:bg-blue-900/30 dark:text-blue-400">
-                    <flux:icon icon="users" class="size-6" />
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400">عدد الأبناء</p>
-                    <h3 class="text-2xl font-bold text-zinc-900 dark:text-white">{{ count($this->children) }}</h3>
-                </div>
-            </div>
+    {{-- The account's approval is news only when it is missing. --}}
+    @unless ($guardian->is_approved)
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+            حسابك قيد المراجعة، وستظهر لك بيانات أبنائك كاملة بعد اعتماده.
         </div>
+    @endunless
 
-        <div class="relative overflow-hidden rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
-            <div class="flex items-center gap-4">
-                <div class="p-3 bg-green-100 text-green-600 rounded-lg dark:bg-green-900/30 dark:text-green-400">
-                    <flux:icon icon="check-circle" class="size-6" />
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400">حالة الاعتماد</p>
-                    <h3 class="text-xl font-bold text-zinc-900 dark:text-white">
-                        {{ $guardian->is_approved ? 'معتمد' : 'قيد الانتظار' }}
-                    </h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    @php
-        $unreadCount = $this->notifications->whereNull('read_at')->count();
-    @endphp
-    <div class="relative rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold flex items-center gap-2">
-                <flux:icon icon="bell" class="size-5" />
-                آخر التنبيهات
-                @if($unreadCount > 0)
-                    <span class="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-black">{{ $unreadCount > 9 ? '9+' : $unreadCount }}</span>
-                @endif
-            </h2>
-            @if($unreadCount > 0)
-                <flux:button wire:click="markAllNotificationsRead" size="xs" variant="ghost" icon="check">
-                    تعليم الكل كمقروء
-                </flux:button>
-            @endif
-        </div>
-
-        <div class="space-y-2">
-            @forelse($this->notifications as $notification)
-                @php
-                    $isUnread = $notification->read_at === null;
-                    $tone = match ($notification->type) {
-                        'absence' => 'bg-rose-50 dark:bg-rose-500/10 border-rose-100 dark:border-rose-500/20',
-                        'late' => 'bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20',
-                        default => 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20',
-                    };
-                    $icon = match ($notification->type) {
-                        'absence' => 'x-circle',
-                        'late' => 'clock',
-                        default => 'sparkles',
-                    };
-                @endphp
-                <div class="flex items-start gap-3 rounded-xl border p-3 {{ $isUnread ? $tone : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800' }}">
-                    <flux:icon icon="{{ $icon }}" class="size-4 mt-0.5 shrink-0 {{ $isUnread ? '' : 'text-zinc-400' }}" />
-                    <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2">
-                            <p class="text-sm font-bold {{ $isUnread ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500' }}">{{ $notification->title }}</p>
-                            @if($isUnread)
-                                <span class="size-2 rounded-full bg-rose-500 shrink-0"></span>
-                            @endif
-                        </div>
-                        <p class="text-xs whitespace-pre-line {{ $isUnread ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400' }} leading-relaxed mt-0.5">{{ $notification->body }}</p>
-                        <p class="text-[10px] text-zinc-400 mt-1">{{ $notification->created_at->diffForHumans() }}</p>
-                    </div>
-                </div>
-            @empty
-                <div class="text-center py-6 text-sm text-zinc-400">لا توجد تنبيهات حالياً</div>
-            @endforelse
-        </div>
-    </div>
-
+    {{-- His children first: what a parent opens the page to see. --}}
     <div class="relative h-full flex-1 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
         <h2 class="text-lg font-bold mb-4">بيانات الأبناء</h2>
 
@@ -329,6 +256,59 @@ new class extends Component
                 <div class="text-center py-8 text-zinc-500">
                     لا يوجد أبناء مسجلين حالياً
                 </div>
+            @endforelse
+        </div>
+    </div>
+
+    @php
+        $unreadCount = $this->notifications->whereNull('read_at')->count();
+    @endphp
+    <div class="relative rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold flex items-center gap-2">
+                <flux:icon icon="bell" class="size-5" />
+                آخر التنبيهات
+                @if($unreadCount > 0)
+                    <span class="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-black">{{ $unreadCount > 9 ? '9+' : $unreadCount }}</span>
+                @endif
+            </h2>
+            @if($unreadCount > 0)
+                <flux:button wire:click="markAllNotificationsRead" size="xs" variant="ghost" icon="check">
+                    تعليم الكل كمقروء
+                </flux:button>
+            @endif
+        </div>
+
+        <div class="space-y-2">
+            @forelse($this->notifications as $notification)
+                @php
+                    $isUnread = $notification->read_at === null;
+                    $tone = match ($notification->type) {
+                        'absence' => 'bg-rose-50 dark:bg-rose-500/10 border-rose-100 dark:border-rose-500/20',
+                        'late' => 'bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20',
+                        default => 'bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20',
+                    };
+                    $icon = match ($notification->type) {
+                        'absence' => 'x-circle',
+                        'late' => 'clock',
+                        default => 'sparkles',
+                    };
+                @endphp
+                <div class="flex items-start gap-3 rounded-xl border p-3 {{ $isUnread ? $tone : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800' }}">
+                    <flux:icon icon="{{ $icon }}" class="size-4 mt-0.5 shrink-0 {{ $isUnread ? '' : 'text-zinc-400' }}" />
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-bold {{ $isUnread ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500' }}">{{ $notification->title }}</p>
+                            @if($isUnread)
+                                <span class="size-2 rounded-full bg-rose-500 shrink-0"></span>
+                            @endif
+                        </div>
+                        <p class="text-xs whitespace-pre-line {{ $isUnread ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400' }} leading-relaxed mt-0.5">{{ $notification->body }}</p>
+                        <p class="text-[10px] text-zinc-400 mt-1">{{ $notification->created_at->diffForHumans() }}</p>
+                    </div>
+                </div>
+            @empty
+                <div class="text-center py-6 text-sm text-zinc-400">لا توجد تنبيهات حالياً</div>
             @endforelse
         </div>
     </div>
