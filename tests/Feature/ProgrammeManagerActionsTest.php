@@ -2,10 +2,12 @@
 
 use App\Models\AcademicCalendarEvent;
 use App\Models\Circle;
+use App\Models\ExamLevel;
 use App\Models\Guardian;
 use App\Models\Manager;
 use App\Models\Stage;
 use App\Models\Student;
+use App\Models\StudentExam;
 use App\Models\Supervisor;
 use App\Models\Teacher;
 use App\Models\UserRole;
@@ -132,4 +134,41 @@ describe('the calendar', function () {
 
         expect(AcademicCalendarEvent::where('is_attendance_period', true)->count())->toBe(0);
     })->with(['another programme' => [['theirs']], 'the whole centre' => [[]]]);
+});
+
+describe('the students\' exams', function () {
+    beforeEach(function () {
+        $level = ExamLevel::create(['name' => 'المستوى الأول', 'direction' => 'forward']);
+
+        $this->theirExam = StudentExam::create([
+            'student_id' => $this->theirStudent->id,
+            'exam_level_id' => $level->id,
+            'date_time' => now(),
+            'status' => 'pending',
+        ]);
+    });
+
+    it('shows a programme\'s manager no exam of another programme', function () {
+        Livewire::actingAs($this->director, 'manager')
+            ->test('manager.student-exams')
+            ->assertDontSee($this->theirStudent->name);
+    });
+
+    it('does not let him open or delete one', function (string $action) {
+        expect(fn () => Livewire::actingAs($this->director, 'manager')
+            ->test('manager.student-exams')
+            ->call($action, $this->theirExam->id))
+            ->toThrow(ModelNotFoundException::class);
+
+        expect($this->theirExam->fresh())->not->toBeNull();
+    })->with(['edit', 'delete']);
+
+    it('still shows and lets the centre\'s manager delete it', function () {
+        Livewire::actingAs($this->centre, 'manager')
+            ->test('manager.student-exams')
+            ->assertSee($this->theirStudent->name)
+            ->call('delete', $this->theirExam->id);
+
+        expect($this->theirExam->fresh())->toBeNull();
+    });
 });

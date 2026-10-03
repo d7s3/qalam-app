@@ -3,6 +3,9 @@
 use App\Models\StudentExam;
 use App\Models\Student;
 use App\Models\ExamLevel;
+use App\Support\Scope;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Carbon;
@@ -13,6 +16,7 @@ new class extends Component {
     public $search = '';
 
     public $showModal = false;
+    #[Locked]
     public $editingId = null;
 
     public $studentId = null;
@@ -56,10 +60,20 @@ new class extends Component {
         $this->showModal = true;
     }
 
+    /**
+     * The exams of students this reader reaches. The list is drawn from here,
+     * and every exam id a button sends is looked up here too, so a programme's
+     * manager neither sees nor touches the next programme's exams.
+     */
+    private function reachableExams()
+    {
+        return StudentExam::whereHas('student', fn ($students) => Scope::forRole('manager')->applyToStudents($students));
+    }
+
     public function edit($id)
     {
         $this->resetValidation();
-        $exam = StudentExam::findOrFail($id);
+        $exam = $this->reachableExams()->findOrFail($id);
 
         $this->editingId = $exam->id;
         $this->studentId = $exam->student_id;
@@ -76,6 +90,15 @@ new class extends Component {
     public function save()
     {
         $this->validate();
+
+        // The student is chosen in the browser; he must be one of the reader's.
+        $this->validate([
+            'studentId' => [Rule::in(Scope::forRole('manager')->applyToStudents(Student::query())->pluck('id')->all())],
+        ], ['studentId.in' => __('الطالب المختار ليس ضمن نطاقك.')]);
+
+        if ($this->editingId) {
+            $this->reachableExams()->findOrFail($this->editingId);
+        }
 
         StudentExam::updateOrCreate(
             ['id' => $this->editingId],
@@ -96,13 +119,13 @@ new class extends Component {
 
     public function delete($id)
     {
-        StudentExam::findOrFail($id)->delete();
+        $this->reachableExams()->findOrFail($id)->delete();
         $this->dispatch('toast', variant: 'success', heading: 'تم الحذف بنجاح!');
     }
 
     public function with()
     {
-        $exams = StudentExam::with(['student', 'examLevel'])
+        $exams = $this->reachableExams()->with(['student', 'examLevel'])
             ->whereHas('student', function ($query) {
                 $query->where('name', 'like', '%' . $this->search . '%');
             })
