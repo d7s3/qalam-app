@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Circle;
+use App\Models\Stage;
+use App\Models\Student;
 use App\Models\Teacher;
 
 /**
@@ -22,6 +25,31 @@ it('pins a bottom-pinned bar clear of a teacher\'s bottom bar on a phone', funct
                 const bar = document.querySelector('.z-bar.bottom-0').getBoundingClientRect();
 
                 return bar.height > 0 && pinned.getBoundingClientRect().bottom <= bar.top;
+            })()
+            JS, true);
+});
+
+it('shows the register\'s monthly save bar above a teacher\'s bottom bar on a phone', function () {
+    $circle = Circle::factory()->create(['stage_id' => Stage::factory()->create()->id]);
+    $teacher = Teacher::factory()->create(['is_approved' => true]);
+    $teacher->circles()->attach($circle->id);
+    Student::factory()->count(2)->create(['circle_id' => $circle->id, 'status' => 'active', 'is_approved' => true]);
+
+    $this->actingAs($teacher, 'teacher');
+
+    visit('/teacher/attendance')
+        ->on()->mobile()
+        ->assertNoJavaScriptErrors()
+        ->click('جدول الشهر')
+        ->click('تحديد الكل')
+        ->click('button[x-on\\:click="applyToSelection(\'present\')"]')
+        ->assertSee('تعديل غير محفوظ')
+        ->assertScript(<<<'JS'
+            (() => {
+                const save = [...document.querySelectorAll('.sticky button')].find(b => b.textContent.trim().startsWith('حفظ'));
+                const spot = save.getBoundingClientRect();
+
+                return save.contains(document.elementFromPoint(spot.left + spot.width / 2, spot.top + spot.height / 2));
             })()
             JS, true);
 });

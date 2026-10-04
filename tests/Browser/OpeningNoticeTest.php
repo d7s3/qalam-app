@@ -2,6 +2,7 @@
 
 use App\Models\Manager;
 use App\Models\Motivation;
+use App\Models\PortalMessageRead;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\PortalService;
@@ -82,4 +83,39 @@ it('fits a long shahid to a student\'s phone too, over his own bottom bar', func
         ->on()->mobile()
         ->assertNoJavaScriptErrors()
         ->assertScript(openingNoticeFitsScreen('إغلاق'), true);
+});
+
+it('closes a shahid with its button, and greets no more on the next page', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'source' => 'أثر قصير', 'status' => 'approved']);
+
+    visit('/teacher/students')
+        ->on()->mobile()
+        ->assertSee('أثر قصير')
+        ->click('.z-overlay button')
+        ->assertDontSee('أثر قصير')
+        ->navigate('/teacher/students')
+        ->assertDontSee('أثر قصير');
+});
+
+it('closes a shahid with Escape', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'source' => 'أثر قصير', 'status' => 'approved']);
+
+    visit('/teacher/students')
+        ->assertSee('أثر قصير')
+        ->keys('.z-overlay', 'Escape')
+        ->assertDontSee('أثر قصير');
+});
+
+it('takes a word away once he says he read it, and records the reading', function () {
+    PortalService::announce(Manager::factory()->create(), 'manager', 'ذكّروا طلابكم بالمراجعة', ['teacher'], title: 'تذكير');
+
+    visit('/teacher/students')
+        ->on()->mobile()
+        ->assertSee('تذكير')
+        ->keys('.z-overlay', 'Escape')
+        ->assertSee('تذكير')
+        ->click('.z-overlay button')
+        ->assertDontSee('تذكير');
+
+    expect(PortalMessageRead::where('user_id', $this->teacher->id)->count())->toBe(1);
 });
