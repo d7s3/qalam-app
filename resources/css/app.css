@@ -370,3 +370,26 @@ h1, h2, h3,
         z-index: 10 !important;
     }
 }
+/*
+ * What stays put on the screen, in two layers.
+ *
+ * The bars that ride along a page — a phone's bottom navigation, the offline
+ * notice — sit on `z-bar`. Whatever is laid over the whole page sits on
+ * `z-overlay`, above them: left at z-50, an overlay slid under a phone's
+ * bottom bar, which hid its last lines and the buttons that close it.
+ *
+ * Something pinned to the bottom of a page, a save bar say, sits clear of a
+ * phone's bottom bar with `bottom-above-bar`: the bar's own height and the
+ * room an iPhone keeps for its home indicator, with a little air.
+ */
+@utility z-bar {
+    z-index: 100;
+}
+
+@utility z-overlay {
+    z-index: 200;
+}
+
+@utility bottom-above-bar {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}

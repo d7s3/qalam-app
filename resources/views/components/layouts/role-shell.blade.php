@@ -29,7 +29,7 @@
          x-show="!online" 
          x-transition.opacity.duration.500ms
          style="display: none;"
-         class="fixed top-0 left-0 right-0 z-[100] bg-red-500 text-white text-center py-1.5 px-4 text-sm font-bold shadow-md flex items-center justify-center gap-2">
+         class="fixed top-0 left-0 right-0 z-bar bg-red-500 text-white text-center py-1.5 px-4 text-sm font-bold shadow-md flex items-center justify-center gap-2">
          <flux:icon icon="exclamation-triangle" class="size-4" />
          <span>أنت غير متصل بشبكة الإنترنت حالياً. يرجى التحقق من اتصالك.</span>
     </div>

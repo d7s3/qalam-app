@@ -335,7 +335,7 @@ new class extends Component
 
 
     @if ($askingRecitationFor)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="fixed inset-0 z-overlay flex items-center justify-center bg-black/40 p-4">
             <div class="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 shadow-xl p-6 space-y-4 text-center">
                 <div class="mx-auto w-fit p-3 rounded-2xl bg-maroon/10 text-maroon dark:text-red-secondary">
                     <flux:icon icon="microphone" class="size-6" />

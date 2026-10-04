@@ -423,7 +423,7 @@ a reason — enforced here for the prompt, and again on the server for real.
 
     {{-- ══════════════════ STICKY SAVE BAR ══════════════════ --}}
     <div x-cloak x-show="dirtyCount > 0" x-transition.opacity
-        class="sticky bottom-4 z-40 mx-auto max-w-3xl">
+        class="sticky bottom-4 max-lg:bottom-above-bar z-40 mx-auto max-w-3xl">
         <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-maroon/30 dark:border-white/20 bg-white dark:bg-zinc-900 shadow-lg px-4 py-3">
             <div class="flex items-center gap-2">
                 <span class="flex size-8 items-center justify-center rounded-full bg-maroon/10 text-maroon dark:bg-white/10 dark:text-white">

@@ -1033,7 +1033,7 @@ new class extends Component {
                     x-transition:leave="transition ease-in duration-200"
                     x-transition:leave-start="opacity-100 translate-y-0"
                     x-transition:leave-end="opacity-0 translate-y-4"
-                    class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full" x-cloak>
+                    class="fixed inset-0 z-overlay bg-white dark:bg-zinc-900 flex flex-col w-full h-full" x-cloak>
 
                     <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
                         <div>
@@ -1249,7 +1249,7 @@ new class extends Component {
                     x-transition:leave="transition ease-in duration-200"
                     x-transition:leave-start="opacity-100 translate-y-0"
                     x-transition:leave-end="opacity-0 translate-y-4"
-                    class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full" x-cloak>
+                    class="fixed inset-0 z-overlay bg-white dark:bg-zinc-900 flex flex-col w-full h-full" x-cloak>
 
                     <div class="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
                         <div>

@@ -1351,7 +1351,7 @@ new class extends Component {
         @php
             $claim = $pendingClaims->first();
         @endphp
-        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
+        <div class="fixed inset-0 z-overlay flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
             <div class="relative max-w-md w-full rounded-3xl p-6 md:p-8 border border-slate-200 bg-white shadow-2xl text-center space-y-6 overflow-hidden">
                 <!-- Sparkle Background Effects using team color -->
                 <div class="absolute -top-12 -left-12 size-40 rounded-full bg-team-10 blur-3xl"></div>
@@ -1418,7 +1418,7 @@ new class extends Component {
         @php
             $mClaim = $pendingMilestoneClaims->first();
         @endphp
-        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
+        <div class="fixed inset-0 z-overlay flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
             <div class="relative max-w-md w-full rounded-3xl p-6 md:p-8 border border-slate-200 bg-white shadow-2xl text-center space-y-6 overflow-hidden">
                 <!-- Sparkle Background Effects using team color -->
                 <div class="absolute -top-12 -left-12 size-40 rounded-full bg-team-10 blur-3xl"></div>
@@ -2576,7 +2576,7 @@ new class extends Component {
                                      x-transition:leave="transition ease-in duration-200"
                                      x-transition:leave-start="opacity-100 translate-y-0"
                                      x-transition:leave-end="opacity-0 translate-y-4"
-                                     class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full text-zinc-900 dark:text-white"
+                                     class="fixed inset-0 z-overlay bg-white dark:bg-zinc-900 flex flex-col w-full h-full text-zinc-900 dark:text-white"
                                      x-cloak>
                                      
                                      {{-- Modal Header --}}

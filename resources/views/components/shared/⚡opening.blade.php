@@ -95,9 +95,7 @@ new class extends Component
      heading and its button stay put and only the text between them scrolls. --}}
 <div dir="rtl">
     @if($message || $motivation)
-        {{-- Above the bottom bars (the student's sits at 9999), which used to
-             hide the notice's button behind them on a phone. --}}
-        <div class="fixed inset-0 z-[10000] flex items-end md:items-center justify-center bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4"
+        <div class="fixed inset-0 z-overlay flex items-end md:items-center justify-center bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4"
             role="dialog" aria-modal="true"
             @unless($message)
                 wire:click.self="dismiss" x-on:keydown.escape.window="$wire.dismiss()"
