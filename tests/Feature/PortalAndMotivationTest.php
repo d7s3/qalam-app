@@ -136,3 +136,58 @@ it('refuses to approve a hadith graded as anything else', function () {
 
     expect($one->fresh()->status)->toBe('pending');
 });
+
+it('lets a shahid on opening go with Escape or a tap beside it', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'source' => 'أثر', 'status' => 'approved']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')
+        ->assertSee('العلم صيد والكتابة قيده')
+        ->assertSeeHtml('x-on:keydown.escape.window="$wire.dismiss()"')
+        ->assertSeeHtml('wire:click.self="dismiss"')
+        ->call('dismiss')
+        ->assertDontSee('العلم صيد والكتابة قيده');
+});
+
+it('keeps a word addressed to him until he says he read it', function () {
+    PortalService::announce($this->manager, 'manager', 'ذكّروا طلابكم بالمراجعة', ['teacher']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')
+        ->assertSee('ذكّروا طلابكم بالمراجعة')
+        ->assertDontSeeHtml('keydown.escape')
+        ->assertDontSeeHtml('wire:click.self');
+});
+
+it('greets once a sitting, not over every page he moves to', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'source' => 'أثر', 'status' => 'approved']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')->assertSee('العلم صيد والكتابة قيده');
+    Livewire::test('shared.opening')->assertDontSee('العلم صيد والكتابة قيده');
+
+    expect(Motivation::first()->shown_count)->toBe(1);
+});
+
+it('keeps the same greeting through the page\'s re-renders', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'status' => 'approved']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')
+        ->assertSee('العلم صيد والكتابة قيده')
+        ->call('$refresh')
+        ->assertSee('العلم صيد والكتابة قيده');
+});
+
+it('brings an unread word back on every page until it is read', function () {
+    PortalService::announce($this->manager, 'manager', 'ذكّروا طلابكم بالمراجعة', ['teacher']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')->assertSee('ذكّروا طلابكم بالمراجعة');
+    Livewire::test('shared.opening')->assertSee('ذكّروا طلابكم بالمراجعة');
+});

@@ -1,0 +1,85 @@
+<?php
+
+use App\Models\Manager;
+use App\Models\Motivation;
+use App\Models\Student;
+use App\Models\Teacher;
+use App\Services\PortalService;
+
+/**
+ * What meets a person on opening — a shahid, or a word addressed to him — sits
+ * over the whole page. A long one used to run past the bottom of a phone,
+ * taking the button that closes it out of reach, and nothing behind it could
+ * be scrolled. However long it is, it has to fit the screen it is read on.
+ */
+/**
+ * Whether the notice holding the button with this word lies wholly within
+ * the screen, its first line as well as its last, with nothing — a bottom
+ * bar, say — laid over the button.
+ */
+function openingNoticeFitsScreen(string $label): string
+{
+    return <<<JS
+        (() => {
+            const button = [...document.querySelectorAll('.fixed.inset-0 button')].find(b => b.textContent.trim() === '{$label}');
+            const box = button.closest('.rounded-2xl').getBoundingClientRect();
+            const spot = button.getBoundingClientRect();
+            const atButton = document.elementFromPoint(spot.left + spot.width / 2, spot.top + spot.height / 2);
+
+            return box.top >= 0 && box.bottom <= window.innerHeight && button.contains(atButton);
+        })()
+        JS;
+}
+
+beforeEach(function () {
+    $this->teacher = Teacher::factory()->create(['is_approved' => true]);
+
+    $this->actingAs($this->teacher, 'teacher');
+});
+
+it('fits a long shahid to a phone\'s screen, its first line and its close button', function () {
+    Motivation::create([
+        'kind' => 'athar',
+        'text' => str_repeat("قال بعض السلف: من أراد العلم فليصبر على مرارة الطلب، فإن العلم لا يُنال براحة الجسد.\n", 25),
+        'source' => 'أثر طويل',
+        'status' => 'approved',
+    ]);
+
+    visit('/teacher/students')
+        ->on()->mobile()
+        ->assertNoJavaScriptErrors()
+        ->assertSee('أثر طويل')
+        ->assertScript(openingNoticeFitsScreen('إغلاق'), true);
+});
+
+it('fits a long message to a phone\'s screen, its title and its read button', function () {
+    PortalService::announce(
+        Manager::factory()->create(),
+        'manager',
+        str_repeat("نرجو من الجميع الالتزام بمواعيد الحلقات والحضور قبل بدء الدرس بعشر دقائق.\n", 25),
+        ['teacher'],
+        title: 'رسالة طويلة',
+    );
+
+    visit('/teacher/students')
+        ->on()->mobile()
+        ->assertNoJavaScriptErrors()
+        ->assertSee('رسالة طويلة')
+        ->assertScript(openingNoticeFitsScreen('قرأتها'), true);
+});
+
+it('fits a long shahid to a student\'s phone too, over his own bottom bar', function () {
+    $this->actingAs(Student::factory()->create(['is_data_completed' => true]), 'student');
+
+    Motivation::create([
+        'kind' => 'athar',
+        'text' => str_repeat("قال بعض السلف: من أراد العلم فليصبر على مرارة الطلب.\n", 30),
+        'source' => 'أثر طويل',
+        'status' => 'approved',
+    ]);
+
+    visit('/student/dashboard')
+        ->on()->mobile()
+        ->assertNoJavaScriptErrors()
+        ->assertScript(openingNoticeFitsScreen('إغلاق'), true);
+});
