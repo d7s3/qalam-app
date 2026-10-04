@@ -119,15 +119,17 @@ it('opens the authoring screen for the manager who carries the supervisor', func
 
 it('writes a week for the manager against his own name', function () {
     $manager = Manager::factory()->create();
+    // Clear of this week, which the setup already wrote without a name.
+    $startsOn = now()->startOfWeek(Carbon::SUNDAY)->addWeeks(4)->format('Y-m-d');
 
     Livewire::actingAs($manager, 'manager')
         ->test('supervisor.self-program-weeks')
         ->set('asRole', 'manager')
         ->set('stageId', $this->programme->id)
-        ->set('newStartsOn', '2026-10-04')
+        ->set('newStartsOn', $startsOn)
         ->call('addWeek');
 
-    $week = SelfProgramWeek::whereDate('starts_on', '2026-10-04')->firstOrFail();
+    $week = SelfProgramWeek::whereDate('starts_on', $startsOn)->firstOrFail();
 
     expect($week->created_by_id)->toBe($manager->id);
 });
