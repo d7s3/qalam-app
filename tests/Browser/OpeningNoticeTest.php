@@ -7,12 +7,6 @@ use App\Models\Teacher;
 use App\Services\PortalService;
 
 /**
- * What meets a person on opening — a shahid, or a word addressed to him — sits
- * over the whole page. A long one used to run past the bottom of a phone,
- * taking the button that closes it out of reach, and nothing behind it could
- * be scrolled. However long it is, it has to fit the screen it is read on.
- */
-/**
  * Whether the notice holding the button with this word lies wholly within
  * the screen, its first line as well as its last, with nothing — a bottom
  * bar, say — laid over the button.
@@ -31,6 +25,12 @@ function openingNoticeFitsScreen(string $label): string
         JS;
 }
 
+/**
+ * What meets a person on opening — a shahid, or a word addressed to him — sits
+ * over the whole page. A long one used to run past the bottom of a phone,
+ * taking the button that closes it out of reach, and nothing behind it could
+ * be scrolled. However long it is, it has to fit the screen it is read on.
+ */
 beforeEach(function () {
     $this->teacher = Teacher::factory()->create(['is_approved' => true]);
 
