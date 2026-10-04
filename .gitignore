@@ -46,3 +46,4 @@ whatsapp-service/node_modules/
 /good-QuranPlanService.php
 /afterdoublePoints.html
 .DS_Store
+/tests/Browser/Screenshots
