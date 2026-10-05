@@ -71,8 +71,8 @@ class StageReport extends Component
         }
 
         $students = $selectedCircle
-            ? CircleReportService::studentsForCircle($selectedCircle)
-            : CircleReportService::studentsForStage($this->stage);
+            ? CircleReportService::studentsForCircle($selectedCircle, $from, $to)
+            : CircleReportService::studentsForStage($this->stage, $from, $to);
 
         $selectedStudent = null;
         if ($this->studentId !== '') {

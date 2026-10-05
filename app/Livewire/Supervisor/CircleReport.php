@@ -65,8 +65,8 @@ class CircleReport extends Component
         [$from, $to] = CircleReportService::resolveRange($this->preset, $this->fromDate, $this->toDate);
 
         $students = $this->scope === 'stage'
-            ? CircleReportService::studentsForStage($this->circle->stage)
-            : CircleReportService::studentsForCircle($this->circle);
+            ? CircleReportService::studentsForStage($this->circle->stage, $from, $to)
+            : CircleReportService::studentsForCircle($this->circle, $from, $to);
 
         $selectedStudent = null;
         if ($this->studentId !== '') {
