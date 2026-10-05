@@ -133,6 +133,21 @@ class StudentStatusService
     }
 
     /**
+     * Whether a student counted as مشارك on a day, from the history row in force
+     * that day (null when none is) and his status column.
+     *
+     * With no row in force the column answers, and an empty column is مشارك —
+     * the answer Attendance::activeStatusOnDateSql gives in SQL. The two used to
+     * differ: the SQL called every student without a row active, whatever his
+     * column said, so a student تحت التسجيل was off the register and yet his
+     * attendance counted in the reports.
+     */
+    public static function countsAsActive(?string $statusInForce, ?string $currentStatus): bool
+    {
+        return StudentStatus::of($statusInForce ?? $currentStatus) === StudentStatus::Active;
+    }
+
+    /**
      * Delete a wrong history entry and re-sync the student's current status to
      * the effective row for today (when one exists).
      */

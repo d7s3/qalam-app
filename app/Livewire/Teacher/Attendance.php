@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\Student;
 use App\Services\GamificationService;
 use App\Services\GuardianNotificationService;
+use App\Services\StudentStatusService;
 use App\Support\HijriDate;
 use App\Support\Scope;
 use Carbon\Carbon;
@@ -124,10 +125,7 @@ class Attendance extends Component
             ->get();
 
         $this->students = $studentsQuery->filter(function ($student) {
-            $history = $student->statusHistories->first();
-            $statusOnDate = $history ? $history->status : $student->status;
-
-            return $statusOnDate === 'active';
+            return StudentStatusService::countsAsActive($student->statusHistories->first()?->status, $student->status);
         })->values();
 
         $existing = AttendanceModel::where('circle_id', $this->selectedCircle)

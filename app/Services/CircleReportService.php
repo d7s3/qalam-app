@@ -329,7 +329,7 @@ class CircleReportService
             $counts[$student->id] = count(array_filter(
                 $days,
                 fn (string $day) => ($joinedAt === null || $joinedAt <= $day)
-                    && self::statusOn($studentHistory, $day) === 'active'
+                    && StudentStatusService::countsAsActive(self::statusOn($studentHistory, $day), $student->status)
             ));
         }
 
@@ -337,13 +337,13 @@ class CircleReportService
     }
 
     /**
-     * The student's status on a date: the most recent change on or before it.
-     * Mirrors Attendance::activeStatusOnDateSql, which the attendance query above
-     * applies in SQL — a student with no history at all counts as active.
+     * The status the history puts in force on a date — the most recent change
+     * on or before it — or null when it says nothing yet, for the student's
+     * own column to answer, as Attendance::activeStatusOnDateSql does in SQL.
      *
      * @param  Collection<int, StudentStatusHistory>  $history  Newest first.
      */
-    private static function statusOn(Collection $history, string $day): string
+    private static function statusOn(Collection $history, string $day): ?string
     {
         foreach ($history as $change) {
             if (Carbon::parse($change->start_date)->format('Y-m-d') <= $day) {
@@ -351,7 +351,7 @@ class CircleReportService
             }
         }
 
-        return 'active';
+        return null;
     }
 
     /**

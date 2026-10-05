@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Services\GamificationService;
 use App\Services\GuardianNotificationService;
+use App\Services\StudentStatusService;
 use App\Support\HijriDate;
 use App\Support\Scope;
 use Carbon\Carbon;
@@ -197,7 +198,7 @@ class AttendanceSheet extends Component
                     continue;
                 }
 
-                $map[$student->id][$date] = $this->statusOnDate($student, $date) === 'active';
+                $map[$student->id][$date] = StudentStatusService::countsAsActive($this->statusInForce($student, $date), $student->status);
             }
         }
 
@@ -205,16 +206,16 @@ class AttendanceSheet extends Component
     }
 
     /**
-     * A student's enrolment status on a date, from their history, falling back
-     * to their current status when the history says nothing yet.
+     * The status a student's history puts in force on a date, or null when it
+     * says nothing yet. It used to fall back to the column itself, typed as a
+     * string, so a student whose column was empty broke the whole sheet.
      */
-    private function statusOnDate(Student $student, string $date): string
+    private function statusInForce(Student $student, string $date): ?string
     {
-        $history = $student->statusHistories
+        return $student->statusHistories
             ->filter(fn ($row) => Carbon::parse($row->start_date)->toDateString() <= $date)
-            ->last();
-
-        return $history->status ?? $student->status;
+            ->last()
+            ?->status;
     }
 
     /**

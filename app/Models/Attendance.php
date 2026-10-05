@@ -57,9 +57,9 @@ class Attendance extends Model
     /**
      * Raw SQL predicate that keeps only attendance records taken while the student
      * was "active" per their status history on the record's date (the agreed rule:
-     * a student counts nowhere unless active on that date). Students with no
-     * history rows at or before the date are treated as active, matching the
-     * fallback used when reading a student's status on a given date.
+     * a student counts nowhere unless active on that date). With no history row
+     * at or before the date, the student's own status column answers, and an
+     * empty one is active — StudentStatusService::countsAsActive, in SQL.
      */
     public static function activeStatusOnDateSql(string $table = 'attendances'): string
     {
@@ -70,6 +70,10 @@ class Attendance extends Model
               and date(h.start_date) <= date({$table}.date)
             order by h.start_date desc, h.id desc
             limit 1
+        ), (
+            select nullif(u.status, '')
+            from users u
+            where u.id = {$table}.student_id
         ), 'active') = 'active'";
     }
 }

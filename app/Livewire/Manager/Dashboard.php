@@ -8,6 +8,7 @@ use App\Models\Circle;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentPlanDay;
+use App\Services\StudentStatusService;
 use App\Support\Scope;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -130,9 +131,7 @@ class Dashboard extends Component
             }])
             ->get(['id', 'circle_id', 'status'])
             ->filter(function ($student) {
-                $history = $student->statusHistories->first();
-
-                return ($history ? $history->status : $student->status) === 'active';
+                return StudentStatusService::countsAsActive($student->statusHistories->first()?->status, $student->status);
             })
             ->groupBy('circle_id')
             ->map->count()

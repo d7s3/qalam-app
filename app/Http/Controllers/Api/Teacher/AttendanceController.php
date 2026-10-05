@@ -9,6 +9,7 @@ use App\Http\Resources\StudentAttendanceResource;
 use App\Models\Attendance;
 use App\Models\Student;
 use App\Services\GamificationService;
+use App\Services\StudentStatusService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -77,10 +78,7 @@ class AttendanceController extends Controller
                 ->get();
 
             $students = $studentsQuery->filter(function ($student) {
-                $history = $student->statusHistories->first();
-                $statusOnDate = $history ? $history->status : $student->status;
-
-                return $statusOnDate === 'active';
+                return StudentStatusService::countsAsActive($student->statusHistories->first()?->status, $student->status);
             })->values();
 
             $existing = Attendance::where('circle_id', $circle->id)
