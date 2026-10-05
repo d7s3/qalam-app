@@ -187,3 +187,36 @@ it('answers every report in the shape the outputs read', function () {
         }
     }
 });
+
+it('counts a student away since before the period, and still away, as gone', function () {
+    // He had no change inside the period, and so stood «على انتظامه».
+    StudentStatusHistory::create(['student_id' => $this->student->id, 'status' => 'active', 'start_date' => '2026-06-01', 'end_date' => '2026-08-15']);
+    StudentStatusHistory::create(['student_id' => $this->student->id, 'status' => 'left', 'start_date' => '2026-08-15']);
+
+    $salem = collect(runReport('retention', $this->manager, 'manager')->rows)->firstWhere('name', 'سالم');
+
+    expect([$salem['active'], $salem['left'], $salem['returned']])->toBe([0, 1, 0]);
+});
+
+it('does not take a new student\'s placement for a return', function () {
+    StudentStatusHistory::create(['student_id' => $this->student->id, 'status' => 'registering', 'start_date' => '2026-09-02', 'end_date' => '2026-09-09']);
+    StudentStatusHistory::create(['student_id' => $this->student->id, 'status' => 'active', 'start_date' => '2026-09-09']);
+
+    $salem = collect(runReport('retention', $this->manager, 'manager')->rows)->firstWhere('name', 'سالم');
+
+    expect([$salem['active'], $salem['left'], $salem['returned']])->toBe([1, 0, 0]);
+});
+
+it('counts a return when he came back from before the period, and not one still to come', function () {
+    StudentStatusHistory::create(['student_id' => $this->student->id, 'status' => 'suspended', 'start_date' => '2026-08-20', 'end_date' => '2026-09-10']);
+    StudentStatusHistory::create(['student_id' => $this->student->id, 'status' => 'active', 'start_date' => '2026-09-10']);
+
+    StudentStatusHistory::create(['student_id' => $this->outsider->id, 'status' => 'suspended', 'start_date' => '2026-09-12', 'end_date' => '2026-09-25']);
+    StudentStatusHistory::create(['student_id' => $this->outsider->id, 'status' => 'active', 'start_date' => '2026-09-25']);
+
+    $rows = collect(runReport('retention', $this->manager, 'manager')->rows);
+
+    // Today is the 20th: Salem is back, Ziyad's return on the 25th has not happened.
+    expect($rows->firstWhere('name', 'سالم')['returned'])->toBe(1)
+        ->and([$rows->firstWhere('name', 'زياد')['left'], $rows->firstWhere('name', 'زياد')['returned']])->toBe([1, 0]);
+});

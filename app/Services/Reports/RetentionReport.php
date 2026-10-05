@@ -7,6 +7,7 @@ use App\Models\StudentStatusHistory;
 use App\Services\Reports\Concerns\GathersRows;
 use App\Services\Reports\Concerns\GroupsByStudent;
 use App\Support\HijriDate;
+use App\Support\StudentStatus;
 use Illuminate\Support\Collection;
 
 /**
@@ -78,6 +79,15 @@ class RetentionReport implements Report
     }
 
     /**
+     * Each student's run through the period, read from where he stood when it
+     * opened to where he stood when it closed.
+     *
+     * Three readings used to go wrong. Only changes inside the period were read,
+     * so a student away since before it, and still away, had none and stood
+     * «على انتظامه». Any status before مشارك counted as an absence, so a new
+     * student placed from تحت التسجيل «returned». And a return scheduled for a
+     * day still to come counted as one already made.
+     *
      * @param  Collection<int, Student>  $students
      * @return array<int, array<string, int>>
      */
@@ -89,41 +99,46 @@ class RetentionReport implements Report
             return [];
         }
 
+        $from = $query->from->toDateString();
+        $until = min($query->to->toDateString(), now('Asia/Riyadh')->toDateString());
+
         $histories = StudentStatusHistory::whereIn('student_id', $ids)
-            ->whereBetween('start_date', [$query->from->toDateString(), $query->to->toDateString()])
+            ->whereDate('start_date', '<=', $until)
             ->orderBy('start_date')
+            ->orderBy('id')
             ->get()
             ->groupBy('student_id');
 
         $measures = [];
 
         foreach ($students as $student) {
-            $rows = $histories->get($student->id) ?? collect();
-            $statuses = $rows->pluck('status')->all();
+            $periods = $histories->get($student->id) ?? collect();
+            $before = $periods->filter(fn (StudentStatusHistory $period) => $period->start_date->toDateString() < $from)->last();
+            $within = $periods->filter(fn (StudentStatusHistory $period) => $period->start_date->toDateString() >= $from)->values();
 
-            $everLeft = false;
-            $returned = 0;
+            $away = $before !== null && (bool) StudentStatus::of($before->status)?->isAway();
+            $returned = false;
 
-            foreach ($statuses as $status) {
-                $isActive = $status === 'active';
+            foreach ($within as $period) {
+                $status = StudentStatus::of($period->status);
 
-                if (! $isActive) {
-                    $everLeft = true;
-                } elseif ($everLeft) {
-                    // Active again after having been anything else.
-                    $returned++;
+                if ($status?->isAway()) {
+                    $away = true;
+                } elseif ($status === StudentStatus::Active && $away) {
+                    $returned = true;
+                    $away = false;
                 }
             }
 
             // Where he stood when the period closed decides the last two counts;
             // returning after leaving is a return, not a departure.
-            $endedAway = $statuses !== [] && end($statuses) !== 'active';
+            $endedAway = (bool) StudentStatus::of(($within->last() ?? $before)?->status ?? $student->status)?->isAway();
 
             $measures[$student->id] = [
                 'active' => $endedAway ? 0 : 1,
                 'left' => $endedAway ? 1 : 0,
-                'returned' => $returned > 0 ? 1 : 0,
-                'changes' => count($statuses),
+                'returned' => $returned ? 1 : 0,
+                'changes' => $within->count(),
             ];
         }
 

@@ -73,6 +73,16 @@ enum StudentStatus: string
     }
 
     /**
+     * Whether it keeps him from attending after he had begun: what a return
+     * comes back from. تحت التسجيل is not among them — he has not yet begun, and
+     * being placed is a start, not a return.
+     */
+    public function isAway(): bool
+    {
+        return in_array($this, [self::Suspended, self::Inactive, self::Left], true);
+    }
+
+    /**
      * The status a stored value stands for. The column defaults to active, so
      * an empty one is active; a word outside the five is nothing.
      */
