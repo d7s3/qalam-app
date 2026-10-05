@@ -8,6 +8,7 @@ use App\Models\Guardian;
 use App\Models\Student;
 use App\Services\StudentStatusService;
 use App\Support\HijriDate;
+use App\Support\StudentStatus;
 use Flux\Flux;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -197,7 +198,7 @@ class Students extends Component
     public function applyBulkStatus(): void
     {
         $this->validate([
-            'bulkStatus' => 'required|in:active,registering,suspended,left',
+            'bulkStatus' => ['required', Rule::enum(StudentStatus::class)],
             // Riyadh, not app.timezone: see the note in the student status manager.
             'bulkStatusDate' => 'nullable|date|before_or_equal:'.now('Asia/Riyadh')->format('Y-m-d'),
         ], [

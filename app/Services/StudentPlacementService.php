@@ -7,6 +7,7 @@ use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentPlacementRequest;
 use App\Models\User;
+use App\Support\StudentStatus;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -103,7 +104,7 @@ class StudentPlacementService
                 'is_approved' => true,
             ]);
 
-            StudentStatusService::changeStatus($student, 'active', null, __('تسكين معتمد'));
+            StudentStatusService::changeStatus($student, StudentStatus::Active->value, null, __('تسكين معتمد'));
 
             $request->update([
                 'status' => StudentPlacementRequest::APPROVED,
@@ -157,7 +158,7 @@ class StudentPlacementService
         DB::transaction(function () use ($student, $notes) {
             $student->update(['circle_id' => null]);
 
-            StudentStatusService::changeStatus($student, 'inactive', null, $notes ?: __('أُخرج من الدفعة'));
+            StudentStatusService::changeStatus($student, StudentStatus::Inactive->value, null, $notes ?: __('أُخرج من الدفعة'));
         });
     }
 

@@ -111,15 +111,7 @@
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="hidden sm:table-cell">
-                            @if ($student->status === 'active')
-                                <flux:badge size="sm" color="green">مشارك</flux:badge>
-                            @elseif ($student->status === 'registering')
-                                <flux:badge size="sm" color="amber">تحت التسجيل</flux:badge>
-                            @elseif ($student->status === 'suspended')
-                                <flux:badge size="sm" color="red">موقوف</flux:badge>
-                            @else
-                                <flux:badge size="sm" variant="neutral">غادر الدفعات</flux:badge>
-                            @endif
+                            <x-student-status-badge :status="$student->status" size="sm" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2" @click.stop>
@@ -190,14 +182,8 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
-                                @php
-                                    $sStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
-                                    $sStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
-                                @endphp
                                 <div class="flex items-center gap-2">
-                                    <flux:badge color="{{ $sStatusColors[$viewingStudent->status] ?? 'zinc' }}">
-                                        {{ $sStatusLabels[$viewingStudent->status] ?? $viewingStudent->status }}
-                                    </flux:badge>
+                                    <x-student-status-badge :status="$viewingStudent->status" />
                                     <flux:button type="button" size="sm" variant="filled" icon="adjustments-horizontal"
                                         wire:click="$dispatch('open-status-manager', { studentId: {{ $viewingStudent->id }} })">
                                         {{ __('إدارة الحالة') }}
@@ -413,10 +399,9 @@
             </div>
             
             <flux:select wire:model="bulkStatus" label="الحالة الجديدة">
-                <flux:select.option value="active">مشارك</flux:select.option>
-                <flux:select.option value="registering">تحت التسجيل</flux:select.option>
-                <flux:select.option value="suspended">موقوف</flux:select.option>
-                <flux:select.option value="left">غادر الدفعات</flux:select.option>
+                @foreach (\App\Support\StudentStatus::cases() as $status)
+                    <flux:select.option :value="$status->value">{{ $status->label() }}</flux:select.option>
+                @endforeach
             </flux:select>
 
             <livewire:shared.hijri-datepicker wire:model="bulkStatusDate"

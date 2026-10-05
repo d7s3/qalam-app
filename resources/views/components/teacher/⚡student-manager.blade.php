@@ -362,23 +362,7 @@ new class extends Component {
                             <x-hijri-date :date="$student->joined_at" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
-                            @php
-                                $statusColors = [
-                                    'active' => 'green',
-                                    'registering' => 'blue',
-                                    'suspended' => 'amber',
-                                    'left' => 'red',
-                                ];
-                                $statusLabels = [
-                                    'active' => 'مشارك',
-                                    'registering' => 'تحت التسجيل',
-                                    'suspended' => 'موقوف',
-                                    'left' => 'غادر الدفعات',
-                                ];
-                                $stColor = $statusColors[$student->status] ?? 'zinc';
-                                $stLabel = $statusLabels[$student->status] ?? $student->status;
-                            @endphp
-                            <flux:badge :color="$stColor" size="sm">{{ $stLabel }}</flux:badge>
+                            <x-student-status-badge :status="$student->status" size="sm" />
                         </flux:table.cell>
                         <flux:table.cell class="hidden sm:table-cell first:ps-3" >
                             @if ($student->is_data_completed)
@@ -458,14 +442,8 @@ new class extends Component {
                         @if($canChangeStatus)
                         <div>
                             <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
-                            @php
-                                $tStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
-                                $tStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
-                            @endphp
                             <div class="flex items-center gap-2">
-                                <flux:badge color="{{ $tStatusColors[$viewingStudent->status] ?? 'zinc' }}">
-                                    {{ $tStatusLabels[$viewingStudent->status] ?? $viewingStudent->status }}
-                                </flux:badge>
+                                <x-student-status-badge :status="$viewingStudent->status" />
                                 <flux:button type="button" size="sm" variant="filled" icon="adjustments-horizontal"
                                     wire:click="$dispatch('open-status-manager', { studentId: {{ $viewingStudent->id }} })">
                                     {{ __('إدارة الحالة') }}
@@ -476,7 +454,7 @@ new class extends Component {
                         @else
                         <div>
                             <div class="text-xs text-zinc-500 mb-1">{{ __('حالة الطالب') }}</div>
-                            <flux:badge size="sm" class="mt-1">{{ $viewingStudent->status }}</flux:badge>
+                            <x-student-status-badge :status="$viewingStudent->status" size="sm" class="mt-1" />
                             <div class="text-[0.65rem] text-zinc-400 mt-1">لا تملك صلاحية التعديل</div>
                         </div>
                         <div>
@@ -637,21 +615,7 @@ new class extends Component {
                             <div class="flex items-center justify-between p-3 border border-zinc-200 dark:border-zinc-700/50 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
                                 <div class="flex flex-col">
                                     <span class="text-sm font-medium">
-                                        @php
-                                            $hStatusLabels = [
-                                                'active' => 'مشارك',
-                                                'registering' => 'تحت التسجيل',
-                                                'suspended' => 'موقوف',
-                                                'left' => 'غادر الدفعات',
-                                            ];
-                                            $hColor = [
-                                                'active' => 'green',
-                                                'registering' => 'blue',
-                                                'suspended' => 'amber',
-                                                'left' => 'red',
-                                            ][$history->status] ?? 'zinc';
-                                        @endphp
-                                        <flux:badge color="{{ $hColor }}" size="sm">{{ $hStatusLabels[$history->status] ?? $history->status }}</flux:badge>
+                                        <x-student-status-badge :status="$history->status" size="sm" />
                                     </span>
                                     <span class="text-xs text-zinc-500 mt-1">
                                         <x-hijri-date :date="$history->start_date" /> 

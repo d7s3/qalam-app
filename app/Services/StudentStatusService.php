@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Student;
+use App\Support\StudentStatus;
 use Illuminate\Support\Facades\Auth;
 
 class StudentStatusService
@@ -16,9 +17,16 @@ class StudentStatusService
      *   latest history row instead of stacking a duplicate entry;
      * - scheduled future rows (e.g. a pending auto-return) are superseded by any
      *   new manual decision and removed first.
+     *
+     * Only the five words of StudentStatus are written: a sixth, spelled by one
+     * caller and known to no screen, is how «غير فعّال» once showed as English.
      */
     public static function changeStatus(Student $student, string $status, ?string $effectiveDate = null, ?string $notes = null): void
     {
+        if (! StudentStatus::tryFrom($status)) {
+            throw new \InvalidArgumentException('حالة طالب غير معروفة: '.$status);
+        }
+
         $today = now('Asia/Riyadh')->format('Y-m-d');
         $effectiveDate = $effectiveDate ?: $today;
 

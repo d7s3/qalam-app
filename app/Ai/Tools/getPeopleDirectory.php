@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Support\StudentStatus;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\Eloquent\Builder;
 use Laravel\Ai\Contracts\Tool;
@@ -174,26 +175,21 @@ class getPeopleDirectory implements Tool
         }
     }
 
+    /** The stored key for a status asked for by key or by its Arabic label. */
     private function statusKey(string $status): string
     {
-        return match ($status) {
-            'مشارك' => 'active',
-            'تحت التسجيل' => 'registering',
-            'موقوف' => 'suspended',
-            'غادر الدفعات' => 'left',
-            default => $status,
-        };
+        foreach (StudentStatus::cases() as $case) {
+            if ($case->label() === $status) {
+                return $case->value;
+            }
+        }
+
+        return $status;
     }
 
     private function statusLabel(?string $status): ?string
     {
-        return match ($status) {
-            'active' => 'مشارك',
-            'registering' => 'تحت التسجيل',
-            'suspended' => 'موقوف',
-            'left' => 'غادر الدفعات',
-            default => $status,
-        };
+        return $status === null ? null : StudentStatus::labelOf($status);
     }
 
     /**
@@ -207,8 +203,8 @@ class getPeopleDirectory implements Tool
             'circle' => $schema->string()->description('Circle name (دفعة). Students and teachers only.'),
             'stage' => $schema->string()->description('Stage name (برنامج). Not applicable to guardians.'),
             'status' => $schema->string()
-                ->enum(['active', 'registering', 'suspended', 'left'])
-                ->description('Student status: active=مشارك, registering=تحت التسجيل, suspended=موقوف, left=غادر الدفعات.'),
+                ->enum(StudentStatus::values())
+                ->description('Student status: '.collect(StudentStatus::cases())->map(fn (StudentStatus $status) => $status->value.'='.$status->label())->implode(', ').'.'),
             'limit' => $schema->integer()->description('Maximum people to return. Defaults to 100, maximum 300.'),
         ];
     }

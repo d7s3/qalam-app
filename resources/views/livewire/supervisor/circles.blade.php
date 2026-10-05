@@ -151,15 +151,7 @@
                             <flux:avatar size="sm" :name="$student['name']" />
                             <div class="min-w-0">
                                 <div class="font-bold text-sm text-zinc-800 dark:text-zinc-100 truncate">{{ $student['name'] }}</div>
-                                @if($student['status'] === 'active')
-                                    <flux:badge size="sm" color="green">مشارك</flux:badge>
-                                @elseif($student['status'] === 'registering')
-                                    <flux:badge size="sm" color="amber">تحت التسجيل</flux:badge>
-                                @elseif($student['status'] === 'suspended')
-                                    <flux:badge size="sm" color="red">موقوف</flux:badge>
-                                @else
-                                    <flux:badge size="sm" variant="neutral">غادر الدفعات</flux:badge>
-                                @endif
+                                <x-student-status-badge :status="$student['status']" size="sm" />
                             </div>
                         </div>
 

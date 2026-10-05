@@ -297,7 +297,7 @@
                                 <label class="flex items-center justify-between gap-3 cursor-pointer group">
                                     <div>
                                         <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200">تغيير حالة الطالب</div>
-                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">تغيير حالة الطالب (نشط، موقوف، متخرج...)</div>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">تغيير حالة الطالب (مشارك، موقوف، غير فعّال...)</div>
                                     </div>
                                     <flux:switch wire:model="permissions.can_change_student_status" />
                                 </label>
