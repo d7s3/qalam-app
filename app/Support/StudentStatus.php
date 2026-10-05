@@ -18,7 +18,11 @@ enum StudentStatus: string
     /** In a cohort and attending: the only one counted on a register. */
     case Active = 'active';
 
-    /** Known to the academy and not yet placed in a cohort. */
+    /**
+     * Known to the academy, his registration not yet complete. He may sit in a
+     * cohort already, but is on no register until he is made مشارك — by an
+     * approved placement, or by someone who changes his status.
+     */
     case Registering = 'registering';
 
     /** Kept from attending for a time, often with a date to come back. */

@@ -6,7 +6,9 @@ use App\Models\Student;
 use App\Models\Circle;
 use App\Models\StudentPlacementRequest;
 use App\Services\StudentPlacementService;
+use App\Services\StudentStatusService;
 use App\Support\Scope;
+use App\Support\StudentStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -175,14 +177,10 @@ new class extends Component {
             'is_approved' => false,
             'access_token' => Str::random(32),
             'is_data_completed' => false,
-            'status' => 'registering',
+            'status' => StudentStatus::Registering->value,
         ]);
 
-        $student->statusHistories()->create([
-            'status' => 'registering',
-            'start_date' => now(),
-            'notes' => 'سجّله المعلّم، بانتظار موافقة المشرف',
-        ]);
+        StudentStatusService::changeStatus($student, StudentStatus::Registering->value, null, __('سجّله المعلّم، بانتظار موافقة المشرف'));
 
         StudentPlacementService::request($student, $circle, $teacher);
 

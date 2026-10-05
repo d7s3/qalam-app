@@ -10,8 +10,10 @@ use App\Models\Student;
 use App\Models\User;
 use App\Services\FormResponsesExporter;
 use App\Services\FormScoringService;
+use App\Services\StudentStatusService;
 use App\Support\NabighExam;
 use App\Support\Scope;
+use App\Support\StudentStatus;
 use App\Support\SurveyResults;
 use Carbon\Carbon;
 use Flux\Flux;
@@ -396,9 +398,11 @@ class FormResponses extends Component
             'national_id' => $attrs['national_id'] ?? null,
             'circle_id' => $placement['circle_id'],
             'stage_id' => $placement['stage_id'],
-            'status' => 'registering',
+            'status' => StudentStatus::Registering->value,
             'is_approved' => false,
         ]);
+
+        StudentStatusService::changeStatus($student, StudentStatus::Registering->value, null, __('أُنشئ من استجابة نموذج'));
 
         $response->update([
             'student_id' => $student->id,

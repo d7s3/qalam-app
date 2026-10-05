@@ -6,6 +6,8 @@ use App\Models\Manager;
 use App\Models\Student;
 use App\Rules\SaudiPhone;
 use App\Services\NotificationService;
+use App\Services\StudentStatusService;
+use App\Support\StudentStatus;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -42,7 +44,13 @@ class Register extends Component
             'phone' => SaudiPhone::format($this->phone),
             'password' => Hash::make($this->password),
             'is_approved' => false,
+            // Not مشارك before anyone has looked at him: he was, from the
+            // column's default, and so sat in competitions, public results and
+            // every count of active students while still awaiting approval.
+            'status' => StudentStatus::Registering->value,
         ]);
+
+        StudentStatusService::changeStatus($user, StudentStatus::Registering->value, null, __('أنشأ حسابه بنفسه'));
 
         event(new Registered($user));
 
