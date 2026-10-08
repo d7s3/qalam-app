@@ -4,6 +4,7 @@ namespace App\Ai\Tools;
 
 use App\Models\Stage;
 use App\Models\Student;
+use App\Support\StudentStatus;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Contracts\Tool;
@@ -63,27 +64,17 @@ class getOrganizationStructure implements Tool
      */
     private function countsByStatus(mixed $rows): array
     {
-        $counts = [
-            'total' => 0,
-            'مشارك' => 0,
-            'تحت التسجيل' => 0,
-            'موقوف' => 0,
-            'غادر الدفعات' => 0,
-        ];
+        $counts = ['total' => 0];
+
+        foreach (StudentStatus::cases() as $status) {
+            $counts[$status->label()] = 0;
+        }
 
         foreach ($rows ?? [] as $row) {
             $counts['total'] += $row->total;
 
-            $label = match ($row->status) {
-                'active' => 'مشارك',
-                'registering' => 'تحت التسجيل',
-                'suspended' => 'موقوف',
-                'left' => 'غادر الدفعات',
-                default => null,
-            };
-
-            if ($label !== null) {
-                $counts[$label] += $row->total;
+            if ($status = StudentStatus::of($row->status)) {
+                $counts[$status->label()] += $row->total;
             }
         }
 

@@ -139,6 +139,17 @@ describe('the exceeded-limits page', function () {
             ->assertSee('سالم')
             ->assertSee('زياد');
     });
+
+    it('writes the guardian\'s number the way WhatsApp reads it', function () {
+        // Stored as typed locally; WhatsApp needs the country code and no zero.
+        $guardian = Guardian::factory()->create(['phone' => '0501234567']);
+        $this->studentA->update(['guardian_id' => $guardian->id]);
+
+        $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.exceeded-limits'))
+            ->assertOk()
+            ->assertSee('https://wa.me/966501234567/', false);
+    });
 });
 
 describe('when no page names the role', function () {
@@ -279,5 +290,25 @@ describe('a reach written on the holding', function () {
         expect(Scope::for($both, 'teacher')->reachesAll())->toBeTrue()
             ->and(Scope::for($both, 'supervisor')->reachesAll())->toBeFalse()
             ->and(reachedNames($both, 'supervisor'))->toEqualCanonicalizing(['زياد']);
+    });
+});
+
+describe('an office nobody is signed into', function () {
+    it('reaches nothing, whatever the office', function (string $role) {
+        $scope = Scope::for(null, $role);
+
+        expect($scope->reachesAll())->toBeFalse()
+            ->and($scope->circleIds()?->all())->toBe([])
+            ->and($scope->stageIds()?->all())->toBe([])
+            ->and($scope->applyToStudents(Student::query())->count())->toBe(0)
+            ->and($scope->circleQuery()->count())->toBe(0)
+            ->and($scope->taskAssigneeIds()?->all())->toBe([]);
+    })->with(['manager', 'supervisor', 'teacher', 'staff']);
+
+    it('gives a teacher nothing by naming the manager\'s office on a shared screen', function () {
+        $this->actingAs($this->teacher, 'teacher');
+        Scope::forget();
+
+        expect(Scope::forRole('manager')->applyToStudents(Student::query())->count())->toBe(0);
     });
 });

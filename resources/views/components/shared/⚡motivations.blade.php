@@ -49,7 +49,7 @@ new class extends Component
     {
         $this->validate([
             'kind' => ['required', 'in:ayah,hadith,athar,poetry'],
-            'text' => ['required', 'string', 'max:2000'],
+            'text' => ['required', 'string', 'max:'.Motivation::OPENING_LENGTH],
             'source' => ['nullable', 'string', 'max:255'],
             'grade' => ['nullable', 'string', 'max:60'],
         ], [], ['text' => __('النص'), 'kind' => __('النوع')]);
@@ -125,7 +125,7 @@ new class extends Component
     <div>
         <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">{{ __('مستودع الشواهد') }}</flux:heading>
         <flux:subheading class="text-zinc-500 dark:text-zinc-400 mt-1">
-            {{ __('آية أو حديث أو أثر أو بيت، يظهر للطلاب أول ما يفتحون التطبيق. ولا يُعرض شيء حتى يُعتمد.') }}
+            {{ __('آية أو حديث أو أثر أو بيت قصير، يظهر مرة واحدة لمن يفتح التطبيق. ولا يُعرض شيء حتى يُعتمد.') }}
         </flux:subheading>
     </div>
 
@@ -157,7 +157,8 @@ new class extends Component
 
         <flux:field>
             <flux:label>{{ __('النص') }}</flux:label>
-            <flux:textarea wire:model="text" rows="3" />
+            <flux:textarea wire:model="text" rows="3" maxlength="{{ Motivation::OPENING_LENGTH }}" />
+            <flux:description>{{ __('حتى :count حرفاً، نحو سطرين: يُقرأ بنظرة عند فتح التطبيق.', ['count' => Motivation::OPENING_LENGTH]) }}</flux:description>
             <flux:error name="text" />
         </flux:field>
 
@@ -201,6 +202,9 @@ new class extends Component
                             @if($item->kind === 'hadith' && ! $item->gradeIsAcceptable())
                                 <flux:badge size="sm" color="rose">{{ __('بلا درجة معتبرة') }}</flux:badge>
                             @endif
+                            @unless($item->fitsOpening())
+                                <flux:badge size="sm" color="zinc">{{ __('أطول من أن يظهر عند الفتح') }}</flux:badge>
+                            @endunless
                         </div>
 
                         <div class="text-sm leading-relaxed text-zinc-800 dark:text-zinc-100">{{ $item->text }}</div>

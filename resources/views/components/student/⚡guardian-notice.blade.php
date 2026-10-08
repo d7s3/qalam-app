@@ -1,9 +1,7 @@
 <?php
 
-use App\Models\Guardian;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
 
 new class extends Component {
@@ -40,30 +38,7 @@ new class extends Component {
 
         $student = Auth::guard('student')->user();
 
-        // Format phone to 966...
-        $phone = $this->guardian_phone;
-        if (str_starts_with($phone, '0')) {
-            $phone = '966' . substr($phone, 1);
-        } elseif (str_starts_with($phone, '5')) {
-            $phone = '966' . $phone;
-        }
-
-        $guardian = Guardian::where('phone', $phone)->first();
-
-        if (!$guardian) {
-            $email = $phone . '@parent.com';
-            while (Guardian::where('email', $email)->exists()) {
-                $email = $phone . rand(10, 99) . '@parent.com';
-            }
-
-            $guardian = Guardian::create([
-                'name' => $this->guardian_name,
-                'phone' => $phone,
-                'email' => $email,
-                'password' => Hash::make($phone),
-                'is_approved' => true,
-            ]);
-        }
+        $guardian = app(\App\Services\GuardianLinkService::class)->guardianFor($this->guardian_name, $this->guardian_phone);
 
         $student->guardian_id = $guardian->id;
         $student->is_data_completed = true;

@@ -10,13 +10,17 @@ use App\Models\Student;
 use App\Models\User;
 use App\Services\FormResponsesExporter;
 use App\Services\FormScoringService;
+use App\Services\StudentStatusService;
 use App\Support\NabighExam;
 use App\Support\Scope;
+use App\Support\StudentStatus;
 use App\Support\SurveyResults;
 use Carbon\Carbon;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -25,6 +29,7 @@ class FormResponses extends Component
     /** The three offices that open this screen, narrowest first. */
     private const OFFICES = ['teacher', 'supervisor', 'manager'];
 
+    #[Locked]
     public int $formId;
 
     public Form $form;
@@ -34,6 +39,7 @@ class FormResponses extends Component
     // Single student account creation modal state
     public bool $showCreateModal = false;
 
+    #[Locked]
     public ?int $selectedResponseId = null;
 
     public string $newStudentName = '';
@@ -89,6 +95,7 @@ class FormResponses extends Component
     public bool $bulkAnalyzed = false;
 
     /** @var array<int, array<string, mixed>> */
+    #[Locked]
     public array $bulkReady = [];
 
     /** @var array<int, array<string, mixed>> */
@@ -100,6 +107,7 @@ class FormResponses extends Component
     // Grading modal state, for a form whose fields carry a scoring dimension
     public bool $showGradeModal = false;
 
+    #[Locked]
     public ?int $gradeResponseId = null;
 
     /** @var array<string, string> field id => points typed, kept as text while editing */
@@ -173,6 +181,17 @@ class FormResponses extends Component
         abort(403);
     }
 
+    /**
+     * Responses to the form on this screen. Every response id that arrives
+     * from the browser is looked up through here.
+     *
+     * @return Builder<FormResponse>
+     */
+    private function ownResponses(): Builder
+    {
+        return FormResponse::where('form_id', $this->form->id);
+    }
+
     public function mount(int $formId): void
     {
         $this->formId = $formId;
@@ -207,6 +226,16 @@ class FormResponses extends Component
 
         return Scope::forRole($role)->stageIds()?->all()
             ?? Stage::query()->pluck('id')->all();
+    }
+
+    /**
+     * Students this reader may tie a response to: those in the circles he reaches.
+     *
+     * @return Builder<Student>
+     */
+    private function reachableStudents(): Builder
+    {
+        return Student::whereIn('circle_id', $this->supervisorCircleIds());
     }
 
     /** @return array<int, int> circle ids within the stages this reader reaches */
@@ -369,9 +398,11 @@ class FormResponses extends Component
             'national_id' => $attrs['national_id'] ?? null,
             'circle_id' => $placement['circle_id'],
             'stage_id' => $placement['stage_id'],
-            'status' => 'registering',
+            'status' => StudentStatus::Registering->value,
             'is_approved' => false,
         ]);
+
+        StudentStatusService::changeStatus($student, StudentStatus::Registering->value, null, __('أُنشئ من استجابة نموذج'));
 
         $response->update([
             'student_id' => $student->id,
@@ -384,8 +415,8 @@ class FormResponses extends Component
     public function openCreateModal(int $responseId): void
     {
         $this->resetValidation();
-        $this->selectedResponseId = $responseId;
-        $response = FormResponse::findOrFail($responseId);
+        $response = $this->ownResponses()->findOrFail($responseId);
+        $this->selectedResponseId = $response->id;
         $map = $this->guessFieldMap();
 
         $this->newStudentName = trim((string) $this->extractAnswer($response, $map['name']));
@@ -419,7 +450,7 @@ class FormResponses extends Component
             'targetStageId.in' => 'البرنامج المختار خارج نطاق صلاحياتك.',
         ]);
 
-        $response = FormResponse::findOrFail($this->selectedResponseId);
+        $response = $this->ownResponses()->findOrFail($this->selectedResponseId);
 
         $this->createStudent($response, [
             'name' => $this->newStudentName,
@@ -439,7 +470,7 @@ class FormResponses extends Component
 
     public function openLinkModal(int $responseId): void
     {
-        $this->selectedResponseId = $responseId;
+        $this->selectedResponseId = $this->ownResponses()->findOrFail($responseId)->id;
         $this->linkStudentId = null;
         $this->linkNameOption = 'existing';
         $this->showLinkModal = true;
@@ -448,12 +479,14 @@ class FormResponses extends Component
     public function linkToExistingStudent(): void
     {
         $this->validate([
-            'linkStudentId' => 'required|exists:users,id',
+            'linkStudentId' => ['required', Rule::in($this->reachableStudents()->pluck('id')->all())],
             'linkNameOption' => 'required|in:existing,response',
+        ], [
+            'linkStudentId.in' => 'الطالب المختار خارج نطاق صلاحياتك.',
         ]);
 
-        $student = Student::findOrFail($this->linkStudentId);
-        $response = FormResponse::findOrFail($this->selectedResponseId);
+        $student = $this->reachableStudents()->findOrFail($this->linkStudentId);
+        $response = $this->ownResponses()->findOrFail($this->selectedResponseId);
 
         if ($this->linkNameOption === 'response') {
             $nameField = collect($this->form->fields)->firstWhere('is_student_name', true);
@@ -611,7 +644,7 @@ class FormResponses extends Component
 
         $created = 0;
         foreach ($this->bulkReady as $row) {
-            $response = FormResponse::find($row['response_id']);
+            $response = $this->ownResponses()->find($row['response_id']);
             if (! $response || $response->student_id) {
                 continue;
             }
@@ -654,7 +687,7 @@ class FormResponses extends Component
             return;
         }
 
-        $response = FormResponse::find($responseId);
+        $response = $this->ownResponses()->find($responseId);
         if (! $response || $response->student_id) {
             return;
         }
@@ -1045,7 +1078,7 @@ class FormResponses extends Component
             'isScoredForm' => FormScoringService::isScored($this->form),
             'manualFields' => $this->manualFields(),
             'dimensionLabels' => NabighExam::labelsFor(NabighExam::batteryFor($this->form)),
-            'gradingResponse' => $this->gradeResponseId ? FormResponse::find($this->gradeResponseId) : null,
+            'gradingResponse' => $this->gradeResponseId ? $this->ownResponses()->find($this->gradeResponseId) : null,
         ]);
     }
 }

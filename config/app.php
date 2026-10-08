@@ -86,9 +86,14 @@ return [
     | by Laravel's translation / localization methods. This option can be
     | set to any locale for which you plan to have translation strings.
     |
+    | The academy reads Arabic only — every page is laid out right to left and
+    | its dates are written in Arabic regardless — so the locale is fixed here
+    | rather than left to an environment file that may still say «en» from
+    | when the language files did not exist.
+    |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    'locale' => 'ar',
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 

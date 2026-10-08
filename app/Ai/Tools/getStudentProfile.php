@@ -7,6 +7,7 @@ use App\Models\StudentExam;
 use App\Models\StudentHadithPlan;
 use App\Models\StudentOdePlan;
 use App\Models\StudentPlan;
+use App\Support\StudentStatus;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -265,13 +266,7 @@ class getStudentProfile implements Tool
 
     private function statusLabel(?string $status): ?string
     {
-        return match ($status) {
-            'active' => 'مشارك',
-            'registering' => 'تحت التسجيل',
-            'suspended' => 'موقوف',
-            'left' => 'غادر الدفعات',
-            default => $status,
-        };
+        return StudentStatus::labelOf($status);
     }
 
     /**

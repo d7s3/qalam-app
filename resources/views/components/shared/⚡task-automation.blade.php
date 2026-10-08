@@ -10,8 +10,10 @@ use App\Support\Scope;
 use App\Support\TaskAssignment;
 use Carbon\Carbon;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -28,6 +30,7 @@ use Livewire\Component;
  */
 new class extends Component
 {
+    #[Locked]
     public string $asRole = '';
 
     public string $tab = 'series';
@@ -79,18 +82,34 @@ new class extends Component
         return auth($this->asRole)->user();
     }
 
+    /**
+     * Narrow a query of patterns or templates to the ones this reader may
+     * handle: his own, or everyone's when he answers for the whole academy.
+     *
+     * @template TQuery of Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
+     */
+    private function mine(Builder $query): Builder
+    {
+        return $query->when(! $this->scope()->reachesAll(), fn (Builder $own) => $own
+            ->where('created_by_type', $this->asRole)
+            ->where('created_by_id', $this->reader()?->id));
+    }
+
     /** @return Collection<int, TaskSeries> */
     #[Computed]
     public function series(): Collection
     {
-        return TaskSeries::orderByDesc('is_active')->orderBy('title')->get();
+        return $this->mine(TaskSeries::query())->orderByDesc('is_active')->orderBy('title')->get();
     }
 
     /** @return Collection<int, TaskTemplate> */
     #[Computed]
     public function templates(): Collection
     {
-        return TaskTemplate::with('items')->orderBy('name')->get();
+        return $this->mine(TaskTemplate::query())->with('items')->orderBy('name')->get();
     }
 
     /** The offices this reader may put work on. */
@@ -117,8 +136,25 @@ new class extends Component
             return collect();
         }
 
-        return app(TaskFollowUpService::class)
-            ->peopleHolding($this->role, $this->scopeType, $this->scopeIds)
+        $service = app(TaskFollowUpService::class);
+
+        if ($this->scopeIds === [] && $this->scope()->reachesAll()) {
+            return $service->peopleHolding($this->role)->sortBy('name')->values();
+        }
+
+        // Nothing chosen means everything this reader reaches — never the
+        // whole academy — and a choice is held to that same reach.
+        $reach = $this->reachChoices->pluck('id')->all();
+        $chosen = $this->scopeIds === []
+            ? $reach
+            : array_values(array_intersect(array_map('intval', $this->scopeIds), $reach));
+
+        if ($chosen === []) {
+            return collect();
+        }
+
+        return $service
+            ->peopleHolding($this->role, $this->scopeType, $chosen)
             ->sortBy('name')
             ->values();
     }
@@ -150,6 +186,11 @@ new class extends Component
             return;
         }
 
+        // The person and the reach arrive from the browser; they must be among
+        // those this screen offered.
+        abort_if($this->assignMode === 'person' && ! $this->people->contains('id', $this->personId), 403);
+        abort_if($this->assignMode === 'role' && array_diff(array_map('intval', $this->scopeIds), $this->reachChoices->pluck('id')->all()) !== [], 403);
+
         TaskSeries::create([
             'title' => $this->title,
             'every' => $this->every,
@@ -173,7 +214,7 @@ new class extends Component
 
     public function toggleSeries(int $id): void
     {
-        $series = TaskSeries::findOrFail($id);
+        $series = $this->mine(TaskSeries::query())->findOrFail($id);
         $series->update(['is_active' => ! $series->is_active]);
 
         unset($this->series);
@@ -183,7 +224,7 @@ new class extends Component
     {
         // The tasks it already raised are somebody's work and stay; only the
         // pattern stops.
-        TaskSeries::whereKey($id)->delete();
+        $this->mine(TaskSeries::query())->findOrFail($id)->delete();
 
         unset($this->series);
 
@@ -220,7 +261,7 @@ new class extends Component
 
     public function addItem(int $templateId, string $title, int $offset = 0, ?string $role = null): void
     {
-        $template = TaskTemplate::findOrFail($templateId);
+        $template = $this->mine(TaskTemplate::query())->findOrFail($templateId);
 
         if (trim($title) === '') {
             return;
@@ -238,14 +279,16 @@ new class extends Component
 
     public function removeItem(int $itemId): void
     {
-        App\Models\TaskTemplateItem::whereKey($itemId)->delete();
+        App\Models\TaskTemplateItem::whereKey($itemId)
+            ->whereIn('task_template_id', $this->mine(TaskTemplate::query())->select('id'))
+            ->delete();
 
         unset($this->templates);
     }
 
     public function applyTemplate(): void
     {
-        $template = TaskTemplate::with('items')->findOrFail($this->applyingTemplate);
+        $template = $this->mine(TaskTemplate::query())->with('items')->findOrFail($this->applyingTemplate);
 
         $this->validate(['applyOn' => ['required', 'date']], [], ['applyOn' => __('يوم التطبيق')]);
 

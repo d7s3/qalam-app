@@ -2,8 +2,10 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl">
 
 <head>
+    @php
+        $title = \App\Models\Screen::titleFor(request()->route(), filled($title ?? null) ? trim((string) $title) : null);
+    @endphp
     @include('partials.head')
-    <title>{{ $title ?? config('app.name') }}</title>
     @if(auth('student')->check())
         <script>
             document.documentElement.classList.remove('dark');
@@ -27,7 +29,7 @@
          x-show="!online" 
          x-transition.opacity.duration.500ms
          style="display: none;"
-         class="fixed top-0 left-0 right-0 z-[100] bg-red-500 text-white text-center py-1.5 px-4 text-sm font-bold shadow-md flex items-center justify-center gap-2">
+         class="fixed top-0 left-0 right-0 z-bar bg-red-500 text-white text-center py-1.5 px-4 text-sm font-bold shadow-md flex items-center justify-center gap-2">
          <flux:icon icon="exclamation-triangle" class="size-4" />
          <span>أنت غير متصل بشبكة الإنترنت حالياً. يرجى التحقق من اتصالك.</span>
     </div>
@@ -93,9 +95,9 @@
                 </form>
             </flux:sidebar.nav>
 
-            @if($usesBrandSidebar)
+            @if($usesBrandSidebar && filled(config('brand.contact.phone')))
                 {{-- كارت الدعم الفني --}}
-                <a href="https://wa.me/966500000000" target="_blank" rel="noopener"
+                <a href="https://wa.me/{{ \App\Rules\SaudiPhone::format(config('brand.contact.phone')) }}" target="_blank" rel="noopener"
                     class="mx-3 mb-3 mt-2 flex items-center gap-3 rounded-xl bg-white/10 hover:bg-white/15 p-3 text-white">
                     <span class="flex items-center justify-center size-9 rounded-full bg-white/15 shrink-0">
                         <flux:icon icon="lifebuoy" class="size-5" />
@@ -142,6 +144,14 @@
     @endpersist
 
     @fluxScripts
+
+    {{-- A word left before a redirect — «saved», «created» — is said on the
+         page the person lands on, as the toast any other save would show. --}}
+    @if (filled($flashed = session('success') ?? session('status')))
+        <script>
+            document.addEventListener('livewire:navigated', () => window.Flux?.toast({ text: @js($flashed), variant: 'success' }), { once: true });
+        </script>
+    @endif
 </body>
 
 </html>

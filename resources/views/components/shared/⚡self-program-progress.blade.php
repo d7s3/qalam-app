@@ -4,9 +4,10 @@ use App\Models\Circle;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Services\SelfProgramService;
+use App\Support\Scope;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -18,7 +19,12 @@ use Livewire\Component;
  */
 new class extends Component
 {
-    /** Which guard is looking; decides whose students are shown. */
+    /**
+     * Which office is looking; decides whose students are shown. Set by the
+     * page and locked — the reach itself is asked of Scope, so naming an
+     * office one does not hold reaches nothing.
+     */
+    #[Locked]
     public string $role = 'supervisor';
 
     public ?int $stageId = null;
@@ -35,11 +41,11 @@ new class extends Component
     #[Computed]
     public function stages(): Collection
     {
-        return match ($this->role) {
-            'supervisor' => Auth::guard('supervisor')->user()->stages()->orderBy('name')->get(),
-            'manager' => Stage::orderBy('name')->get(),
-            default => collect(),
-        };
+        if ($this->role === 'guardian') {
+            return collect();
+        }
+
+        return Scope::forRole($this->role)->applyToStages(Stage::query())->orderBy('name')->get();
     }
 
     /**
@@ -74,8 +80,8 @@ new class extends Component
         $query = Student::query()->with('circle')->orderBy('name');
 
         if ($this->role === 'guardian') {
-            $query->where('guardian_id', Auth::guard('guardian')->id());
-        } elseif ($this->stageId) {
+            Scope::forRole('guardian')->applyToStudents($query);
+        } elseif ($this->stageId && $this->stages->contains('id', $this->stageId)) {
             // A student's stage is his circle's; the direct column only holds
             // for students not yet placed in one.
             $query->where(fn ($q) => $q

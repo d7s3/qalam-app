@@ -11,9 +11,11 @@ use Illuminate\Support\Carbon;
 use App\Support\Scope;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 
 new class extends Component {
+    #[Locked]
     public $userLevel; // 'teacher' or 'student'
     #[Url]
     public $edit = null;
@@ -55,6 +57,16 @@ new class extends Component {
     public $memorizedUpToSurah = 114;
     public $memorizedUpToVerse = 1;
 
+    /**
+     * The students this reader may write a plan for: a teacher his cohorts',
+     * a student himself. The plan and the student both arrive in the address,
+     * so each is looked up through here before it is opened or written.
+     */
+    private function reachableStudents()
+    {
+        return Scope::forRoute()->applyToStudents(Student::query());
+    }
+
     public function mount()
     {
         // From the page rather than the guards: a teacher who followed an
@@ -67,7 +79,9 @@ new class extends Component {
         $this->memorizedUpToVerse = 7;
 
         if ($this->edit) {
-            $plan = StudentPlan::with('days.fromAyah', 'days.toAyah', 'days.reviewFromAyah', 'days.reviewToAyah')->findOrFail($this->edit);
+            $plan = StudentPlan::with('days.fromAyah', 'days.toAyah', 'days.reviewFromAyah', 'days.reviewToAyah')
+                ->whereIn('student_id', $this->reachableStudents()->select('users.id'))
+                ->findOrFail($this->edit);
             $this->studentId = $plan->student_id;
             $this->startDate = $plan->start_date->format('Y-m-d');
             $this->daysCount = $plan->days_count;
@@ -854,7 +868,7 @@ new class extends Component {
         ]);
 
         if ($this->edit) {
-            $plan = StudentPlan::findOrFail($this->edit);
+            $plan = StudentPlan::whereIn('student_id', $this->reachableStudents()->select('users.id'))->findOrFail($this->edit);
             $plan->update([
                 'start_date' => $this->startDate,
                 'days_count' => $this->daysCount,
@@ -868,7 +882,7 @@ new class extends Component {
             $existingIds = collect($this->planDays)->pluck('id')->filter()->toArray();
             $plan->days()->whereNotIn('id', $existingIds)->delete();
         } else {
-            $student = Student::findOrFail($this->studentId);
+            $student = $this->reachableStudents()->findOrFail($this->studentId);
             $teacherId = $this->userLevel === 'teacher' ? Auth::guard('teacher')->id() : $student->circle?->teachers()->first()?->id;
 
             $plan = StudentPlan::create([

@@ -6,7 +6,9 @@ use App\Models\Student;
 use App\Models\Circle;
 use App\Models\StudentPlacementRequest;
 use App\Services\StudentPlacementService;
+use App\Services\StudentStatusService;
 use App\Support\Scope;
+use App\Support\StudentStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -175,14 +177,10 @@ new class extends Component {
             'is_approved' => false,
             'access_token' => Str::random(32),
             'is_data_completed' => false,
-            'status' => 'registering',
+            'status' => StudentStatus::Registering->value,
         ]);
 
-        $student->statusHistories()->create([
-            'status' => 'registering',
-            'start_date' => now(),
-            'notes' => 'سجّله المعلّم، بانتظار موافقة المشرف',
-        ]);
+        StudentStatusService::changeStatus($student, StudentStatus::Registering->value, null, __('سجّله المعلّم، بانتظار موافقة المشرف'));
 
         StudentPlacementService::request($student, $circle, $teacher);
 
@@ -309,7 +307,7 @@ new class extends Component {
                     placeholder="{{ __('مثال: محمد أحمد') }}" required />
             </div>
             <div class="w-full md:w-2/5">
-                <flux:input wire:model="phone" label="{{ __('رقم هاتف الطالب') }}" placeholder="{{ __('اختياري') }}" />
+                <flux:input wire:model="phone" type="tel" inputmode="tel" dir="ltr" label="{{ __('رقم هاتف الطالب') }}" placeholder="{{ __('اختياري') }}" />
             </div>
             <flux:button type="submit" variant="primary" icon="user-plus" class="min-w-fit">{{ __('إنشاء طالب') }}
             </flux:button>
@@ -331,10 +329,10 @@ new class extends Component {
             <flux:table.columns>
                 <flux:table.column>{{ __('اسم الطالب') }}</flux:table.column>
                 <flux:table.column>{{ __('واتساب') }}</flux:table.column>
-                <flux:table.column>{{ __('تاريخ الالتحاق') }}</flux:table.column>
+                <flux:table.column class="hidden sm:table-cell">{{ __('تاريخ الالتحاق') }}</flux:table.column>
                 <flux:table.column>{{ __('حالة الطالب') }}</flux:table.column>
-                <flux:table.column>{{ __('حالة البيانات') }}</flux:table.column>
-                <flux:table.column>{{ __('رابط الدخول') }}</flux:table.column>
+                <flux:table.column class="hidden sm:table-cell">{{ __('حالة البيانات') }}</flux:table.column>
+                <flux:table.column class="hidden sm:table-cell">{{ __('رابط الدخول') }}</flux:table.column>
                 <flux:table.column class="w-10"></flux:table.column>
             </flux:table.columns>
 
@@ -343,13 +341,13 @@ new class extends Component {
                     <flux:table.row wire:key="student-row-{{ $student->id }}"
                         class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         x-on:click="$flux.modal('student-details').show(); $wire.viewStudent({{ $student->id }})">
-                        <flux:table.cell class="font-medium whitespace-nowrap">
+                        <flux:table.cell class="font-medium whitespace-normal sm:whitespace-nowrap">
                             {{ $student->name }}
                         </flux:table.cell>
                         <flux:table.cell @click.stop="">
                             @if ($student->phone)
                                 <flux:button as="a"
-                                    href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $student->phone) }}"
+                                    href="https://wa.me/{{ \App\Rules\SaudiPhone::format($student->phone) }}"
                                     target="_blank" size="xs" color="green" icon="chat-bubble-left-ellipsis"
                                     variant="ghost">
                                     {{ __('تواصل') }}
@@ -358,29 +356,13 @@ new class extends Component {
                                 <span class="text-zinc-400 text-xs">-</span>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell class="first:ps-3" >
+                        <flux:table.cell class="hidden sm:table-cell first:ps-3" >
                             <x-hijri-date :date="$student->joined_at" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
-                            @php
-                                $statusColors = [
-                                    'active' => 'green',
-                                    'registering' => 'blue',
-                                    'suspended' => 'amber',
-                                    'left' => 'red',
-                                ];
-                                $statusLabels = [
-                                    'active' => 'مشارك',
-                                    'registering' => 'تحت التسجيل',
-                                    'suspended' => 'موقوف',
-                                    'left' => 'غادر الدفعات',
-                                ];
-                                $stColor = $statusColors[$student->status] ?? 'zinc';
-                                $stLabel = $statusLabels[$student->status] ?? $student->status;
-                            @endphp
-                            <flux:badge :color="$stColor" size="sm">{{ $stLabel }}</flux:badge>
+                            <x-student-status-badge :status="$student->status" size="sm" />
                         </flux:table.cell>
-                        <flux:table.cell class="first:ps-3" >
+                        <flux:table.cell class="hidden sm:table-cell first:ps-3" >
                             @if ($student->is_data_completed)
                                 <flux:badge color="green" size="sm" icon="check-circle">{{ __('مكتملة') }}
                                 </flux:badge>
@@ -389,7 +371,7 @@ new class extends Component {
                                 </flux:badge>
                             @endif
                         </flux:table.cell>
-                        <flux:table.cell @click.stop="">
+                        <flux:table.cell @click.stop="" class="hidden sm:table-cell">
                             @if ($student->access_token)
                                 <div class="flex items-center gap-2" x-data="{ copied: false, link: '{{ route('magic-link', ['token' => $student->access_token]) }}' }" @click.stop>
                                     <flux:input readonly copyable class="max-w-xs text-xs"
@@ -458,14 +440,8 @@ new class extends Component {
                         @if($canChangeStatus)
                         <div>
                             <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
-                            @php
-                                $tStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
-                                $tStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
-                            @endphp
                             <div class="flex items-center gap-2">
-                                <flux:badge color="{{ $tStatusColors[$viewingStudent->status] ?? 'zinc' }}">
-                                    {{ $tStatusLabels[$viewingStudent->status] ?? $viewingStudent->status }}
-                                </flux:badge>
+                                <x-student-status-badge :status="$viewingStudent->status" />
                                 <flux:button type="button" size="sm" variant="filled" icon="adjustments-horizontal"
                                     wire:click="$dispatch('open-status-manager', { studentId: {{ $viewingStudent->id }} })">
                                     {{ __('إدارة الحالة') }}
@@ -476,7 +452,7 @@ new class extends Component {
                         @else
                         <div>
                             <div class="text-xs text-zinc-500 mb-1">{{ __('حالة الطالب') }}</div>
-                            <flux:badge size="sm" class="mt-1">{{ $viewingStudent->status }}</flux:badge>
+                            <x-student-status-badge :status="$viewingStudent->status" size="sm" class="mt-1" />
                             <div class="text-[0.65rem] text-zinc-400 mt-1">لا تملك صلاحية التعديل</div>
                         </div>
                         <div>
@@ -510,7 +486,7 @@ new class extends Component {
                             </div>
                             @if ($viewingStudent->guardian->phone)
                                 <flux:button as="a" target="_blank"
-                                    href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $viewingStudent->guardian->phone) }}"
+                                    href="https://wa.me/{{ \App\Rules\SaudiPhone::format($viewingStudent->guardian->phone) }}"
                                     size="sm" icon="chat-bubble-left-ellipsis" color="green">
                                     {{ __('واتساب') }}
                                 </flux:button>
@@ -637,21 +613,7 @@ new class extends Component {
                             <div class="flex items-center justify-between p-3 border border-zinc-200 dark:border-zinc-700/50 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
                                 <div class="flex flex-col">
                                     <span class="text-sm font-medium">
-                                        @php
-                                            $hStatusLabels = [
-                                                'active' => 'مشارك',
-                                                'registering' => 'تحت التسجيل',
-                                                'suspended' => 'موقوف',
-                                                'left' => 'غادر الدفعات',
-                                            ];
-                                            $hColor = [
-                                                'active' => 'green',
-                                                'registering' => 'blue',
-                                                'suspended' => 'amber',
-                                                'left' => 'red',
-                                            ][$history->status] ?? 'zinc';
-                                        @endphp
-                                        <flux:badge color="{{ $hColor }}" size="sm">{{ $hStatusLabels[$history->status] ?? $history->status }}</flux:badge>
+                                        <x-student-status-badge :status="$history->status" size="sm" />
                                     </span>
                                     <span class="text-xs text-zinc-500 mt-1">
                                         <x-hijri-date :date="$history->start_date" /> 

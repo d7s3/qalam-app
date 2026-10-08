@@ -6,8 +6,10 @@ use App\Models\Stage;
 use App\Models\Supervisor;
 use App\Support\Scope;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Supervisors extends Component
@@ -26,6 +28,7 @@ class Supervisors extends Component
 
     public string $password = '';
 
+    #[Locked]
     public $editingSupervisorId = null;
 
     public string $quickName = '';
@@ -37,6 +40,19 @@ class Supervisors extends Component
     public string $statusFilter = 'all';
 
     public string $stageFilter = 'all';
+
+    /**
+     * The supervisor records this reader may act on. The lists were already
+     * narrowed to the reader's reach; every id that arrives with a button —
+     * approve, edit, save, reset a link, delete — is looked up through here too,
+     * so a programme's manager cannot reach into the next programme by id.
+     *
+     * @return Builder<Supervisor>
+     */
+    private function reachable()
+    {
+        return Scope::forRole('manager')->applyToSupervisors(Supervisor::query());
+    }
 
     public function mount()
     {
@@ -92,7 +108,7 @@ class Supervisors extends Component
 
     public function approve($id)
     {
-        $supervisor = Supervisor::find($id);
+        $supervisor = $this->reachable()->find($id);
 
         if (! $supervisor) {
             Flux::toast(__('المشرف غير موجود'), variant: 'danger');
@@ -134,7 +150,7 @@ class Supervisors extends Component
 
     public function resetToken($id)
     {
-        $supervisor = Supervisor::find($id);
+        $supervisor = $this->reachable()->find($id);
         if ($supervisor) {
             $supervisor->update([
                 'access_token' => Str::random(32),
@@ -151,7 +167,7 @@ class Supervisors extends Component
 
     public function edit($id)
     {
-        $this->viewingSupervisor = Supervisor::with('stages')->find($id);
+        $this->viewingSupervisor = $this->reachable()->with('stages')->find($id);
 
         if (! $this->viewingSupervisor) {
             Flux::toast(__('المشرف غير موجود'), variant: 'danger');
@@ -184,7 +200,7 @@ class Supervisors extends Component
         ]);
 
         if ($this->editingSupervisorId) {
-            $supervisor = Supervisor::find($this->editingSupervisorId);
+            $supervisor = $this->reachable()->find($this->editingSupervisorId);
             $supervisor->update([
                 'name' => $this->name,
                 'email' => $this->email,
@@ -215,7 +231,7 @@ class Supervisors extends Component
 
     public function delete($id)
     {
-        $supervisor = Supervisor::find($id);
+        $supervisor = $this->reachable()->find($id);
 
         if ($supervisor) {
             $supervisor->delete();

@@ -12,6 +12,7 @@ use App\Models\Supervisor;
 use App\Services\SelfProgramService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -125,4 +126,25 @@ describe('the guardian view', function () {
             ->assertOk()
             ->assertSee('سالم');
     });
+});
+
+describe('a reach asked for from the browser', function () {
+    it('does not show a supervisor a stage he does not hold', function () {
+        $supervisor = Supervisor::factory()->create();
+        $supervisor->stages()->attach($this->stage->id);
+
+        Livewire::actingAs($supervisor, 'supervisor')
+            ->test('shared.self-program-progress', ['role' => 'supervisor'])
+            ->set('stageId', $this->otherStage->id)
+            ->assertDontSee('زياد');
+    });
+
+    it('does not let a parent take the manager\'s view', function () {
+        $guardian = Guardian::factory()->create();
+        $this->student->update(['guardian_id' => $guardian->id]);
+
+        Livewire::actingAs($guardian, 'guardian')
+            ->test('shared.self-program-progress', ['role' => 'guardian'])
+            ->set('role', 'manager');
+    })->throws(CannotUpdateLockedPropertyException::class);
 });

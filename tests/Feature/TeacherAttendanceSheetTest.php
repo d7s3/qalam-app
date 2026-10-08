@@ -283,3 +283,8 @@ it('moves between Hijri months and drops the cached grid', function () {
     $component->call('goToCurrentMonth');
     expect($component->instance()->monthLabel())->toBe($opening);
 });
+
+it('pins its save bar clear of the bottom bar a phone shows under it', function () {
+    Livewire::test(AttendanceSheet::class, ['circleId' => $this->circle->id])
+        ->assertSeeHtml('sticky bottom-4 max-lg:bottom-above-bar');
+});

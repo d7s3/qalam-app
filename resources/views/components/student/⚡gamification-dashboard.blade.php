@@ -196,6 +196,8 @@ new class extends Component {
             Flux::toast('رصيد الفريق غير كافٍ لشراء هذا المنتج.', variant: 'danger');
         } elseif ($status === 'only_leader') {
             Flux::toast('فقط قائد المجموعة يمكنه شراء منتجات المجموعة وتحديد تفاصيلها.', variant: 'danger');
+        } elseif ($status === 'item_unavailable') {
+            Flux::toast('هذا المنتج غير متاح حالياً.', variant: 'danger');
         } elseif ($status === 'must_be_in_team') {
             Flux::toast('يجب أن تكون في فريق لشراء هذا المنتج.', variant: 'danger');
         } elseif ($status === 'invalid_target_date') {
@@ -398,6 +400,10 @@ new class extends Component {
 
         $gamificationState = null;
         $gamificationLevelInfo = null;
+        // Set only while a competition runs; the view reads it only then too.
+        // Without a default, a competition ending while the page was open made
+        // the student's next tap — booking a turn, say — fail outright.
+        $style = [];
         $freezeableDates = [];
         $nextFreezeUpgrade = null;
         $studentTeam = null;
@@ -870,11 +876,7 @@ new class extends Component {
         $todayStr = \Carbon\Carbon::now('Asia/Riyadh')->format('Y-m-d');
         $activeSession = null;
         if ($student->circle_id) {
-            $teacherIds = \Illuminate\Support\Facades\DB::table('circle_teacher')
-                ->where('circle_id', $student->circle_id)
-                ->pluck('teacher_id');
-
-            $sessions = \App\Models\TurnReservationSession::whereIn('teacher_id', $teacherIds)->get();
+            $sessions = \App\Models\TurnReservationSession::openTo($student)->get();
             foreach ($sessions as $session) {
                 if ($session->isActiveToday()) {
                     $activeSession = $session;
@@ -950,7 +952,8 @@ new class extends Component {
     public function reserveTurn($sessionId)
     {
         $student = Auth::guard('student')->user();
-        $session = \App\Models\TurnReservationSession::find($sessionId);
+        // Only a session of his own cohort's teacher: the id is the browser's.
+        $session = \App\Models\TurnReservationSession::openTo($student)->find($sessionId);
 
         if (!$session || !$session->isActiveNow()) {
             Flux::toast('عذراً، وقت الحجز غير متاح حالياً.', variant: 'danger');
@@ -1123,6 +1126,8 @@ new class extends Component {
             Flux::toast('تم الشراء وتفعيل ميزة المتجر بنجاح!', variant: 'success');
             unset($this->targetTeams[$itemId]);
             unset($this->targetDates[$itemId]);
+        } elseif ($status === 'item_unavailable') {
+            Flux::toast('هذا المنتج غير متاح حالياً.', variant: 'danger');
         } elseif ($status === 'must_be_in_team') {
             Flux::toast('يجب أن تكون في فريق لشراء هذا المنتج.', variant: 'danger');
         } elseif ($status === 'only_leader') {
@@ -1185,7 +1190,6 @@ new class extends Component {
 
     public function donateToTeam($amount)
     {
-        \Illuminate\Support\Facades\Log::info("donateToTeam triggered on server with amount: " . $amount);
         $amount = (int)$amount;
         if ($amount <= 0) {
             Flux::toast('الرجاء إدخال مبلغ صحيح للتبرع.', variant: 'danger');
@@ -1219,12 +1223,6 @@ new class extends Component {
             Flux::toast($error ?: 'رصيدك غير كافٍ للتبرع.', variant: 'danger');
         }
         $this->dispatch('donation-finished');
-    }
-
-    public function testMethod()
-    {
-        Flux::toast('تم استدعاء دالة التجربة بنجاح!', variant: 'success');
-        \Illuminate\Support\Facades\Log::info("testMethod triggered successfully on server");
     }
 
     public function renderEmoji($emoji, $class = 'size-5 inline-block align-middle')
@@ -1353,7 +1351,7 @@ new class extends Component {
         @php
             $claim = $pendingClaims->first();
         @endphp
-        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
+        <div class="fixed inset-0 z-overlay flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
             <div class="relative max-w-md w-full rounded-3xl p-6 md:p-8 border border-slate-200 bg-white shadow-2xl text-center space-y-6 overflow-hidden">
                 <!-- Sparkle Background Effects using team color -->
                 <div class="absolute -top-12 -left-12 size-40 rounded-full bg-team-10 blur-3xl"></div>
@@ -1420,7 +1418,7 @@ new class extends Component {
         @php
             $mClaim = $pendingMilestoneClaims->first();
         @endphp
-        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
+        <div class="fixed inset-0 z-overlay flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/60">
             <div class="relative max-w-md w-full rounded-3xl p-6 md:p-8 border border-slate-200 bg-white shadow-2xl text-center space-y-6 overflow-hidden">
                 <!-- Sparkle Background Effects using team color -->
                 <div class="absolute -top-12 -left-12 size-40 rounded-full bg-team-10 blur-3xl"></div>
@@ -2578,7 +2576,7 @@ new class extends Component {
                                      x-transition:leave="transition ease-in duration-200"
                                      x-transition:leave-start="opacity-100 translate-y-0"
                                      x-transition:leave-end="opacity-0 translate-y-4"
-                                     class="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col w-full h-full text-zinc-900 dark:text-white"
+                                     class="fixed inset-0 z-overlay bg-white dark:bg-zinc-900 flex flex-col w-full h-full text-zinc-900 dark:text-white"
                                      x-cloak>
                                      
                                      {{-- Modal Header --}}

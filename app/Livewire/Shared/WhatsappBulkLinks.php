@@ -5,6 +5,7 @@ namespace App\Livewire\Shared;
 use App\Jobs\SendGuardianWhatsappJob;
 use App\Models\Student;
 use App\Support\Scope;
+use App\Support\StudentStatus;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -31,13 +32,6 @@ class WhatsappBulkLinks extends Component
         'guardian_link_to_guardian' => 'إرسال رابط ولي الأمر إلى ولي الأمر',
         'student_link_to_guardian' => 'إرسال رابط الطالب إلى ولي الأمر',
         'student_link_to_student' => 'إرسال رابط الطالب إلى الطالب',
-    ];
-
-    protected const STATUS_LABELS = [
-        'active' => 'مشارك',
-        'registering' => 'تحت التسجيل',
-        'suspended' => 'موقوف',
-        'left' => 'غادر الدفعات',
     ];
 
     public function mount(string $clientId): void
@@ -100,9 +94,8 @@ class WhatsappBulkLinks extends Component
         foreach ($this->scopedStudents() as $student) {
             $reasons = [];
 
-            if ($student->status !== 'active') {
-                $label = self::STATUS_LABELS[$student->status] ?? $student->status;
-                $reasons[] = "حالة الطالب \"{$label}\" وليست \"مشارك\"";
+            if (StudentStatus::of($student->status) !== StudentStatus::Active) {
+                $reasons[] = 'حالة الطالب "'.StudentStatus::labelOf($student->status).'" وليست "'.StudentStatus::Active->label().'"';
             }
 
             if ($this->targetsGuardian()) {

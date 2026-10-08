@@ -21,7 +21,7 @@ class RoleFactory extends Factory
         $label = fake()->unique()->jobTitle();
 
         return [
-            'key' => Str::slug($label, '_'),
+            'key' => 'custom_'.Str::slug($label, '_'),
             'label' => $label,
             'guard_name' => 'staff',
             'is_system' => false,

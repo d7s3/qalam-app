@@ -18,11 +18,17 @@
             ->orderBy('group_label')
             ->orderBy('sort_order')
             ->get()
+            ->filter(fn ($screen) => $screen->opensAlone())
             ->filter(fn ($screen) => \App\Support\Access::canSee(auth($role)->user(), $role, $screen->route_name))
-            // A page the reader already owns under his own prefix is not shown
-            // twice; his own is the one that belongs in his navigation.
-            ->reject(fn ($screen) => \App\Models\Screen::where('route_name', $role.'.'.\Illuminate\Support\Str::after($screen->route_name, '.'))->exists())
             ->values();
+
+    // A page the reader already owns under his own prefix is not shown twice;
+    // his own is the one that belongs in his navigation. Asked once for all of
+    // them, since this list is drawn on every page he opens.
+    if ($held->isNotEmpty()) {
+        $owned = \App\Models\Screen::where('route_name', 'like', $role.'.%')->pluck('route_name')->flip();
+        $held = $held->reject(fn ($screen) => $owned->has($role.'.'.\Illuminate\Support\Str::after($screen->route_name, '.')))->values();
+    }
 @endphp
 
 @if ($held->isNotEmpty())

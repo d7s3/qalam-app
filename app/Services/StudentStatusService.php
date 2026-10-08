@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Student;
+use App\Support\Scope;
+use App\Support\StudentStatus;
 use Illuminate\Support\Facades\Auth;
 
 class StudentStatusService
@@ -16,9 +18,16 @@ class StudentStatusService
      *   latest history row instead of stacking a duplicate entry;
      * - scheduled future rows (e.g. a pending auto-return) are superseded by any
      *   new manual decision and removed first.
+     *
+     * Only the five words of StudentStatus are written: a sixth, spelled by one
+     * caller and known to no screen, is how «غير فعّال» once showed as English.
      */
     public static function changeStatus(Student $student, string $status, ?string $effectiveDate = null, ?string $notes = null): void
     {
+        if (! StudentStatus::tryFrom($status)) {
+            throw new \InvalidArgumentException('حالة طالب غير معروفة: '.$status);
+        }
+
         $today = now('Asia/Riyadh')->format('Y-m-d');
         $effectiveDate = $effectiveDate ?: $today;
 
@@ -125,12 +134,42 @@ class StudentStatusService
     }
 
     /**
+     * Whether a student counted as مشارك on a day, from the history row in force
+     * that day (null when none is) and his status column.
+     *
+     * With no row in force the column answers, and an empty column is مشارك —
+     * the answer Attendance::activeStatusOnDateSql gives in SQL. The two used to
+     * differ: the SQL called every student without a row active, whatever his
+     * column said, so a student تحت التسجيل was off the register and yet his
+     * attendance counted in the reports.
+     */
+    public static function countsAsActive(?string $statusInForce, ?string $currentStatus): bool
+    {
+        return StudentStatus::of($statusInForce ?? $currentStatus) === StudentStatus::Active;
+    }
+
+    /**
      * Delete a wrong history entry and re-sync the student's current status to
      * the effective row for today (when one exists).
+     *
+     * Each period ends where the next begins and the last stays open, so the
+     * periods either side of the one taken out are joined up again. They used
+     * to be left as they were, and the timeline kept a hole where it had been —
+     * days on which, by his history, the student was nothing at all.
      */
     public static function deleteHistoryEntry(Student $student, int $historyId): void
     {
         $student->statusHistories()->whereKey($historyId)->delete();
+
+        $periods = $student->statusHistories()->reorder()->orderBy('start_date')->orderBy('id')->get()->values();
+
+        foreach ($periods as $index => $period) {
+            $end = $periods->get($index + 1)?->start_date;
+
+            if ($period->end_date?->toDateString() !== $end?->toDateString()) {
+                $period->update(['end_date' => $end]);
+            }
+        }
 
         $today = now('Asia/Riyadh')->format('Y-m-d');
         $effectiveToday = $student->statusHistories()
@@ -151,7 +190,13 @@ class StudentStatusService
      */
     protected static function changedByMeta(): array
     {
-        foreach (['manager', 'supervisor', 'teacher'] as $role) {
+        // The office the change is made from, as everywhere else. A walk over
+        // the guards, manager first, signed a teacher's change «المدير» for
+        // anyone who was also signed in as a manager.
+        $acting = Scope::resolveRole();
+        $offices = in_array($acting, ['manager', 'supervisor', 'teacher'], true) ? [$acting] : ['manager', 'supervisor', 'teacher'];
+
+        foreach ($offices as $role) {
             if ($user = Auth::guard($role)->user()) {
                 return ['changed_by_role' => $role, 'changed_by_name' => $user->name];
             }

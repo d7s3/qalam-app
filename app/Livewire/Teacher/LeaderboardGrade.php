@@ -5,6 +5,7 @@ namespace App\Livewire\Teacher;
 use App\Models\Circle;
 use App\Models\GamificationTransaction;
 use App\Models\Leaderboard;
+use App\Models\LeaderboardCriterion;
 use App\Models\LeaderboardScore;
 use App\Models\Student;
 use App\Services\GamificationService;
@@ -13,7 +14,9 @@ use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -25,6 +28,7 @@ class LeaderboardGrade extends Component
         // Livewire automatically re-renders
     }
 
+    #[Locked]
     public $leaderboardId;
 
     public $date;
@@ -32,9 +36,20 @@ class LeaderboardGrade extends Component
     // Modal state kept for backward-compat but not used in inline flow
     public $showExtraPointsModal = false;
 
+    /**
+     * The cohorts this reader reaches. A competition is graded here only when
+     * one of them takes part, and only their students are scored.
+     *
+     * @return SupportCollection<int, int>
+     */
+    private function reachedCircleIds(): SupportCollection
+    {
+        return Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
+    }
+
     public function mount($leaderboardId)
     {
-        $this->leaderboardId = $leaderboardId;
+        $this->leaderboardId = Leaderboard::takenPartInBy($this->reachedCircleIds())->findOrFail($leaderboardId)->id;
         $this->date = now()->format('Y-m-d');
 
         // Reconcile badge awards once on load so any student who already meets a
@@ -55,19 +70,14 @@ class LeaderboardGrade extends Component
     {
         $leaderboard = Leaderboard::with('circles')->findOrFail($this->leaderboardId);
 
-        $teacher = auth()->guard('teacher')->user();
-        $teacherCircleIds = Scope::forRoute()->applyToCircles(Circle::query())->pluck('circles.id');
         $leaderboardCircleIds = $leaderboard->circles->pluck('id');
         if ($leaderboard->circle_id) {
             $leaderboardCircleIds->push($leaderboard->circle_id);
         }
 
-        // All of the teacher's circles that participate in this competition; when
-        // the intersection is empty fall back to whichever side is known.
-        $circleIds = $teacherCircleIds->intersect($leaderboardCircleIds)->values();
-        if ($circleIds->isEmpty()) {
-            $circleIds = $teacherCircleIds->isNotEmpty() ? $teacherCircleIds : $leaderboardCircleIds->unique()->values();
-        }
+        // The reader's cohorts that take part in this competition — and only
+        // those: another cohort's students are not his to score.
+        $circleIds = $this->reachedCircleIds()->intersect($leaderboardCircleIds)->values();
 
         return Student::whereIn('circle_id', $circleIds)
             ->where('status', 'active')
@@ -75,8 +85,17 @@ class LeaderboardGrade extends Component
             ->get();
     }
 
+    /** Refuse a student this reader does not score on this competition. */
+    private function ensureParticipant(int $studentId): void
+    {
+        abort_unless($this->participatingStudents()->contains('id', $studentId), 403);
+    }
+
     public function toggleScore($studentId, $criterionId, $points)
     {
+        $this->ensureParticipant((int) $studentId);
+        abort_unless(LeaderboardCriterion::where('leaderboard_id', $this->leaderboardId)->whereKey($criterionId)->exists(), 403);
+
         $score = LeaderboardScore::where('leaderboard_id', $this->leaderboardId)
             ->where('student_id', $studentId)
             ->where('leaderboard_criterion_id', $criterionId)
@@ -115,6 +134,8 @@ class LeaderboardGrade extends Component
             return;
         }
 
+        $this->ensureParticipant($studentId);
+
         $id = DB::table('leaderboard_extra_points')->insertGetId([
             'leaderboard_id' => $this->leaderboardId,
             'student_id' => $studentId,
@@ -132,12 +153,27 @@ class LeaderboardGrade extends Component
 
     public function deleteExtraPoints($id)
     {
-        DB::table('leaderboard_extra_points')->where('id', $id)->delete();
-        GamificationService::syncStudentExtraPointsXP($id);
+        $deleted = DB::table('leaderboard_extra_points')
+            ->where('leaderboard_id', $this->leaderboardId)
+            ->where('id', $id)
+            ->delete();
+
+        if ($deleted) {
+            GamificationService::syncStudentExtraPointsXP($id);
+        }
+    }
+
+    /** Refuse a badge of another competition, or a student not scored here. */
+    private function ensureOwnBadge(int $badgeId, int $studentId): void
+    {
+        abort_unless(DB::table('gamification_badges')->where('leaderboard_id', $this->leaderboardId)->where('id', $badgeId)->exists(), 403);
+        $this->ensureParticipant($studentId);
     }
 
     public function approveBadge(int $badgeId, int $studentId): void
     {
+        $this->ensureOwnBadge($badgeId, $studentId);
+
         DB::table('gamification_badge_student')
             ->where('badge_id', $badgeId)
             ->where('student_id', $studentId)
@@ -151,6 +187,8 @@ class LeaderboardGrade extends Component
 
     public function rejectBadge(int $badgeId, int $studentId): void
     {
+        $this->ensureOwnBadge($badgeId, $studentId);
+
         DB::table('gamification_badge_student')
             ->where('badge_id', $badgeId)
             ->where('student_id', $studentId)

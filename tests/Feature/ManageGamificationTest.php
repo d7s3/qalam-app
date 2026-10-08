@@ -1930,3 +1930,28 @@ it('offers the hand-out button only on a badge that is handed out by name', func
     // Flux renders the call in both wire:click and wire:target, so count buttons.
     expect(substr_count($html, 'wire:click="openGrantBadge'))->toBe(1);
 });
+
+it('does not sell a product the supervisor has switched off, or one from a finished competition', function () {
+    $team = GamificationTeam::create(['leaderboard_id' => $this->leaderboard->id, 'name' => 'فريق المتجر', 'coins' => 100]);
+    $team->students()->attach($this->student->id, ['role' => 'leader']);
+
+    $item = GamificationStoreItem::create([
+        'leaderboard_id' => $this->leaderboard->id,
+        'name' => 'دعم الفريق',
+        'price' => 30,
+        'item_type' => 'team_points',
+        'value' => 40,
+        'is_team_product' => true,
+        'is_active' => false,
+    ]);
+
+    expect(GamificationService::requestStorePurchase($this->student->id, $item->id))->toBe('item_unavailable')
+        ->and($team->fresh()->coins)->toBe(100);
+
+    $item->update(['is_active' => true]);
+    $this->leaderboard->update(['is_active' => false]);
+
+    expect(GamificationService::requestStorePurchase($this->student->id, $item->id))->toBe('item_unavailable')
+        ->and($team->fresh()->coins)->toBe(100)
+        ->and(GamificationStorePurchase::count())->toBe(0);
+});

@@ -1,6 +1,9 @@
 <?php
 
+use App\Livewire\Supervisor\WhatsappSettings;
 use App\Models\Circle;
+use App\Models\Guardian;
+use App\Models\Leaderboard;
 use App\Models\Manager;
 use App\Models\Role;
 use App\Models\Screen;
@@ -12,6 +15,7 @@ use App\Models\UserScreenOverride;
 use App\Support\Access;
 use App\Support\RoleHierarchy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
 
@@ -177,4 +181,158 @@ describe('the six that are tabs of one shell', function () {
 
         expect($html)->toContain("activeTab: 'tasmeeh'");
     });
+});
+
+describe('a screen that needs a student or a record to open', function () {
+    // The held address carries only the screen's name, so a page whose own
+    // address asks for a student cannot be opened from it.
+    it('is not offered among the carried screens', function () {
+        $html = $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.dashboard'))
+            ->assertOk()
+            ->getContent();
+
+        expect($html)->not->toContain(route('supervisor.held', ['screen' => 'teacher.student-recitation-log']));
+    });
+
+    it('answers not found rather than failing when its address is typed', function () {
+        $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.held', ['screen' => 'teacher.student-recitation-log']))
+            ->assertNotFound();
+    });
+});
+
+describe('the name in the browser tab', function () {
+    it('is the screen\'s own label when the page does not name itself', function () {
+        $html = $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.circles'))
+            ->assertOk()
+            ->getContent();
+
+        expect(substr_count($html, '<title>'))->toBe(1)
+            ->and($html)->toMatch('/<title>\s*الدفعات - /u');
+    });
+
+    it('is the carried screen\'s label, not the shell it renders in', function () {
+        $html = $this->actingAs($this->supervisor, 'supervisor')
+            ->get(route('supervisor.held', ['screen' => 'teacher.attendance']))
+            ->assertOk()
+            ->getContent();
+
+        $label = Screen::where('route_name', 'teacher.attendance')->value('label');
+
+        expect($html)->toMatch('/<title>\s*'.preg_quote($label, '/').' - /u');
+    });
+});
+
+it('sends the support card to the academy\'s own number', function () {
+    config(['brand.contact.phone' => '0508822794']);
+
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.dashboard'))
+        ->assertOk()
+        ->assertSee('https://wa.me/966508822794', false)
+        ->assertDontSee('966500000000');
+});
+
+it('links the sidebar to the supervisor\'s own gamification, never another\'s', function () {
+    $others = Leaderboard::create([
+        'supervisor_id' => Supervisor::factory()->create()->id,
+        'circle_id' => Circle::factory()->create()->id,
+        'title' => 'تلعيب غيره',
+        'competition_type' => 'gamification',
+        'start_date' => now(),
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.dashboard'))
+        ->assertOk()
+        ->assertDontSee(route('supervisor.competitions.gamification', $others->id), false);
+
+    $his = Leaderboard::create([
+        'supervisor_id' => $this->supervisor->id,
+        'circle_id' => $this->circle->id,
+        'title' => 'تلعيبه',
+        'competition_type' => 'gamification',
+        'start_date' => now(),
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.dashboard'))
+        ->assertSee(route('supervisor.competitions.gamification', $his->id), false);
+});
+
+it('names each tab of the teacher\'s shell for itself', function () {
+    $html = $this->actingAs($this->teacher, 'teacher')
+        ->get(route('teacher.tasmeeh'))
+        ->assertOk()
+        ->getContent();
+
+    $label = Screen::where('route_name', 'teacher.tasmeeh')->value('label');
+
+    expect($html)->toMatch('/<title>\s*'.preg_quote($label, '/').' - /u')
+        ->and($html)->toContain('document.title');
+});
+
+it('names the form pages in the browser tab', function () {
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.forms.create'))
+        ->assertOk()
+        ->assertSee('إنشاء نموذج - ', false);
+});
+
+it('opens a carried screen whose page is named differently from its route', function () {
+    // supervisor.odes.paths is drawn by the view supervisor.ode-paths; the
+    // route says so, and the carried address must follow it.
+    $this->actingAs($this->manager, 'manager')
+        ->get(route('manager.held', ['screen' => 'supervisor.odes.paths']))
+        ->assertOk();
+});
+
+it('gives a supervisor no way to start server processes from the WhatsApp screen', function () {
+    Http::fake(['*' => Http::response([], 500)]);
+
+    Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test(WhatsappSettings::class)
+        ->assertSee('تواصل مع إدارة المركز')
+        ->assertDontSee('startNodeServer');
+
+    expect(method_exists(WhatsappSettings::class, 'startNodeServer'))->toBeFalse();
+});
+
+it('opens the supervisor\'s and the teacher\'s home pages on their own summary', function () {
+    $supervisorPage = $this->actingAs($this->supervisor, 'supervisor')->get(route('supervisor.dashboard'))->getContent();
+    $teacherPage = $this->actingAs($this->teacher, 'teacher')->get(route('teacher.dashboard'))->getContent();
+
+    expect(strpos($supervisorPage, 'wire:name="supervisor.dashboard"'))->toBeLessThan(strpos($supervisorPage, 'wire:name="shared.activity-pulse"'))
+        ->and(strpos($teacherPage, 'wire:name="teacher.dashboard"'))->toBeLessThan(strpos($teacherPage, 'wire:name="shared.activity-pulse"'));
+});
+
+it('gives the report filters a Hijri calendar, and a parent only the dates', function () {
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.reports.attendance'))
+        ->assertOk()
+        ->assertSee('النطاق')
+        ->assertSee('popover="manual"', false)
+        ->assertDontSee('type="date"', false);
+
+    $guardian = Guardian::factory()->create(['is_approved' => true]);
+    $this->student->update(['guardian_id' => $guardian->id]);
+
+    $this->actingAs($guardian, 'guardian')
+        ->get(route('guardian.reports.attendance'))
+        ->assertOk()
+        ->assertDontSee('التجميع')
+        ->assertSee('تصدير PDF');
+});
+
+it('counts a cohort\'s students in good Arabic on the supervisor\'s home page', function () {
+    Student::factory()->count(4)->create(['circle_id' => $this->circle->id]);
+
+    $this->actingAs($this->supervisor, 'supervisor')
+        ->get(route('supervisor.dashboard'))
+        ->assertOk()
+        ->assertSee('5 طلاب');
 });

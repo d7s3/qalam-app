@@ -439,7 +439,7 @@ hifz/review — local state per day card for instant visual feedback
                 <flux:icon icon="user-group" class="size-16 text-zinc-300 dark:text-zinc-600 mb-4" />
                 <flux:heading size="lg" class="text-zinc-500 dark:text-zinc-400 mb-2">{{ __('اختر طالباً للبدء') }}</flux:heading>
                 <p class="text-zinc-400 dark:text-zinc-500 text-sm max-w-sm">
-                    {{ __('قم باختيار أحد الطلاب من القائمة الجانبية لعرض خطته القرآنية والبدء بتقييم التسميع والمراجعة.') }}
+                    {{ __('اختر أحد الطلاب من القائمة لعرض خطته القرآنية والبدء بتقييم التسميع والمراجعة.') }}
                 </p>
             </div>
 

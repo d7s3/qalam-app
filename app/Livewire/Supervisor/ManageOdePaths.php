@@ -5,6 +5,7 @@ namespace App\Livewire\Supervisor;
 use App\Models\Circle;
 use App\Models\Ode;
 use App\Models\OdePath;
+use App\Models\Student;
 use App\Models\StudentOdePlan;
 use Flux\Flux;
 use Livewire\Component;
@@ -145,10 +146,14 @@ class ManageOdePaths extends Component
 
         $path = OdePath::findOrFail($this->enrollingPathId);
 
-        $selectedIds = array_map('intval', $this->selectedStudentIds);
+        // Paths are shared across the academy, so only this supervisor's own
+        // students are enrolled or suspended here — never another stage's.
+        $reachableIds = Student::whereIn('circle_id', $this->getSupervisorCircleIds())->pluck('id')->all();
+        $selectedIds = array_values(array_intersect(array_map('intval', $this->selectedStudentIds), $reachableIds));
 
         // Get currently active student IDs for this path
         $currentlyEnrolledStudentIds = StudentOdePlan::where('ode_path_id', $path->id)
+            ->whereIn('student_id', $reachableIds)
             ->where('status', 'active')
             ->pluck('student_id')
             ->toArray();

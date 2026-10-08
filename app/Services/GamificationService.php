@@ -1567,6 +1567,12 @@ class GamificationService
         $student = Student::findOrFail($studentId);
         $item = GamificationStoreItem::findOrFail($itemId);
         $leaderboardId = $item->leaderboard_id;
+
+        // The item arrives as an id from the browser: one the supervisor has
+        // switched off, or from a competition that has ended, is not for sale.
+        if (! $item->is_active || ! Leaderboard::whereKey($leaderboardId)->where('is_active', true)->exists()) {
+            return 'item_unavailable';
+        }
         $price = $customPrice !== null ? $customPrice : $item->price;
 
         $team = $student->gamificationTeams()->where('leaderboard_id', $leaderboardId)->first();

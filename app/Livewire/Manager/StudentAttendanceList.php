@@ -5,6 +5,7 @@ namespace App\Livewire\Manager;
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
 use App\Models\Student;
+use App\Services\StudentStatusService;
 use App\Support\HijriDate;
 use App\Support\Scope;
 use Flux\Flux;
@@ -45,10 +46,7 @@ class StudentAttendanceList extends Component
             ->orderBy('name')
             ->get()
             ->filter(function ($student) {
-                $history = $student->statusHistories->first();
-                $statusOnDate = $history ? $history->status : $student->status;
-
-                return $statusOnDate === 'active';
+                return StudentStatusService::countsAsActive($student->statusHistories->first()?->status, $student->status);
             })
             ->values();
 

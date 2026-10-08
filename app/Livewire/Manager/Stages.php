@@ -4,7 +4,10 @@ namespace App\Livewire\Manager;
 
 use App\Models\Stage;
 use App\Models\Supervisor;
+use App\Support\Scope;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Stages extends Component
@@ -17,6 +20,7 @@ class Stages extends Component
 
     public string $description = '';
 
+    #[Locked]
     public $editingStageId = null;
 
     public array $selectedSupervisors = [];
@@ -24,6 +28,19 @@ class Stages extends Component
     public string $search = '';
 
     public string $supervisorFilter = 'all';
+
+    /**
+     * The stage records this reader may act on. The lists were already
+     * narrowed to the reader's reach; every id that arrives with a button —
+     * approve, edit, save, reset a link, delete — is looked up through here too,
+     * so a programme's manager cannot reach into the next programme by id.
+     *
+     * @return Builder<Stage>
+     */
+    private function reachable()
+    {
+        return Scope::forRole('manager')->applyToStages(Stage::query());
+    }
 
     public function mount()
     {
@@ -69,7 +86,7 @@ class Stages extends Component
         ]);
 
         if ($this->editingStageId) {
-            $stage = Stage::find($this->editingStageId);
+            $stage = $this->reachable()->find($this->editingStageId);
             $stage->update([
                 'name' => $this->name,
                 'description' => $this->description,
@@ -92,7 +109,7 @@ class Stages extends Component
 
     public function edit($id)
     {
-        $stage = Stage::findOrFail($id);
+        $stage = $this->reachable()->findOrFail($id);
         $this->editingStageId = $stage->id;
         $this->name = $stage->name;
         $this->description = $stage->description ?? '';
@@ -108,7 +125,7 @@ class Stages extends Component
 
     public function delete($id)
     {
-        $stage = Stage::findOrFail($id);
+        $stage = $this->reachable()->findOrFail($id);
         if ($stage->circles()->count() > 0) {
             Flux::toast(__('لا يمكن حذف البرنامج لاحتوائها على دفعات'), variant: 'danger');
 

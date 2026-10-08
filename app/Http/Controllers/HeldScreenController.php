@@ -24,6 +24,8 @@ class HeldScreenController extends Controller
     public function __invoke(string $screen): View
     {
         $registered = Screen::where('route_name', $screen)->firstOrFail();
+
+        abort_unless($registered->opensAlone(), 404);
         $scope = Scope::forRoute();
 
         // Asked in the reader's own role, about the screen's real name — which
@@ -37,10 +39,6 @@ class HeldScreenController extends Controller
         // A screen says how it renders when its name does not: six of the
         // teacher's are tabs of one shell, and a page of their name still exists
         // from before the shell, showing something else entirely.
-        $view = $registered->view ?: $registered->route_name;
-
-        abort_unless(view()->exists($view), 404);
-
-        return view($view, $registered->view_data ?? []);
+        return view($registered->heldView(), $registered->view_data ?? []);
     }
 }

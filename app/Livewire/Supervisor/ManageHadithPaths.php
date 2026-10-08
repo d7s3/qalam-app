@@ -5,6 +5,7 @@ namespace App\Livewire\Supervisor;
 use App\Models\Circle;
 use App\Models\HadithPath;
 use App\Models\HadithText;
+use App\Models\Student;
 use App\Models\StudentHadithPlan;
 use Flux\Flux;
 use Livewire\Component;
@@ -157,10 +158,14 @@ class ManageHadithPaths extends Component
 
         $path = HadithPath::findOrFail($this->enrollingPathId);
 
-        $selectedIds = array_map('intval', $this->selectedStudentIds);
+        // Paths are shared across the academy, so only this supervisor's own
+        // students are enrolled or suspended here — never another stage's.
+        $reachableIds = Student::whereIn('circle_id', $this->getSupervisorCircleIds())->pluck('id')->all();
+        $selectedIds = array_values(array_intersect(array_map('intval', $this->selectedStudentIds), $reachableIds));
 
         // Get currently active student IDs for this path
         $currentlyEnrolledStudentIds = StudentHadithPlan::where('hadith_path_id', $path->id)
+            ->whereIn('student_id', $reachableIds)
             ->where('status', 'active')
             ->pluck('student_id')
             ->toArray();

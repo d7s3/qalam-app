@@ -14,6 +14,7 @@ use Livewire\Component;
 
 new class extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public $studentId;
 
     public $studentName;
@@ -25,8 +26,9 @@ new class extends Component
 
     public function mount($studentId)
     {
-        $this->studentId = $studentId;
-        $student = Student::findOrFail($studentId);
+        // Only a student within the reader's reach: the id is in the address.
+        $student = \App\Support\Scope::forRoute()->applyToStudents(Student::query())->findOrFail($studentId);
+        $this->studentId = $student->id;
         $this->studentName = $student->name;
     }
 

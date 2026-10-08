@@ -14,7 +14,9 @@ use App\Models\StudentOdeAchievement;
 use App\Models\StudentPlanDay;
 use App\Models\StudentStatusHistory;
 use App\Support\MushafPages;
+use App\Support\StudentStatus;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 
@@ -61,36 +63,62 @@ class CircleReportService
     }
 
     /**
-     * The active students of a circle, ordered by name.
+     * The students of a circle who were مشارك in the range, ordered by name.
      *
      * @return EloquentCollection<int, Student>
      */
-    public static function studentsForCircle(Circle $circle): EloquentCollection
+    public static function studentsForCircle(Circle $circle, ?Carbon $from = null, ?Carbon $to = null): EloquentCollection
     {
-        return Student::with('circle')
+        return self::activeDuring(Student::with('circle'), $from, $to)
             ->where('circle_id', $circle->id)
-            ->where('status', 'active')
             ->orderBy('name')
             ->get();
     }
 
     /**
-     * The active students of a whole stage: students whose circle belongs to the
-     * stage, plus circle-less students directly assigned to it (the circle's
-     * stage always wins over the student's own stage_id).
+     * The students of a whole stage who were مشارك in the range: students whose
+     * circle belongs to the stage, plus circle-less students directly assigned
+     * to it (the circle's stage always wins over the student's own stage_id).
      *
      * @return EloquentCollection<int, Student>
      */
-    public static function studentsForStage(Stage $stage): EloquentCollection
+    public static function studentsForStage(Stage $stage, ?Carbon $from = null, ?Carbon $to = null): EloquentCollection
     {
-        return Student::with('circle')
-            ->where('status', 'active')
+        return self::activeDuring(Student::with('circle'), $from, $to)
             ->where(function ($query) use ($stage) {
                 $query->whereHas('circle', fn ($q) => $q->where('stage_id', $stage->id))
                     ->orWhere(fn ($q) => $q->whereNull('circle_id')->where('stage_id', $stage->id));
             })
             ->orderBy('name')
             ->get();
+    }
+
+    /**
+     * Students who were مشارك on at least one day of the range — by a period of
+     * their history, or, with no history at all, by their own column — or, with
+     * no range, the ones who are today.
+     *
+     * A report on last term used to list only who is مشارك now, so a student
+     * suspended since dropped out of the weeks he had attended. Which of the
+     * range's days count for him is then the history's to say, day by day.
+     *
+     * @param  Builder<Student>  $query
+     * @return Builder<Student>
+     */
+    private static function activeDuring(Builder $query, ?Carbon $from, ?Carbon $to): Builder
+    {
+        if (! $from || ! $to) {
+            return $query->where('status', StudentStatus::Active->value);
+        }
+
+        return $query->where(fn (Builder $either) => $either
+            ->whereHas('statusHistories', fn (Builder $period) => $period
+                ->where('status', StudentStatus::Active->value)
+                ->whereDate('start_date', '<=', $to->toDateString())
+                ->where(fn (Builder $open) => $open->whereNull('end_date')->orWhereDate('end_date', '>', $from->toDateString())))
+            ->orWhere(fn (Builder $unrecorded) => $unrecorded
+                ->whereDoesntHave('statusHistories')
+                ->where(fn (Builder $column) => $column->where('status', StudentStatus::Active->value)->orWhereNull('status'))));
     }
 
     /**
@@ -329,7 +357,7 @@ class CircleReportService
             $counts[$student->id] = count(array_filter(
                 $days,
                 fn (string $day) => ($joinedAt === null || $joinedAt <= $day)
-                    && self::statusOn($studentHistory, $day) === 'active'
+                    && StudentStatusService::countsAsActive(self::statusOn($studentHistory, $day), $student->status)
             ));
         }
 
@@ -337,13 +365,13 @@ class CircleReportService
     }
 
     /**
-     * The student's status on a date: the most recent change on or before it.
-     * Mirrors Attendance::activeStatusOnDateSql, which the attendance query above
-     * applies in SQL — a student with no history at all counts as active.
+     * The status the history puts in force on a date — the most recent change
+     * on or before it — or null when it says nothing yet, for the student's
+     * own column to answer, as Attendance::activeStatusOnDateSql does in SQL.
      *
      * @param  Collection<int, StudentStatusHistory>  $history  Newest first.
      */
-    private static function statusOn(Collection $history, string $day): string
+    private static function statusOn(Collection $history, string $day): ?string
     {
         foreach ($history as $change) {
             if (Carbon::parse($change->start_date)->format('Y-m-d') <= $day) {
@@ -351,7 +379,7 @@ class CircleReportService
             }
         }
 
-        return 'active';
+        return null;
     }
 
     /**

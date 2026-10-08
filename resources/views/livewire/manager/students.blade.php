@@ -105,15 +105,7 @@
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="hidden sm:table-cell">
-                            @if ($student->status === 'active')
-                                <flux:badge size="sm" variant="success">مشارك</flux:badge>
-                            @elseif ($student->status === 'registering')
-                                <flux:badge size="sm" variant="warning">تحت التسجيل</flux:badge>
-                            @elseif ($student->status === 'suspended')
-                                <flux:badge size="sm" variant="danger">موقوف</flux:badge>
-                            @else
-                                <flux:badge size="sm" variant="neutral">غادر الدفعات</flux:badge>
-                            @endif
+                            <x-student-status-badge :status="$student->status" size="sm" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2" @click.stop>
@@ -181,14 +173,8 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
-                                @php
-                                    $mStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
-                                    $mStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
-                                @endphp
                                 <div class="flex items-center gap-2">
-                                    <flux:badge color="{{ $mStatusColors[$viewingStudent->status] ?? 'zinc' }}">
-                                        {{ $mStatusLabels[$viewingStudent->status] ?? $viewingStudent->status }}
-                                    </flux:badge>
+                                    <x-student-status-badge :status="$viewingStudent->status" />
                                     <flux:button type="button" size="sm" variant="filled" icon="adjustments-horizontal"
                                         wire:click="$dispatch('open-status-manager', { studentId: {{ $viewingStudent->id }} })">
                                         {{ __('إدارة الحالة') }}

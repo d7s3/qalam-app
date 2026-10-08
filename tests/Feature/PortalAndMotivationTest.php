@@ -136,3 +136,95 @@ it('refuses to approve a hadith graded as anything else', function () {
 
     expect($one->fresh()->status)->toBe('pending');
 });
+
+it('lets a shahid on opening go with Escape or a tap beside it', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'source' => 'أثر', 'status' => 'approved']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')
+        ->assertSee('العلم صيد والكتابة قيده')
+        ->assertSeeHtml('x-on:keydown.escape.window="$wire.dismiss()"')
+        ->assertSeeHtml('wire:click.self="dismiss"')
+        ->call('dismiss')
+        ->assertDontSee('العلم صيد والكتابة قيده');
+});
+
+it('keeps a word addressed to him until he says he read it', function () {
+    PortalService::announce($this->manager, 'manager', 'ذكّروا طلابكم بالمراجعة', ['teacher']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')
+        ->assertSee('ذكّروا طلابكم بالمراجعة')
+        ->assertDontSeeHtml('keydown.escape')
+        ->assertDontSeeHtml('wire:click.self');
+});
+
+it('greets once a sitting, not over every page he moves to', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'source' => 'أثر', 'status' => 'approved']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')->assertSee('العلم صيد والكتابة قيده');
+    Livewire::test('shared.opening')->assertDontSee('العلم صيد والكتابة قيده');
+
+    expect(Motivation::first()->shown_count)->toBe(1);
+});
+
+it('keeps the same greeting through the page\'s re-renders', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'status' => 'approved']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')
+        ->assertSee('العلم صيد والكتابة قيده')
+        ->call('$refresh')
+        ->assertSee('العلم صيد والكتابة قيده');
+});
+
+it('brings an unread word back on every page until it is read', function () {
+    PortalService::announce($this->manager, 'manager', 'ذكّروا طلابكم بالمراجعة', ['teacher']);
+
+    $this->actingAs($this->teacher, 'teacher');
+
+    Livewire::test('shared.opening')->assertSee('ذكّروا طلابكم بالمراجعة');
+    Livewire::test('shared.opening')->assertSee('ذكّروا طلابكم بالمراجعة');
+});
+
+it('greets only with a short shahid, however many long ones are approved', function () {
+    // A paragraph of four hundred letters met a person on opening, and on
+    // every page after it.
+    Motivation::create(['kind' => 'athar', 'text' => str_repeat('أكره الهوينا وأكره الدعة والخمول. ', 12), 'status' => 'approved']);
+
+    expect(PortalService::motivationFor($this->teacher))->toBeNull();
+
+    $short = Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'status' => 'approved']);
+
+    foreach (range(1, 5) as $draw) {
+        expect(PortalService::motivationFor($this->teacher)?->id)->toBe($short->id);
+    }
+});
+
+it('takes a shahid no longer than it can be shown, and says how long that is', function () {
+    Livewire::actingAs($this->student, 'student')
+        ->test('shared.motivations')
+        ->set('asRole', 'student')
+        ->assertSee('150')
+        ->set('kind', 'athar')
+        ->set('text', str_repeat('أ', Motivation::OPENING_LENGTH + 1))
+        ->call('contribute')
+        ->assertHasErrors(['text' => 'max']);
+
+    expect(Motivation::count())->toBe(0);
+});
+
+it('marks in the repository a long shahid that will not be shown on opening', function () {
+    Motivation::create(['kind' => 'athar', 'text' => str_repeat('أكره الهوينا وأكره الدعة والخمول. ', 12), 'status' => 'approved']);
+
+    Livewire::actingAs($this->manager, 'manager')
+        ->test('shared.motivations')
+        ->set('asRole', 'manager')
+        ->set('filter', 'approved')
+        ->assertSee('أطول من أن يظهر عند الفتح');
+});

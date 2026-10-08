@@ -24,6 +24,7 @@ beforeEach(function () {
     $this->stage = Stage::factory()->create();
     $this->circle = Circle::factory()->create(['stage_id' => $this->stage->id]);
     $this->teacher = Teacher::factory()->create();
+    $this->teacher->circles()->attach($this->circle->id);
     $this->guardian = Guardian::factory()->create(['is_approved' => true, 'phone' => '0501234567']);
     $this->child = Student::factory()->create([
         'name' => 'الابن الأول',

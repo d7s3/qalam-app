@@ -6,20 +6,29 @@ use App\Models\Student;
 use App\Models\StudentPlan;
 use App\Models\StudentPlanDay;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 new class extends Component {
+    #[Locked]
     public $studentId;
+    #[Locked]
     public $student;
+    #[Locked]
     public $studentPlans;
 
     // Unachieved plan days for selection (loaded per selected plan)
+    #[Locked]
     public $planDays = [];
 
     // Selected day IDs as range [firstId, lastId]
+    #[Locked]
     public $selectedDayIds = [];
 
     // Candidate next exams based on relationships
+    #[Locked]
     public $candidateExams = [];
 
     public function mount($studentId)
@@ -65,8 +74,11 @@ new class extends Component {
 
     public function loadPlanDays($planId)
     {
+        // Only a plan of this child: the id arrives from the browser.
+        $plan = StudentPlan::where('student_id', $this->studentId)->findOrFail($planId);
+
         // Load unachieved days (hifz_achievement is null) for this plan
-        $this->planDays = StudentPlanDay::where('student_plan_id', $planId)
+        $this->planDays = StudentPlanDay::where('student_plan_id', $plan->id)
             ->whereNull('hifz_achievement')
             ->orderBy('date')
             ->get()
@@ -84,8 +96,15 @@ new class extends Component {
 
     public function selectDayRange($fromIndex, $toIndex)
     {
-        $min = min($fromIndex, $toIndex);
-        $max = max($fromIndex, $toIndex);
+        $min = max(0, min($fromIndex, $toIndex));
+        $max = min(count($this->planDays) - 1, max($fromIndex, $toIndex));
+
+        if ($max < $min) {
+            $this->selectedDayIds = [];
+
+            return;
+        }
+
         $this->selectedDayIds = array_map(
             fn($i) => $this->planDays[$i]['id'],
             range($min, $max)
@@ -100,6 +119,44 @@ new class extends Component {
 
     public function saveChallenge($data)
     {
+        // The wizard sends its answers as one object from the browser; each is
+        // checked here, as a form posted by hand would be.
+        $data = Validator::make((array) $data, [
+            'rewardType' => ['required', Rule::in(['attendance', 'recitation', 'exam'])],
+            'attendanceDays' => ['required_if:rewardType,attendance', 'nullable', 'integer', 'min:1', 'max:365'],
+            'attendanceNoLateness' => ['nullable', 'boolean'],
+            'recitationPlanId' => ['required_if:rewardType,recitation', 'nullable', Rule::in($this->studentPlans->pluck('id')->all())],
+            'recitationQualityEnabled' => ['nullable', 'boolean'],
+            'recitationQualityRequirement' => ['nullable', Rule::in(['excellent', 'good_or_better'])],
+            'examLevelId' => ['required_if:rewardType,exam', 'nullable', Rule::in(collect($this->candidateExams)->pluck('id')->all())],
+            'examPercentage' => ['required_if:rewardType,exam', 'nullable', 'integer', 'min:1', 'max:100'],
+            'prizeType' => ['required', Rule::in(['financial', 'material'])],
+            'prizeAmount' => ['required_if:prizeType,financial', 'nullable', 'numeric', 'min:1', 'max:100000'],
+            'prizeDescription' => ['required_if:prizeType,material', 'nullable', 'string', 'max:500'],
+        ], [
+            'attendanceDays.required_if' => __('أدخل عدد أيام الحضور المطلوبة.'),
+            'recitationPlanId.required_if' => __('اختر الخطة التي تشملها المكافأة.'),
+            'examLevelId.required_if' => __('اختر الاختبار.'),
+            'examPercentage.required_if' => __('أدخل النسبة المطلوبة في الاختبار.'),
+            'prizeAmount.required_if' => __('أدخل قيمة المكافأة المالية.'),
+            'prizeDescription.required_if' => __('صف المكافأة العينية.'),
+        ], [
+            'rewardType' => 'نوع الهدف',
+            'attendanceDays' => 'عدد أيام الحضور',
+            'recitationPlanId' => 'الخطة',
+            'examLevelId' => 'الاختبار',
+            'examPercentage' => 'النسبة المطلوبة',
+            'prizeType' => 'نوع المكافأة',
+            'prizeAmount' => 'قيمة المكافأة',
+            'prizeDescription' => 'وصف المكافأة',
+        ])->validate();
+
+        if ($data['rewardType'] === 'recitation' && empty($this->selectedDayIds)) {
+            $this->addError('selectedDayIds', __('اختر أيام التسميع التي تشملها المكافأة.'));
+
+            return;
+        }
+
         $challenge = Challenge::create([
             'guardian_id' => Auth::guard('guardian')->id(),
             'student_id' => $this->studentId,
@@ -108,7 +165,7 @@ new class extends Component {
             'prize_type' => $data['prizeType'],
             'prize_description' => $data['prizeType'] === 'financial'
                 ? ($data['prizeAmount'] . ' ريال سعودي')
-                : $data['prizeDescription'],
+                : ($data['prizeDescription'] ?? ''),
             'status' => 'active',
         ]);
 
@@ -130,8 +187,8 @@ new class extends Component {
                 'metadata' => [
                     'plan_id' => $data['recitationPlanId'],
                     'day_ids' => $this->selectedDayIds,
-                    'quality_required' => $data['recitationQualityEnabled'],
-                    'quality_req' => $data['recitationQualityRequirement'],
+                    'quality_required' => (bool) ($data['recitationQualityEnabled'] ?? false),
+                    'quality_req' => $data['recitationQualityRequirement'] ?? null,
                 ],
             ]);
         } elseif ($data['rewardType'] === 'exam') {
@@ -170,8 +227,8 @@ new class extends Component {
             </div>
             <div class="flex justify-between text-xs font-medium text-zinc-400">
                 <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 1 }">البداية</span>
-                <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 2 }">نوع المكافأة</span>
-                <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 3 }">الهدف</span>
+                <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 2 }">نوع الهدف</span>
+                <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 3 }">تفاصيل الهدف</span>
                 <span :class="{ 'text-indigo-600 dark:text-indigo-400 font-bold': step >= 4 }">الجائزة</span>
             </div>
         </div>
@@ -213,7 +270,7 @@ new class extends Component {
             x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
             class="space-y-6 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
 
-            <flux:heading size="lg">اختر نوع المكافأة</flux:heading>
+            <flux:heading size="lg">على ماذا يُكافأ ابنك؟</flux:heading>
 
             <flux:radio.group x-model="formData.rewardType" variant="cards"
                 class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -400,6 +457,16 @@ new class extends Component {
                     placeholder="مثال: رحلة للمسبح، لعبة إلكترونية..." rows="3" />
             </div>
         </div>
+
+        @if ($errors->any())
+            <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
+                <ul class="space-y-1 list-disc ps-5">
+                    @foreach ($errors->all() as $message)
+                        <li>{{ $message }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
         {{-- Navigation --}}
         <div class="flex justify-between items-center pt-2">

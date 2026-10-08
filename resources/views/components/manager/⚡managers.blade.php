@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -47,6 +48,7 @@ new class extends Component
 
     public string $search = '';
 
+    #[Locked]
     public ?int $editing = null;
 
     /** Whose invitation link to show, when the letter could not be posted. */
@@ -343,6 +345,10 @@ new class extends Component
 
         abort_unless(in_array($tier, array_keys(ManagerTier::LABELS), true), 422);
 
+        // Not his own: narrowing himself would shut him out of this very
+        // screen, and widening himself is not his to grant.
+        abort_if($manager->id === auth('manager')->id(), 403);
+
         // The centre's own manager is never narrowed by this screen: his mark
         // overrules every reach, so the name would say one thing and the
         // application do another.
@@ -373,6 +379,7 @@ new class extends Component
         $this->retiering = $id;
     }
 
+    #[Locked]
     public ?int $retiering = null;
 
     public function saveReach(): void

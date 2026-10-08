@@ -5,9 +5,11 @@ use App\Models\Attendance;
 use App\Models\Student;
 use App\Models\StudentPlanDay;
 use App\Services\StudentStatusService;
-use Flux\Flux;
 use App\Support\Scope;
+use App\Support\StudentStatus;
+use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -128,7 +130,7 @@ new class extends Component {
     public function saveStatus()
     {
         $this->validate([
-            'newStatus' => 'required|in:active,registering,suspended,left',
+            'newStatus' => ['required', Rule::enum(StudentStatus::class)],
             // Pinned to Riyadh, like the default above and the date picker. A bare
             // "today" resolves against app.timezone (UTC), which is a day behind
             // Riyadh from 21:00 UTC onward — so between midnight and 3am local the
@@ -295,14 +297,6 @@ new class extends Component {
 ?>
 
 @php
-    $statusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
-    $statusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
-    $timelineBg = [
-        'active' => 'bg-green-400 dark:bg-green-600',
-        'registering' => 'bg-blue-400 dark:bg-blue-600',
-        'suspended' => 'bg-amber-400 dark:bg-amber-600',
-        'left' => 'bg-red-400 dark:bg-red-600',
-    ];
     $roleLabels = ['manager' => 'المدير', 'supervisor' => 'المشرف', 'teacher' => 'المعلم'];
 @endphp
 
@@ -314,8 +308,8 @@ new class extends Component {
                     <flux:heading size="lg">{{ __('إدارة حالة الطالب') }}</flux:heading>
                     <flux:subheading>{{ $student->name }}</flux:subheading>
                 </div>
-                <flux:badge color="{{ $statusColors[$student->status] ?? 'zinc' }}">
-                    {{ $statusLabels[$student->status] ?? $student->status }}
+                <flux:badge color="{{ StudentStatus::colorOf($student->status) }}">
+                    {{ StudentStatus::labelOf($student->status) }}
                 </flux:badge>
             </div>
 
@@ -326,11 +320,11 @@ new class extends Component {
                     <div class="flex w-full h-8 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
                         @foreach($timeline as $segment)
                             <div wire:key="segment-{{ $loop->index }}"
-                                class="{{ $timelineBg[$segment['status']] ?? 'bg-zinc-300' }} {{ $segment['scheduled'] ? 'opacity-50' : '' }} flex items-center justify-center overflow-hidden"
+                                class="{{ StudentStatus::of($segment['status'])?->timelineClass() ?? 'bg-zinc-300' }} {{ $segment['scheduled'] ? 'opacity-50' : '' }} flex items-center justify-center overflow-hidden"
                                 style="width: {{ $segment['width'] }}%"
-                                title="{{ $statusLabels[$segment['status']] ?? $segment['status'] }} — {{ $segment['days'] }} {{ __('يوم') }}">
+                                title="{{ StudentStatus::labelOf($segment['status']) }} — {{ $segment['days'] }} {{ __('يوم') }}">
                                 <span class="text-[0.6rem] font-bold text-white truncate px-1">
-                                    {{ $statusLabels[$segment['status']] ?? $segment['status'] }}
+                                    {{ StudentStatus::labelOf($segment['status']) }}
                                     @if($segment['scheduled']) ({{ __('مجدول') }}) @endif
                                 </span>
                             </div>
@@ -348,8 +342,8 @@ new class extends Component {
                             class="flex items-center justify-between p-2.5 border border-zinc-200 dark:border-zinc-700/50 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
                             <div class="flex flex-col gap-0.5">
                                 <div class="flex items-center gap-2">
-                                    <flux:badge color="{{ $statusColors[$history->status] ?? 'zinc' }}" size="sm">
-                                        {{ $statusLabels[$history->status] ?? $history->status }}
+                                    <flux:badge color="{{ StudentStatus::colorOf($history->status) }}" size="sm">
+                                        {{ StudentStatus::labelOf($history->status) }}
                                     </flux:badge>
                                     @if($history->start_date->format('Y-m-d') > $today)
                                         <flux:badge color="zinc" size="sm">{{ __('مجدول') }}</flux:badge>
@@ -387,10 +381,9 @@ new class extends Component {
 
                 <div class="grid grid-cols-2 gap-4">
                     <flux:select wire:model.live="newStatus" label="{{ __('الحالة الجديدة') }}">
-                        <flux:select.option value="active">مشارك</flux:select.option>
-                        <flux:select.option value="registering">تحت التسجيل</flux:select.option>
-                        <flux:select.option value="suspended">موقوف</flux:select.option>
-                        <flux:select.option value="left">غادر الدفعات</flux:select.option>
+                        @foreach (StudentStatus::cases() as $status)
+                            <flux:select.option :value="$status->value">{{ $status->label() }}</flux:select.option>
+                        @endforeach
                     </flux:select>
 
                     <flux:input wire:model="reason" label="{{ __('سبب التغيير (إلزامي)') }}"

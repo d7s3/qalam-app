@@ -6,6 +6,7 @@ use App\Models\ExamLevel;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Circle;
 use App\Support\Scope;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Carbon;
@@ -16,6 +17,7 @@ new class extends Component {
     public $search = '';
 
     public $showModal = false;
+    #[Locked]
     public $editingId = null;
 
     public $studentId = null;

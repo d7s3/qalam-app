@@ -8,8 +8,10 @@ use App\Support\Access;
 use App\Support\RecitationOnlyTeacher;
 use App\Support\Scope;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Teachers extends Component
@@ -26,6 +28,7 @@ class Teachers extends Component
 
     public array $selectedCircles = [];
 
+    #[Locked]
     public $editingTeacherId = null;
 
     public string $quickName = '';
@@ -37,6 +40,19 @@ class Teachers extends Component
     public string $statusFilter = 'all';
 
     public string $circleFilter = 'all';
+
+    /**
+     * The teacher records this reader may act on. The lists were already
+     * narrowed to the reader's reach; every id that arrives with a button —
+     * approve, edit, save, reset a link, delete — is looked up through here too,
+     * so a programme's manager cannot reach into the next programme by id.
+     *
+     * @return Builder<Teacher>
+     */
+    private function reachable()
+    {
+        return Scope::forRole('manager')->applyToTeachers(Teacher::query());
+    }
 
     public function mount()
     {
@@ -92,7 +108,7 @@ class Teachers extends Component
 
     public function approve($id)
     {
-        $teacher = Teacher::find($id);
+        $teacher = $this->reachable()->find($id);
 
         if (! $teacher) {
             Flux::toast(__('المعلم غير موجود'), variant: 'danger');
@@ -141,7 +157,7 @@ class Teachers extends Component
      */
     public function toggleRecitationOnly($id)
     {
-        $teacher = Teacher::findOrFail($id);
+        $teacher = $this->reachable()->findOrFail($id);
 
         $teacher->update(['is_recitation_only' => ! $teacher->is_recitation_only]);
 
@@ -156,7 +172,7 @@ class Teachers extends Component
 
     public function resetToken($id)
     {
-        $teacher = Teacher::find($id);
+        $teacher = $this->reachable()->find($id);
         if ($teacher) {
             $teacher->update([
                 'access_token' => Str::random(32),
@@ -173,7 +189,7 @@ class Teachers extends Component
 
     public function edit($id)
     {
-        $this->viewingTeacher = Teacher::with('circles')->find($id);
+        $this->viewingTeacher = $this->reachable()->with('circles')->find($id);
 
         if (! $this->viewingTeacher) {
             Flux::toast(__('المعلم غير موجود'), variant: 'danger');
@@ -197,7 +213,7 @@ class Teachers extends Component
             'phone' => 'nullable|string|max:20',
         ]);
 
-        $teacher = Teacher::find($this->editingTeacherId);
+        $teacher = $this->reachable()->find($this->editingTeacherId);
         $teacher->update([
             'name' => $this->name,
             'email' => $this->email,
@@ -214,7 +230,7 @@ class Teachers extends Component
 
     public function delete($id)
     {
-        $teacher = Teacher::find($id);
+        $teacher = $this->reachable()->find($id);
 
         if ($teacher) {
             $teacher->delete();

@@ -83,8 +83,8 @@ new class extends Component
         </div>
 
         <div class="flex items-center gap-2">
-            <flux:button size="sm" variant="ghost" icon="chevron-right" wire:click="shift(-1)" />
-            <flux:button size="sm" variant="ghost" icon="chevron-left" wire:click="shift(1)" />
+            <flux:button size="sm" variant="ghost" icon="chevron-right" wire:click="shift(-1)" title="{{ __('اليوم السابق') }}" aria-label="{{ __('اليوم السابق') }}" />
+            <flux:button size="sm" variant="ghost" icon="chevron-left" wire:click="shift(1)" title="{{ __('اليوم التالي') }}" aria-label="{{ __('اليوم التالي') }}" />
         </div>
     </div>
 

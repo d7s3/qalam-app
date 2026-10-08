@@ -1,4 +1,4 @@
-<div class="fixed bottom-0 left-0 rounded-full right-0 z-[100] lg:hidden bg-maroon dark:bg-accent-dark border-t border-white/10 shadow-none"
+<div class="fixed bottom-0 left-0 rounded-full right-0 z-bar lg:hidden bg-maroon dark:bg-accent-dark border-t border-white/10 shadow-none"
     style="padding-bottom: env(safe-area-inset-bottom, 12px);">
     <div class="flex items-center justify-around px-2 min-h-18 max-w-lg mx-auto ">
 

@@ -451,7 +451,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                                     @php $msg = $this->getWhatsAppMessage($student, $records[$student->id]); @endphp
                                     @if ($student->guardian_phone)
                                         <a class="whatsapp-link"
-                                            href="https://wa.me/{{ $student->guardian_phone }}/?text={{ urlencode($msg) }}"
+                                            href="https://wa.me/{{ \App\Rules\SaudiPhone::format($student->guardian_phone) }}/?text={{ urlencode($msg) }}"
                                             target="_blank" title="تواصل عبر واتساب">
                                             <flux:icon icon="chat-bubble-left-right"
                                                 class="size-5 text-green-500 hover:text-green-600" />
@@ -476,7 +476,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                                     : (getStatus({{ $student->id }}) === 'present'
                                         ? 'bg-green-100 text-green-700 border border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700'
                                         : 'bg-zinc-100 text-zinc-500 border border-zinc-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700 dark:hover:bg-green-900/20 dark:hover:text-green-400')"
-                                class="px-3 py-1.5 text-xs font-medium rounded-lg">حاضر</button>
+                                type="button" class="min-h-11 min-w-14 px-3 py-2 text-sm font-medium rounded-lg sm:min-h-0 sm:min-w-0 sm:py-1.5 sm:text-xs">حاضر</button>
                             <button @click="updateRecord({{ $student->id }}, 'absent')"
                                 :disabled="syncing.includes({{ $student->id }})"
                                 :class="syncing.includes({{ $student->id }}) && getStatus({{ $student->id }}) === 'absent'
@@ -484,7 +484,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                                     : (getStatus({{ $student->id }}) === 'absent'
                                         ? 'bg-red-100 text-red-700 border border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700'
                                         : 'bg-zinc-100 text-zinc-500 border border-zinc-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700 dark:hover:bg-red-900/20 dark:hover:text-red-400')"
-                                class="px-3 py-1.5 text-xs font-medium rounded-lg">غائب</button>
+                                type="button" class="min-h-11 min-w-14 px-3 py-2 text-sm font-medium rounded-lg sm:min-h-0 sm:min-w-0 sm:py-1.5 sm:text-xs">غائب</button>
                             <button @click="updateRecord({{ $student->id }}, 'late')"
                                 :disabled="syncing.includes({{ $student->id }})"
                                 :class="syncing.includes({{ $student->id }}) && getStatus({{ $student->id }}) === 'late'
@@ -492,7 +492,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                                     : (getStatus({{ $student->id }}) === 'late'
                                         ? 'bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700'
                                         : 'bg-zinc-100 text-zinc-500 border border-zinc-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-400')"
-                                class="px-3 py-1.5 text-xs font-medium rounded-lg">متأخر</button>
+                                type="button" class="min-h-11 min-w-14 px-3 py-2 text-sm font-medium rounded-lg sm:min-h-0 sm:min-w-0 sm:py-1.5 sm:text-xs">متأخر</button>
                             <button @click="updateRecord({{ $student->id }}, 'excused')"
                                 :disabled="syncing.includes({{ $student->id }})"
                                 :class="syncing.includes({{ $student->id }}) && getStatus({{ $student->id }}) === 'excused'
@@ -500,7 +500,7 @@ Livewire fires only on: markStatus | updateStatus | markAllPresent | loadStudent
                                     : (getStatus({{ $student->id }}) === 'excused'
                                         ? 'bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700'
                                         : 'bg-zinc-100 text-zinc-500 border border-zinc-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700 dark:hover:bg-blue-900/20 dark:hover:text-blue-400')"
-                                class="px-3 py-1.5 text-xs font-medium rounded-lg">مستأذن</button>
+                                type="button" class="min-h-11 min-w-14 px-3 py-2 text-sm font-medium rounded-lg sm:min-h-0 sm:min-w-0 sm:py-1.5 sm:text-xs">مستأذن</button>
                         </div>
                     </div>
                 @endforeach

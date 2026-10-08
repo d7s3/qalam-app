@@ -10,9 +10,13 @@
     </div>
 
     <!-- Global Permissions Card -->
-    <flux:card class="border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20">
+    {{-- Set once and rarely touched, so on a phone it starts folded and the
+         teachers — what the page is opened for — come first. --}}
+    <flux:card class="border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20"
+        x-data="{ open: window.matchMedia('(min-width: 768px)').matches }">
         <div class="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div class="flex items-start gap-3 flex-1">
+            <button type="button" class="flex items-start gap-3 flex-1 text-start md:cursor-default"
+                x-on:click="open = ! open" :aria-expanded="open" aria-controls="global-permissions">
                 <div class="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0">
                     <flux:icon icon="shield-check" class="size-5" />
                 </div>
@@ -20,8 +24,9 @@
                     <div class="font-semibold text-sm text-zinc-800 dark:text-zinc-200">الصلاحيات الافتراضية لجميع المعلمين</div>
                     <div class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">هذه الإعدادات تطبق على جميع المعلمين ما لم يكن لديهم استثناء خاص</div>
                 </div>
-            </div>
-            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+                <flux:icon icon="chevron-down" class="size-4 ms-auto mt-1 text-zinc-400 transition-transform md:hidden" ::class="open && 'rotate-180'" />
+            </button>
+            <div id="global-permissions" x-show="open" x-cloak class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
                 <label class="flex items-center gap-2.5 cursor-pointer">
                     <flux:switch wire:model="globalPermissions.can_create_students" />
                     <span class="text-sm text-zinc-700 dark:text-zinc-300">إضافة طلاب جدد</span>
@@ -58,16 +63,16 @@
             <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن معلم..." />
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة">
-                <flux:select.option value="all">الكل</flux:select.option>
+            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة" aria-label="تصفية حسب الدفعة">
+                <flux:select.option value="all">كل الدفعات</flux:select.option>
                 @foreach($circles as $circle)
                     <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
                 @endforeach
             </flux:select>
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="statusFilter" placeholder="تصفية حسب الحالة">
-                <flux:select.option value="all">الكل</flux:select.option>
+            <flux:select wire:model.live="statusFilter" placeholder="تصفية حسب الحالة" aria-label="تصفية حسب الحالة">
+                <flux:select.option value="all">كل الحالات</flux:select.option>
                 <flux:select.option value="pending">في انتظار الموافقة</flux:select.option>
                 <flux:select.option value="approved">تمت الموافقة</flux:select.option>
             </flux:select>
@@ -292,7 +297,7 @@
                                 <label class="flex items-center justify-between gap-3 cursor-pointer group">
                                     <div>
                                         <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200">تغيير حالة الطالب</div>
-                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">تغيير حالة الطالب (نشط، موقوف، متخرج...)</div>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">تغيير حالة الطالب (مشارك، موقوف، غير فعّال...)</div>
                                     </div>
                                     <flux:switch wire:model="permissions.can_change_student_status" />
                                 </label>

@@ -69,7 +69,7 @@
                                 @endphp
                                 @if ($student->guardian && $student->guardian->phone)
                                     <a class="inline-flex items-center justify-center p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100   s"
-                                        href="https://wa.me/{{ $student->guardian->phone }}/?text={{ urlencode($msg) }}"
+                                        href="https://wa.me/{{ \App\Rules\SaudiPhone::format($student->guardian->phone) }}/?text={{ urlencode($msg) }}"
                                         target="_blank" title="مراسلة ولي الأمر">
                                         <flux:icon icon="chat-bubble-left-right" class="size-5" />
                                     </a>

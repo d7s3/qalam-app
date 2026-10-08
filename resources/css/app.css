@@ -1,39 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Tajawal:wght@300;400;500;700;800&display=swap');
 @import 'tailwindcss';
 @import '../../vendor/livewire/flux/dist/flux.css';
 
 @font-face {
     font-family: 'Zain Mobile Swashes';
-    src: url('/fonts/ZainMobileSwashes.ttf') format('truetype');
+    src: url('../../public/fonts/ZainMobileSwashes.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
 
 /*
- * Cairo, for headings.
+ * Cairo, for headings — from Google Fonts, with Tajawal on the first line.
  *
  * The brand asks for DIN Next Arabic and its files are not here, so every word
  * in the application was falling through to Tajawal — one weight of one face
  * from top to bottom, which is what an interface looks like when nobody chose
- * its type. Cairo was already in `public/fonts`, chosen and then never used.
+ * its type.
  *
- * Headings take it; the body keeps Tajawal. Two faces with different jobs is
- * the smallest thing that makes a page look set rather than defaulted. Put the
- * DIN files beside these two and `--font-sans` picks them up on its own.
+ * Headings take Cairo; the body keeps Tajawal. Two faces with different jobs
+ * is the smallest thing that makes a page look set rather than defaulted. The
+ * Cairo files that sat in `public/fonts` were GitHub pages saved under the
+ * font's name, so the browser threw them away and the headings never changed:
+ * the choice was made in September and never once seen. Put the DIN files
+ * beside Zain's and `--font-sans` picks them up on its own.
  */
-@font-face {
-    font-family: 'Cairo';
-    src: url('/fonts/Cairo-Regular.ttf') format('truetype');
-    font-weight: 400;
-    font-display: swap;
-}
-
-@font-face {
-    font-family: 'Cairo';
-    src: url('/fonts/Cairo-Bold.ttf') format('truetype');
-    font-weight: 700;
-    font-display: swap;
-}
 
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -369,4 +359,27 @@ h1, h2, h3,
     ui-sidebar-toggle[data-flux-sidebar-backdrop][data-flux-sidebar-on-mobile] {
         z-index: 10 !important;
     }
+}
+/*
+ * What stays put on the screen, in two layers.
+ *
+ * The bars that ride along a page — a phone's bottom navigation, the offline
+ * notice — sit on `z-bar`. Whatever is laid over the whole page sits on
+ * `z-overlay`, above them: left at z-50, an overlay slid under a phone's
+ * bottom bar, which hid its last lines and the buttons that close it.
+ *
+ * Something pinned to the bottom of a page, a save bar say, sits clear of a
+ * phone's bottom bar with `bottom-above-bar`: the bar's own height and the
+ * room an iPhone keeps for its home indicator, with a little air.
+ */
+@utility z-bar {
+    z-index: 100;
+}
+
+@utility z-overlay {
+    z-index: 200;
+}
+
+@utility bottom-above-bar {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom));
 }

@@ -14,14 +14,14 @@
             <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن طالب..." />
         </div>
         <div class="w-full md:w-36">
-            <flux:select wire:model.live="statusFilter" placeholder="الحالة">
-                <flux:select.option value="all">الكل</flux:select.option>
+            <flux:select wire:model.live="statusFilter" placeholder="الحالة" aria-label="تصفية حسب الحالة">
+                <flux:select.option value="all">كل الحالات</flux:select.option>
                 <flux:select.option value="pending">في انتظار الموافقة</flux:select.option>
                 <flux:select.option value="approved">موافق عليه</flux:select.option>
             </flux:select>
         </div>
         <div class="w-full md:w-48">
-            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة">
+            <flux:select wire:model.live="circleFilter" placeholder="تصفية حسب الدفعة" aria-label="تصفية حسب الدفعة">
                 <flux:select.option value="">كل الدفعات</flux:select.option>
                 @foreach ($circles as $circle)
                     <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
@@ -97,7 +97,7 @@
                                 <span class="font-bold text-zinc-900 dark:text-white">{{ $student->name }}</span>
                                 <div class="flex gap-2">
                                     <span class="text-xs text-zinc-500">{{ $student->email }}</span>
-                                    @if ($student->guardian_id)
+                                    @if ($student->guardian)
                                         <span class="text-xs text-zinc-400">| {{ $student->guardian->name }}</span>
                                     @endif
                                 </div>
@@ -111,15 +111,7 @@
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="hidden sm:table-cell">
-                            @if ($student->status === 'active')
-                                <flux:badge size="sm" color="green">مشارك</flux:badge>
-                            @elseif ($student->status === 'registering')
-                                <flux:badge size="sm" color="amber">تحت التسجيل</flux:badge>
-                            @elseif ($student->status === 'suspended')
-                                <flux:badge size="sm" color="red">موقوف</flux:badge>
-                            @else
-                                <flux:badge size="sm" variant="neutral">غادر الدفعات</flux:badge>
-                            @endif
+                            <x-student-status-badge :status="$student->status" size="sm" />
                         </flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex items-center justify-end gap-2" @click.stop>
@@ -136,7 +128,9 @@
                 @empty
                     <flux:table.row>
                         <flux:table.cell colspan="5" class="text-center py-16">
-                            <flux:text class="text-zinc-400">لا يوجد طلاب ضمن دفعاتك</flux:text>
+                            <flux:text class="text-zinc-400">
+                                {{ $search !== '' || $statusFilter !== 'all' || $circleFilter !== '' ? 'لا نتائج تطابق البحث' : 'لا يوجد طلاب ضمن دفعاتك' }}
+                            </flux:text>
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse
@@ -168,7 +162,7 @@
                         <flux:input wire:model="name" label="{{ __('الاسم الكامل') }}" required />
                         <flux:input wire:model="email" label="{{ __('البريد الإلكتروني') }}" type="email" required />
 
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <flux:select label="الدفعة الدراسية" wire:model="circle_id" placeholder="اختر الدفعة...">
                                 <flux:select.option value="">بدون دفعة</flux:select.option>
                                 @foreach ($circles as $circle)
@@ -185,17 +179,11 @@
                             </flux:select>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <div class="text-sm font-medium text-zinc-800 dark:text-white mb-1.5">{{ __('حالة الطالب') }}</div>
-                                @php
-                                    $sStatusLabels = ['active' => 'مشارك', 'registering' => 'تحت التسجيل', 'suspended' => 'موقوف', 'left' => 'غادر الدفعات'];
-                                    $sStatusColors = ['active' => 'green', 'registering' => 'blue', 'suspended' => 'amber', 'left' => 'red'];
-                                @endphp
                                 <div class="flex items-center gap-2">
-                                    <flux:badge color="{{ $sStatusColors[$viewingStudent->status] ?? 'zinc' }}">
-                                        {{ $sStatusLabels[$viewingStudent->status] ?? $viewingStudent->status }}
-                                    </flux:badge>
+                                    <x-student-status-badge :status="$viewingStudent->status" />
                                     <flux:button type="button" size="sm" variant="filled" icon="adjustments-horizontal"
                                         wire:click="$dispatch('open-status-manager', { studentId: {{ $viewingStudent->id }} })">
                                         {{ __('إدارة الحالة') }}
@@ -411,10 +399,9 @@
             </div>
             
             <flux:select wire:model="bulkStatus" label="الحالة الجديدة">
-                <flux:select.option value="active">مشارك</flux:select.option>
-                <flux:select.option value="registering">تحت التسجيل</flux:select.option>
-                <flux:select.option value="suspended">موقوف</flux:select.option>
-                <flux:select.option value="left">غادر الدفعات</flux:select.option>
+                @foreach (\App\Support\StudentStatus::cases() as $status)
+                    <flux:select.option :value="$status->value">{{ $status->label() }}</flux:select.option>
+                @endforeach
             </flux:select>
 
             <livewire:shared.hijri-datepicker wire:model="bulkStatusDate"

@@ -24,13 +24,18 @@ use App\Services\GamificationService;
 use App\Services\GamificationThemeService;
 use App\Services\LeaderboardService;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\ImageManager;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -39,6 +44,7 @@ class ManageGamification extends Component
     use WithFileUploads;
 
     // Task Definitions (Templates) State
+    #[Locked]
     public $editingTeamTaskId = null;
 
     public string $task_name = '';
@@ -56,6 +62,7 @@ class ManageGamification extends Component
     public array $task_criteria = [];
 
     // Task Assignments State
+    #[Locked]
     public $editingAssignmentId = null;
 
     public $assignment_task_id = null;
@@ -76,6 +83,7 @@ class ManageGamification extends Component
 
     public bool $showAssignmentModal = false;
 
+    #[Locked]
     public $competitionId;
 
     public $competition;
@@ -87,6 +95,7 @@ class ManageGamification extends Component
     // Student standings ("مراكز الطلاب") State
     public string $standingsDate = '';
 
+    #[Locked]
     public ?int $achievementsStudentId = null;
 
     public bool $showAchievementsModal = false;
@@ -98,6 +107,7 @@ class ManageGamification extends Component
     public array $criteria = [];
 
     // Streaks State
+    #[Locked]
     public $editingMilestoneId = null;
 
     public $days_required;
@@ -113,6 +123,7 @@ class ManageGamification extends Component
     public bool $showMilestoneModal = false;
 
     // Badges State
+    #[Locked]
     public $editingBadgeId = null;
 
     public $badge_name = '';
@@ -253,6 +264,7 @@ class ManageGamification extends Component
     // Handing out a manual badge
     public bool $showGrantBadgeModal = false;
 
+    #[Locked]
     public ?int $grantingBadgeId = null;
 
     /** @var array<int, string> Student ids ticked in the hand-out panel. */
@@ -261,6 +273,7 @@ class ManageGamification extends Component
     public string $grantSearch = '';
 
     // Teams State
+    #[Locked]
     public $editingTeamId = null;
 
     public $team_name = '';
@@ -288,6 +301,7 @@ class ManageGamification extends Component
     public array $team_student_ids = [];
 
     // Store State
+    #[Locked]
     public $editingItemId = null;
 
     public $item_name = '';
@@ -319,6 +333,7 @@ class ManageGamification extends Component
     // Activity State
     public bool $showActivityModal = false;
 
+    #[Locked]
     public $editingActivityId = null;
 
     public string $activity_name = '';
@@ -353,6 +368,7 @@ class ManageGamification extends Component
     // New Round Winner State
     public bool $showRoundWinnersModal = false;
 
+    #[Locked]
     public $selectedRoundId = null;
 
     public array $roundRanksWinners = [];
@@ -380,6 +396,31 @@ class ManageGamification extends Component
 
     public bool $adjShowTargetName = true;
 
+    /**
+     * Rows of a gamification table that belong to the competition this screen
+     * was opened for. Every id that arrives from the browser is looked up
+     * through here, so another competition's badge, team or item is not found.
+     *
+     * @template TModel of Model
+     *
+     * @param  class-string<TModel>  $model
+     * @return Builder<TModel>
+     */
+    private function ofThisCompetition(string $model): Builder
+    {
+        return $model::query()->where('leaderboard_id', $this->competitionId);
+    }
+
+    /**
+     * Team-task assignments hang off a task, not the competition directly.
+     *
+     * @return Builder<GamificationTeamTaskAssignment>
+     */
+    private function assignmentsOfThisCompetition(): Builder
+    {
+        return GamificationTeamTaskAssignment::whereHas('task', fn (Builder $task) => $task->where('leaderboard_id', $this->competitionId));
+    }
+
     public function mount($competitionId): void
     {
         $this->competitionId = $competitionId;
@@ -395,6 +436,8 @@ class ManageGamification extends Component
      */
     public function viewStudentAchievements(int $studentId): void
     {
+        abort_unless($this->getStudents()->contains('id', $studentId), 404);
+
         $this->achievementsStudentId = $studentId;
         $this->showAchievementsModal = true;
     }
@@ -872,7 +915,7 @@ class ManageGamification extends Component
 
     public function editMilestone($id): void
     {
-        $milestone = DB::table('gamification_streak_milestones')->where('id', $id)->first();
+        $milestone = DB::table('gamification_streak_milestones')->where('leaderboard_id', $this->competitionId)->where('id', $id)->first();
         if ($milestone) {
             $this->editingMilestoneId = $milestone->id;
             $this->days_required = $milestone->days_required;
@@ -890,12 +933,12 @@ class ManageGamification extends Component
             'days_required' => 'required|integer|min:1',
             'reward_xp' => 'required|integer|min:0',
             'reward_coins' => 'required|integer|min:0',
-            'reward_badge_id' => 'nullable|exists:gamification_badges,id',
+            'reward_badge_id' => ['nullable', Rule::exists('gamification_badges', 'id')->where('leaderboard_id', $this->competitionId)],
             'milestone_description' => 'nullable|string|max:255',
         ]);
 
         if ($this->editingMilestoneId) {
-            DB::table('gamification_streak_milestones')->where('id', $this->editingMilestoneId)->update([
+            DB::table('gamification_streak_milestones')->where('leaderboard_id', $this->competitionId)->where('id', $this->editingMilestoneId)->update([
                 'days_required' => $this->days_required,
                 'reward_xp' => $this->reward_xp,
                 'reward_coins' => $this->reward_coins,
@@ -923,7 +966,12 @@ class ManageGamification extends Component
 
     public function deleteMilestone($id): void
     {
-        DB::table('gamification_streak_milestones')->where('id', $id)->delete();
+        $deleted = DB::table('gamification_streak_milestones')->where('leaderboard_id', $this->competitionId)->where('id', $id)->delete();
+
+        if (! $deleted) {
+            throw (new ModelNotFoundException)->setModel('gamification_streak_milestones', [$id]);
+        }
+
         Flux::toast('تم حذف مكافأة الحماسة', variant: 'success');
     }
 
@@ -939,7 +987,7 @@ class ManageGamification extends Component
 
     public function editBadge($id): void
     {
-        $badge = GamificationBadge::findOrFail($id);
+        $badge = $this->ofThisCompetition(GamificationBadge::class)->findOrFail($id);
         $this->editingBadgeId = $badge->id;
         $this->badge_name = $badge->name;
         $this->badge_description = $badge->description;
@@ -1053,7 +1101,7 @@ class ManageGamification extends Component
 
             if ($this->badge_achievement_type === 'criterion') {
                 $this->validate([
-                    'badge_leaderboard_criterion_id' => 'required|exists:leaderboard_criteria,id',
+                    'badge_leaderboard_criterion_id' => ['required', Rule::exists('leaderboard_criteria', 'id')->where('leaderboard_id', $this->competitionId)],
                 ]);
             } else {
                 $this->badge_leaderboard_criterion_id = null;
@@ -1090,7 +1138,7 @@ class ManageGamification extends Component
 
     public function deleteBadge($id): void
     {
-        GamificationBadge::findOrFail($id)->delete();
+        $this->ofThisCompetition(GamificationBadge::class)->findOrFail($id)->delete();
         Flux::toast('تم حذف الوسام', variant: 'success');
     }
 
@@ -1104,7 +1152,7 @@ class ManageGamification extends Component
      */
     public function openGrantBadge(int $badgeId): void
     {
-        $this->grantingBadgeId = $badgeId;
+        $this->grantingBadgeId = $this->ofThisCompetition(GamificationBadge::class)->findOrFail($badgeId)->id;
         $this->grantStudentIds = [];
         $this->grantSearch = '';
         $this->showGrantBadgeModal = true;
@@ -1158,7 +1206,7 @@ class ManageGamification extends Component
             'grantStudentIds.required' => 'اختر طالباً واحداً على الأقل.',
         ]);
 
-        $badge = GamificationBadge::findOrFail($this->grantingBadgeId);
+        $badge = $this->ofThisCompetition(GamificationBadge::class)->findOrFail($this->grantingBadgeId);
         $eligible = $this->getStudents()->pluck('id');
         $granted = 0;
 
@@ -1213,6 +1261,8 @@ class ManageGamification extends Component
      */
     public function revokeBadge(int $badgeId, int $studentId): void
     {
+        $this->ofThisCompetition(GamificationBadge::class)->findOrFail($badgeId);
+
         $deleted = DB::table('gamification_badge_student')
             ->where('badge_id', $badgeId)
             ->where('student_id', $studentId)
@@ -1236,7 +1286,7 @@ class ManageGamification extends Component
 
     public function editTeam($id): void
     {
-        $team = GamificationTeam::with('students')->findOrFail($id);
+        $team = $this->ofThisCompetition(GamificationTeam::class)->with('students')->findOrFail($id);
         $this->editingTeamId = $team->id;
         $this->team_name = $team->name;
         $this->team_color = $team->color ?? '#4f46e5';
@@ -1370,13 +1420,14 @@ class ManageGamification extends Component
 
     public function deleteTeam($id): void
     {
-        GamificationTeam::findOrFail($id)->delete();
+        $this->ofThisCompetition(GamificationTeam::class)->findOrFail($id)->delete();
         Flux::toast('تم حذف الفريق', variant: 'success');
     }
 
     // --- Tracks (ranking divisions) Logic ---
     public bool $showTrackModal = false;
 
+    #[Locked]
     public ?int $editingTrackId = null;
 
     public string $track_name = '';
@@ -1393,7 +1444,7 @@ class ManageGamification extends Component
 
     public function editTrack($id): void
     {
-        $track = GamificationTrack::with('students:id')->findOrFail($id);
+        $track = $this->ofThisCompetition(GamificationTrack::class)->with('students:id')->findOrFail($id);
         $this->editingTrackId = $track->id;
         $this->track_name = $track->name;
         $this->track_description = $track->description ?? '';
@@ -1477,7 +1528,7 @@ class ManageGamification extends Component
 
     public function editItem($id): void
     {
-        $item = GamificationStoreItem::findOrFail($id);
+        $item = $this->ofThisCompetition(GamificationStoreItem::class)->findOrFail($id);
         $this->editingItemId = $item->id;
         $this->item_name = $item->name;
         $this->item_description = $item->description;
@@ -1594,7 +1645,7 @@ class ManageGamification extends Component
 
     public function deleteItem($id): void
     {
-        $item = GamificationStoreItem::findOrFail($id);
+        $item = $this->ofThisCompetition(GamificationStoreItem::class)->findOrFail($id);
         if (($item->item_type === 'multiplier' && ! $item->is_team_product) || ($item->item_type === 'freeze' && ! $item->is_team_product)) {
             Flux::toast('خطأ: لا يمكن حذف المنتجات الثابتة.', variant: 'danger');
 
@@ -1606,7 +1657,7 @@ class ManageGamification extends Component
 
     public function toggleProductStatus(int $id): void
     {
-        $item = GamificationStoreItem::findOrFail($id);
+        $item = $this->ofThisCompetition(GamificationStoreItem::class)->findOrFail($id);
         $item->is_active = ! $item->is_active;
         $item->save();
 
@@ -1685,7 +1736,7 @@ class ManageGamification extends Component
 
     public function editTeamTask($id): void
     {
-        $task = GamificationTeamTask::with('criteria')->findOrFail($id);
+        $task = $this->ofThisCompetition(GamificationTeamTask::class)->with('criteria')->findOrFail($id);
         $this->editingTeamTaskId = $task->id;
         $this->task_name = $task->name;
         $this->task_description = $task->description ?? '';
@@ -1752,7 +1803,7 @@ class ManageGamification extends Component
 
     public function deleteTeamTask($id): void
     {
-        $task = GamificationTeamTask::findOrFail($id);
+        $task = $this->ofThisCompetition(GamificationTeamTask::class)->findOrFail($id);
 
         DB::transaction(function () use ($task) {
             $assignments = $task->assignments()->get();
@@ -1783,7 +1834,7 @@ class ManageGamification extends Component
     {
         $this->assignment_scores = [];
         if ($value) {
-            $task = GamificationTeamTask::with('criteria')->find($value);
+            $task = $this->ofThisCompetition(GamificationTeamTask::class)->with('criteria')->find($value);
             if ($task) {
                 foreach ($task->criteria as $criterion) {
                     $this->assignment_scores[$criterion->id] = null;
@@ -1811,7 +1862,7 @@ class ManageGamification extends Component
 
     public function editAssignment($id): void
     {
-        $assignment = GamificationTeamTaskAssignment::with(['task.criteria', 'scores'])->findOrFail($id);
+        $assignment = $this->assignmentsOfThisCompetition()->with(['task.criteria', 'scores'])->findOrFail($id);
         $this->editingAssignmentId = $assignment->id;
         $this->assignment_task_id = $assignment->team_task_id;
         $this->assignment_team_id = $assignment->team_id;
@@ -1833,15 +1884,15 @@ class ManageGamification extends Component
     public function saveAssignment(): void
     {
         $this->validate([
-            'assignment_task_id' => 'required|exists:gamification_team_tasks,id',
-            'assignment_team_id' => 'required|exists:gamification_teams,id',
+            'assignment_task_id' => ['required', Rule::exists('gamification_team_tasks', 'id')->where('leaderboard_id', $this->competitionId)],
+            'assignment_team_id' => ['required', Rule::exists('gamification_teams', 'id')->where('leaderboard_id', $this->competitionId)],
             'assignment_start_date' => 'required|date',
             'assignment_end_date' => 'required|date|after_or_equal:assignment_start_date',
             'assignment_teacher_id' => 'nullable|exists:users,id',
             'assignment_notes' => 'nullable|string',
         ]);
 
-        $task = GamificationTeamTask::with('criteria')->findOrFail($this->assignment_task_id);
+        $task = $this->ofThisCompetition(GamificationTeamTask::class)->with('criteria')->findOrFail($this->assignment_task_id);
         $hasCriteria = $task->criteria->isNotEmpty();
 
         if ($hasCriteria) {
@@ -1966,7 +2017,7 @@ class ManageGamification extends Component
                     ]
                 );
 
-                $newTeam = GamificationTeam::findOrFail($this->assignment_team_id);
+                $newTeam = $this->ofThisCompetition(GamificationTeam::class)->findOrFail($this->assignment_team_id);
                 $newTeam->increment('coins', $awardedCoins);
 
                 GamificationNewsService::record($this->competitionId, 'team_task', [
@@ -1987,7 +2038,7 @@ class ManageGamification extends Component
 
     public function deleteAssignment($id): void
     {
-        $assignment = GamificationTeamTaskAssignment::findOrFail($id);
+        $assignment = $this->assignmentsOfThisCompetition()->findOrFail($id);
 
         DB::transaction(function () use ($assignment) {
             $tx = GamificationTransaction::where('leaderboard_id', $this->competitionId)
@@ -2025,7 +2076,7 @@ class ManageGamification extends Component
 
     public function editActivity($id): void
     {
-        $activity = GamificationActivity::with(['ranks', 'rounds'])->findOrFail($id);
+        $activity = $this->ofThisCompetition(GamificationActivity::class)->with(['ranks', 'rounds'])->findOrFail($id);
         $this->editingActivityId = $activity->id;
         $this->activity_name = $activity->name;
         $this->activity_description = $activity->description ?? '';
@@ -2154,7 +2205,7 @@ class ManageGamification extends Component
 
     public function deleteActivity($id): void
     {
-        $activity = GamificationActivity::findOrFail($id);
+        $activity = $this->ofThisCompetition(GamificationActivity::class)->findOrFail($id);
 
         $rounds = $activity->rounds;
         foreach ($rounds as $round) {
@@ -2171,7 +2222,8 @@ class ManageGamification extends Component
     // Winners Methods
     public function editRoundWinners(int $roundId): void
     {
-        $round = GamificationActivityRound::with(['activity.ranks', 'winners'])->findOrFail($roundId);
+        $round = GamificationActivityRound::whereHas('activity', fn (Builder $activity) => $activity->where('leaderboard_id', $this->competitionId))
+            ->with(['activity.ranks', 'winners'])->findOrFail($roundId);
         $this->selectedRoundId = $round->id;
         $this->winner_round_id = $round->id;
 
@@ -2189,11 +2241,12 @@ class ManageGamification extends Component
 
     public function saveRoundWinners(): void
     {
-        $round = GamificationActivityRound::with('activity.ranks')->findOrFail($this->selectedRoundId);
+        $round = GamificationActivityRound::whereHas('activity', fn (Builder $activity) => $activity->where('leaderboard_id', $this->competitionId))
+            ->with('activity.ranks')->findOrFail($this->selectedRoundId);
 
         $rules = [];
         foreach ($round->activity->ranks as $rank) {
-            $rules["roundRanksWinners.{$rank->id}"] = 'nullable|exists:gamification_teams,id';
+            $rules["roundRanksWinners.{$rank->id}"] = ['nullable', Rule::exists('gamification_teams', 'id')->where('leaderboard_id', $this->competitionId)];
         }
         $this->validate($rules);
 
@@ -2237,7 +2290,7 @@ class ManageGamification extends Component
 
     public function deleteWinner($id): void
     {
-        $winner = GamificationActivityWinner::findOrFail($id);
+        $winner = GamificationActivityWinner::whereHas('round.activity', fn (Builder $activity) => $activity->where('leaderboard_id', $this->competitionId))->findOrFail($id);
         DB::transaction(function () use ($winner) {
             $this->revertWinnerRewards($winner);
             $winner->delete();
@@ -2348,9 +2401,9 @@ class ManageGamification extends Component
         ];
 
         if ($this->adjTargetType === 'individual') {
-            $rules['adjStudentId'] = 'required|exists:users,id';
+            $rules['adjStudentId'] = ['required', Rule::in($this->getStudents()->pluck('id')->all())];
         } else {
-            $rules['adjTeamId'] = 'required|exists:gamification_teams,id';
+            $rules['adjTeamId'] = ['required', Rule::exists('gamification_teams', 'id')->where('leaderboard_id', $this->competitionId)];
         }
 
         if (! $this->adjHasXp && ! $this->adjHasCoins) {
@@ -2402,7 +2455,7 @@ class ManageGamification extends Component
                     'description' => 'تسوية يدوية للأسرة (من المشرف): '.$this->adjDescription,
                 ]);
 
-                $team = GamificationTeam::findOrFail($this->adjTeamId);
+                $team = $this->ofThisCompetition(GamificationTeam::class)->findOrFail($this->adjTeamId);
                 $team->coins += $coins;
                 if ($team->coins < 0) {
                     $team->coins = 0;
@@ -2449,7 +2502,7 @@ class ManageGamification extends Component
 
     public function deleteAdjustment(int $id): void
     {
-        $transaction = GamificationTransaction::findOrFail($id);
+        $transaction = $this->ofThisCompetition(GamificationTransaction::class)->findOrFail($id);
 
         DB::transaction(function () use ($transaction) {
             if ($transaction->student_id) {

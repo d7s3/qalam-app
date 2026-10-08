@@ -124,3 +124,17 @@ it('is designated from the screen where teachers are managed', function () {
     expect($teacher->fresh()->is_recitation_only)->toBeFalse();
     expect(Access::canSee($teacher->fresh(), 'teacher', 'teacher.self-program'))->toBeTrue();
 });
+
+it('is not designated for a teacher outside the supervisor\'s reach', function () {
+    $supervisor = Supervisor::factory()->create();
+    $supervisor->stages()->attach($this->programme->id);
+
+    $stranger = Teacher::factory()->create();
+    $stranger->circles()->attach(Circle::factory()->create()->id);
+
+    Livewire\Livewire::actingAs($supervisor, 'supervisor')
+        ->test('supervisor.teachers')
+        ->call('toggleRecitationOnly', $stranger->id);
+
+    expect($stranger->fresh()->is_recitation_only)->toBeFalse();
+});
