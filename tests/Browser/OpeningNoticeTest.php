@@ -26,6 +26,12 @@ function openingNoticeFitsScreen(string $label): string
         JS;
 }
 
+/** A shahid as long as one may be and still be shown on opening. */
+function longestShahid(): string
+{
+    return mb_substr(str_repeat('من أراد العلم فليصبر على مرارة الطلب، فإن العلم لا يُنال براحة الجسد. ', 5), 0, Motivation::OPENING_LENGTH);
+}
+
 /**
  * What meets a person on opening — a shahid, or a word addressed to him — sits
  * over the whole page. A long one used to run past the bottom of a phone,
@@ -38,10 +44,10 @@ beforeEach(function () {
     $this->actingAs($this->teacher, 'teacher');
 });
 
-it('fits a long shahid to a phone\'s screen, its first line and its close button', function () {
+it('fits the longest shahid to a phone\'s screen, its first line and its close button', function () {
     Motivation::create([
         'kind' => 'athar',
-        'text' => str_repeat("قال بعض السلف: من أراد العلم فليصبر على مرارة الطلب، فإن العلم لا يُنال براحة الجسد.\n", 25),
+        'text' => longestShahid(),
         'source' => 'أثر طويل',
         'status' => 'approved',
     ]);
@@ -69,12 +75,12 @@ it('fits a long message to a phone\'s screen, its title and its read button', fu
         ->assertScript(openingNoticeFitsScreen('قرأتها'), true);
 });
 
-it('fits a long shahid to a student\'s phone too, over his own bottom bar', function () {
+it('fits the longest shahid to a student\'s phone too, over his own bottom bar', function () {
     $this->actingAs(Student::factory()->create(['is_data_completed' => true]), 'student');
 
     Motivation::create([
         'kind' => 'athar',
-        'text' => str_repeat("قال بعض السلف: من أراد العلم فليصبر على مرارة الطلب.\n", 30),
+        'text' => longestShahid(),
         'source' => 'أثر طويل',
         'status' => 'approved',
     ]);
@@ -118,4 +124,15 @@ it('takes a word away once he says he read it, and records the reading', functio
         ->assertDontSee('تذكير');
 
     expect(PortalMessageRead::where('user_id', $this->teacher->id)->count())->toBe(1);
+});
+
+it('greets once on opening, not again on every page he opens after it', function () {
+    Motivation::create(['kind' => 'athar', 'text' => 'العلم صيد والكتابة قيده', 'source' => 'أثر قصير', 'status' => 'approved']);
+
+    visit('/teacher/students')
+        ->assertSee('أثر قصير')
+        ->navigate('/teacher/attendance')
+        ->assertDontSee('أثر قصير')
+        ->navigate('/teacher/dashboard')
+        ->assertDontSee('أثر قصير');
 });

@@ -126,7 +126,7 @@ class PortalService
         $drawn = Motivation::showable()
             ->inRandomOrder()
             ->get()
-            ->first(fn (Motivation $one) => $one->gradeIsAcceptable());
+            ->first(fn (Motivation $one) => $one->gradeIsAcceptable() && $one->fitsOpening());
 
         $drawn?->increment('shown_count');
 

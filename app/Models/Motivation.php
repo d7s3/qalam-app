@@ -32,6 +32,12 @@ class Motivation extends Model
     /** The only gradings a hadith may be shown under. */
     public const ACCEPTED_GRADES = ['صحيح', 'حسن'];
 
+    /**
+     * The longest a shahid may be and still meet someone on opening — about two
+     * lines. A paragraph of four hundred letters filled the screen it greeted.
+     */
+    public const OPENING_LENGTH = 150;
+
     protected $fillable = [
         'kind',
         'text',
@@ -51,6 +57,12 @@ class Motivation extends Model
     public function scopeShowable(Builder $query): void
     {
         $query->where('status', self::APPROVED);
+    }
+
+    /** Whether it is short enough to be read at a glance on opening. */
+    public function fitsOpening(): bool
+    {
+        return mb_strlen(trim($this->text)) <= self::OPENING_LENGTH;
     }
 
     /** Whether a hadith carries a grading the academy accepts. */
