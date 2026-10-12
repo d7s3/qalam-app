@@ -131,6 +131,9 @@ new class extends Component
     /** The field waiting on "have you recited it?", if one is. */
     public ?int $askingRecitationFor = null;
 
+    /** Whether that question is about an ended week's arrear rather than this week's field. */
+    public bool $askingForArrear = false;
+
     public function save(int $itemId): void
     {
         $item = $this->openItems()->firstWhere('id', $itemId);
@@ -170,6 +173,17 @@ new class extends Component
     /** He says he recited it: the amount counts and its points are given. */
     public function confirmRecitation(): void
     {
+        if ($this->askingForArrear) {
+            $item = $this->arrear($this->askingRecitationFor)['item'];
+
+            $this->askingRecitationFor = null;
+            $this->askingForArrear = false;
+
+            $this->makeUp($item, recited: true);
+
+            return;
+        }
+
         $item = $this->openItems()->firstWhere('id', $this->askingRecitationFor);
 
         abort_unless($item instanceof SelfProgramItem, 404);
@@ -193,6 +207,7 @@ new class extends Component
     public function denyRecitation(): void
     {
         $this->askingRecitationFor = null;
+        $this->askingForArrear = false;
 
         Flux::toast(__('لم يُحتسب — سمّعه ثم سجّله.'), variant: 'warning');
     }
@@ -218,39 +233,83 @@ new class extends Component
     /**
      * Put work against a track of a week that has already ended.
      *
-     * Recorded under today's date rather than the old week's, because that is
-     * when it was done — and it still counts towards the week it belonged to,
-     * which is the week the arrear is measured against.
+     * Making up stands apart from the week being run: a field bound to its own
+     * days is no longer held to them once they are behind it. Memorising still
+     * asks whether it was recited, an old week's as much as this one's.
      */
     public function settle(int $itemId): void
     {
-        $student = Auth::guard('student')->user();
-        $service = app(SelfProgramService::class);
+        $item = $this->arrear($itemId)['item'];
 
-        $arrear = collect($service->arrears($student))->firstWhere('item.id', $itemId);
+        $this->validateSettleAmount($itemId);
+
+        if ($item->track?->needs_recitation_confirmation) {
+            $this->askingRecitationFor = $itemId;
+            $this->askingForArrear = true;
+
+            return;
+        }
+
+        $this->makeUp($item);
+    }
+
+    /**
+     * What an ended week still owes on this item; a 404 when it owes nothing.
+     *
+     * @return array{item: SelfProgramItem, week: SelfProgramWeek, done: float, target: float, remaining: float}
+     */
+    private function arrear(?int $itemId): array
+    {
+        $arrear = collect(app(SelfProgramService::class)->arrears(Auth::guard('student')->user()))
+            ->firstWhere('item.id', $itemId);
 
         abort_unless($arrear !== null, 404);
 
+        return $arrear;
+    }
+
+    private function validateSettleAmount(int $itemId): void
+    {
         $this->validate([
             "settleAmounts.{$itemId}" => ['required', 'numeric', 'min:0.01', 'max:9999'],
         ], [], ["settleAmounts.{$itemId}" => 'المقدار']);
+    }
 
-        $item = $arrear['item'];
+    /**
+     * Write the make-up under today's date rather than the old week's, because
+     * that is when it was done — and it still counts towards the week it
+     * belonged to, which is the week the arrear is measured against.
+     */
+    private function makeUp(SelfProgramItem $item, bool $recited = false): void
+    {
+        // Asked again: a recited arrear is written a request after it was typed.
+        $this->validateSettleAmount($item->id);
+
+        $student = Auth::guard('student')->user();
+        $service = app(SelfProgramService::class);
         $today = Carbon::today();
 
         // Only what he put down himself today: folding in a figure written by a
         // recitation would store it again under his own name.
         $already = $service->recordedBy($student, $item, $today);
 
-        $service->record(
-            $student,
-            $item,
-            $already + SelfProgramUnit::normalise((float) $this->settleAmounts[$itemId], $item->displayUnit()),
-            $today,
-            by: $student,
-        );
+        try {
+            $service->record(
+                $student,
+                $item,
+                $already + SelfProgramUnit::normalise((float) $this->settleAmounts[$item->id], $item->displayUnit()),
+                $today,
+                recitationConfirmed: $recited,
+                by: $student,
+                makingUp: true,
+            );
+        } catch (\InvalidArgumentException $e) {
+            Flux::toast($e->getMessage(), variant: 'danger');
 
-        $this->settleAmounts[$itemId] = null;
+            return;
+        }
+
+        $this->settleAmounts[$item->id] = null;
     }
 
     public function with(): array

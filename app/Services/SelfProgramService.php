@@ -994,6 +994,10 @@ class SelfProgramService
      * says he has recited it. Both refuse here rather than only on the screen,
      * so a second screen written later cannot forget them.
      *
+     * Making up an ended week's arrear stands apart from the week being run:
+     * its days are behind it, so the day rule cannot hold it — the hearing
+     * still does.
+     *
      * @throws \InvalidArgumentException
      */
     public function record(
@@ -1004,6 +1008,7 @@ class SelfProgramService
         string $source = StudentSelfProgramEntry::SOURCE_STUDENT,
         bool $recitationConfirmed = false,
         ?Model $by = null,
+        bool $makingUp = false,
     ): ?StudentSelfProgramEntry {
         // Bound as a Carbon rather than a bare "Y-m-d": the `date` cast writes
         // the full "Y-m-d H:i:s" form, and on SQLite the column is text, so a
@@ -1019,7 +1024,7 @@ class SelfProgramService
             throw new \InvalidArgumentException('لا يُحتسب المحفوظ حتى تُسمّعه.');
         }
 
-        if ($amount > 0 && ! $this->dayIsOpenFor($item, $student, $day)) {
+        if ($amount > 0 && ! $makingUp && ! $this->dayIsOpenFor($item, $student, $day)) {
             throw new \InvalidArgumentException('هذا المجال مقرَّر ليوم بعينه، ولا يُحتسب في غيره.');
         }
 
