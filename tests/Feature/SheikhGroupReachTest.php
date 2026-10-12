@@ -63,7 +63,7 @@ it('lists only his group among the cohorts', function () {
 });
 
 it('counts only his group on his home page', function () {
-    $counts = Livewire::test('supervisor.dashboard')->viewData('studentsCount');
+    $counts = Livewire::test('supervisor.dashboard')->viewData('activeStudents');
 
     expect($counts)->toBe(1);
 });
