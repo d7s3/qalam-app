@@ -6,13 +6,18 @@ use App\Concerns\CopiesStudentMagicLinks;
 use App\Models\Circle;
 use App\Models\Guardian;
 use App\Models\Student;
+use App\Models\StudentPlacementRequest;
+use App\Services\StudentPlacementService;
 use App\Services\StudentStatusService;
 use App\Support\HijriDate;
 use App\Support\Scope;
 use App\Support\StudentStatus;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -58,6 +63,9 @@ class Students extends Component
     public string $bulkStatus = 'active';
 
     public string $bulkStatusDate = '';
+
+    /** The group chosen on each «ضمّه» row, when the sheikh holds more than one. */
+    public array $groupFor = [];
 
     public function mount(): void
     {
@@ -383,6 +391,82 @@ class Students extends Component
             }
             Flux::toast(__('تم إنشاء رابط الدخول بنجاح'), variant: 'success');
         }
+    }
+
+    /**
+     * The asks waiting on this sheikh: students who chose one of his groups,
+     * and students a teacher asked to place in one.
+     *
+     * @return Collection<int, StudentPlacementRequest>
+     */
+    #[Computed]
+    public function waitingAsks(): Collection
+    {
+        return StudentPlacementRequest::pending()
+            ->with(['student', 'circle', 'requestedBy'])
+            ->whereIn('circle_id', $this->getSupervisorCircleIds())
+            ->latest('id')
+            ->get();
+    }
+
+    /**
+     * Approved students in no cohort who have asked for none, from his
+     * programmes or from none: the ones nobody could see before.
+     *
+     * @return Builder<Student>
+     */
+    private function unchosenQuery(): Builder
+    {
+        $stageIds = $this->getSupervisorStageIds();
+
+        return Student::query()
+            ->whereNull('circle_id')
+            ->whereRoleState(fn ($q) => $q->where('is_approved', true))
+            ->where(fn ($q) => $q->whereNull('status')->orWhere('status', '!=', StudentStatus::Left->value))
+            ->where(fn ($q) => $q->whereNull('stage_id')->orWhereIn('stage_id', $stageIds))
+            ->whereNotIn('id', StudentPlacementRequest::pending()->select('student_id'));
+    }
+
+    /** @return Collection<int, Student> */
+    #[Computed]
+    public function unchosen(): Collection
+    {
+        return $this->unchosenQuery()->latest()->limit(50)->get(['id', 'name', 'created_at', 'stage_id']);
+    }
+
+    public function acceptAsk(int $askId): void
+    {
+        $ask = StudentPlacementRequest::pending()->whereIn('circle_id', $this->getSupervisorCircleIds())->findOrFail($askId);
+
+        StudentPlacementService::approve($ask, auth()->guard('supervisor')->user());
+
+        unset($this->waitingAsks);
+        Flux::toast(__('انضم :student إلى :circle', ['student' => $ask->student?->name, 'circle' => trim($ask->circle?->name ?? '')]), variant: 'success');
+    }
+
+    public function declineAsk(int $askId): void
+    {
+        $ask = StudentPlacementRequest::pending()->whereIn('circle_id', $this->getSupervisorCircleIds())->findOrFail($askId);
+
+        StudentPlacementService::reject($ask, auth()->guard('supervisor')->user(), __('ليس من هذه المجموعة'));
+
+        unset($this->waitingAsks, $this->unchosen);
+        Flux::toast(__('أُعيد :student ليختار مجموعة أخرى', ['student' => $ask->student?->name]));
+    }
+
+    public function takeIntoGroup(int $studentId): void
+    {
+        $student = $this->unchosenQuery()->findOrFail($studentId);
+        // The row's own choice, else the first of his groups — the one its
+        // list shows first.
+        $circleId = (int) ($this->groupFor[$studentId] ?? 0) ?: (int) ($this->circles->first()?->id ?? 0);
+
+        $circle = Circle::whereIn('id', $this->getSupervisorCircleIds())->findOrFail($circleId);
+
+        StudentPlacementService::placeDirectly($student, $circle, auth()->guard('supervisor')->user());
+
+        unset($this->unchosen);
+        Flux::toast(__('انضم :student إلى :circle', ['student' => $student->name, 'circle' => trim($circle->name)]), variant: 'success');
     }
 
     public function render()

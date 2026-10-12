@@ -174,14 +174,7 @@ class StudentPlacementService
             $student = $request->student;
             $circle = $request->circle;
 
-            $student->update([
-                'circle_id' => $circle->id,
-                'stage_id' => $circle->stage_id,
-                'joined_at' => $student->joined_at ?: now()->format('Y-m-d'),
-                'is_approved' => true,
-            ]);
-
-            StudentStatusService::changeStatus($student, StudentStatus::Active->value, null, __('تسكين معتمد'));
+            self::settle($student, $circle, __('تسكين معتمد'));
 
             $request->update([
                 'status' => StudentPlacementRequest::APPROVED,
@@ -189,22 +182,67 @@ class StudentPlacementService
                 'decided_at' => now(),
             ]);
 
-            StudentPlacementRequest::pending()
-                ->where('student_id', $student->id)
-                ->whereKeyNot($request->id)
-                ->get()
-                ->each(fn (StudentPlacementRequest $other) => $other->update([
-                    'status' => StudentPlacementRequest::REJECTED,
-                    'decided_by' => $by->id,
-                    'decided_at' => now(),
-                    'note' => __('سُكّن الطالب في دفعة أخرى.'),
-                ]));
+            self::closeOtherAsks($student, $by, $request);
 
             self::tellRequester($request, __('تمت الموافقة على التسكين'), __(':student انضم إلى :circle', [
                 'student' => $student->name,
                 'circle' => $circle->name,
             ]));
         });
+    }
+
+    /**
+     * A sheikh taking into his group a student who has asked for none.
+     *
+     * The same placement an accepted ask makes, written to the student's
+     * history under the sheikh's name.
+     */
+    public static function placeDirectly(Student $student, Circle $circle, User $by): void
+    {
+        DB::transaction(function () use ($student, $circle, $by) {
+            self::settle($student, $circle, __('ضمّه :name إلى مجموعته', ['name' => $by->name]));
+            self::closeOtherAsks($student, $by);
+        });
+
+        NotificationService::notify(
+            'student',
+            $student->id,
+            'placement_decided',
+            __('انضممت إلى مجموعة'),
+            __('أنت الآن في :circle', ['circle' => trim($circle->name)]),
+            route('student.dashboard'),
+        );
+    }
+
+    /** Putting a student in a cohort: his cohort, his programme, and مشارك. */
+    private static function settle(Student $student, Circle $circle, string $note): void
+    {
+        $student->update([
+            'circle_id' => $circle->id,
+            'stage_id' => $circle->stage_id,
+            'joined_at' => $student->joined_at ?: now()->format('Y-m-d'),
+            'is_approved' => true,
+        ]);
+
+        StudentStatusService::changeStatus($student, StudentStatus::Active->value, null, $note);
+    }
+
+    /**
+     * Once he belongs somewhere, every other ask standing for him is answered
+     * rather than left waiting on a queue that will never move.
+     */
+    private static function closeOtherAsks(Student $student, User $by, ?StudentPlacementRequest $except = null): void
+    {
+        StudentPlacementRequest::pending()
+            ->where('student_id', $student->id)
+            ->when($except, fn ($query) => $query->whereKeyNot($except->id))
+            ->get()
+            ->each(fn (StudentPlacementRequest $other) => $other->update([
+                'status' => StudentPlacementRequest::REJECTED,
+                'decided_by' => $by->id,
+                'decided_at' => now(),
+                'note' => __('سُكّن الطالب في دفعة أخرى.'),
+            ]));
     }
 
     /** The supervisor declining, with his reason kept. */

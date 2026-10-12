@@ -9,6 +9,67 @@
         </div>
     </div>
 
+    {{-- Who is waiting for a group: asks first, then those who asked for none. --}}
+    @if ($this->waitingAsks->isNotEmpty() || $this->unchosen->isNotEmpty())
+        <section aria-labelledby="waiting-heading" class="rounded-2xl border border-[#EDE5D5] dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_2px_rgba(63,26,25,.04)] overflow-hidden">
+            <div class="flex items-center gap-3 px-5 py-4 border-b border-[#F2EBDA] dark:border-zinc-800">
+                <span class="flex size-9 items-center justify-center rounded-xl bg-maroon/10 text-maroon dark:text-red-secondary">
+                    <flux:icon icon="user-plus" class="size-5" />
+                </span>
+                <h2 id="waiting-heading" class="font-semibold text-zinc-800 dark:text-zinc-100">ينتظرون التسكين</h2>
+                @if ($this->waitingAsks->isNotEmpty())
+                    <span class="rounded-full bg-maroon/10 px-2.5 py-0.5 text-sm font-semibold text-maroon dark:text-red-secondary">{{ $this->waitingAsks->count() }}</span>
+                @endif
+            </div>
+
+            @foreach ($this->waitingAsks as $ask)
+                <div wire:key="ask-{{ $ask->id }}" class="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-[#F7EFE0] dark:border-zinc-800 last:border-b-0">
+                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#EDE5D5] dark:border-zinc-700 font-semibold text-maroon dark:text-red-secondary">{{ mb_substr($ask->student?->name ?? '', 0, 1) }}</span>
+                    <div class="flex-1 min-w-40">
+                        <div class="font-semibold text-zinc-900 dark:text-white">{{ $ask->student?->name }}</div>
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                            @if ((int) $ask->requested_by === (int) $ask->student_id)
+                                اختار {{ count($circles) > 1 ? trim($ask->circle?->name ?? '') : 'مجموعتك' }}
+                            @else
+                                اقترحه {{ $ask->requestedBy?->name }} لـ{{ trim($ask->circle?->name ?? '') }}
+                            @endif
+                            · {{ $ask->created_at?->locale('ar')->diffForHumans() }}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <flux:button size="sm" wire:click="declineAsk({{ $ask->id }})">ليس لي</flux:button>
+                        <flux:button size="sm" variant="primary" icon="check" class="!bg-maroon hover:!bg-burgundy" wire:click="acceptAsk({{ $ask->id }})">اقبله</flux:button>
+                    </div>
+                </div>
+            @endforeach
+
+            @if ($this->unchosen->isNotEmpty())
+                <details class="group" @if ($this->waitingAsks->isEmpty()) open @endif>
+                    <summary class="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-[#FBF7EE] dark:hover:bg-zinc-800/50">
+                        <flux:icon icon="chevron-down" class="size-4 transition-transform group-open:rotate-180" />
+                        لم يختاروا مجموعة بعد ({{ $this->unchosen->count() }})
+                    </summary>
+                    @foreach ($this->unchosen as $waiting)
+                        <div wire:key="unchosen-{{ $waiting->id }}" class="flex flex-wrap items-center gap-3 px-5 py-3 border-t border-[#F7EFE0] dark:border-zinc-800">
+                            <div class="flex-1 min-w-40">
+                                <div class="font-medium text-zinc-900 dark:text-white">{{ $waiting->name }}</div>
+                                <div class="text-sm text-zinc-500 dark:text-zinc-400">سجّل {{ $waiting->created_at?->locale('ar')->diffForHumans() }}</div>
+                            </div>
+                            @if (count($circles) > 1)
+                                <flux:select size="sm" wire:model="groupFor.{{ $waiting->id }}" class="max-w-44" aria-label="الدفعة">
+                                    @foreach ($circles as $circle)
+                                        <flux:select.option :value="$circle->id">{{ $circle->name }}</flux:select.option>
+                                    @endforeach
+                                </flux:select>
+                            @endif
+                            <flux:button size="sm" icon="plus" wire:click="takeIntoGroup({{ $waiting->id }})" class="!text-maroon dark:!text-red-secondary">ضمّه لمجموعتي</flux:button>
+                        </div>
+                    @endforeach
+                </details>
+            @endif
+        </section>
+    @endif
+
     <div class="flex flex-col md:flex-row gap-4 items-end">
         <div class="flex-1">
             <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="search" placeholder="بحث عن طالب..." />
