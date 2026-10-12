@@ -164,7 +164,7 @@
                 <flux:input icon="magnifying-glass" wire:model.live.debounce.300ms="studentSearch" placeholder="بحث باسم الطالب..." />
 
                 @php
-                    $circleIds = \App\Models\Circle::whereIn('stage_id', auth()->guard('supervisor')->user()?->stages()->pluck('stages.id') ?? [])->pluck('id')->toArray();
+                    $circleIds = \App\Support\Scope::forRole('supervisor')->reachableCircleIds()->all();
                     $students = \App\Models\Student::whereIn('circle_id', $circleIds)
                         ->when($studentSearch, function($q) {
                             $q->where('name', 'like', '%'.$this->studentSearch.'%');

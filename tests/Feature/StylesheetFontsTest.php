@@ -39,7 +39,15 @@ it('names only files that are fonts', function () {
     }
 });
 
-it('brings Cairo for the headings along with Tajawal', function () {
-    expect(stylesheet())->toContain('family=Cairo:wght@400;700&family=Tajawal')
-        ->and(stylesheet())->toContain("--font-display: 'DIN Next Arabic', 'Cairo', 'Tajawal'");
+it('sets text and headings in IBM Plex Sans Arabic, as the October design does', function () {
+    expect(stylesheet())->toContain('family=IBM+Plex+Sans+Arabic:wght@400;500;600;700')
+        ->and(stylesheet())->toContain("--font-sans: 'IBM Plex Sans Arabic'")
+        ->and(stylesheet())->toContain("--font-display: 'IBM Plex Sans Arabic'");
+});
+
+it('warms the light greys to the paper the pages stand on, and leaves the dark ones', function () {
+    expect(stylesheet())->toContain('--color-zinc-100: #f6f0e4;')
+        ->toContain('--color-zinc-200: #ece4d4;')
+        ->toContain('--color-zinc-900: #171717;')
+        ->toContain('[data-flux-card]');
 });

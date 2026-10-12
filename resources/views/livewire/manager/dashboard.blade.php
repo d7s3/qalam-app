@@ -1,5 +1,14 @@
 <div class="space-y-8 p-6" dir="rtl">
 
+    {{-- The head every home page opens on in the October design. --}}
+    <div>
+        <h1 class="text-[28px] font-bold text-zinc-900 dark:text-white">{{ __('الرئيسية') }}</h1>
+        <p class="mt-1 text-zinc-500 dark:text-zinc-400">
+            {{ now('Asia/Riyadh')->hour < 12 ? __('صباح الخير') : __('مساء الخير') }}
+            {{ explode(' ', trim(auth('manager')->user()?->name ?? ''))[0] }}، {{ __('هذه الأكاديمية اليوم.') }}
+        </p>
+    </div>
+
     {{-- What the academy did, before what it is: the six figures and the
          relations between them, counted inside the reader's own reach. --}}
     <livewire:shared.activity-pulse />
@@ -11,7 +20,7 @@
 
         {{-- Header + period selector --}}
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <x-section-heading icon="user-group">
+            <x-section-heading icon="user-group" level="lg">
                 إحصائيات الحضور
 
                 <x-slot:detail>

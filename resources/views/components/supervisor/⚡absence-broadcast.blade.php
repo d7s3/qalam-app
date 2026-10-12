@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use App\Support\Scope;
 use Livewire\Component;
 
 new class extends Component {
@@ -42,9 +43,7 @@ new class extends Component {
 
     protected function supervisorCircleIds()
     {
-        $supervisor = Auth::guard('supervisor')->user();
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id');
+        return Scope::forRole('supervisor')->reachableCircleIds();
     }
 
     /**

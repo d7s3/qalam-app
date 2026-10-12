@@ -5,6 +5,7 @@ namespace App\Livewire\Supervisor;
 use App\Models\Attendance as AttendanceModel;
 use App\Models\Circle;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
@@ -33,8 +34,7 @@ class YearlyAttendance extends Component
         $dayName = Carbon::parse($date)->locale('ar')->translatedFormat('l');
         $this->selectedDateHijri = "$dayName $hijriDay $monthName $this->year";
 
-        $supervisor = auth()->guard('supervisor')->user();
-        $circleIds = Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id');
+        $circleIds = Scope::forRole('supervisor')->reachableCircleIds();
 
         $this->circlesAttendance = Circle::whereIn('id', $circleIds)->with([
             'teachers',
@@ -72,8 +72,7 @@ class YearlyAttendance extends Component
         $cal->set(\IntlCalendar::FIELD_DAY_OF_MONTH, $monthLength);
         $endDate = date('Y-m-d', $cal->getTime() / 1000);
 
-        $supervisor = auth()->guard('supervisor')->user();
-        $circleIds = Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id');
+        $circleIds = Scope::forRole('supervisor')->reachableCircleIds();
         $totalCirclesCount = $circleIds->count();
 
         $allAttendances = AttendanceModel::whereIn('circle_id', $circleIds)

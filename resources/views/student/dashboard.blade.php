@@ -12,6 +12,7 @@
     </x-slot:bottomNav>
 
     <div class="md:p-8">
+        <livewire:student.choose-group />
         <livewire:student.guardian-notice />
         <livewire:student.dashboard />
     </div>

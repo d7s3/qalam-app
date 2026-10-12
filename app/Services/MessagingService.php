@@ -9,6 +9,7 @@ use App\Models\Staff;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\Teacher;
+use App\Support\Scope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -159,9 +160,7 @@ class MessagingService
             return [];
         }
 
-        $stageIds = $supervisor->stages()->pluck('stages.id');
-
-        return Circle::whereIn('stage_id', $stageIds)->pluck('id')->all();
+        return Scope::for($supervisor, 'supervisor')->reachableCircleIds()->all();
     }
 
     /**

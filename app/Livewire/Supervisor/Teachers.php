@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\Teacher;
 use App\Support\Access;
 use App\Support\RecitationOnlyTeacher;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -87,9 +88,7 @@ class Teachers extends Component
 
     private function getSupervisorCircleIds()
     {
-        $supervisor = auth()->guard('supervisor')->user();
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
+        return Scope::forRole('supervisor')->reachableCircleIds()->all();
     }
 
     /**

@@ -55,7 +55,7 @@ new class extends Component
 
 <div class="space-y-4">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <x-section-heading icon="chart-bar">
+        <x-section-heading icon="chart-bar" level="lg">
             {{ __('نبض النشاط') }}
             <x-slot:detail>
                 <x-hijri-date :date="$from" />

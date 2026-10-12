@@ -6,8 +6,11 @@ use App\Models\Circle;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentPlacementRequest;
+use App\Models\Supervisor;
 use App\Models\User;
+use App\Support\Scope;
 use App\Support\StudentStatus;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -66,7 +69,7 @@ class StudentPlacementService
             'status' => StudentPlacementRequest::PENDING,
         ]);
 
-        foreach ($circle->stage?->supervisors ?? [] as $supervisor) {
+        foreach (self::supervisorsOf($circle) as $supervisor) {
             NotificationService::notify(
                 'supervisor',
                 $supervisor->id,
@@ -85,6 +88,80 @@ class StudentPlacementService
     }
 
     /**
+     * A student asking for a group himself.
+     *
+     * He names his sheikh's group and waits for the sheikh to accept him. One
+     * ask stands at a time: choosing again withdraws the one before, so a
+     * sheikh is never left holding a request the student has moved on from.
+     */
+    public static function askToJoin(Student $student, Circle $circle): StudentPlacementRequest
+    {
+        abort_if($student->circle_id !== null, 403, __('أنت في دفعة بالفعل.'));
+
+        return DB::transaction(function () use ($student, $circle) {
+            StudentPlacementRequest::pending()
+                ->where('student_id', $student->id)
+                ->where('requested_by', $student->id)
+                ->where('circle_id', '!=', $circle->id)
+                ->update([
+                    'status' => StudentPlacementRequest::REJECTED,
+                    'decided_at' => now(),
+                    'note' => __('اختار الطالب مجموعة أخرى.'),
+                ]);
+
+            return self::request($student, $circle, $student);
+        });
+    }
+
+    /**
+     * The groups a student may ask to join: every cohort, each named by the
+     * sheikhs narrowed to it, with how many students it holds.
+     *
+     * @return Collection<int, array{circle: Circle, sheikhs: list<string>, students: int}>
+     */
+    public static function groupsToChoose(): Collection
+    {
+        $sheikhs = [];
+
+        foreach (Supervisor::with('roles')->get() as $supervisor) {
+            $reach = Scope::for($supervisor, 'supervisor');
+
+            if ($reach->narrowsToCohorts()) {
+                foreach ($reach->reachableCircleIds() as $circleId) {
+                    $sheikhs[$circleId][] = $supervisor->name;
+                }
+            }
+        }
+
+        return Circle::with('stage')
+            ->withCount(['students' => fn ($query) => $query->where('status', StudentStatus::Active->value)])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Circle $circle) => [
+                'circle' => $circle,
+                'sheikhs' => $sheikhs[$circle->id] ?? [],
+                'students' => $circle->students_count,
+            ])
+            ->sortBy(fn (array $group) => $group['sheikhs'] === [] ? 1 : 0)
+            ->values();
+    }
+
+    /**
+     * Who answers for a cohort: the supervisors whose reach takes it in.
+     *
+     * Every supervisor of its programme used to be told, so a student asking
+     * for one sheikh's group went to all five of them.
+     *
+     * @return Collection<int, Supervisor>
+     */
+    public static function supervisorsOf(Circle $circle): Collection
+    {
+        return ($circle->stage?->supervisors()->with('roles')->get() ?? collect())
+            ->filter(fn (User $supervisor) => Scope::for($supervisor, 'supervisor')->reachableCircleIds()->contains($circle->id))
+            ->values();
+    }
+
+    /**
      * The supervisor agreeing.
      *
      * Placing the student closes every other request standing for him: once he
@@ -97,14 +174,7 @@ class StudentPlacementService
             $student = $request->student;
             $circle = $request->circle;
 
-            $student->update([
-                'circle_id' => $circle->id,
-                'stage_id' => $circle->stage_id,
-                'joined_at' => $student->joined_at ?: now()->format('Y-m-d'),
-                'is_approved' => true,
-            ]);
-
-            StudentStatusService::changeStatus($student, StudentStatus::Active->value, null, __('تسكين معتمد'));
+            self::settle($student, $circle, __('تسكين معتمد'));
 
             $request->update([
                 'status' => StudentPlacementRequest::APPROVED,
@@ -112,22 +182,67 @@ class StudentPlacementService
                 'decided_at' => now(),
             ]);
 
-            StudentPlacementRequest::pending()
-                ->where('student_id', $student->id)
-                ->whereKeyNot($request->id)
-                ->get()
-                ->each(fn (StudentPlacementRequest $other) => $other->update([
-                    'status' => StudentPlacementRequest::REJECTED,
-                    'decided_by' => $by->id,
-                    'decided_at' => now(),
-                    'note' => __('سُكّن الطالب في دفعة أخرى.'),
-                ]));
+            self::closeOtherAsks($student, $by, $request);
 
             self::tellRequester($request, __('تمت الموافقة على التسكين'), __(':student انضم إلى :circle', [
                 'student' => $student->name,
                 'circle' => $circle->name,
             ]));
         });
+    }
+
+    /**
+     * A sheikh taking into his group a student who has asked for none.
+     *
+     * The same placement an accepted ask makes, written to the student's
+     * history under the sheikh's name.
+     */
+    public static function placeDirectly(Student $student, Circle $circle, User $by): void
+    {
+        DB::transaction(function () use ($student, $circle, $by) {
+            self::settle($student, $circle, __('ضمّه :name إلى مجموعته', ['name' => $by->name]));
+            self::closeOtherAsks($student, $by);
+        });
+
+        NotificationService::notify(
+            'student',
+            $student->id,
+            'placement_decided',
+            __('انضممت إلى مجموعة'),
+            __('أنت الآن في :circle', ['circle' => trim($circle->name)]),
+            route('student.dashboard'),
+        );
+    }
+
+    /** Putting a student in a cohort: his cohort, his programme, and مشارك. */
+    private static function settle(Student $student, Circle $circle, string $note): void
+    {
+        $student->update([
+            'circle_id' => $circle->id,
+            'stage_id' => $circle->stage_id,
+            'joined_at' => $student->joined_at ?: now()->format('Y-m-d'),
+            'is_approved' => true,
+        ]);
+
+        StudentStatusService::changeStatus($student, StudentStatus::Active->value, null, $note);
+    }
+
+    /**
+     * Once he belongs somewhere, every other ask standing for him is answered
+     * rather than left waiting on a queue that will never move.
+     */
+    private static function closeOtherAsks(Student $student, User $by, ?StudentPlacementRequest $except = null): void
+    {
+        StudentPlacementRequest::pending()
+            ->where('student_id', $student->id)
+            ->when($except, fn ($query) => $query->whereKeyNot($except->id))
+            ->get()
+            ->each(fn (StudentPlacementRequest $other) => $other->update([
+                'status' => StudentPlacementRequest::REJECTED,
+                'decided_by' => $by->id,
+                'decided_at' => now(),
+                'note' => __('سُكّن الطالب في دفعة أخرى.'),
+            ]));
     }
 
     /** The supervisor declining, with his reason kept. */
@@ -168,13 +283,16 @@ class StudentPlacementService
             return;
         }
 
+        // A student who asked for a group himself hears the answer himself.
+        $askedForHimself = (int) $request->requested_by === (int) $request->student_id;
+
         NotificationService::notify(
-            'teacher',
+            $askedForHimself ? 'student' : 'teacher',
             $request->requested_by,
             'placement_decided',
             $title,
             $body,
-            route('teacher.students'),
+            route($askedForHimself ? 'student.dashboard' : 'teacher.students'),
         );
     }
 }

@@ -9,6 +9,9 @@ use Livewire\Component;
 
 class ExceededLimits extends Component
 {
+    /** Shown inside another page, so its title heads a section, not the page. */
+    public bool $embedded = false;
+
     public function render()
     {
         $absenceLimit = (int) Setting::getVal('absence_limit', 3);

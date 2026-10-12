@@ -206,6 +206,40 @@ class Scope
     }
 
     /**
+     * The cohorts within reach as ids, whether or not that is all of them.
+     *
+     * For the screens that list or count rather than narrow a query: each of
+     * them used to work a supervisor's cohorts out from his programmes on its
+     * own, and so went on showing a sheikh narrowed to his own group every
+     * group of his programme.
+     *
+     * @return Collection<int, int>
+     */
+    public function reachableCircleIds(): Collection
+    {
+        return $this->circleIds() ?? Circle::pluck('id');
+    }
+
+    /**
+     * Whether this holding is narrowed to named cohorts — a sheikh over his own
+     * group — so that «all of them» means those cohorts, not their programmes.
+     */
+    public function narrowsToCohorts(): bool
+    {
+        return $this->assignedScope()?->scope_type === UserRole::SCOPE_CIRCLES;
+    }
+
+    /**
+     * The programmes within reach as ids, whether or not that is all of them.
+     *
+     * @return Collection<int, int>
+     */
+    public function reachableStageIds(): Collection
+    {
+        return $this->stageIds() ?? Stage::pluck('id');
+    }
+
+    /**
      * The programmes within reach, or null when that is all of them.
      *
      * Derived from the cohorts rather than asked for on its own, so "which

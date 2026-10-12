@@ -2,12 +2,12 @@
 
 namespace App\Livewire\Supervisor;
 
-use App\Models\Circle;
 use App\Models\Teacher;
 use App\Models\TeacherCompetition;
 use App\Models\TeacherCompetitionCriterion;
 use App\Models\TeacherCompetitionScore;
 use App\Services\TeacherCompetitionService;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
@@ -44,9 +44,7 @@ class TeacherCompetitionManage extends Component
 
     private function getSupervisorCircleIds(): array
     {
-        $supervisor = auth()->guard('supervisor')->user();
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
+        return Scope::forRole('supervisor')->reachableCircleIds()->all();
     }
 
     public function setActiveTab(string $tab): void

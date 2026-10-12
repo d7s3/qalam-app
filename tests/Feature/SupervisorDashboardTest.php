@@ -30,11 +30,13 @@ beforeEach(function () {
 it('renders the supervisor dashboard with real counts instead of the old placeholder', function () {
     $response = $this->get(route('supervisor.dashboard'));
 
+    // Redrawn on the October design: three figures for his group's week, where
+    // the old page counted programmes and cohorts.
     $response->assertSuccessful();
     $response->assertDontSee('Placeholders for supervisor stats', false);
-    $response->assertSee($this->circle->name);
-    $response->assertSee('البرامج');
-    $response->assertSee('الدفعات');
+    $response->assertSee('طلاب المجموعة');
+    $response->assertSee('طالب واحد في المجموعة');
+    $response->assertSee('نسبة الحضور');
 });
 
 it('computes real weekly attendance percentage scoped to the supervisor stages', function () {

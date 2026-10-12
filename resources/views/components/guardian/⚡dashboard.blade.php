@@ -102,16 +102,13 @@ new class extends Component
         $guardian = auth()->guard('guardian')->user();
     @endphp
 
-    <div class="flex items-center gap-3">
-        <div class="p-2.5 rounded-xl bg-maroon/10 text-maroon dark:bg-white/10 dark:text-white">
-            <flux:icon icon="home" />
-        </div>
-        <div>
-            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">لوحة تحكم ولي الأمر</flux:heading>
-            <flux:subheading class="text-zinc-400">
-                <span>الرئيسية</span>
-            </flux:subheading>
-        </div>
+    {{-- The head every home page opens on in the October design. --}}
+    <div>
+        <h1 class="text-[28px] font-bold text-zinc-900 dark:text-white">{{ __('الرئيسية') }}</h1>
+        <p class="mt-1 text-zinc-500 dark:text-zinc-400">
+            {{ now('Asia/Riyadh')->hour < 12 ? __('صباح الخير') : __('مساء الخير') }}
+            {{ explode(' ', trim($guardian->name ?? ''))[0] }}، {{ __('هذه أخبار أبنائك.') }}
+        </p>
     </div>
 
     {{-- The account's approval is news only when it is missing. --}}

@@ -2,11 +2,11 @@
 
 namespace App\Livewire\Supervisor;
 
-use App\Models\Circle;
 use App\Models\HadithPath;
 use App\Models\HadithText;
 use App\Models\Student;
 use App\Models\StudentHadithPlan;
+use App\Support\Scope;
 use Flux\Flux;
 use Livewire\Component;
 
@@ -213,12 +213,7 @@ class ManageHadithPaths extends Component
 
     private function getSupervisorCircleIds(): array
     {
-        $supervisor = auth()->guard('supervisor')->user();
-        if (! $supervisor) {
-            return [];
-        }
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
+        return Scope::forRole('supervisor')->reachableCircleIds()->all();
     }
 
     public function render()
