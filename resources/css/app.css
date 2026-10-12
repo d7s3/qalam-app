@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Tajawal:wght@300;400;500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800&display=swap');
 @import 'tailwindcss';
 @import '../../vendor/livewire/flux/dist/flux.css';
 
@@ -10,19 +10,14 @@
 }
 
 /*
- * Cairo, for headings — from Google Fonts, with Tajawal on the first line.
+ * One face for the whole interface: IBM Plex Sans Arabic, from Google Fonts.
  *
- * The brand asks for DIN Next Arabic and its files are not here, so every word
- * in the application was falling through to Tajawal — one weight of one face
- * from top to bottom, which is what an interface looks like when nobody chose
- * its type.
- *
- * Headings take Cairo; the body keeps Tajawal. Two faces with different jobs
- * is the smallest thing that makes a page look set rather than defaulted. The
- * Cairo files that sat in `public/fonts` were GitHub pages saved under the
- * font's name, so the browser threw them away and the headings never changed:
- * the choice was made in September and never once seen. Put the DIN files
- * beside Zain's and `--font-sans` picks them up on its own.
+ * The October design set every word in it — figures, headings, tables — and
+ * it is what makes that design read as one thing. It replaced Cairo for
+ * headings over Tajawal for text, two faces whose files were broken for most
+ * of their life anyway. Tajawal stays as the fallback while Plex loads. Put
+ * the DIN files beside Zain's and they still take precedence over neither:
+ * the brand's DIN is a later decision, not this one.
  */
 
 @source '../views';
@@ -41,9 +36,9 @@
 }
 
 @theme {
-    --font-sans: 'DIN Next Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'IBM Plex Sans Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --font-zain: 'Zain Mobile Swashes', sans-serif;
-    --font-display: 'DIN Next Arabic', 'Cairo', 'Tajawal', sans-serif;
+    --font-display: 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
 
     /* Brand Colors (ui.json) */
     --color-maroon: #7a2727;
@@ -63,11 +58,18 @@
     --color-paper-deep: #f7efe0;
     --color-neutral-grey: #6e6e6e;
 
-    /* Original Zing Colors */
-    --color-zinc-50: #fafafa;
-    --color-zinc-100: #f5f5f5;
-    --color-zinc-200: #e5e5e5;
-    --color-zinc-300: #d4d4d4;
+    /*
+     * The greys, warmed where they are light.
+     *
+     * The pages stand on paper, and a cold grey hairline or tint on paper
+     * reads as a different product glued on. The light stops — surfaces,
+     * tints and hairlines — are cut from the paper itself, as in the October
+     * design; the dark ones, which carry text and the dark theme, are left.
+     */
+    --color-zinc-50: #fbf8f2;
+    --color-zinc-100: #f6f0e4;
+    --color-zinc-200: #ece4d4;
+    --color-zinc-300: #dad0bd;
     --color-zinc-400: #a3a3a3;
     --color-zinc-500: #737373;
     --color-zinc-600: #525252;
@@ -195,7 +197,7 @@
     ::before,
     ::backdrop,
     ::file-selector-button {
-        border-color: var(--color-gray-200, currentColor);
+        border-color: var(--color-zinc-200, currentColor);
     }
 }
 
@@ -269,6 +271,63 @@ h1, h2, h3,
 [data-flux-heading] {
     font-family: var(--font-display);
     letter-spacing: -0.01em;
+}
+
+/*
+ * The October design's surfaces, on every page at once.
+ *
+ * Cards are white on the paper with a warm hairline, a softer corner and the
+ * faintest lift; a table's head is small and quiet so the rows carry the page;
+ * a field's corner matches its card. Set here rather than page by page, so
+ * the hundred and fifty pages agree without each being edited.
+ */
+[data-flux-card] {
+    border-radius: 1rem;
+    border-color: var(--color-zinc-200);
+    box-shadow: 0 1px 2px rgb(63 26 25 / 0.04);
+}
+
+.dark [data-flux-card] {
+    border-color: rgb(255 255 255 / 0.1);
+    box-shadow: none;
+}
+
+[data-flux-column] {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-zinc-500);
+    border-bottom-color: var(--color-zinc-200);
+}
+
+.dark [data-flux-column] {
+    color: var(--color-zinc-400);
+    border-bottom-color: rgb(255 255 255 / 0.1);
+}
+
+[data-flux-row] {
+    border-color: var(--color-zinc-100);
+}
+
+/* Flux takes the padding off a table's outer columns, so a table laid edge to
+   edge in a card ran its first name into the card's border. */
+[data-flux-column]:first-child,
+[data-flux-cell]:first-child {
+    padding-inline-start: 1.25rem;
+}
+
+[data-flux-column]:last-child,
+[data-flux-cell]:last-child {
+    padding-inline-end: 1.25rem;
+}
+
+.dark [data-flux-row] {
+    border-color: rgb(255 255 255 / 0.08);
+}
+
+input[data-flux-control]:not([type='checkbox'], [type='radio']),
+textarea[data-flux-control],
+select[data-flux-control] {
+    border-radius: 0.625rem;
 }
 
 
