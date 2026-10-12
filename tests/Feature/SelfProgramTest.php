@@ -451,6 +451,56 @@ describe('arrears on the student page', function () {
             ->assertStatus(404);
     });
 
+    it('asks whether a memorised arrear was recited, and counts it once he says so', function () {
+        $memorised = track($this->week, SelfProgramTrack::MAHFOUDH, 2);
+
+        $page = Livewire::actingAs($this->student, 'student')
+            ->test('student.self-program')
+            ->set("settleAmounts.{$memorised->id}", 2)
+            ->call('settle', $memorised->id)
+            ->assertSet('askingRecitationFor', $memorised->id)
+            ->assertSee('هل سمّعت المحفوظ؟');
+
+        expect(StudentSelfProgramEntry::where('self_program_item_id', $memorised->id)->exists())->toBeFalse();
+
+        $page->call('confirmRecitation')->assertSet('askingRecitationFor', null);
+
+        expect(collect($this->service->arrears($this->student))->pluck('item.id'))->not->toContain($memorised->id);
+    });
+
+    it('counts nothing of a memorised arrear he has not yet recited', function () {
+        $memorised = track($this->week, SelfProgramTrack::MAHFOUDH, 2);
+
+        Livewire::actingAs($this->student, 'student')
+            ->test('student.self-program')
+            ->set("settleAmounts.{$memorised->id}", 2)
+            ->call('settle', $memorised->id)
+            ->call('denyRecitation')
+            ->assertSet('askingRecitationFor', null);
+
+        expect(StudentSelfProgramEntry::where('self_program_item_id', $memorised->id)->exists())->toBeFalse();
+    });
+
+    it('makes up a preparation whose day has passed, apart from the current week', function () {
+        // Preparation counts only on the days written for it — while its week
+        // runs. Making it up afterwards stands apart from that.
+        $prepared = track($this->week, SelfProgramTrack::TAHDHEER, 1);
+        SelfProgramDayOverride::create([
+            'self_program_item_id' => $prepared->id,
+            'circle_id' => $this->circle->id,
+            'day_date' => '2026-09-08',
+            'content' => 'تحضير الدرس',
+        ]);
+
+        Livewire::actingAs($this->student, 'student')
+            ->test('student.self-program')
+            ->set("settleAmounts.{$prepared->id}", 1)
+            ->call('settle', $prepared->id)
+            ->assertHasNoErrors();
+
+        expect(collect($this->service->arrears($this->student))->pluck('item.id'))->not->toContain($prepared->id);
+    });
+
     it('refuses an empty amount', function () {
         Livewire::actingAs($this->student, 'student')
             ->test('student.self-program')
