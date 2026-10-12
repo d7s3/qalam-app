@@ -512,10 +512,10 @@ new class extends Component {
             <div class="order-1 lg:order-2 flex flex-col gap-6">
                 <div class="flex items-center justify-between gap-4">
                     <div>
-                        <h1 class="text-xl md:text-2xl font-black text-zinc-900 dark:text-white">
-                            👋 {{ __('مرحباً بك، :name', ['name' => $student->name]) }}
+                        <h1 class="text-[26px] font-bold text-zinc-900 dark:text-white">
+                            {{ __('مرحباً بك، :name', ['name' => explode(' ', trim($student->name))[0]]) }}
                         </h1>
-                        <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{{ __('بالتوفيق في رحلتك لحفظ كتاب الله') }}</p>
+                        <p class="mt-1 text-zinc-500 dark:text-zinc-400">{{ __('بالتوفيق في رحلتك لحفظ كتاب الله') }}</p>
                     </div>
                     @if(!empty($pendingMissions) || !empty($pendingHadithMissions))
                         <flux:button href="#today-mission" variant="primary" class="!bg-maroon hover:!bg-burgundy shrink-0 hidden sm:inline-flex">

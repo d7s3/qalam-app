@@ -78,10 +78,10 @@
             {{ __('الرسائل') }}
         </flux:sidebar.item>
     @endif
-    <flux:sidebar.item icon="trophy" :href="route('student.dashboard').'#achievements'" wire:navigate>
+    <flux:sidebar.item icon="trophy" :href="route('student.dashboard').'#achievements'" :current="false" wire:navigate>
         {{ __('الإنجازات') }}
     </flux:sidebar.item>
-    <flux:sidebar.item icon="star" :href="route('student.dashboard').'#leaderboard-standings'" wire:navigate>
+    <flux:sidebar.item icon="star" :href="route('student.dashboard').'#leaderboard-standings'" :current="false" wire:navigate>
         {{ __('المتصدرون') }}
     </flux:sidebar.item>
 </flux:sidebar.group>
