@@ -274,6 +274,17 @@ h1, h2, h3,
 }
 
 /*
+ * A page names itself the way the home page does: large and bold. Flux's own
+ * title is smaller and lighter, and set it on the hundred-odd pages behind the
+ * homes. A dialog's title keeps Flux's size.
+ */
+[data-flux-heading].text-2xl:not([data-flux-modal] *) {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+    font-weight: 700;
+}
+
+/*
  * The October design's surfaces, on every page at once.
  *
  * Cards are white on the paper with a warm hairline, a softer corner and the
