@@ -6,6 +6,9 @@ use Livewire\Attributes\Locked;
 use Livewire\Component;
 use App\Models\Student;
 use App\Models\StudentPlanDay;
+use App\Models\AcademicCalendarEvent;
+use App\Models\Attendance;
+use App\Services\HomeFiguresService;
 use App\Services\TeacherCompetitionService;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -253,7 +256,30 @@ new class extends Component {
             ? $competitionService->getStandings($activeTeacherCompetition)
             : collect();
 
+        // The October design's head: his day's register and his cohorts' week,
+        // each against the week before.
+        $today = now('Asia/Riyadh')->toDateString();
+        $figures = HomeFiguresService::figures($teacher, 'teacher');
+        $activeStudents = Student::whereIn('circle_id', $circleIds)->where(fn ($q) => $q->where('status', 'active')->orWhereNull('status'))->count();
+        $markedToday = Attendance::whereIn('circle_id', $circleIds)->whereDate('date', $today)->distinct()->count('student_id');
+        $stageId = Circle::whereIn('id', $circleIds)->value('stage_id');
+        $pagesBefore = $figures['pages']['before'];
+        $tallestDay = max(1, ...array_column($figures['days'], 'pages'));
+
         return [
+            'firstName' => explode(' ', trim($teacher->name))[0] ?? '',
+            'greeting' => now('Asia/Riyadh')->hour < 12 ? __('صباح الخير') : __('مساء الخير'),
+            'activeStudents' => $activeStudents,
+            'markedToday' => $markedToday,
+            'meetsToday' => AcademicCalendarEvent::isWorkingDay($today, $stageId),
+            'weekPages' => $figures['pages']['now'],
+            'pagesChange' => $pagesBefore > 0
+                ? (fn ($value) => ['up' => $value >= 0, 'text' => ($value >= 0 ? '' : '−').abs($value).'%'])((int) round(($figures['pages']['now'] - $pagesBefore) / $pagesBefore * 100))
+                : null,
+            'days' => collect($figures['days'])->map(fn ($day) => $day + [
+                'height' => $day['pages'] > 0 ? max(8, (int) round($day['pages'] / $tallestDay * 150)) : 8,
+                'best' => $day['pages'] > 0 && $day['pages'] === $tallestDay,
+            ])->all(),
             'topAttendance' => $topAttendance,
             'topExcellent' => $topExcellent,
             'studentsCount' => Student::whereIn('circle_id', $circleIds)->count(),
@@ -268,14 +294,9 @@ new class extends Component {
 <div class="space-y-8" dir="rtl">
     <x-shared.pending-surveys />
 
-    <!-- Header Section -->
     <div>
-        <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">
-            {{ __('لوحة تحكم التعليم') }}
-        </flux:heading>
-        <flux:subheading class="text-zinc-500 dark:text-zinc-400">
-            {{ __('مرحباً بك مجدداً في نظام إدارة').' '.config('brand.name') }}
-        </flux:subheading>
+        <h1 class="text-[28px] font-bold text-zinc-900 dark:text-white">{{ __('الرئيسية') }}</h1>
+        <p class="mt-1 text-zinc-500 dark:text-zinc-400">{{ $greeting }} يا أستاذ {{ $firstName }}، {{ __('هذه دفعتك اليوم.') }}</p>
     </div>
 
     {{-- Independent teacher-competition override: while one is active for this
@@ -332,23 +353,29 @@ new class extends Component {
     @endif
 
     @unless($activeTeacherCompetition)
-    <!-- Quick CTA: Attendance -->
-    <a href="{{ route('teacher.attendance') }}" class="block w-full transition-transform hover:-translate-y-1">
-        <div
-            class="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-2xl p-6 shadow-md shadow-indigo-600/20 text-white flex flex-col sm:flex-row items-center sm:justify-between gap-4">
-            <div class="flex items-center gap-4">
-                <div class="bg-white/20 p-3 rounded-full">
-                    <flux:icon icon="clipboard-document-check" class="w-8 h-8 text-white" />
+    {{-- His day at a glance: the register, his students, his cohorts' week. --}}
+    <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <x-home.stat icon="clipboard-document-check" :label="__('التحضير اليومي')"
+            :value="$meetsToday ? $markedToday.' / '.$activeStudents : '—'"
+            :caption="$meetsToday ? ($markedToday === 0 ? __('ابدأ التحضير الآن') : ($markedToday < $activeStudents ? __('أكمل التحضير') : __('اكتمل تحضير اليوم'))) : __('ليس يوم دوام')"
+            :href="$meetsToday && $markedToday < $activeStudents ? route('teacher.attendance') : null" />
+        <x-home.stat icon="users" :label="__('طلاب دفعتي')" :value="$activeStudents" :caption="__('مشاركون')" />
+        <x-home.stat icon="book-open" :label="__('صفحات الحفظ')" :value="$weekPages" :change="$pagesChange" :caption="__('هذا الأسبوع، مقارنة بالماضي')" />
+    </div>
+
+    <x-home.panel icon="book-open" :title="__('الحفظ اليومي')">
+        <div class="mt-5 flex min-h-[190px] items-end gap-3" role="img" aria-label="{{ __('صفحات الحفظ في كل يوم من أيام هذا الأسبوع') }}">
+            @foreach ($days as $day)
+                <div wire:key="t-day-{{ $day['date'] }}" class="flex flex-1 flex-col items-center gap-2">
+                    @if ($day['best'])
+                        <span class="text-sm font-semibold text-zinc-900 dark:text-white">{{ $day['pages'] }}</span>
+                    @endif
+                    <div class="w-full rounded-[10px] {{ $day['best'] ? 'bg-gradient-to-b from-[#7A2727] to-[#C48A8A]' : ($day['upcoming'] ? 'border border-dashed border-zinc-300 bg-transparent' : 'bg-zinc-100 dark:bg-zinc-800') }}" style="height: {{ $day['height'] }}px"></div>
+                    <span class="text-xs {{ $day['best'] ? 'font-semibold text-zinc-900 dark:text-white' : 'text-zinc-500' }}">{{ $day['label'] }}</span>
                 </div>
-                <div>
-                    <h2 class="text-xl font-bold">{{ __('التحضير اليومي') }}</h2>
-                    <p class="text-indigo-100 text-sm mt-1 mb-0">{{ __('سجل حضور وغياب وتأخر طلابك لهذا اليوم') }}</p>
-                </div>
-            </div>
-            <flux:button variant="filled" class="bg-white text-indigo-600 hover:bg-zinc-50">
-                {{ __('ابدأ التحضير الآن') }}</flux:button>
+            @endforeach
         </div>
-    </a>
+    </x-home.panel>
 
     <!-- Assigned Group Tasks -->
     <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-6 space-y-4 shadow-xs">

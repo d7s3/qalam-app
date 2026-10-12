@@ -12,15 +12,16 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * What a sheikh's home page counts: his group's week against the one before,
- * its last three months of memorisation, and each day of this week.
+ * What a home page counts for the cohorts a person reaches — a sheikh's group,
+ * a teacher's cohorts: their week against the one before, the last three
+ * months of memorisation, and each day of this week.
  *
  * Every figure comes from CircleReportService, so the home page and the
  * reports can never tell him two different things. They are worked out over
  * several ranges, so they are kept for ten minutes; who is waiting and how
  * the students stand are read fresh by the page itself.
  */
-class SupervisorHomeService
+class HomeFiguresService
 {
     /** The days the academy meets, Sunday to Thursday, in a Saturday week. */
     private const MEETING_DAYS = [1, 2, 3, 4, 5];
@@ -34,23 +35,23 @@ class SupervisorHomeService
      *     weekLabel: string
      * }
      */
-    public static function figures(User $supervisor): array
+    public static function figures(User $user, string $role = 'supervisor'): array
     {
         // A plain Carbon: the reports take one, and the application's now()
         // is immutable.
         $today = Carbon::parse(now('Asia/Riyadh')->toDateString());
 
         return Cache::remember(
-            'supervisor-home:'.$supervisor->id.':'.$today->toDateString(),
+            'home-figures:'.$role.':'.$user->id.':'.$today->toDateString(),
             now()->addMinutes(10),
-            fn () => self::work($supervisor, $today),
+            fn () => self::work($user, $role, $today),
         );
     }
 
-    private static function work(User $supervisor, Carbon $today): array
+    private static function work(User $user, string $role, Carbon $today): array
     {
         $students = Student::with('circle')
-            ->whereIn('circle_id', Scope::for($supervisor, 'supervisor')->reachableCircleIds())
+            ->whereIn('circle_id', Scope::for($user, $role)->reachableCircleIds())
             ->get();
 
         $weekStart = $today->copy()->startOfWeek(Carbon::SATURDAY);
@@ -125,9 +126,9 @@ class SupervisorHomeService
      *
      * @return list<array{status: StudentStatus, count: int}>
      */
-    public static function standing(User $supervisor): array
+    public static function standing(User $user, string $role = 'supervisor'): array
     {
-        $counts = Student::whereIn('circle_id', Scope::for($supervisor, 'supervisor')->reachableCircleIds())
+        $counts = Student::whereIn('circle_id', Scope::for($user, $role)->reachableCircleIds())
             ->toBase()
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')

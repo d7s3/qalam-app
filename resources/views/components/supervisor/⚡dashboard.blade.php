@@ -5,7 +5,7 @@ use App\Models\Student;
 use App\Models\StudentExam;
 use App\Models\StudentPlacementRequest;
 use App\Services\StudentPlacementService;
-use App\Services\SupervisorHomeService;
+use App\Services\HomeFiguresService;
 use App\Support\HijriDate;
 use App\Support\Scope;
 use App\Support\StudentStatus;
@@ -162,8 +162,8 @@ new class extends Component
     public function with(): array
     {
         $supervisor = Auth::guard('supervisor')->user();
-        $figures = SupervisorHomeService::figures($supervisor);
-        $standing = SupervisorHomeService::standing($supervisor);
+        $figures = HomeFiguresService::figures($supervisor);
+        $standing = HomeFiguresService::standing($supervisor);
         $circleIds = $this->circleIds();
 
         $monthStart = HijriDate::monthGrid(...array_values(HijriDate::yearMonthOf(now('Asia/Riyadh'))))['first'];
@@ -238,51 +238,13 @@ new class extends Component
 
     {{-- Three figures, each against last week. --}}
     <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-        <div class="rounded-2xl border border-[#EDE5D5] bg-white p-5 shadow-[0_1px_2px_rgba(63,26,25,.04)] dark:border-zinc-800 dark:bg-zinc-900">
-            <div class="flex items-center gap-2.5">
-                <span class="flex size-8 items-center justify-center rounded-lg bg-[#F7EFE0] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"><flux:icon icon="calendar-days" variant="mini" class="size-4" /></span>
-                <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ __('نسبة الحضور') }}</span>
-            </div>
-            <div class="mt-4 flex items-center gap-3">
-                <span class="text-[34px] font-bold tracking-tight text-zinc-900 dark:text-white">{{ $attendance !== null ? $attendance.'%' : '—' }}</span>
-                @if ($attendanceChange)
-                    <span dir="ltr" class="flex h-6 items-center gap-0.5 rounded-lg border px-2 text-xs font-semibold {{ $attendanceChange['up'] ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700' }}">
-                        {{ $attendanceChange['text'] }} <flux:icon :icon="$attendanceChange['up'] ? 'arrow-up-right' : 'arrow-down-right'" variant="micro" class="size-3.5" />
-                    </span>
-                @endif
-            </div>
-            <p class="mt-1 text-sm text-zinc-500">{{ __('مقارنة بالأسبوع الماضي') }}</p>
-        </div>
-
-        <div class="rounded-2xl border border-[#EDE5D5] bg-white p-5 shadow-[0_1px_2px_rgba(63,26,25,.04)] dark:border-zinc-800 dark:bg-zinc-900">
-            <div class="flex items-center gap-2.5">
-                <span class="flex size-8 items-center justify-center rounded-lg bg-[#F7EFE0] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"><flux:icon icon="users" variant="mini" class="size-4" /></span>
-                <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ __('طلاب المجموعة') }}</span>
-            </div>
-            <div class="mt-4 flex items-center gap-3">
-                <span class="text-[34px] font-bold tracking-tight text-zinc-900 dark:text-white">{{ $activeStudents }}</span>
-                @if ($joinedThisMonth > 0)
-                    <span dir="ltr" class="flex h-6 items-center gap-0.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-xs font-semibold text-emerald-700">+{{ $joinedThisMonth }} <flux:icon icon="arrow-up-right" variant="micro" class="size-3.5" /></span>
-                @endif
-            </div>
-            <p class="mt-1 text-sm text-zinc-500">{{ $this->studentsLabel($activeStudents) }} {{ __('في المجموعة') }}@if ($joinedThisMonth > 0)، {{ __('ومن انضم هذا الشهر') }}@endif</p>
-        </div>
-
-        <div class="rounded-2xl border border-[#EDE5D5] bg-white p-5 shadow-[0_1px_2px_rgba(63,26,25,.04)] dark:border-zinc-800 dark:bg-zinc-900">
-            <div class="flex items-center gap-2.5">
-                <span class="flex size-8 items-center justify-center rounded-lg bg-[#F7EFE0] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"><flux:icon icon="book-open" variant="mini" class="size-4" /></span>
-                <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ __('صفحات الحفظ') }}</span>
-            </div>
-            <div class="mt-4 flex items-center gap-3">
-                <span class="text-[34px] font-bold tracking-tight text-zinc-900 dark:text-white">{{ $weekPages }}</span>
-                @if ($pagesChange)
-                    <span dir="ltr" class="flex h-6 items-center gap-0.5 rounded-lg border px-2 text-xs font-semibold {{ $pagesChange['up'] ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700' }}">
-                        {{ $pagesChange['text'] }} <flux:icon :icon="$pagesChange['up'] ? 'arrow-up-right' : 'arrow-down-right'" variant="micro" class="size-3.5" />
-                    </span>
-                @endif
-            </div>
-            <p class="mt-1 text-sm text-zinc-500">{{ __('هذا الأسبوع، مقارنة بالماضي') }}</p>
-        </div>
+        <x-home.stat icon="calendar-days" :label="__('نسبة الحضور')" :value="$attendance !== null ? $attendance.'%' : '—'"
+            :change="$attendanceChange" :caption="__('مقارنة بالأسبوع الماضي')" />
+        <x-home.stat icon="users" :label="__('طلاب المجموعة')" :value="$activeStudents"
+            :change="$joinedThisMonth > 0 ? ['up' => true, 'text' => '+'.$joinedThisMonth] : null"
+            :caption="$this->studentsLabel($activeStudents).' '.__('في المجموعة').($joinedThisMonth > 0 ? '، '.__('ومن انضم هذا الشهر') : '')" />
+        <x-home.stat icon="book-open" :label="__('صفحات الحفظ')" :value="$weekPages"
+            :change="$pagesChange" :caption="__('هذا الأسبوع، مقارنة بالماضي')" />
     </div>
 
     <div class="flex flex-wrap gap-5">
