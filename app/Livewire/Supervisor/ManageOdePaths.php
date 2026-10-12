@@ -2,11 +2,11 @@
 
 namespace App\Livewire\Supervisor;
 
-use App\Models\Circle;
 use App\Models\Ode;
 use App\Models\OdePath;
 use App\Models\Student;
 use App\Models\StudentOdePlan;
+use App\Support\Scope;
 use Flux\Flux;
 use Livewire\Component;
 
@@ -201,12 +201,7 @@ class ManageOdePaths extends Component
 
     private function getSupervisorCircleIds(): array
     {
-        $supervisor = auth()->guard('supervisor')->user();
-        if (! $supervisor) {
-            return [];
-        }
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
+        return Scope::forRole('supervisor')->reachableCircleIds()->all();
     }
 
     public function render()

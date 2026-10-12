@@ -8,6 +8,7 @@ use App\Models\Guardian;
 use App\Models\Student;
 use App\Services\StudentStatusService;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use App\Support\StudentStatus;
 use Flux\Flux;
 use Illuminate\Support\Str;
@@ -66,12 +67,12 @@ class Students extends Component
 
     private function getSupervisorStageIds(): array
     {
-        return auth()->guard('supervisor')->user()->stages()->pluck('stages.id')->toArray();
+        return Scope::forRole('supervisor')->reachableStageIds()->all();
     }
 
     private function getSupervisorCircleIds(): array
     {
-        return Circle::whereIn('stage_id', $this->getSupervisorStageIds())->pluck('id')->toArray();
+        return Scope::forRole('supervisor')->reachableCircleIds()->all();
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Livewire\Supervisor;
 
 use App\Models\Circle;
 use App\Services\CircleReportService;
+use App\Support\Scope;
 use Illuminate\Support\Facades\URL;
 use Livewire\Attributes\Url as UrlParam;
 use Livewire\Component;
@@ -29,10 +30,8 @@ class CircleReport extends Component
 
     public function mount($circleId): void
     {
-        $supervisor = auth()->guard('supervisor')->user();
-
         $this->circle = Circle::with('stage')
-            ->whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))
+            ->whereIn('id', Scope::forRole('supervisor')->reachableCircleIds())
             ->findOrFail($circleId);
 
         if (! in_array($this->scope, ['circle', 'stage'], true)) {

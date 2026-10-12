@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\StudentExam;
 use App\Models\Teacher;
 use Illuminate\Support\Facades\Auth;
+use App\Support\Scope;
 use Livewire\Component;
 
 new class extends Component
@@ -15,8 +16,9 @@ new class extends Component
     public function with(): array
     {
         $supervisor = Auth::guard('supervisor')->user();
-        $stageIds = $supervisor->stages()->pluck('stages.id');
-        $circleIds = Circle::whereIn('stage_id', $stageIds)->pluck('id');
+        $reach = Scope::forRole('supervisor');
+        $stageIds = $reach->reachableStageIds();
+        $circleIds = $reach->reachableCircleIds();
 
         $weekStart = now()->startOfWeek(\Carbon\Carbon::SATURDAY);
         $weekEnd = now()->endOfWeek(\Carbon\Carbon::FRIDAY);

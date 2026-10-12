@@ -322,7 +322,7 @@ class TaskFollowUpService
             'teacher' => $circles === null
                 || $owner->circles()->pluck('circles.id')->intersect($circles)->isNotEmpty(),
             'supervisor' => $stages === null
-                || $owner->stages()->pluck('stages.id')->intersect($stages)->isNotEmpty(),
+                || Scope::for($owner, 'supervisor')->reachableStageIds()->intersect($stages)->isNotEmpty(),
             default => false,
         };
     }

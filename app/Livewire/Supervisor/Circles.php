@@ -3,7 +3,9 @@
 namespace App\Livewire\Supervisor;
 
 use App\Models\Circle;
+use App\Models\Stage;
 use App\Models\Teacher;
+use App\Support\Scope;
 use Flux\Flux;
 use Livewire\Component;
 
@@ -38,14 +40,12 @@ class Circles extends Component
 
     private function getSupervisorCircleIds(): array
     {
-        $supervisor = auth()->guard('supervisor')->user();
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
+        return Scope::forRole('supervisor')->reachableCircleIds()->all();
     }
 
     private function getSupervisorStages()
     {
-        return auth()->guard('supervisor')->user()->stages()->get();
+        return Stage::whereIn('id', Scope::forRole('supervisor')->reachableStageIds())->get();
     }
 
     public function loadData(): void

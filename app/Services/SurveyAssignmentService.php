@@ -13,6 +13,7 @@ use App\Models\Supervisor;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Support\HijriDate;
+use App\Support\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -277,9 +278,15 @@ class SurveyAssignmentService
             return $audience;
         }
 
+        $byCohort = $role === 'teacher';
+
         if ($role === 'supervisor') {
-            $stageIds = $author->stages()->pluck('stages.id')->all();
-            $circleIds = Circle::whereIn('stage_id', $stageIds)->pluck('id')->all();
+            $reach = Scope::for($author, 'supervisor');
+            $stageIds = $reach->reachableStageIds()->all();
+            $circleIds = $reach->reachableCircleIds()->all();
+            // A sheikh narrowed to his own group reaches cohorts, not the
+            // programme they sit in, so his «all» is his group.
+            $byCohort = $reach->narrowsToCohorts();
         } elseif ($role === 'teacher') {
             $circleIds = $author->circles()->pluck('circles.id')->all();
             $stageIds = Circle::whereIn('id', $circleIds)->pluck('stage_id')->unique()->values()->all();
@@ -305,7 +312,7 @@ class SurveyAssignmentService
             ));
 
             if ($wantsAll) {
-                $role === 'teacher'
+                $byCohort
                     ? $circles = $circleIds
                     : $stages = $stageIds;
             }

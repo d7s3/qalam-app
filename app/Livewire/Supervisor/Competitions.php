@@ -5,6 +5,7 @@ namespace App\Livewire\Supervisor;
 use App\Models\Circle;
 use App\Models\Leaderboard;
 use App\Models\LeaderboardCriterion;
+use App\Support\Scope;
 use Flux\Flux;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Drivers\Gd\Driver;
@@ -173,9 +174,7 @@ class Competitions extends Component
 
     private function getSupervisorCircleIds(): array
     {
-        $supervisor = auth()->guard('supervisor')->user();
-
-        return Circle::whereIn('stage_id', $supervisor->stages()->pluck('stages.id'))->pluck('id')->toArray();
+        return Scope::forRole('supervisor')->reachableCircleIds()->all();
     }
 
     public function loadData(): void
