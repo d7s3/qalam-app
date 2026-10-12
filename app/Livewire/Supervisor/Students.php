@@ -475,6 +475,11 @@ class Students extends Component
             'students' => $this->filteredStudentsQuery()->paginate(20),
             'selectedMagicLinksText' => $this->buildSelectedMagicLinksText(),
             'selectedOutsideFilters' => $this->selectedOutsideFiltersCount(),
+            // A sheikh narrowed to his own group reads it by name; a supervisor
+            // over a programme reads its cohorts.
+            'groupLine' => Scope::forRole('supervisor')->narrowsToCohorts()
+                ? __('مجموعة').' '.$this->circles->pluck('name')->map(fn ($name) => trim($name))->implode(' و ')
+                : __('طلاب دفعات برنامجك'),
         ])->layout('layouts.role-shell');
     }
 }

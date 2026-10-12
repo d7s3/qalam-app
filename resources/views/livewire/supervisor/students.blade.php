@@ -4,8 +4,8 @@
             <flux:icon icon="academic-cap" />
         </div>
         <div>
-            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">طلاب البرنامج</flux:heading>
-            <flux:subheading>عرض وإدارة الطلاب الواقعين ضمن دفعات برنامجك</flux:subheading>
+            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">الطلاب</flux:heading>
+            <flux:subheading>{{ $groupLine }}</flux:subheading>
         </div>
     </div>
 

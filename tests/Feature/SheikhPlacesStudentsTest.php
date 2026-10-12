@@ -119,3 +119,7 @@ it('names the teacher who suggested a student', function () {
 
     Livewire::test(SupervisorStudents::class)->assertSee('اقترحه المعلم خالد');
 });
+
+it('heads his students page with his own group\'s name', function () {
+    Livewire::test(SupervisorStudents::class)->assertSee('مجموعة الأهدل');
+});
