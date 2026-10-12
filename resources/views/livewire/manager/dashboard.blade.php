@@ -20,7 +20,7 @@
 
         {{-- Header + period selector --}}
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <x-section-heading icon="user-group">
+            <x-section-heading icon="user-group" level="lg">
                 إحصائيات الحضور
 
                 <x-slot:detail>

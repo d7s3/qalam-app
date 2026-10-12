@@ -3,6 +3,7 @@
 use App\Models\Circle;
 use App\Models\Stage;
 use App\Models\Supervisor;
+use App\Models\Teacher;
 use App\Models\UserRole;
 use App\Support\Scope;
 
@@ -50,4 +51,21 @@ it('leaves a dialog\'s title its own size', function () {
                 return getComputedStyle(dialog.firstChild).fontSize;
             })()
             JS, '24px');
+});
+
+it('keeps the sections of a home page below its title', function () {
+    $this->actingAs(Teacher::factory()->create(['is_approved' => true]), 'teacher');
+
+    visit('/teacher/dashboard')
+        ->assertNoJavaScriptErrors()
+        ->assertScript(<<<'JS'
+            (() => {
+                const title = parseFloat(getComputedStyle(document.querySelector('[data-flux-main] h1')).fontSize);
+                const sections = [...document.querySelectorAll('[data-flux-main] [data-flux-heading]')]
+                    .filter(h => h.offsetParent !== null)
+                    .map(h => parseFloat(getComputedStyle(h).fontSize));
+
+                return sections.length > 0 && sections.every(size => size < title);
+            })()
+            JS, true);
 });

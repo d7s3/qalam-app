@@ -15,10 +15,6 @@
         {{-- What his cohorts did, counted inside his own reach. --}}
         <livewire:shared.activity-pulse />
 
-        <!-- Exceeded Limits (Violations) List -->
-        <div>
-            <flux:heading size="lg" class="mb-4">{{ __('لائحة التجاوزات والانذارات') }}</flux:heading>
-            <livewire:shared.exceeded-limits />
-        </div>
+        <livewire:shared.exceeded-limits :embedded="true" />
     </div>
 </x-layouts.role-shell>

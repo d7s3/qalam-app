@@ -4,7 +4,7 @@
             <flux:icon icon="exclamation-triangle" />
         </div>
         <div>
-            <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">لائحة التجاوزات</flux:heading>
+            <flux:heading :size="$embedded ? 'lg' : 'xl'" class="font-bold text-zinc-900 dark:text-white">لائحة التجاوزات</flux:heading>
             <flux:subheading>الطلاب الذين تجاوزوا حد الغياب والتأكيد خلال آخر {{ $periodDays }} يوماً</flux:subheading>
         </div>
     </div>
