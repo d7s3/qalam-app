@@ -44,9 +44,16 @@ it('puts the people and the requests first, and folds the rest away', function (
 });
 
 it('still counts the registration requests waiting for him', function () {
+    // Approval lives on the role now, so asking the users table for it found
+    // nobody, and the badge never showed.
     Student::factory()->count(2)->create(['is_approved' => false, 'is_rejected' => false]);
+    Student::factory()->create(['is_approved' => false, 'is_rejected' => true]);
 
-    $this->get(route('manager.dashboard'))->assertSeeInOrder(['طلبات التسجيل', '2']);
+    $html = $this->get(route('manager.dashboard'))->getContent();
+
+    preg_match('/<a[^>]*href="'.preg_quote(route('manager.pending-approvals'), '/').'"[^>]*>(.*?)<\/a>/su', $html, $link);
+
+    expect(strip_tags($link[1] ?? ''))->toMatch('/طلبات التسجيل\s*2\b/u');
 });
 
 it('opens the folded group of the page he is on, and only that one', function (string $route, bool $open) {
