@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Circle;
 use App\Models\Student;
 use App\Models\User;
 use App\Support\HijriDate;
@@ -9,12 +10,14 @@ use App\Support\Scope;
 use App\Support\StudentStatus;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 /**
  * What a home page counts for the cohorts a person reaches — a sheikh's group,
- * a teacher's cohorts: their week against the one before, the last three
- * months of memorisation, and each day of this week.
+ * a teacher's cohorts, the manager's academy: their week against the one
+ * before, the last three months of memorisation, each day of this week, and
+ * each cohort's week beside the others'.
  *
  * Every figure comes from CircleReportService, so the home page and the
  * reports can never tell him two different things. They are worked out over
@@ -32,6 +35,7 @@ class HomeFiguresService
      *     pages: array{now: int, before: int},
      *     months: list<array{label: string, hifz: int, review: int}>,
      *     days: list<array{label: string, date: string, pages: int, upcoming: bool}>,
+     *     cohorts: list<array{id: int, name: string, programme: string, teachers: string, students: int, attendance: int|null, pages: int, pagesBefore: int}>,
      *     weekLabel: string
      * }
      */
@@ -42,7 +46,7 @@ class HomeFiguresService
         $today = Carbon::parse(now('Asia/Riyadh')->toDateString());
 
         return Cache::remember(
-            'home-figures:'.$role.':'.$user->id.':'.$today->toDateString(),
+            'home-figures:v2:'.$role.':'.$user->id.':'.$today->toDateString(),
             now()->addMinutes(10),
             fn () => self::work($user, $role, $today),
         );
@@ -50,13 +54,14 @@ class HomeFiguresService
 
     private static function work(User $user, string $role, Carbon $today): array
     {
-        $students = Student::with('circle')
-            ->whereIn('circle_id', Scope::for($user, $role)->reachableCircleIds())
-            ->get();
+        $circleIds = Scope::for($user, $role)->reachableCircleIds();
+        $students = Student::with('circle')->whereIn('circle_id', $circleIds)->get();
 
         $weekStart = $today->copy()->startOfWeek(Carbon::SATURDAY);
-        $thisWeek = self::totals($students, $weekStart, $today);
-        $lastWeek = self::totals($students, $weekStart->copy()->subWeek(), $weekStart->copy()->subDay());
+        $thisWeekReport = CircleReportService::build($students, $weekStart, $today);
+        $lastWeekReport = CircleReportService::build($students, $weekStart->copy()->subWeek(), $weekStart->copy()->subDay());
+        $thisWeek = $thisWeekReport['totals'];
+        $lastWeek = $lastWeekReport['totals'];
 
         return [
             // A week with nothing recorded has no rate to set this one against:
@@ -68,6 +73,7 @@ class HomeFiguresService
             'pages' => ['now' => $thisWeek['hifz']['pages'], 'before' => $lastWeek['hifz']['pages']],
             'months' => self::months($students, $today),
             'days' => self::days($students, $weekStart, $today),
+            'cohorts' => self::cohorts($circleIds, $thisWeekReport['perStudent'], $lastWeekReport['perStudent']),
             'weekLabel' => HijriDate::dayMonth($weekStart->copy()->addDay()).' – '.HijriDate::dayMonth($weekStart->copy()->addDays(5)),
         ];
     }
@@ -118,6 +124,61 @@ class HomeFiguresService
                 'upcoming' => $upcoming,
             ];
         })->all();
+    }
+
+    /**
+     * Each cohort's week beside the one before: how many of its students take
+     * part, how many of them came, and how much they memorised.
+     *
+     * A cohort with nobody in it yet is listed too, so a new one shows up the
+     * day it is made rather than the day its first student is placed.
+     *
+     * @param  Collection<int, array<string, mixed>>  $thisWeek
+     * @param  Collection<int, array<string, mixed>>  $lastWeek
+     * @return list<array{id: int, name: string, programme: string, teachers: string, students: int, attendance: int|null, pages: int, pagesBefore: int}>
+     */
+    private static function cohorts(Collection $circleIds, Collection $thisWeek, Collection $lastWeek): array
+    {
+        $now = $thisWeek->groupBy(fn (array $row) => $row['student']->circle_id);
+        $before = $lastWeek->groupBy(fn (array $row) => $row['student']->circle_id);
+
+        return Circle::with(['stage', 'teachers'])
+            ->whereIn('id', $circleIds)
+            ->orderBy('name')
+            ->get()
+            ->map(function (Circle $circle) use ($now, $before) {
+                $rows = $now->get($circle->id, collect());
+                $expected = $rows->sum('expected_days');
+
+                return [
+                    'id' => $circle->id,
+                    'name' => trim($circle->name),
+                    'programme' => trim($circle->stage?->name ?? ''),
+                    'teachers' => $circle->teachers->pluck('name')->implode('، '),
+                    'students' => $rows->filter(fn (array $row) => StudentStatus::of($row['student']->status) === StudentStatus::Active)->count(),
+                    'attendance' => $expected > 0 ? (int) round(($rows->sum('present') + $rows->sum('late')) / $expected * 100) : null,
+                    'pages' => (int) $rows->sum('hifz_pages'),
+                    'pagesBefore' => (int) $before->get($circle->id, collect())->sum('hifz_pages'),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * A figure's movement against the period before, as the pill beside it
+     * shows it — or null when there is nothing fair to set it against.
+     *
+     * @return array{up: bool, text: string}|null
+     */
+    public static function change(?float $now, ?float $before, bool $percent): ?array
+    {
+        if ($now === null || $before === null || ($percent && $before == 0.0)) {
+            return null;
+        }
+
+        $value = $percent ? round(($now - $before) / $before * 100) : round($now - $before);
+
+        return ['up' => $value >= 0, 'text' => ($value >= 0 ? '' : '−').abs($value).($percent ? '%' : '')];
     }
 
     /**

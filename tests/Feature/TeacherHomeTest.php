@@ -51,7 +51,7 @@ it('opens the manager\'s home on the same head', function () {
         ->get(route('manager.dashboard'))
         ->assertSuccessful()
         ->assertSee('صباح الخير')
-        ->assertSee('فيصل، هذه الأكاديمية اليوم.');
+        ->assertSee('فيصل، هذه الأكاديمية هذا الأسبوع.');
 });
 
 it('marks only «الرئيسية» as where a student is on his home page', function () {

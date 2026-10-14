@@ -51,7 +51,7 @@ it('greets him by name, and counts his own group\'s week', function () {
 });
 
 it('shows the three last Hijri months, this one last', function () {
-    $labels = collect(Livewire::test('supervisor.dashboard')->viewData('chart')['bars'])->pluck('label')->all();
+    $labels = collect(Livewire::test('supervisor.dashboard')->viewData('months'))->pluck('label')->all();
 
     expect($labels)->toHaveCount(3)
         ->and(end($labels))->toBe(HijriDate::format('2026-10-07', 'MMMM'));

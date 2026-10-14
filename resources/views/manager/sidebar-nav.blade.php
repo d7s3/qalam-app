@@ -8,10 +8,7 @@
     ordered by how often it is wanted.
 --}}
 @php
-    use App\Models\Guardian;
-    use App\Models\Student;
-    use App\Models\Supervisor;
-    use App\Models\Teacher;
+    use App\Models\UserRole;
     use App\Services\MessagingService;
     use App\Support\RolePages;
 
@@ -19,8 +16,7 @@
     $on = fn (string ...$patterns) => request()->routeIs(...$patterns);
 
     $managerUnreadMessages = MessagingService::unreadCountFor('manager', auth('manager')->id());
-    $pendingRequestsCount = collect([Student::class, Teacher::class, Supervisor::class, Guardian::class])
-        ->sum(fn (string $model) => $model::where('is_approved', false)->where('is_rejected', false)->count());
+    $pendingRequestsCount = UserRole::awaitingApprovalCount();
 @endphp
 
 <flux:sidebar.item icon="home" :href="route('manager.dashboard')" :current="$on('manager.dashboard')" wire:navigate>

@@ -65,4 +65,20 @@ class UserRole extends Model
     {
         return $this->belongsTo(User::class, 'rejected_by');
     }
+
+    /**
+     * How many registrations wait for the manager's answer: students,
+     * teachers, supervisors and guardians neither approved nor turned down.
+     *
+     * Asked of the roles because that is where approval lives; asking the
+     * users table for it found nobody, so the count read nought.
+     */
+    public static function awaitingApprovalCount(): int
+    {
+        return static::query()
+            ->whereIn('role', ['student', 'teacher', 'supervisor', 'guardian'])
+            ->where('is_approved', false)
+            ->where(fn ($query) => $query->whereNull('is_rejected')->orWhere('is_rejected', false))
+            ->count();
+    }
 }

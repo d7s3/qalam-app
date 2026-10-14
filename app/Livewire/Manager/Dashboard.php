@@ -4,12 +4,15 @@ namespace App\Livewire\Manager;
 
 use App\Models\AcademicCalendarEvent;
 use App\Models\Attendance;
-use App\Models\Circle;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentPlanDay;
+use App\Models\UserRole;
+use App\Services\HomeFiguresService;
 use App\Services\StudentStatusService;
+use App\Support\HijriDate;
 use App\Support\Scope;
+use App\Support\StudentStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -278,9 +281,61 @@ class Dashboard extends Component
         $this->quranPeriod = $period;
     }
 
+    /**
+     * The head of the page: the academy's week against the one before, the
+     * last months of memorisation, every cohort's week, and how the students
+     * stand — the same figures the reports give, counted inside his reach.
+     *
+     * @return array<string, mixed>
+     */
+    private function home(): array
+    {
+        $manager = auth('manager')->user();
+        $figures = HomeFiguresService::figures($manager, 'manager');
+        $standing = HomeFiguresService::standing($manager, 'manager');
+
+        $months = $figures['months'];
+        $thisMonth = end($months);
+        $monthStart = HijriDate::monthGrid(...array_values(HijriDate::yearMonthOf(now('Asia/Riyadh'))))['first'];
+
+        return [
+            'greeting' => now('Asia/Riyadh')->hour < 12 ? __('صباح الخير') : __('مساء الخير'),
+            'firstName' => explode(' ', trim($manager->name))[0] ?? '',
+            'weekLabel' => $figures['weekLabel'],
+            'activeStudents' => collect($standing)->firstWhere('status', StudentStatus::Active)['count'] ?? 0,
+            'joinedThisMonth' => Scope::forRole('manager')->applyToStudents(Student::query())->whereDate('joined_at', '>=', $monthStart)->count(),
+            'attendance' => $figures['attendance']['now'],
+            'attendanceChange' => HomeFiguresService::change($figures['attendance']['now'], $figures['attendance']['before'], false),
+            'weekPages' => $figures['pages']['now'],
+            'pagesChange' => HomeFiguresService::change($figures['pages']['now'], $figures['pages']['before'], true),
+            'pendingRequests' => UserRole::awaitingApprovalCount(),
+            'months' => $months,
+            'monthPages' => $thisMonth['hifz'] + $thisMonth['review'],
+            'days' => $figures['days'],
+            'weekDayPages' => array_sum(array_column($figures['days'], 'pages')),
+            'cohorts' => $figures['cohorts'],
+            'cohortsLine' => $this->inCohorts(count($figures['cohorts'])),
+            'programmes' => collect($figures['cohorts'])->pluck('programme')->filter()->unique()->values()->all(),
+            'standing' => $standing,
+        ];
+    }
+
+    /** Where the students are, said the way Arabic counts cohorts. */
+    private function inCohorts(int $count): string
+    {
+        return match (true) {
+            $count === 0 => __('ولا دفعات بعد'),
+            $count === 1 => __('في دفعة واحدة'),
+            $count === 2 => __('في دفعتين'),
+            $count <= 10 => __('في').' '.$count.' '.__('دفعات'),
+            default => __('في').' '.$count.' '.__('دفعة'),
+        };
+    }
+
     public function render()
     {
         return view('livewire.manager.dashboard', [
+            'home' => $this->home(),
             'attendanceData' => $this->attendanceData,
             'quranData' => $this->quranData,
             'attDates' => $this->resolveAttendanceDates(),
