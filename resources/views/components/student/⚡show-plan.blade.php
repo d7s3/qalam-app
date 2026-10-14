@@ -137,10 +137,16 @@ new class extends Component {
             <flux:table>
                 <flux:table.columns>
                     <flux:table.column>{{ __('التاريخ') }}</flux:table.column>
-                    <flux:table.column>{{ __('مقرر الحفظ') }}</flux:table.column>
-                    <flux:table.column>{{ __('تقييم الحفظ') }}</flux:table.column>
-                    <flux:table.column>{{ __('مقرر المراجعة') }}</flux:table.column>
-                    <flux:table.column>{{ __('تقييم المراجعة') }}</flux:table.column>
+                    {{-- A plan shows the parts it has: a review-only plan has no
+                         memorising columns to sit empty, a memorising one no review. --}}
+                    @if($plan->plan_type !== 'review')
+                        <flux:table.column>{{ __('مقرر الحفظ') }}</flux:table.column>
+                        <flux:table.column>{{ __('تقييم الحفظ') }}</flux:table.column>
+                    @endif
+                    @if($plan->plan_type !== 'hifz')
+                        <flux:table.column>{{ __('مقرر المراجعة') }}</flux:table.column>
+                        <flux:table.column>{{ __('تقييم المراجعة') }}</flux:table.column>
+                    @endif
                 </flux:table.columns>
 
                 <flux:table.rows>
@@ -170,6 +176,7 @@ new class extends Component {
                                 </div>
                             </flux:table.cell>
                             
+                            @if($plan->plan_type !== 'review')
                             <flux:table.cell class="first:ps-3" >
                                 @if($day->from_ayah_id)
                                     <div class="text-sm font-medium">
@@ -210,6 +217,9 @@ new class extends Component {
                                 @endif
                             </flux:table.cell>
 
+                            @endif
+
+                            @if($plan->plan_type !== 'hifz')
                             <flux:table.cell class="first:ps-3" >
                                 @if($day->review_from_ayah_id)
                                     <div class="text-sm font-medium">
@@ -249,6 +259,7 @@ new class extends Component {
                                     <span class="text-zinc-400 text-sm">-</span>
                                 @endif
                             </flux:table.cell>
+                            @endif
                         </flux:table.row>
                     @empty
                         <flux:table.row>

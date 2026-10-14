@@ -370,27 +370,37 @@ new class extends Component {
     public function updatedFillDirection($value)
     {
         $this->reviewDirection = $value;
-        if ($value === 'reverse') {
-            $this->memorizedUpToSurah = 1;
-        } else {
-            $this->memorizedUpToSurah = 114;
-        }
-        $surah = Surah::find($this->memorizedUpToSurah);
-        $this->memorizedUpToVerse = $surah ? $surah->verses_count : 1;
+        $this->resetCeiling();
     }
 
+    /**
+     * A review-only plan asks one direction, the review's, and it rules the
+     * whole plan: where the memorised part begins as well as which way it is
+     * gone over. It used to ask the memorising direction too, which a student
+     * who memorises nothing could not answer — and the plan was built on that
+     * one while the review direction he chose was half ignored.
+     */
     public function updatedReviewDirection($value)
     {
-        // Changing review direction does not change the Hifz ceiling, so we don't need to change memorizedUpToSurah here
+        if ($this->planType === 'review') {
+            $this->fillDirection = $value;
+            $this->resetCeiling();
+        }
     }
 
     public function updatedPlanType($value)
     {
-        if ($this->fillDirection === 'reverse') {
-            $this->memorizedUpToSurah = 1;
-        } else {
-            $this->memorizedUpToSurah = 114;
+        if ($value === 'review') {
+            $this->fillDirection = $this->reviewDirection;
         }
+
+        $this->resetCeiling();
+    }
+
+    /** The memorised part, reset to the whole Quran read in the plan's direction. */
+    private function resetCeiling(): void
+    {
+        $this->memorizedUpToSurah = $this->fillDirection === 'reverse' ? 1 : 114;
         $surah = Surah::find($this->memorizedUpToSurah);
         $this->memorizedUpToVerse = $surah ? $surah->verses_count : 1;
     }
@@ -468,6 +478,8 @@ new class extends Component {
         ]);
 
         if ($this->planType === 'review') {
+            $this->fillDirection = $this->reviewDirection;
+
             if ($this->fillDirection === 'reverse') {
                 // Starts reviewing from the LAST surah (An-Nas) going down to the memorized bound
                 $this->bulkStartSurah = 114;
@@ -1122,8 +1134,8 @@ new class extends Component {
                         class="mx-auto bg-blue-50 dark:bg-zinc-800 w-16 h-16 rounded-full flex items-center justify-center text-blue-500 mb-4">
                         <flux:icon icon="arrows-up-down" class="size-8" />
                     </div>
-                    <!-- Hifz / Overall Direction -->
-                    <div>
+                    <!-- Hifz direction: a review-only plan memorises nothing, so it is not asked. -->
+                    <div x-show="planType !== 'review'" data-direction="hifz">
                         <flux:subheading class="mb-4 font-semibold text-zinc-600 dark:text-zinc-400">
                             {{ __('حدد اتجاه الحفظ') }}
                         </flux:subheading>
@@ -1151,7 +1163,7 @@ new class extends Component {
 
                     <!-- Decoupled Review Direction (Only shown if planType is hifz_review or review) -->
                     <template x-if="planType === 'hifz_review' || planType === 'review'">
-                        <div class="pt-6 border-t border-zinc-100 dark:border-zinc-800">
+                        <div data-direction="review" :class="planType === 'hifz_review' && 'pt-6 border-t border-zinc-100 dark:border-zinc-800'">
                             <flux:subheading class="mb-4 font-semibold text-zinc-600 dark:text-zinc-400">
                                 {{ __('حدد اتجاه المراجعة') }}
                             </flux:subheading>
@@ -1347,9 +1359,11 @@ new class extends Component {
                         <flux:badge color="zinc" size="sm">
                             {{ $planType === 'hifz' ? __('مسار حفظ') : ($planType === 'review' ? __('مسار مراجعة') : __('حفظ ومراجعة')) }}
                         </flux:badge>
-                        <flux:badge color="zinc" size="sm">
-                            {{ __('اتجاه الحفظ:') }} {{ $fillDirection === 'forward' ? __('من الفاتحة إلى الناس') : __('من الناس إلى الفاتحة') }}
-                        </flux:badge>
+                        @if($planType !== 'review')
+                            <flux:badge color="zinc" size="sm">
+                                {{ __('اتجاه الحفظ:') }} {{ $fillDirection === 'forward' ? __('من الفاتحة إلى الناس') : __('من الناس إلى الفاتحة') }}
+                            </flux:badge>
+                        @endif
                         @if($planType !== 'hifz')
                             <flux:badge color="zinc" size="sm">
                                 {{ __('اتجاه المراجعة:') }} {{ $reviewDirection === 'forward' ? __('من الفاتحة إلى الناس') : __('من الناس إلى الفاتحة') }}
@@ -1440,7 +1454,7 @@ new class extends Component {
                         {{-- Fill buttons --}}
                         <div
                             class="flex flex-wrap gap-1 items-center bg-white dark:bg-zinc-900 px-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-700">
-                            <div x-show="planType === 'review' || fillTarget === 'review'" class="flex flex-wrap gap-1">
+                            <div x-show="planType === 'review' || (planType === 'hifz_review' && fillTarget === 'review')" class="flex flex-wrap gap-1">
                                 <template x-if="planType === 'hifz_review'">
                                     <flux:button size="xs" class="bg-indigo-600 text-white hover:bg-indigo-700"
                                         @click="doFill('all_previous')">{{ __('جميع ما سبق') }}</flux:button>
