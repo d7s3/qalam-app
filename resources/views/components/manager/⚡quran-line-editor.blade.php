@@ -59,7 +59,7 @@ new class extends Component
                         <flux:table.cell class="font-mono text-zinc-400">{{ $ayah->verse_number }}</flux:table.cell>
                         <flux:table.cell class="first:ps-3" >
                             <div class="flex flex-col gap-1">
-                                <span class="text-lg font-arabic leading-loose">{{ $ayah->text_uthmani }}</span>
+                                <span class="text-lg font-quran leading-loose">{{ $ayah->text_uthmani }}</span>
                                 <span class="text-xs text-zinc-400">{{ $ayah->verse_key }}</span>
                             </div>
                         </flux:table.cell>

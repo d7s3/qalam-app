@@ -47,6 +47,34 @@ beforeEach(function () {
     $this->actingAs($this->student, 'student');
 });
 
+it('records on «الحفظ» and «المراجعة» what has come, not what is still to come', function (string $route, array $parts) {
+    // The plan's days to come stood at the top of the record, each «لم يُقيَّم»,
+    // and read as days he had missed.
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id, 'plan_type' => 'hifz_review', 'direction' => 'forward',
+        'start_date' => now()->subDays(2), 'is_approved' => true, 'days_count' => 30,
+        'active_days' => [0, 1, 2, 3, 4, 5, 6],
+    ]);
+    foreach (['2026-07-07', '2026-07-08', '2026-07-09'] as $date) {
+        StudentPlanDay::create(['student_plan_id' => $plan->id, 'date' => $date, 'day_name' => 'يوم'] + $parts);
+    }
+
+    $this->get(route($route))
+        ->assertSuccessful()
+        ->assertSee('2026-07-07')
+        ->assertSee('2026-07-08')
+        ->assertDontSee('2026-07-09');
+})->with([
+    'hifz' => ['student.hifz', ['from_ayah_id' => 1, 'to_ayah_id' => 3]],
+    'review' => ['student.review', ['review_from_ayah_id' => 1, 'review_to_ayah_id' => 3]],
+]);
+
+it('sets the verse of the day in a face that carries the Quran\'s marks', function () {
+    $html = $this->get(route('student.dashboard'))->assertSuccessful()->getContent();
+
+    expect($html)->toMatch('/<p class="[^"]*\bfont-quran\b[^"]*">\s*﴿/u');
+});
+
 it('renders the hifz page with a graded plan day', function () {
     $plan = StudentPlan::create([
         'student_id' => $this->student->id, 'plan_type' => 'hifz', 'direction' => 'forward',

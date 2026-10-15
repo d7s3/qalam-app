@@ -97,7 +97,7 @@ new class extends Component
                             <div class="flex items-start gap-2 px-2 py-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm text-zinc-700 dark:text-zinc-200">
                                 <flux:icon icon="bookmark" class="size-4 text-maroon shrink-0 mt-0.5" />
                                 <div>
-                                    <div class="truncate">{{ $ayah->text_uthmani }}</div>
+                                    <div class="truncate font-quran">{{ $ayah->text_uthmani }}</div>
                                     <div class="text-xs text-zinc-400">{{ $ayah->surah->name_arabic }} - {{ __('آية') }} {{ $ayah->verse_number }}</div>
                                 </div>
                             </div>

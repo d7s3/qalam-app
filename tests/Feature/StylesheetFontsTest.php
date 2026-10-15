@@ -51,3 +51,10 @@ it('warms the light greys to the paper the pages stand on, and leaves the dark o
         ->toContain('--color-zinc-900: #171717;')
         ->toContain('[data-flux-card]');
 });
+
+it('brings a face made for the Quran\'s text, marks and all', function () {
+    // The verse of the day was set in Zain, a display face without the
+    // Mushaf's small marks, which some browsers then drew as empty boxes.
+    expect(stylesheet())->toContain('family=Amiri+Quran')
+        ->toContain("--font-quran: 'Amiri Quran'");
+});
