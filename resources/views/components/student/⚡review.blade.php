@@ -17,6 +17,9 @@ new class extends Component
             ->whereHas('plan', fn ($q) => $q->where('student_id', $student->id))
             ->whereNotNull('review_from_ayah_id')
             ->whereNotNull('review_to_ayah_id')
+            // A record of what has been: the plan's days to come are on its
+            // own page, and here read as days missed.
+            ->whereDate('date', '<=', now('Asia/Riyadh')->toDateString())
             ->orderByDesc('date')
             ->paginate(15);
 
