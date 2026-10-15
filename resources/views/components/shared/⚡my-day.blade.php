@@ -82,8 +82,11 @@ new class extends Component
 
         abort_unless($onToday, 404);
 
+        // Bound as a Carbon, not the bare "Y-m-d" the screen holds: the `date`
+        // cast stores "Y-m-d H:i:s", which a bare day never equals on SQLite,
+        // so a second answer found no row and failed on the unique key.
         OccurrenceAttendance::updateOrCreate(
-            ['academic_calendar_event_id' => $eventId, 'date' => $this->date, 'user_id' => $user->id],
+            ['academic_calendar_event_id' => $eventId, 'date' => \Carbon\Carbon::parse($this->date)->startOfDay(), 'user_id' => $user->id],
             ['role' => $this->asRole, 'status' => $status, 'self_recorded' => true, 'recorded_by' => $user->id],
         );
 
