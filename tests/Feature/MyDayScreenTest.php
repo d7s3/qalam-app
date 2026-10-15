@@ -68,6 +68,23 @@ it('lets him record his own attendance', function () {
     expect($answer->self_recorded)->toBeTrue();
 });
 
+it('lets him change his answer, rather than failing on the second one', function () {
+    // The day was matched as bare text against the stored date and time, so
+    // the second answer looked for no row, tried to add one beside the first,
+    // and the unique key turned it into an error page.
+    $day = Livewire::actingAs($this->student, 'student')
+        ->test('shared.my-day')
+        ->set('asRole', 'student')
+        ->set('date', '2026-09-07');
+
+    $day->call('record', $this->lesson->id, 'present')
+        ->call('record', $this->lesson->id, 'late')
+        ->assertHasNoErrors();
+
+    expect(OccurrenceAttendance::count())->toBe(1)
+        ->and(OccurrenceAttendance::sole()->status)->toBe('late');
+});
+
 it('refuses an answer for a day the appointment does not fall on', function () {
     Livewire::actingAs($this->student, 'student')
         ->test('shared.my-day')
