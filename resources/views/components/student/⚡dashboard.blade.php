@@ -500,7 +500,7 @@ new class extends Component {
                     <circle cx="60" cy="96" r="2.5" fill="#a8791f" />
                 </svg>
                 @if($verseOfDay)
-                    <p class="font-zain text-lg text-maroon dark:text-red-secondary leading-relaxed">
+                    <p class="font-quran text-xl text-maroon dark:text-red-secondary leading-[2.2]">
                         {{ '﴿ '.$verseOfDay->text_uthmani.' ﴾' }}
                     </p>
                     <p class="text-xs text-neutral-grey dark:text-zinc-400 mt-2">
