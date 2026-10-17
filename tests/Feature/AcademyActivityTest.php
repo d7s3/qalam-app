@@ -47,7 +47,8 @@ beforeEach(function () {
         'start_date' => now('Asia/Riyadh')->subMonth()->toDateString(),
         'end_date' => now('Asia/Riyadh')->addMonth()->toDateString(),
         'is_attendance_period' => true,
-        'weekdays' => [0, 1, 2, 3, 4, 5, 6],
+        // 1 = Sunday … 7 = Saturday; 0 named no day, so every Saturday failed.
+        'weekdays' => [1, 2, 3, 4, 5, 6, 7],
         'stage_ids' => [$this->programme->id],
         'sessions' => [
             ['from' => '17:00', 'to' => '19:00', 'label' => 'الأولى'],
