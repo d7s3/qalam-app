@@ -908,7 +908,9 @@ new class extends Component {
                 'direction' => $this->fillDirection,
                 'review_direction' => $this->reviewDirection,
                 'status' => 'active',
-                'is_approved' => $this->userLevel === 'teacher',
+                // A student's own plan stands as he writes it; nobody approves it
+                // first (decided with Faisal, 17 Oct 2026).
+                'is_approved' => true,
                 'created_by_role' => $this->userLevel,
             ]);
         }
@@ -946,7 +948,7 @@ new class extends Component {
         }
 
         if ($this->userLevel === 'student') {
-            return redirect()->route('student.plan')->with('success', 'تم الحفظ وسيتم عرضها على المعلم للاعتماد');
+            return redirect()->route('student.plan')->with('success', 'تم حفظ خطتك واعتمادها');
         }
 
         $this->dispatch('plan-created');

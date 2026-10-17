@@ -101,3 +101,37 @@ it('keeps a student\'s plan to himself', function () {
 
     expect(StudentPlan::where('student_id', $this->stranger->id)->count())->toBe(1);
 });
+
+it('approves a student\'s own plan the moment he saves it', function () {
+    // Decided with Faisal on 17 Oct 2026: the student makes his plan and it
+    // stands; nobody has to approve it first.
+    $this->actingAs($this->student, 'student');
+
+    Livewire::test('shared.plan-creator')
+        ->set('planType', 'hifz')
+        ->set('planDays', creatorPlanDays())
+        ->call('save')
+        ->assertRedirect(route('student.plan'));
+
+    $plan = StudentPlan::where('student_id', $this->student->id)->sole();
+
+    expect((bool) $plan->is_approved)->toBeTrue()
+        ->and($plan->created_by_role)->toBe('student');
+});
+
+it('lets a student take back a plan of his own until a day of it is graded', function () {
+    $this->actingAs($this->student, 'student');
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id, 'start_date' => '2026-09-13', 'days_count' => 1, 'active_days' => ['Sunday'],
+        'plan_type' => 'hifz', 'status' => 'active', 'is_approved' => true, 'created_by_role' => 'student',
+        'direction' => 'reverse', 'review_direction' => 'reverse',
+    ]);
+    $day = $plan->days()->create(['date' => '2026-09-13', 'day_name' => 'الأحد', 'hifz_achievement' => 3]);
+
+    Livewire::test('student.my-plan')->call('deletePlan', $plan->id);
+    expect($plan->fresh())->not->toBeNull();
+
+    $day->update(['hifz_achievement' => null]);
+    Livewire::test('student.my-plan')->call('deletePlan', $plan->id);
+    expect($plan->fresh())->toBeNull();
+});
