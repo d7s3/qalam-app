@@ -30,10 +30,22 @@ new class extends Component {
         ];
     }
     
+    /**
+     * Whether he may still change or withdraw this plan: one he wrote himself,
+     * none of whose days has yet been graded. His plans stand the moment he
+     * saves them, so this, not approval, is what keeps them his to change.
+     */
+    public function canTakeBack(StudentPlan $plan): bool
+    {
+        return $plan->created_by_role === 'student'
+            && $plan->student_id === Auth::guard('student')->id()
+            && ! $plan->days()->where(fn ($q) => $q->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'))->exists();
+    }
+
     public function deletePlan($planId)
     {
         $plan = StudentPlan::findOrFail($planId);
-        if (!$plan->is_approved && $plan->created_by_role === 'student' && $plan->student_id === Auth::guard('student')->id()) {
+        if ($this->canTakeBack($plan)) {
             DB::transaction(function () use ($plan) {
                 $plan->days()->delete();
                 $plan->delete();
@@ -149,7 +161,7 @@ new class extends Component {
                                 {{ __('عرض الجدول اليومي') }}
                             </flux:button>
 
-                            @if(!$plan->is_approved && $plan->created_by_role === 'student')
+                            @if($this->canTakeBack($plan))
                                 <flux:button variant="ghost" class="text-zinc-500 hover:text-zinc-900" icon="pencil" href="{{ route('student.plan-creator', ['edit' => $plan->id]) }}" />
                                 <flux:button variant="ghost" class="text-red-500 hover:text-red-700 hover:bg-red-50" icon="trash" wire:click="deletePlan({{ $plan->id }})" wire:confirm="{{ __('هل أنت متأكد من حذف الخطة المرفوعة وإلغائها بشكل نهائي؟') }}" />
                             @endif
