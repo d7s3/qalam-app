@@ -53,13 +53,26 @@ class SelfProgramBridge
             return;
         }
 
+        $pages = $this->pagesFor($day);
+
         $this->programme->record(
             $student,
             $item,
-            $this->pagesFor($day),
+            $pages,
             $day->date,
             StudentSelfProgramEntry::SOURCE_TASMEEH,
         );
+
+        // He may write his wird in himself too; once his teacher has graded the
+        // day, the recitation is that day's figure, and his own entry for it
+        // would count the same pages twice.
+        if ($pages > 0) {
+            StudentSelfProgramEntry::where('student_id', $student->id)
+                ->where('self_program_item_id', $item->id)
+                ->where('source', StudentSelfProgramEntry::SOURCE_STUDENT)
+                ->whereDate('entry_date', $day->date)
+                ->delete();
+        }
     }
 
     /**

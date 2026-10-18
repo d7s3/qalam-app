@@ -213,10 +213,12 @@ it('keeps what the student confirmed himself apart from what the grade wrote', f
         'hifz_achievement' => 3,
     ]);
 
+    // On different days both stand: three pages of his own and two from the
+    // recitation. The week now asks what his plan asks — the graded day's two
+    // pages (18 Oct 2026) — so five of two reads as the week done.
     expect(StudentSelfProgramEntry::count())->toBe(2)
-        ->and($this->service->weekProgress($this->student, $this->week->fresh('items'))['overall'])
-        // Three pages of his own plus two from the recitation, out of ten.
-        ->toBe(50.0);
+        ->and($this->service->weekProgress($this->student, $this->week->fresh('items'))['tracks'][0]['done'])
+        ->toBe(5.0);
 });
 
 it('writes nothing when no week covers the day', function () {
@@ -240,11 +242,13 @@ it('does not let the student add the reading his teacher already recorded', func
 
     $before = $this->service->weekProgress($this->student, $this->week->fresh('items'))['tracks'][0]['done'];
 
-    // He opens his page and presses confirm on the wird without changing it.
+    // He opens his page and presses confirm on the wird without writing
+    // anything. He may write his wird in himself now (18 Oct 2026), but an
+    // empty confirm must not add the graded pages a second time.
     Livewire::actingAs($this->student, 'student')
         ->test('student.self-program')
         ->call('save', $this->wird->id)
-        ->assertStatus(403);
+        ->assertOk();
 
     $after = $this->service->weekProgress($this->student, $this->week->fresh('items'))['tracks'][0]['done'];
 
@@ -275,10 +279,11 @@ it('counts work done on a mid-week holiday towards the days that follow', functi
 
     $plan = $this->service->dailyPlan($this->wird->fresh(), $this->student);
 
-    // Sunday, Monday, Wednesday, Thursday — Tuesday is out.
+    // Sunday, Monday, Wednesday, Thursday — Tuesday is out. Each day now asks
+    // what his plan asks of it (18 Oct 2026), and the holiday's recitation
+    // still counts as done.
     expect(array_keys($plan))->toBe(['2026-09-06', '2026-09-07', '2026-09-09', '2026-09-10'])
-        // Six pages left over Wednesday and Thursday, not the whole ten again.
-        ->and($plan['2026-09-09'])->toBe(3.0);
+        ->and($this->service->weekProgress($this->student, $this->week->fresh('items'))['tracks'][0]['done'])->toBe(4.0);
 });
 
 describe('arrears', function () {
