@@ -256,16 +256,17 @@ describe('the student page', function () {
             ->assertHasErrors("clock.{$this->manual->id}.minutes");
     });
 
-    it('will not let a memorising circle\'s student write his own wird', function () {
-        // It is recorded from his recitation; letting him confirm it again
-        // stored the same reading twice.
+    it('lets a memorising circle\'s student write his own wird as well', function () {
+        // Decided with Faisal, 18 Oct 2026: the bar moves by his recitation or
+        // by what he writes in himself; a graded day replaces his own entry
+        // for it, so nothing is counted twice (see SelfProgramWirdFromPlanTest).
         Livewire::actingAs($this->student, 'student')
             ->test('student.self-program')
             ->set("amounts.{$this->item->id}", 6)
             ->call('save', $this->item->id)
-            ->assertStatus(403);
+            ->assertHasNoErrors();
 
-        expect(StudentSelfProgramEntry::count())->toBe(0);
+        expect(StudentSelfProgramEntry::where('student_id', $this->student->id)->sum('amount_done'))->toEqual(6.0);
     });
 
     it('says the wird comes from his teacher rather than offering a box', function () {

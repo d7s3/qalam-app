@@ -220,12 +220,12 @@ class EducationalLossService
             ->map(fn (Collection $rows) => (float) $rows->sum('amount_done'));
 
         return $items
-            ->filter(fn (SelfProgramItem $item) => ($done[$item->id] ?? 0) < (float) $item->target_amount)
+            ->filter(fn (SelfProgramItem $item) => ($done[$item->id] ?? 0) < app(SelfProgramService::class)->targetFor($item, $student))
             ->map(fn (SelfProgramItem $item) => [
                 'kind' => 'self-program',
                 'label' => $item->track?->label() ?? __('البرنامج الذاتي'),
                 'date' => (string) $item->week?->ends_on?->format('Y-m-d'),
-                'expected' => $item->say((float) $item->target_amount),
+                'expected' => $item->say(app(SelfProgramService::class)->targetFor($item, $student)),
                 'done' => $item->say((float) ($done[$item->id] ?? 0)),
             ])
             ->values()

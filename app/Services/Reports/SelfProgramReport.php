@@ -134,7 +134,7 @@ class SelfProgramReport implements Report
                 $percentages = [];
 
                 foreach ($week->items as $item) {
-                    $target = (float) $item->target_amount;
+                    $target = app(SelfProgramService::class)->targetFor($item, $student, $week);
 
                     if ($target <= 0) {
                         continue;

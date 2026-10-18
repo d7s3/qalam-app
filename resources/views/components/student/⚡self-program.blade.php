@@ -49,9 +49,12 @@ new class extends Component
         $student = Auth::guard('student')->user();
 
         foreach ($this->openItems() as $item) {
-            $done = $service->doneByDay($item, $student);
-            $this->amounts[$item->id] = $done[$this->day] ?? null;
-            $this->clock[$item->id] = SelfProgramUnit::toHoursAndMinutes((float) ($done[$this->day] ?? 0));
+            // What he wrote himself that day, not what a recitation wrote for
+            // him: the field is his, and a confirm pressed on the recitation's
+            // figure stored the same pages a second time under his name.
+            $own = $service->recordedBy($student, $item, Carbon::parse($this->day));
+            $this->amounts[$item->id] = $own > 0 ? $own : null;
+            $this->clock[$item->id] = SelfProgramUnit::toHoursAndMinutes($own);
         }
     }
 
@@ -141,8 +144,6 @@ new class extends Component
         // The item must belong to a week this student actually has open.
         abort_unless($item instanceof SelfProgramItem, 404);
 
-        // The wird of a memorising circle is the teacher's to record.
-        abort_if($this->bridged($item), 403);
 
         $this->validate([
             "amounts.{$itemId}" => ['nullable', 'numeric', 'min:0', 'max:9999'],
@@ -322,7 +323,7 @@ new class extends Component
         if (! $week) {
             return [
                 'week' => null, 'tracks' => [], 'overall' => 0, 'days' => [], 'plans' => [],
-                'unlocked' => false, 'arrears' => $arrears, 'bridged' => [],
+                'unlocked' => false, 'arrears' => $arrears, 'bridged' => [], 'fromPlan' => [],
                 'enrichment' => null, 'enrichmentProgress' => null,
                 'grid' => ['days' => [], 'columns' => [], 'rows' => []], 'wide' => null,
             ];
@@ -356,10 +357,12 @@ new class extends Component
 
         $plans = [];
         $bridged = [];
+        $fromPlan = [];
 
         foreach ($week->items as $item) {
             $plans[$item->id] = $service->dailyPlan($item, $student);
             $bridged[$item->id] = $this->bridged($item);
+            $fromPlan[$item->id] = $item->track?->isQuranWird() && $service->planWirdDays($student, $week) !== null;
         }
 
         return [
@@ -371,6 +374,7 @@ new class extends Component
             'days' => $service->workingDays($week),
             'plans' => $plans,
             'bridged' => $bridged,
+            'fromPlan' => $fromPlan,
             // The reading is already in hand, so the threshold is read off it
             // rather than recomputed.
             'unlocked' => $service->enrichmentUnlocked($student, $week, $progress['overall']),
@@ -705,7 +709,7 @@ new class extends Component
                             <div>
                                 <div class="font-bold text-zinc-900 dark:text-white">{{ $item->track->label() }}</div>
                                 <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                    {{ $item->description ?: __('لم يُحدَّد محتوى') }}
+                                    {{ ($fromPlan[$item->id] ?? false) ? __('حسب خطتك القرآنية: حفظك ومراجعتك هذا الأسبوع') : ($item->description ?: __('لم يُحدَّد محتوى')) }}
                                     @if ($item->content_url)
                                         <a href="{{ $item->content_url }}" target="_blank" rel="noopener noreferrer"
                                             class="inline-flex items-center gap-1 mt-1 text-xs font-bold text-maroon dark:text-red-secondary hover:underline">
@@ -731,21 +735,15 @@ new class extends Component
                     </div>
 
                     @if ($entry['target'] > 0 && ($bridged[$item->id] ?? false))
-                        {{-- يكتبه التسميع، فلا يؤكده الطالب مرة ثانية --}}
-                        <div class="flex items-center gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2.5">
+                        {{-- يتحرك بطريقتين: بالتسميع عند المعلم، أو بما يكتبه الطالب هنا --}}
+                        <div class="flex items-center gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2">
                             <flux:icon icon="check-badge" class="size-4 text-emerald-500 shrink-0" />
                             <div class="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                                {{ __('يُسجَّل تلقائياً من تسميعك عند معلمك') }} —
-                                <span class="font-bold tabular-nums">
-                                    {{ $item->say($entry['done']) }}
-                                </span>
-                                {{ __('حتى الآن، والمقترح اليوم') }}
-                                <span class="font-bold tabular-nums">
-                                    {{ $item->say($suggested) }}
-                                </span>.
+                                {{ __('يُسجَّل تلقائياً من تسميعك عند معلمك، أو سجّله بنفسك هنا.') }}
                             </div>
                         </div>
-                    @elseif ($entry['target'] > 0)
+                    @endif
+                    @if ($entry['target'] > 0)
                         <div class="flex items-end gap-2">
                             <flux:field class="flex-1">
                                 <flux:label class="text-xs">

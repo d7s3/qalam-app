@@ -8,8 +8,11 @@ use App\Models\SelfProgramItem;
 use App\Models\SelfProgramTrack;
 use App\Models\SelfProgramWeek;
 use App\Models\Student;
+use App\Models\StudentPlanDay;
 use App\Models\StudentSelfProgramEntry;
 use App\Support\HijriDate;
+use App\Support\MushafPages;
+use App\Support\QuranicStudent;
 use App\Support\SelfProgramUnit;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
@@ -26,6 +29,71 @@ use Illuminate\Support\Collection;
  */
 class SelfProgramService
 {
+    /** @var array<string, array<string, float>|null> a student's plan pages per day, per week */
+    private array $planWirdDays = [];
+
+    /**
+     * What a student's own Quran plan asks of him over a week, day by day: the
+     * pages of what he memorises and what he revises on each day it falls due.
+     *
+     * The wird of the self programme is his plan (decided with Faisal, 18 Oct
+     * 2026): until then it asked for whatever single figure a supervisor typed
+     * for the whole programme, which knew nothing of any one boy's plan. Null
+     * when the plan does not set it — a cohort without day-by-day plans, or no
+     * approved plan with a day in the week — and the supervisor's figure holds.
+     *
+     * @return array<string, float>|null keyed by Y-m-d
+     */
+    public function planWirdDays(Student $student, SelfProgramWeek $week): ?array
+    {
+        $key = $student->id.':'.$week->id;
+
+        if (array_key_exists($key, $this->planWirdDays)) {
+            return $this->planWirdDays[$key];
+        }
+
+        if (! QuranicStudent::mode($student)->isDetailed()) {
+            return $this->planWirdDays[$key] = null;
+        }
+
+        $days = StudentPlanDay::query()
+            ->whereHas('plan', fn ($plan) => $plan->where('student_id', $student->id)->where('is_approved', true)->where('status', 'active'))
+            ->whereDate('date', '>=', $week->starts_on->toDateString())
+            ->whereDate('date', '<=', $week->ends_on->toDateString())
+            ->get(['date', 'from_ayah_id', 'to_ayah_id', 'review_from_ayah_id', 'review_to_ayah_id']);
+
+        $pages = [];
+
+        foreach ($days as $day) {
+            $count = MushafPages::inRange($day->from_ayah_id, $day->to_ayah_id)
+                + MushafPages::inRange($day->review_from_ayah_id, $day->review_to_ayah_id);
+
+            if ($count > 0) {
+                $date = $day->date->toDateString();
+                $pages[$date] = ($pages[$date] ?? 0.0) + $count;
+            }
+        }
+
+        return $this->planWirdDays[$key] = $pages === [] ? null : $pages;
+    }
+
+    /**
+     * What this item asks of this student over its week: his plan's pages for
+     * the Quran wird when his plan sets it, the supervisor's figure otherwise.
+     */
+    public function targetFor(SelfProgramItem $item, Student $student, ?SelfProgramWeek $week = null): float
+    {
+        if ($item->track?->isQuranWird()) {
+            $fromPlan = $this->planWirdDays($student, $week ?? $item->week);
+
+            if ($fromPlan !== null) {
+                return (float) array_sum($fromPlan);
+            }
+        }
+
+        return (float) $item->target_amount;
+    }
+
     /**
      * The threshold at which the enrichment programme opens.
      */
@@ -194,6 +262,12 @@ class SelfProgramService
     public function dailyPlan(SelfProgramItem $item, Student $student): array
     {
         $days = $this->workingDays($item->week);
+
+        // The wird his plan sets is asked day by day as the plan asks it.
+        if ($item->track?->isQuranWird() && ($fromPlan = $this->planWirdDays($student, $item->week)) !== null) {
+            return collect($days)->mapWithKeys(fn (string $day) => [$day => (float) ($fromPlan[$day] ?? 0)])->all();
+        }
+
         $target = (float) $item->target_amount;
 
         if ($days === [] || $target <= 0) {
@@ -433,7 +507,7 @@ class SelfProgramService
             foreach ($week->items as $item) {
                 $trackKey = $item->track?->key ?? (string) $item->id;
 
-                $totals[$trackKey][$key]['target'] = ($totals[$trackKey][$key]['target'] ?? 0) + (float) $item->target_amount;
+                $totals[$trackKey][$key]['target'] = ($totals[$trackKey][$key]['target'] ?? 0) + $this->targetFor($item, $student, $week);
                 $totals[$trackKey][$key]['done'] = ($totals[$trackKey][$key]['done'] ?? 0) + ($entries[$item->id] ?? 0);
                 // The unit comes from the weeks themselves, as the week grid's
                 // does. Taking the field's instead made the same field read
@@ -556,7 +630,7 @@ class SelfProgramService
                 'item' => $item,
                 'track' => $item->track,
                 'unit' => $item->displayUnit(),
-                'target' => (float) $item->target_amount,
+                'target' => $this->targetFor($item, $student),
                 'done' => array_sum($done),
                 'cells' => $cells,
             ];
@@ -617,7 +691,7 @@ class SelfProgramService
             ->map(fn ($total) => (float) $total)
             ->all();
 
-        return $this->readWeek($week, $totals);
+        return $this->readWeek($student, $week, $totals);
     }
 
     /**
@@ -626,13 +700,13 @@ class SelfProgramService
      * @param  array<int, float>  $totals  keyed by item id
      * @return array{tracks: array<int, array{item: SelfProgramItem, done: float, target: float, percent: float}>, overall: float}
      */
-    private function readWeek(SelfProgramWeek $week, array $totals): array
+    private function readWeek(Student $student, SelfProgramWeek $week, array $totals): array
     {
         $tracks = [];
         $percentages = [];
 
         foreach ($week->items as $item) {
-            $target = (float) $item->target_amount;
+            $target = $this->targetFor($item, $student, $week);
             $done = (float) ($totals[$item->id] ?? 0);
             $percent = $target > 0 ? min(100.0, $done / $target * 100) : 0.0;
 
@@ -679,7 +753,7 @@ class SelfProgramService
         $out = [];
 
         foreach ($weeks as $week) {
-            $out[$week->id] = $this->readWeek($week, $totals)['overall'];
+            $out[$week->id] = $this->readWeek($student, $week, $totals)['overall'];
         }
 
         return $out;
@@ -752,7 +826,7 @@ class SelfProgramService
                     ->filter(fn (StudentSelfProgramEntry $row) => $row->entry_date->copy()->startOfDay()->greaterThan($closes))
                     ->sum('amount_done');
 
-                $target = (float) $item->target_amount;
+                $target = $this->targetFor($item, $student, $week);
                 $percent = $target > 0 ? min(100.0, $done / $target * 100) : 0.0;
 
                 $totals[$item->id] = $done;
@@ -835,7 +909,7 @@ class SelfProgramService
 
         foreach ($weeks as $week) {
             foreach ($week->items as $item) {
-                $target = (float) $item->target_amount;
+                $target = $this->targetFor($item, $student, $week);
 
                 // Nothing was asked for, so nothing can be owed.
                 if ($target <= 0) {
@@ -927,14 +1001,14 @@ class SelfProgramService
             $week = $stageId ? $current->get($stageId) : null;
             $mine = $totals[$student->id] ?? [];
 
-            $reading = $week ? $this->readWeek($week, $mine) : null;
+            $reading = $week ? $this->readWeek($student, $week, $mine) : null;
             $overall = $reading['overall'] ?? null;
 
             $owed = 0;
 
             foreach ($past->get($stageId) ?? collect() as $old) {
                 foreach ($old->items as $item) {
-                    $target = (float) $item->target_amount;
+                    $target = $this->targetFor($item, $student, $old);
 
                     if ($target > 0 && ($mine[$item->id] ?? 0) < $target) {
                         $owed++;

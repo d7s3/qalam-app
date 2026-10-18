@@ -173,7 +173,7 @@ class DayAgendaService
             ->map(fn (SelfProgramItem $item) => [
                 'kind' => 'self-program',
                 'label' => $item->track?->label() ?? __('البرنامج الذاتي'),
-                'detail' => $item->say((float) $item->target_amount),
+                'detail' => $item->say(app(SelfProgramService::class)->targetFor($item, $student)),
             ])
             ->all();
     }
