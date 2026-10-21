@@ -892,7 +892,8 @@ new class extends Component {
             ]);
 
             $existingIds = collect($this->planDays)->pluck('id')->filter()->toArray();
-            $plan->days()->whereNotIn('id', $existingIds)->delete();
+            // One by one, so a removed graded day takes its wird entry with it.
+            $plan->days()->whereNotIn('id', $existingIds)->get()->each->delete();
         } else {
             $student = $this->reachableStudents()->findOrFail($this->studentId);
             $teacherId = $this->userLevel === 'teacher' ? Auth::guard('teacher')->id() : $student->circle?->teachers()->first()?->id;

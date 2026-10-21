@@ -30,16 +30,11 @@ new class extends Component {
         ];
     }
     
-    /**
-     * Whether he may still change or withdraw this plan: one he wrote himself,
-     * none of whose days has yet been graded. His plans stand the moment he
-     * saves them, so this, not approval, is what keeps them his to change.
-     */
+    /** A plan he wrote himself stays his to change or withdraw, begun or not (Faisal, 21 Oct 2026). */
     public function canTakeBack(StudentPlan $plan): bool
     {
         return $plan->created_by_role === 'student'
-            && $plan->student_id === Auth::guard('student')->id()
-            && ! $plan->days()->where(fn ($q) => $q->whereNotNull('hifz_achievement')->orWhereNotNull('review_achievement'))->exists();
+            && $plan->student_id === Auth::guard('student')->id();
     }
 
     public function deletePlan($planId)
@@ -47,7 +42,8 @@ new class extends Component {
         $plan = StudentPlan::findOrFail($planId);
         if ($this->canTakeBack($plan)) {
             DB::transaction(function () use ($plan) {
-                $plan->days()->delete();
+                // One by one, so each graded day takes its wird entry with it.
+                $plan->days->each->delete();
                 $plan->delete();
             });
             $this->redirect(route('student.plan'), navigate: true);
@@ -163,7 +159,7 @@ new class extends Component {
 
                             @if($this->canTakeBack($plan))
                                 <flux:button variant="ghost" class="text-zinc-500 hover:text-zinc-900" icon="pencil" href="{{ route('student.plan-creator', ['edit' => $plan->id]) }}" />
-                                <flux:button variant="ghost" class="text-red-500 hover:text-red-700 hover:bg-red-50" icon="trash" wire:click="deletePlan({{ $plan->id }})" wire:confirm="{{ __('هل أنت متأكد من حذف الخطة المرفوعة وإلغائها بشكل نهائي؟') }}" />
+                                <flux:button variant="ghost" class="text-red-500 hover:text-red-700 hover:bg-red-50" icon="trash" wire:click="deletePlan({{ $plan->id }})" wire:confirm="{{ __('تُحذف الخطة نهائياً، ومعها ما سُجّل فيها من تسميع. متأكد؟') }}" />
                             @endif
                         </div>
                     </div>

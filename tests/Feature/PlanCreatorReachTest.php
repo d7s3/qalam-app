@@ -4,6 +4,7 @@ use App\Models\Circle;
 use App\Models\Stage;
 use App\Models\Student;
 use App\Models\StudentPlan;
+use App\Models\StudentPlanDay;
 use App\Models\Teacher;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -119,19 +120,30 @@ it('approves a student\'s own plan the moment he saves it', function () {
         ->and($plan->created_by_role)->toBe('student');
 });
 
-it('lets a student take back a plan of his own until a day of it is graded', function () {
+it('lets a student withdraw a plan of his own even once he has begun it', function () {
     $this->actingAs($this->student, 'student');
     $plan = StudentPlan::create([
         'student_id' => $this->student->id, 'start_date' => '2026-09-13', 'days_count' => 1, 'active_days' => ['Sunday'],
         'plan_type' => 'hifz', 'status' => 'active', 'is_approved' => true, 'created_by_role' => 'student',
         'direction' => 'reverse', 'review_direction' => 'reverse',
     ]);
-    $day = $plan->days()->create(['date' => '2026-09-13', 'day_name' => 'الأحد', 'hifz_achievement' => 3]);
+    $plan->days()->create(['date' => '2026-09-13', 'day_name' => 'الأحد', 'hifz_achievement' => 3]);
 
     Livewire::test('student.my-plan')->call('deletePlan', $plan->id);
+
+    expect($plan->fresh())->toBeNull()
+        ->and(StudentPlanDay::where('student_plan_id', $plan->id)->exists())->toBeFalse();
+});
+
+it('keeps a plan his teacher wrote out of his hands', function () {
+    $this->actingAs($this->student, 'student');
+    $plan = StudentPlan::create([
+        'student_id' => $this->student->id, 'start_date' => '2026-09-13', 'days_count' => 1, 'active_days' => ['Sunday'],
+        'plan_type' => 'hifz', 'status' => 'active', 'is_approved' => true, 'created_by_role' => 'teacher',
+        'direction' => 'reverse', 'review_direction' => 'reverse',
+    ]);
+
+    Livewire::test('student.my-plan')->call('deletePlan', $plan->id);
+
     expect($plan->fresh())->not->toBeNull();
-
-    $day->update(['hifz_achievement' => null]);
-    Livewire::test('student.my-plan')->call('deletePlan', $plan->id);
-    expect($plan->fresh())->toBeNull();
 });
