@@ -139,6 +139,8 @@
     {{-- What meets a person on opening: a word addressed to him, or a verse. --}}
     <livewire:shared.opening />
 
+    <x-page-tour />
+
     @persist('toast')
         <flux:toast />
     @endpersist
