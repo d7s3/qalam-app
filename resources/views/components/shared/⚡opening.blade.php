@@ -95,7 +95,7 @@ new class extends Component
      heading and its button stay put and only the text between them scrolls. --}}
 <div dir="rtl">
     @if($message || $motivation)
-        <div class="fixed inset-0 z-overlay flex items-end md:items-center justify-center bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4"
+        <div data-opening class="fixed inset-0 z-overlay flex items-end md:items-center justify-center bg-black/40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4"
             role="dialog" aria-modal="true"
             @unless($message)
                 wire:click.self="dismiss" x-on:keydown.escape.window="$wire.dismiss()"

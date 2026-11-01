@@ -7,6 +7,14 @@
             <flux:heading size="xl" class="font-bold text-zinc-900 dark:text-white">دليل الاستخدام</flux:heading>
             <flux:subheading class="text-zinc-400">شرح كل صفحة في النظام وكيفية الوصول إليها</flux:subheading>
         </div>
+        <flux:spacer />
+        <flux:button size="sm" icon="arrow-path" data-replay-tours
+            x-data="{ replay() {
+                try { Object.keys(localStorage).filter((k) => k.startsWith('qalam.tour.')).forEach((k) => localStorage.removeItem(k)) } catch (e) {}
+                Flux.toast({ text: 'ستظهر الجولة الإرشادية من جديد في كل صفحة تفتحها', variant: 'success' })
+            } }" x-on:click="replay()">
+            أعد الجولات الإرشادية
+        </flux:button>
     </div>
 
     @if($sections->isEmpty())

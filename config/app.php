@@ -138,4 +138,17 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Page Tours
+    |--------------------------------------------------------------------------
+    |
+    | The walk through a page shown the first time it is opened
+    | (App\Support\PageTours). Off for the test suite and for recording the
+    | tutorial videos, where it would stand over what is being shown.
+    |
+    */
+
+    'page_tours' => (bool) env('PAGE_TOURS', true),
+
 ];
