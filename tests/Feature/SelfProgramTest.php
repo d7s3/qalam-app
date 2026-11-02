@@ -305,6 +305,161 @@ describe('the student page', function () {
             ->call('save', $foreign->id)
             ->assertStatus(404);
     });
+
+    // Decided with Faisal, 2 Nov 2026: a supervisor who describes a field but
+    // gives it no amount still means it to be done, so the student may record it.
+    it('opens a described field with no amount, and leaves it out of the average', function () {
+        $described = SelfProgramItem::create([
+            'self_program_week_id' => $this->week->id,
+            'track' => SelfProgramTrack::TAHDHEER,
+            'description' => 'شرح الدرر المكية',
+            'target_amount' => 0,
+            'unit' => 'دقيقة',
+        ]);
+        // Neither amount nor description: still closed, so three fields are open.
+        SelfProgramItem::create([
+            'self_program_week_id' => $this->week->id,
+            'track' => SelfProgramTrack::MAHFOUDH,
+            'target_amount' => 0,
+            'unit' => 'بيت',
+        ]);
+
+        $page = Livewire::actingAs($this->student, 'student')->test('student.self-program');
+
+        expect(substr_count($page->html(), 'data-recordable'))->toBe(3);
+
+        $page->set("clock.{$described->id}.minutes", 40)
+            ->call('save', $described->id)
+            ->assertHasNoErrors();
+
+        expect((float) StudentSelfProgramEntry::where('self_program_item_id', $described->id)->sum('amount_done'))
+            ->toEqual(40.0)
+            ->and($this->service->weekProgress($this->student, $this->week->fresh('items'))['overall'])
+            ->toEqual(0.0);
+    });
+
+    // Asked for by Faisal, 2 Nov 2026, after the weekly harvest form: one tap
+    // of 100, 75, 50, 25 or 0 per field instead of an amount to count and type.
+    describe('the harvest buttons', function () {
+        it('brings the week to the share he taps, under today\'s date', function () {
+            StudentSelfProgramEntry::create([
+                'student_id' => $this->student->id,
+                'self_program_item_id' => $this->manual->id,
+                'entry_date' => '2026-09-05',
+                'amount_done' => 2,
+            ]);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->call('harvest', $this->manual->id, 75)
+                ->assertHasNoErrors();
+
+            // Three quarters of eight is six; two were already done.
+            expect((float) StudentSelfProgramEntry::where('self_program_item_id', $this->manual->id)
+                ->whereDate('entry_date', '2026-09-06')->value('amount_done'))->toEqual(4.0)
+                ->and((float) StudentSelfProgramEntry::where('self_program_item_id', $this->manual->id)->sum('amount_done'))
+                ->toEqual(6.0);
+        });
+
+        it('rounds a share up rather than landing short of it', function () {
+            $verses = track($this->week, SelfProgramTrack::MAQROU, 27);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->call('harvest', $verses->id, 75);
+
+            // 20.25 pages, and pages are counted in halves.
+            expect((float) StudentSelfProgramEntry::where('self_program_item_id', $verses->id)->sum('amount_done'))
+                ->toEqual(20.5);
+        });
+
+        it('asks a memorised field whether it was recited before it counts', function () {
+            $memorised = track($this->week, SelfProgramTrack::MAHFOUDH, 20);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->call('harvest', $memorised->id, 50)
+                ->assertSet('askingRecitationFor', $memorised->id)
+                ->call('confirmRecitation')
+                ->assertSet('harvestPercent', null);
+
+            expect((float) StudentSelfProgramEntry::where('self_program_item_id', $memorised->id)->sum('amount_done'))
+                ->toEqual(10.0);
+        });
+
+        it('refuses a share the form never offered', function () {
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->call('harvest', $this->manual->id, 60)
+                ->assertStatus(422);
+        });
+    });
+
+    describe('choosing another week', function () {
+        beforeEach(function () {
+            $this->weekAt = fn (int $number, string $starts, string $ends) => SelfProgramWeek::create([
+                'stage_id' => $this->stage->id,
+                'program_type' => SelfProgramWeek::TYPE_SELF,
+                'week_number' => $number,
+                'starts_on' => $starts,
+                'ends_on' => $ends,
+            ]);
+        });
+
+        // Asked for by Faisal, 2 Nov 2026: a student may work on any week of his
+        // programme, earlier or later, and what he does is dated the day he did it.
+        it('records against a later week under today\'s date', function () {
+            $later = track(($this->weekAt)(3, '2026-09-20', '2026-09-26'), SelfProgramTrack::MAQROU, 40);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->assertSet('weekId', $this->week->id)
+                ->set('weekId', $later->self_program_week_id)
+                ->assertSee('هذا ليس أسبوعك الحالي')
+                ->set("amounts.{$later->id}", 12)
+                ->call('save', $later->id)
+                ->assertHasNoErrors();
+
+            $entry = StudentSelfProgramEntry::where('self_program_item_id', $later->id)->sole();
+
+            expect((float) $entry->amount_done)->toEqual(12.0)
+                ->and($entry->entry_date->toDateString())->toBe('2026-09-06');
+        });
+
+        it('records against an earlier week under today\'s date', function () {
+            Carbon::setTestNow('2026-09-14 08:00:00');
+            ($this->weekAt)(2, '2026-09-13', '2026-09-19');
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->set('weekId', $this->week->id)
+                ->set("clock.{$this->manual->id}.minutes", 30)
+                ->call('save', $this->manual->id)
+                ->assertHasNoErrors();
+
+            $entry = StudentSelfProgramEntry::where('self_program_item_id', $this->manual->id)->sole();
+
+            expect($entry->entry_date->toDateString())->toBe('2026-09-14');
+        });
+
+        it('will not open another programme\'s week', function () {
+            $foreign = SelfProgramWeek::create([
+                'stage_id' => Stage::factory()->create()->id,
+                'program_type' => SelfProgramWeek::TYPE_SELF,
+                'week_number' => 2,
+                'starts_on' => '2026-09-13',
+                'ends_on' => '2026-09-19',
+            ]);
+            $foreignItem = track($foreign, SelfProgramTrack::MASMOU, 20);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->set('weekId', $foreign->id)
+                ->set("amounts.{$foreignItem->id}", 5)
+                ->call('save', $foreignItem->id)
+                ->assertStatus(404);
+        });
+    });
 });
 
 describe('the year tools', function () {

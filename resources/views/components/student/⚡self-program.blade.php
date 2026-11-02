@@ -25,18 +25,45 @@ new class extends Component
     /** The day being recorded against — today unless the student picks another. */
     public string $day = '';
 
+    /**
+     * The week he chose to work on; null is the current one. Work put against
+     * any other week is written under today's date, since that is when it was
+     * done.
+     */
+    public ?int $weekId = null;
+
     /** What the student is settling against each overdue track, keyed by item id. */
     public array $settleAmounts = [];
 
     public function mount(): void
     {
         $this->day = Carbon::today()->toDateString();
+        $this->weekId = $this->week()?->id;
         $this->loadAmounts();
     }
 
     public function updatedDay(): void
     {
         $this->loadAmounts();
+    }
+
+    public function updatedWeekId(): void
+    {
+        $this->weekResolved = false;
+        $this->enrichmentResolved = false;
+        $this->day = Carbon::today()->toDateString();
+        $this->amounts = [];
+        $this->clock = [];
+        $this->loadAmounts();
+    }
+
+    /** Whether the week on screen is the one running today. */
+    private function onCurrentWeek(): bool
+    {
+        $week = $this->week();
+
+        return ! $week || $week->id === app(SelfProgramService::class)
+            ->currentWeek(Auth::guard('student')->user())?->id;
     }
 
     /**
@@ -73,7 +100,14 @@ new class extends Component
     private function week(): ?SelfProgramWeek
     {
         if (! $this->weekResolved) {
-            $this->loadedWeek = app(SelfProgramService::class)->currentWeek(Auth::guard('student')->user());
+            $service = app(SelfProgramService::class);
+            $student = Auth::guard('student')->user();
+
+            // Looked up among his own weeks, so an id from elsewhere falls back
+            // to the current week rather than opening another programme's.
+            $this->loadedWeek = ($this->weekId
+                ? $service->weeksFor($student)->firstWhere('id', $this->weekId)
+                : null) ?? $service->currentWeek($student);
             $this->weekResolved = true;
         }
 
@@ -83,8 +117,9 @@ new class extends Component
     private function enrichmentWeek(): ?SelfProgramWeek
     {
         if (! $this->enrichmentResolved) {
-            $this->loadedEnrichment = app(SelfProgramService::class)
-                ->currentEnrichmentWeek(Auth::guard('student')->user());
+            $this->loadedEnrichment = $this->onCurrentWeek()
+                ? app(SelfProgramService::class)->currentEnrichmentWeek(Auth::guard('student')->user())
+                : null;
             $this->enrichmentResolved = true;
         }
 
@@ -137,6 +172,70 @@ new class extends Component
     /** Whether that question is about an ended week's arrear rather than this week's field. */
     public bool $askingForArrear = false;
 
+    /** The share of the week waiting on that question, when it came from the harvest buttons. */
+    public ?int $harvestPercent = null;
+
+    /** The shares the weekly harvest has always offered. */
+    public const HARVEST_SHARES = [100, 75, 50, 25, 0];
+
+    /**
+     * Say how much of the week's ask is done, the way the weekly harvest form
+     * asked it: one tap per field rather than an amount to count and type.
+     *
+     * The share is of the whole week, so today's entry is set to whatever
+     * brings the week's total to it; what other days already hold stays.
+     */
+    public function harvest(int $itemId, int $percent): void
+    {
+        abort_unless(in_array($percent, self::HARVEST_SHARES, true), 422);
+
+        $item = $this->openItems()->firstWhere('id', $itemId);
+
+        abort_unless($item instanceof SelfProgramItem, 404);
+
+        if ($percent > 0 && $item->track?->needs_recitation_confirmation) {
+            $this->askingRecitationFor = $itemId;
+            $this->harvestPercent = $percent;
+
+            return;
+        }
+
+        $this->writeHarvest($item, $percent);
+    }
+
+    private function writeHarvest(SelfProgramItem $item, int $percent, bool $recited = false): void
+    {
+        $student = Auth::guard('student')->user();
+        $service = app(SelfProgramService::class);
+        $today = Carbon::today();
+
+        // Rounded up, so «75» never lands a unit short of three quarters.
+        $share = $service->targetFor($item, $student) * $percent / 100;
+        $wanted = SelfProgramUnit::allowsFractions($item->displayUnit()) ? ceil($share * 2) / 2 : ceil($share);
+
+        $done = (float) \App\Models\StudentSelfProgramEntry::where('student_id', $student->id)
+            ->where('self_program_item_id', $item->id)
+            ->sum('amount_done');
+        $othersHold = $done - $service->recordedBy($student, $item, $today);
+
+        try {
+            $service->record(
+                $student,
+                $item,
+                max(0, $wanted - $othersHold),
+                $today,
+                recitationConfirmed: $recited,
+                by: $student,
+                // A share of the whole week, not of one day.
+                makingUp: true,
+            );
+        } catch (\InvalidArgumentException $e) {
+            Flux::toast($e->getMessage(), variant: 'danger');
+        }
+
+        $this->loadAmounts();
+    }
+
     public function save(int $itemId): void
     {
         $item = $this->openItems()->firstWhere('id', $itemId);
@@ -174,6 +273,18 @@ new class extends Component
     /** He says he recited it: the amount counts and its points are given. */
     public function confirmRecitation(): void
     {
+        if ($this->harvestPercent !== null) {
+            $item = $this->openItems()->firstWhere('id', $this->askingRecitationFor);
+
+            abort_unless($item instanceof SelfProgramItem, 404);
+
+            $this->writeHarvest($item, $this->harvestPercent, recited: true);
+            $this->askingRecitationFor = null;
+            $this->harvestPercent = null;
+
+            return;
+        }
+
         if ($this->askingForArrear) {
             $item = $this->arrear($this->askingRecitationFor)['item'];
 
@@ -209,6 +320,7 @@ new class extends Component
     {
         $this->askingRecitationFor = null;
         $this->askingForArrear = false;
+        $this->harvestPercent = null;
 
         Flux::toast(__('لم يُحتسب — سمّعه ثم سجّله.'), variant: 'warning');
     }
@@ -217,14 +329,18 @@ new class extends Component
     {
         try {
             $student = Auth::guard('student')->user();
+            $current = $this->onCurrentWeek();
 
             app(SelfProgramService::class)->record(
                 $student,
                 $item,
                 $amount,
-                Carbon::parse($this->day),
+                $current ? Carbon::parse($this->day) : Carbon::today(),
                 recitationConfirmed: $recited,
                 by: $student,
+                // Another week's days are not today, so its day-bound fields are
+                // not held to them.
+                makingUp: ! $current,
             );
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
@@ -319,9 +435,12 @@ new class extends Component
         $service = app(SelfProgramService::class);
         $week = $this->week();
         $arrears = $service->arrears($student);
+        $weeks = $service->weeksFor($student);
+        $onCurrent = $this->onCurrentWeek();
 
         if (! $week) {
             return [
+                'weeks' => $weeks, 'onCurrent' => true,
                 'week' => null, 'tracks' => [], 'overall' => 0, 'days' => [], 'plans' => [],
                 'unlocked' => false, 'arrears' => $arrears, 'bridged' => [], 'fromPlan' => [],
                 'enrichment' => null, 'enrichmentProgress' => null,
@@ -366,6 +485,8 @@ new class extends Component
         }
 
         return [
+            'weeks' => $weeks,
+            'onCurrent' => $onCurrent,
             'week' => $week,
             'grid' => $grid,
             'wide' => $wide,
@@ -396,6 +517,22 @@ new class extends Component
         </flux:subheading>
     </div>
 
+    {{-- الأسبوع الذي يعمل عليه --}}
+    @if ($weeks->count() > 1)
+        <flux:card>
+            <flux:field>
+                <flux:label>{{ __('الأسبوع') }}</flux:label>
+                <flux:select wire:model.live="weekId" data-week-picker>
+                    @foreach ($weeks as $option)
+                        <flux:select.option value="{{ $option->id }}">
+                            {{ __('الأسبوع') }} {{ $option->week_number }} — {{ \App\Support\HijriDate::dayMonth($option->starts_on) }} – {{ \App\Support\HijriDate::dayMonth($option->ends_on) }}{{ $option->starts_on->lte(today()) && $option->ends_on->gte(today()) ? ' ('.__('الحالي').')' : '' }}
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:description>{{ __('تستطيع أن تعمل على أي أسبوع، سابق أو لاحق، ويُسجَّل إنجازك فيه بتاريخ اليوم.') }}</flux:description>
+            </flux:field>
+        </flux:card>
+    @endif
 
     @if ($askingRecitationFor)
         <div class="fixed inset-0 z-overlay flex items-center justify-center bg-black/40 p-4">
@@ -680,6 +817,11 @@ new class extends Component
         </flux:card>
 
         {{-- اليوم الذي يسجّل عليه --}}
+        @if (! $onCurrent)
+            <flux:callout icon="calendar" color="amber" data-other-week>
+                {{ __('هذا ليس أسبوعك الحالي، وما تسجّله فيه يُحسب له بتاريخ اليوم.') }}
+            </flux:callout>
+        @else
         <flux:card>
             <flux:field>
                 <flux:label>{{ __('سجّل إنجاز يوم') }}</flux:label>
@@ -692,6 +834,7 @@ new class extends Component
                 </flux:select>
             </flux:field>
         </flux:card>
+        @endif
 
         {{-- المجالات الخمسة --}}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -699,6 +842,9 @@ new class extends Component
                 @php
                     $item = $entry['item'];
                     $suggested = $plans[$item->id][$day] ?? 0;
+                    // A field the supervisor described but gave no amount is still
+                    // open: he records what he did, and it is left out of the average.
+                    $recordable = $entry['target'] > 0 || filled($item->description);
                 @endphp
                 <flux:card wire:key="track-{{ $item->id }}" class="flex flex-col gap-4">
                     <div class="flex items-start justify-between gap-3">
@@ -721,12 +867,18 @@ new class extends Component
                             </div>
                         </div>
                         <div class="text-end shrink-0">
-                            <div class="text-lg font-bold text-zinc-900 dark:text-white tabular-nums">{{ $entry['percent'] }}%</div>
-                            <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
-                                {{ $item->say($entry['done']) }}
-                                {{ __('من') }}
-                                {{ $item->say($entry['target']) }}
-                            </div>
+                            @if ($entry['target'] > 0)
+                                <div class="text-lg font-bold text-zinc-900 dark:text-white tabular-nums">{{ $entry['percent'] }}%</div>
+                                <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                                    {{ $item->say($entry['done']) }}
+                                    {{ __('من') }}
+                                    {{ $item->say($entry['target']) }}
+                                </div>
+                            @elseif ($recordable)
+                                <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                                    {{ __('أنجزت') }} {{ $item->say($entry['done']) }}
+                                </div>
+                            @endif
                         </div>
                     </div>
 
@@ -744,13 +896,41 @@ new class extends Component
                         </div>
                     @endif
                     @if ($entry['target'] > 0)
-                        <div class="flex items-end gap-2">
+                        @php
+                            $harvested = $entry['done'] > 0 ? (int) (floor(min($entry['percent'], 100) / 25) * 25) : null;
+                        @endphp
+                        <div class="space-y-1.5">
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('كم أنجزت من مقرر الأسبوع؟') }}</div>
+                            <div class="grid grid-cols-5 gap-1.5" data-harvest>
+                                @foreach ($this::HARVEST_SHARES as $share)
+                                    <button type="button" wire:click="harvest({{ $item->id }}, {{ $share }})"
+                                        @class([
+                                            'rounded-lg border py-2 text-sm font-bold tabular-nums transition',
+                                            'border-emerald-500 bg-emerald-500 text-white' => $harvested === $share,
+                                            'border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:border-emerald-400' => $harvested !== $share,
+                                        ])>{{ $share }}٪</button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($recordable)
+                        <div x-data="{ exact: {{ $entry['target'] > 0 ? 'false' : 'true' }} }">
+                        <button type="button" x-show="! exact" x-on:click="exact = true"
+                            class="text-xs text-zinc-500 dark:text-zinc-400 underline underline-offset-4">
+                            {{ __('أو اكتب المقدار بالضبط') }}
+                        </button>
+                        <div class="flex items-end gap-2" data-recordable x-show="exact" x-cloak>
                             <flux:field class="flex-1">
                                 <flux:label class="text-xs">
-                                    {{ __('المقترح اليوم') }}:
-                                    <span class="font-bold text-zinc-700 dark:text-zinc-200 tabular-nums">
-                                        {{ $item->say($suggested) }}
-                                    </span>
+                                    @if ($entry['target'] > 0)
+                                        {{ __('المقترح اليوم') }}:
+                                        <span class="font-bold text-zinc-700 dark:text-zinc-200 tabular-nums">
+                                            {{ $item->say($suggested) }}
+                                        </span>
+                                    @else
+                                        {{ __('سجّل ما أنجزته') }}
+                                    @endif
                                 </flux:label>
                                 @if ($item->isDuration())
                                     <div class="flex items-center gap-1.5">
@@ -775,6 +955,7 @@ new class extends Component
                             <flux:button variant="primary" wire:click="save({{ $item->id }})" class="mb-0.5">
                                 {{ __('تأكيد') }}
                             </flux:button>
+                        </div>
                         </div>
                     @else
                         <div class="text-xs text-zinc-400 dark:text-zinc-500">
@@ -809,7 +990,7 @@ new class extends Component
 
                 <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
                     @foreach ($enrichmentProgress['tracks'] as $extra)
-                        @if ($extra['target'] > 0)
+                        @if ($extra['target'] > 0 || filled($extra['item']->description))
                             <div wire:key="extra-{{ $extra['item']->id }}" class="py-3 flex flex-wrap items-end justify-between gap-3">
                                 <div class="flex-1 min-w-48">
                                     <div class="text-sm font-bold text-zinc-900 dark:text-white">
@@ -823,8 +1004,10 @@ new class extends Component
                                     </div>
                                     <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums mt-1">
                                         {{ $extra['item']->say($extra['done']) }}
-                                        {{ __('من') }}
-                                        {{ $extra['item']->say($extra['target']) }}
+                                        @if ($extra['target'] > 0)
+                                            {{ __('من') }}
+                                            {{ $extra['item']->say($extra['target']) }}
+                                        @endif
                                     </div>
                                 </div>
                                 <div class="flex items-end gap-2">
