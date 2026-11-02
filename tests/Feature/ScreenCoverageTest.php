@@ -33,6 +33,8 @@ it('leaves no role page outside the permission layer', function () {
         'manager.backup.download', 'manager.backup.download.stored',
         'teacher.download-plan-pdf', 'teacher.print-plan', 'student.show-plan',
         'guardian.student.challenge.create',
+        // The gate's own page: closing it would leave a held student no way through.
+        'student.notice',
     ];
 
     $roles = ['manager', 'supervisor', 'teacher', 'student', 'guardian', 'staff'];
