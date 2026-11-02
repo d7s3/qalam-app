@@ -32,7 +32,16 @@ new class extends Component
     /** The day grid: [trackKey][date] => ['content' => ?string, 'amount' => ?string]. */
     public array $grid = [];
 
-    public bool $showGrid = true;
+    public bool $showGrid = false;
+
+    /** Whether the tools beyond writing one week are showing: adding weeks, the year, every week at once. */
+    public bool $showAdvanced = false;
+
+    /** The message the supervisor sends his students, pasted to be read into the fields. */
+    public string $message = '';
+
+    /** Fields given content but no amount, held back from saving until he says so. */
+    public array $missingAmounts = [];
 
     /** Days ticked in the grid header, waiting to be joined into one column. */
     public array $selectedDays = [];
@@ -239,16 +248,81 @@ new class extends Component
         $this->openLatestWeek();
     }
 
+    /**
+     * Open on the week running today — the one he most likely came to write —
+     * or else the next to come, and only then the last there is. Opening on the
+     * last sent a supervisor to write week 7 believing it was this week.
+     */
     private function openLatestWeek(): void
     {
-        $this->weekId = $this->weeks->last()?->id;
+        $today = Carbon::today()->toDateString();
+
+        $this->weekId = $this->currentWeekId
+            ?? $this->weeks->sortBy('starts_on')->first(fn (SelfProgramWeek $week) => $week->starts_on->toDateString() > $today)?->id
+            ?? $this->weeks->last()?->id;
+        $this->missingAmounts = [];
         $this->loadRows();
+    }
+
+    /** Move to the week before (-1) or after (1) the open one. */
+    public function stepWeek(int $step): void
+    {
+        $ids = $this->weeks->pluck('id')->values();
+        $target = $ids[$ids->search($this->weekId) + $step] ?? null;
+
+        if ($target) {
+            $this->openWeek($target);
+        }
+    }
+
+    /**
+     * Read the pasted message into the open week's fields. Nothing is saved:
+     * he reads the fields over and presses save himself.
+     */
+    public function readMessage(): void
+    {
+        $this->guardOpenWeek();
+
+        if (trim($this->message) === '') {
+            Flux::toast(__('الصق الرسالة أولاً.'), variant: 'warning');
+
+            return;
+        }
+
+        $read = \App\Ai\SelfProgramWeekReader::extract($this->message);
+
+        if ($read === []) {
+            Flux::toast(__('تعذّرت قراءة الرسالة، فاكتب المجالات بنفسك.'), variant: 'warning');
+
+            return;
+        }
+
+        foreach ($read as $key => $found) {
+            if (! isset($this->rows[$key])) {
+                continue;
+            }
+
+            $clock = SelfProgramUnit::toHoursAndMinutes($found['amount']);
+
+            $this->rows[$key] = array_merge($this->rows[$key], [
+                'description' => $found['description'] ?: $this->rows[$key]['description'],
+                'unit' => $found['unit'],
+                'target_amount' => $found['amount'],
+                'hours' => $clock['hours'],
+                'minutes' => $clock['minutes'],
+            ]);
+        }
+
+        $this->message = '';
+
+        Flux::toast(__('وُزّعت الرسالة على المجالات. راجعها ثم احفظ.'), variant: 'success');
     }
 
     public function openWeek(int $id): void
     {
         $this->authorizeStage($id);
         $this->weekId = $id;
+        $this->missingAmounts = [];
         $this->loadRows();
         $this->loadGrid();
     }
@@ -741,7 +815,14 @@ new class extends Component
         return $week;
     }
 
-    public function save(): void
+    /**
+     * Save the open week.
+     *
+     * A field given content and no amount is asked about first: a supervisor
+     * wrote a week's listening and preparation with nothing to measure them by,
+     * and the week opened on his students with only one field counted.
+     */
+    public function save(bool $anyway = false): void
     {
         $week = $this->week;
 
@@ -756,6 +837,25 @@ new class extends Component
             'rows.*.content_url' => ['nullable', 'url', 'max:2048'],
         ]);
 
+        // The wird is left out: its amount comes from each student's own plan.
+        $missing = SelfProgramTrack::ordered()
+            ->filter(fn (SelfProgramTrack $track) => ! $track->isQuranWird()
+                && filled($this->rows[$track->value]['description'] ?? null)
+                && $this->rowAmount($track, $this->rows[$track->value]) <= 0)
+            ->map(fn (SelfProgramTrack $track) => $track->label())
+            ->values()
+            ->all();
+
+        if ($missing !== [] && ! $anyway) {
+            $this->missingAmounts = $missing;
+
+            Flux::toast(__('لم تكتب مقدار: :fields', ['fields' => implode('، ', $missing)]), variant: 'warning');
+
+            return;
+        }
+
+        $this->missingAmounts = [];
+
         foreach (SelfProgramTrack::ordered() as $track) {
             $row = $this->rows[$track->value] ?? null;
 
@@ -763,13 +863,8 @@ new class extends Component
                 continue;
             }
 
-            // The unit settles first, because it decides how the amount was
-            // asked for: time comes in two boxes, everything else in one.
             $unit = $track->unitFor($row['unit'] ?? null);
-
-            $amount = SelfProgramUnit::isDuration($unit)
-                ? SelfProgramUnit::fromHoursAndMinutes($row['hours'] ?? 0, $row['minutes'] ?? 0)
-                : SelfProgramUnit::normalise((float) ($row['target_amount'] ?: 0), $unit);
+            $amount = $this->rowAmount($track, $row);
 
             $week->items()->updateOrCreate(
                 ['track' => $track->value],
@@ -789,6 +884,20 @@ new class extends Component
         unset($this->week);
 
         Flux::toast(text: 'حُفظ محتوى الأسبوع.', variant: 'success');
+    }
+
+    /**
+     * A row's amount in the field's stored unit. The unit settles first, because
+     * it decides how the amount was asked for: time comes in two boxes,
+     * everything else in one.
+     */
+    private function rowAmount(SelfProgramTrack $track, array $row): float
+    {
+        $unit = $track->unitFor($row['unit'] ?? null);
+
+        return SelfProgramUnit::isDuration($unit)
+            ? SelfProgramUnit::fromHoursAndMinutes($row['hours'] ?? 0, $row['minutes'] ?? 0)
+            : SelfProgramUnit::normalise((float) ($row['target_amount'] ?: 0), $unit);
     }
 
     /**
@@ -944,8 +1053,8 @@ new class extends Component
             <flux:subheading class="mt-1">{{ __('محتوى البرنامج الذاتي يُكتب لكل برنامج على حدة.') }}</flux:subheading>
         </flux:card>
     @else
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <flux:field>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+            <flux:field class="w-full sm:w-80">
                 <flux:label>{{ __('البرنامج') }}</flux:label>
                 <flux:select wire:model.live="stageId">
                     @foreach ($this->stages as $stage)
@@ -954,7 +1063,14 @@ new class extends Component
                 </flux:select>
             </flux:field>
 
-            <div class="flex items-end gap-2">
+            <flux:button size="sm" variant="ghost" wire:click="$toggle('showAdvanced')" data-advanced-toggle
+                :icon="$showAdvanced ? 'chevron-up' : 'adjustments-horizontal'">
+                {{ $showAdvanced ? __('إخفاء الأدوات المتقدمة') : __('أدوات متقدمة') }}
+            </flux:button>
+        </div>
+
+        @if ($showAdvanced || $this->weeks->isEmpty())
+            <div class="flex items-end gap-2 sm:w-1/2">
                 <flux:field class="flex-1">
                     <flux:label>{{ __('بداية أسبوع جديد') }}</flux:label>
                     <flux:input type="date" wire:model="newStartsOn" />
@@ -964,10 +1080,11 @@ new class extends Component
                     {{ __('أضف أسبوعاً') }}
                 </flux:button>
             </div>
-        </div>
+        @endif
 
 
         {{-- أدوات السنة كاملة --}}
+        @if ($showAdvanced)
         <flux:card>
             <button type="button" wire:click="$toggle('showYearTools')"
                 class="w-full flex items-center justify-between gap-3 text-start cursor-pointer">
@@ -1090,7 +1207,9 @@ new class extends Component
             @endif
         </flux:card>
 
-        @if ($this->weeks->isNotEmpty())
+        @endif
+
+        @if ($showAdvanced && $this->weeks->isNotEmpty())
             <div class="space-y-2">
                 <div class="flex items-center justify-between gap-3 flex-wrap">
                     <div class="flex items-center gap-3 text-[11px] text-zinc-400">
@@ -1136,13 +1255,49 @@ new class extends Component
         @endif
 
         @if ($this->week)
+            @if (\App\Ai\SelfProgramWeekReader::available())
+                <flux:card class="space-y-3" data-paste-message>
+                    <div>
+                        <flux:heading size="lg">{{ __('الصق رسالة الأسبوع') }}</flux:heading>
+                        <flux:subheading class="mt-0.5">
+                            {{ __('الصق الرسالة التي ترسلها لطلابك كما هي، فتوزّعها المنصة على المجالات أدناه. راجعها ثم احفظ.') }}
+                        </flux:subheading>
+                    </div>
+                    <flux:textarea wire:model="message" rows="3" placeholder="{{ __('المقروء: العواصم من القواصم ٥٠ صفحة…') }}" />
+                    <flux:button icon="sparkles" wire:click="readMessage" wire:loading.attr="disabled" wire:target="readMessage">
+                        <span wire:loading.remove wire:target="readMessage">{{ __('وزّعها على المجالات') }}</span>
+                        <span wire:loading wire:target="readMessage">{{ __('أقرؤها…') }}</span>
+                    </flux:button>
+                </flux:card>
+            @endif
+
+            @php
+                $openWeek = $this->week;
+                $weekIds = $this->weeks->pluck('id')->values();
+                $position = $weekIds->search($openWeek->id);
+                $when = match (true) {
+                    $openWeek->id === $this->currentWeekId => ['هذا الأسبوع', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'],
+                    $openWeek->starts_on->isFuture() => ['قادم', 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'],
+                    default => ['مضى', 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'],
+                };
+            @endphp
+
             <flux:card>
                 <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800">
-                    <div>
-                        <flux:heading size="lg">{{ __('الأسبوع') }} {{ $this->week->week_number }}</flux:heading>
-                        <flux:subheading class="mt-0.5">
-                            <x-hijri-date :date="$this->week->starts_on" /> — <x-hijri-date :date="$this->week->ends_on" />
-                        </flux:subheading>
+                    <div class="flex items-center gap-2">
+                        <flux:button size="sm" variant="ghost" icon="chevron-right" wire:click="stepWeek(-1)"
+                            :disabled="$position === 0" aria-label="{{ __('الأسبوع السابق') }}" data-week-back />
+                        <div>
+                            <flux:heading size="lg" class="flex items-center gap-2">
+                                {{ __('الأسبوع') }} {{ $openWeek->week_number }}
+                                <span class="rounded-full px-2 py-0.5 text-[11px] font-bold {{ $when[1] }}" data-week-when>{{ __($when[0]) }}</span>
+                            </flux:heading>
+                            <flux:subheading class="mt-0.5">
+                                <x-hijri-date :date="$openWeek->starts_on" /> — <x-hijri-date :date="$openWeek->ends_on" />
+                            </flux:subheading>
+                        </div>
+                        <flux:button size="sm" variant="ghost" icon="chevron-left" wire:click="stepWeek(1)"
+                            :disabled="$position === $weekIds->count() - 1" aria-label="{{ __('الأسبوع التالي') }}" data-week-next />
                     </div>
                     <div class="flex items-center gap-2">
                         <flux:button size="sm" variant="ghost" icon="calendar" wire:click="editDates">
@@ -1254,8 +1409,22 @@ new class extends Component
                     @endforeach
                 </div>
 
+                @if ($missingAmounts !== [])
+                    <flux:callout icon="exclamation-triangle" color="amber" class="mb-3" data-missing-amounts>
+                        <flux:callout.heading>
+                            {{ __('لم تكتب مقدار: :fields', ['fields' => implode('، ', $missingAmounts)]) }}
+                        </flux:callout.heading>
+                        <flux:callout.text>
+                            {{ __('اكتب المقدار ليُحسب في نسبة الطالب. وإن حفظته بلا مقدار، سجّل فيه الطالب ما أنجزه ولم يدخل في نسبته.') }}
+                        </flux:callout.text>
+                        <x-slot name="actions">
+                            <flux:button size="sm" wire:click="save(true)">{{ __('احفظ كما هو') }}</flux:button>
+                        </x-slot>
+                    </flux:callout>
+                @endif
+
                 <p class="text-xs text-zinc-500 dark:text-zinc-400 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                    {{ __('مقدار صفر يعني أن المجال غير مطلوب هذا الأسبوع، فلا يُحسب على الطالب.') }}
+                    {{ __('المجال الذي لا محتوى له ولا مقدار غير مطلوب هذا الأسبوع، فلا يُحسب على الطالب.') }}
                     {{ __('ووحدة الورد القرآني مثبّتة على الصفحة ليكتب فيها التسميع تلقائياً.') }}
                 </p>
             </flux:card>
