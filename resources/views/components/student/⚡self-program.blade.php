@@ -765,6 +765,9 @@ new class extends Component
                 @php
                     $item = $entry['item'];
                     $suggested = $plans[$item->id][$day] ?? 0;
+                    // A field the supervisor described but gave no amount is still
+                    // open: he records what he did, and it is left out of the average.
+                    $recordable = $entry['target'] > 0 || filled($item->description);
                 @endphp
                 <flux:card wire:key="track-{{ $item->id }}" class="flex flex-col gap-4">
                     <div class="flex items-start justify-between gap-3">
@@ -787,12 +790,18 @@ new class extends Component
                             </div>
                         </div>
                         <div class="text-end shrink-0">
-                            <div class="text-lg font-bold text-zinc-900 dark:text-white tabular-nums">{{ $entry['percent'] }}%</div>
-                            <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
-                                {{ $item->say($entry['done']) }}
-                                {{ __('من') }}
-                                {{ $item->say($entry['target']) }}
-                            </div>
+                            @if ($entry['target'] > 0)
+                                <div class="text-lg font-bold text-zinc-900 dark:text-white tabular-nums">{{ $entry['percent'] }}%</div>
+                                <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                                    {{ $item->say($entry['done']) }}
+                                    {{ __('من') }}
+                                    {{ $item->say($entry['target']) }}
+                                </div>
+                            @elseif ($recordable)
+                                <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                                    {{ __('أنجزت') }} {{ $item->say($entry['done']) }}
+                                </div>
+                            @endif
                         </div>
                     </div>
 
@@ -809,14 +818,18 @@ new class extends Component
                             </div>
                         </div>
                     @endif
-                    @if ($entry['target'] > 0)
-                        <div class="flex items-end gap-2">
+                    @if ($recordable)
+                        <div class="flex items-end gap-2" data-recordable>
                             <flux:field class="flex-1">
                                 <flux:label class="text-xs">
-                                    {{ __('المقترح اليوم') }}:
-                                    <span class="font-bold text-zinc-700 dark:text-zinc-200 tabular-nums">
-                                        {{ $item->say($suggested) }}
-                                    </span>
+                                    @if ($entry['target'] > 0)
+                                        {{ __('المقترح اليوم') }}:
+                                        <span class="font-bold text-zinc-700 dark:text-zinc-200 tabular-nums">
+                                            {{ $item->say($suggested) }}
+                                        </span>
+                                    @else
+                                        {{ __('سجّل ما أنجزته') }}
+                                    @endif
                                 </flux:label>
                                 @if ($item->isDuration())
                                     <div class="flex items-center gap-1.5">
@@ -875,7 +888,7 @@ new class extends Component
 
                 <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
                     @foreach ($enrichmentProgress['tracks'] as $extra)
-                        @if ($extra['target'] > 0)
+                        @if ($extra['target'] > 0 || filled($extra['item']->description))
                             <div wire:key="extra-{{ $extra['item']->id }}" class="py-3 flex flex-wrap items-end justify-between gap-3">
                                 <div class="flex-1 min-w-48">
                                     <div class="text-sm font-bold text-zinc-900 dark:text-white">
@@ -889,8 +902,10 @@ new class extends Component
                                     </div>
                                     <div class="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums mt-1">
                                         {{ $extra['item']->say($extra['done']) }}
-                                        {{ __('من') }}
-                                        {{ $extra['item']->say($extra['target']) }}
+                                        @if ($extra['target'] > 0)
+                                            {{ __('من') }}
+                                            {{ $extra['item']->say($extra['target']) }}
+                                        @endif
                                     </div>
                                 </div>
                                 <div class="flex items-end gap-2">

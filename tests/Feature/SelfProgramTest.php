@@ -306,6 +306,38 @@ describe('the student page', function () {
             ->assertStatus(404);
     });
 
+    // Decided with Faisal, 2 Nov 2026: a supervisor who describes a field but
+    // gives it no amount still means it to be done, so the student may record it.
+    it('opens a described field with no amount, and leaves it out of the average', function () {
+        $described = SelfProgramItem::create([
+            'self_program_week_id' => $this->week->id,
+            'track' => SelfProgramTrack::TAHDHEER,
+            'description' => 'شرح الدرر المكية',
+            'target_amount' => 0,
+            'unit' => 'دقيقة',
+        ]);
+        // Neither amount nor description: still closed, so three fields are open.
+        SelfProgramItem::create([
+            'self_program_week_id' => $this->week->id,
+            'track' => SelfProgramTrack::MAHFOUDH,
+            'target_amount' => 0,
+            'unit' => 'بيت',
+        ]);
+
+        $page = Livewire::actingAs($this->student, 'student')->test('student.self-program');
+
+        expect(substr_count($page->html(), 'data-recordable'))->toBe(3);
+
+        $page->set("clock.{$described->id}.minutes", 40)
+            ->call('save', $described->id)
+            ->assertHasNoErrors();
+
+        expect((float) StudentSelfProgramEntry::where('self_program_item_id', $described->id)->sum('amount_done'))
+            ->toEqual(40.0)
+            ->and($this->service->weekProgress($this->student, $this->week->fresh('items'))['overall'])
+            ->toEqual(0.0);
+    });
+
     describe('choosing another week', function () {
         beforeEach(function () {
             $this->weekAt = fn (int $number, string $starts, string $ends) => SelfProgramWeek::create([
