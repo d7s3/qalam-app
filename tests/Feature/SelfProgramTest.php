@@ -338,6 +338,63 @@ describe('the student page', function () {
             ->toEqual(0.0);
     });
 
+    // Asked for by Faisal, 2 Nov 2026, after the weekly harvest form: one tap
+    // of 100, 75, 50, 25 or 0 per field instead of an amount to count and type.
+    describe('the harvest buttons', function () {
+        it('brings the week to the share he taps, under today\'s date', function () {
+            StudentSelfProgramEntry::create([
+                'student_id' => $this->student->id,
+                'self_program_item_id' => $this->manual->id,
+                'entry_date' => '2026-09-05',
+                'amount_done' => 2,
+            ]);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->call('harvest', $this->manual->id, 75)
+                ->assertHasNoErrors();
+
+            // Three quarters of eight is six; two were already done.
+            expect((float) StudentSelfProgramEntry::where('self_program_item_id', $this->manual->id)
+                ->whereDate('entry_date', '2026-09-06')->value('amount_done'))->toEqual(4.0)
+                ->and((float) StudentSelfProgramEntry::where('self_program_item_id', $this->manual->id)->sum('amount_done'))
+                ->toEqual(6.0);
+        });
+
+        it('rounds a share up rather than landing short of it', function () {
+            $verses = track($this->week, SelfProgramTrack::MAQROU, 27);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->call('harvest', $verses->id, 75);
+
+            // 20.25 pages, and pages are counted in halves.
+            expect((float) StudentSelfProgramEntry::where('self_program_item_id', $verses->id)->sum('amount_done'))
+                ->toEqual(20.5);
+        });
+
+        it('asks a memorised field whether it was recited before it counts', function () {
+            $memorised = track($this->week, SelfProgramTrack::MAHFOUDH, 20);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->call('harvest', $memorised->id, 50)
+                ->assertSet('askingRecitationFor', $memorised->id)
+                ->call('confirmRecitation')
+                ->assertSet('harvestPercent', null);
+
+            expect((float) StudentSelfProgramEntry::where('self_program_item_id', $memorised->id)->sum('amount_done'))
+                ->toEqual(10.0);
+        });
+
+        it('refuses a share the form never offered', function () {
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->call('harvest', $this->manual->id, 60)
+                ->assertStatus(422);
+        });
+    });
+
     describe('choosing another week', function () {
         beforeEach(function () {
             $this->weekAt = fn (int $number, string $starts, string $ends) => SelfProgramWeek::create([

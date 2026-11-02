@@ -172,6 +172,70 @@ new class extends Component
     /** Whether that question is about an ended week's arrear rather than this week's field. */
     public bool $askingForArrear = false;
 
+    /** The share of the week waiting on that question, when it came from the harvest buttons. */
+    public ?int $harvestPercent = null;
+
+    /** The shares the weekly harvest has always offered. */
+    public const HARVEST_SHARES = [100, 75, 50, 25, 0];
+
+    /**
+     * Say how much of the week's ask is done, the way the weekly harvest form
+     * asked it: one tap per field rather than an amount to count and type.
+     *
+     * The share is of the whole week, so today's entry is set to whatever
+     * brings the week's total to it; what other days already hold stays.
+     */
+    public function harvest(int $itemId, int $percent): void
+    {
+        abort_unless(in_array($percent, self::HARVEST_SHARES, true), 422);
+
+        $item = $this->openItems()->firstWhere('id', $itemId);
+
+        abort_unless($item instanceof SelfProgramItem, 404);
+
+        if ($percent > 0 && $item->track?->needs_recitation_confirmation) {
+            $this->askingRecitationFor = $itemId;
+            $this->harvestPercent = $percent;
+
+            return;
+        }
+
+        $this->writeHarvest($item, $percent);
+    }
+
+    private function writeHarvest(SelfProgramItem $item, int $percent, bool $recited = false): void
+    {
+        $student = Auth::guard('student')->user();
+        $service = app(SelfProgramService::class);
+        $today = Carbon::today();
+
+        // Rounded up, so «75» never lands a unit short of three quarters.
+        $share = $service->targetFor($item, $student) * $percent / 100;
+        $wanted = SelfProgramUnit::allowsFractions($item->displayUnit()) ? ceil($share * 2) / 2 : ceil($share);
+
+        $done = (float) \App\Models\StudentSelfProgramEntry::where('student_id', $student->id)
+            ->where('self_program_item_id', $item->id)
+            ->sum('amount_done');
+        $othersHold = $done - $service->recordedBy($student, $item, $today);
+
+        try {
+            $service->record(
+                $student,
+                $item,
+                max(0, $wanted - $othersHold),
+                $today,
+                recitationConfirmed: $recited,
+                by: $student,
+                // A share of the whole week, not of one day.
+                makingUp: true,
+            );
+        } catch (\InvalidArgumentException $e) {
+            Flux::toast($e->getMessage(), variant: 'danger');
+        }
+
+        $this->loadAmounts();
+    }
+
     public function save(int $itemId): void
     {
         $item = $this->openItems()->firstWhere('id', $itemId);
@@ -209,6 +273,18 @@ new class extends Component
     /** He says he recited it: the amount counts and its points are given. */
     public function confirmRecitation(): void
     {
+        if ($this->harvestPercent !== null) {
+            $item = $this->openItems()->firstWhere('id', $this->askingRecitationFor);
+
+            abort_unless($item instanceof SelfProgramItem, 404);
+
+            $this->writeHarvest($item, $this->harvestPercent, recited: true);
+            $this->askingRecitationFor = null;
+            $this->harvestPercent = null;
+
+            return;
+        }
+
         if ($this->askingForArrear) {
             $item = $this->arrear($this->askingRecitationFor)['item'];
 
@@ -244,6 +320,7 @@ new class extends Component
     {
         $this->askingRecitationFor = null;
         $this->askingForArrear = false;
+        $this->harvestPercent = null;
 
         Flux::toast(__('لم يُحتسب — سمّعه ثم سجّله.'), variant: 'warning');
     }
@@ -818,8 +895,32 @@ new class extends Component
                             </div>
                         </div>
                     @endif
+                    @if ($entry['target'] > 0)
+                        @php
+                            $harvested = $entry['done'] > 0 ? (int) (floor(min($entry['percent'], 100) / 25) * 25) : null;
+                        @endphp
+                        <div class="space-y-1.5">
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('كم أنجزت من مقرر الأسبوع؟') }}</div>
+                            <div class="grid grid-cols-5 gap-1.5" data-harvest>
+                                @foreach ($this::HARVEST_SHARES as $share)
+                                    <button type="button" wire:click="harvest({{ $item->id }}, {{ $share }})"
+                                        @class([
+                                            'rounded-lg border py-2 text-sm font-bold tabular-nums transition',
+                                            'border-emerald-500 bg-emerald-500 text-white' => $harvested === $share,
+                                            'border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:border-emerald-400' => $harvested !== $share,
+                                        ])>{{ $share }}٪</button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
                     @if ($recordable)
-                        <div class="flex items-end gap-2" data-recordable>
+                        <div x-data="{ exact: {{ $entry['target'] > 0 ? 'false' : 'true' }} }">
+                        <button type="button" x-show="! exact" x-on:click="exact = true"
+                            class="text-xs text-zinc-500 dark:text-zinc-400 underline underline-offset-4">
+                            {{ __('أو اكتب المقدار بالضبط') }}
+                        </button>
+                        <div class="flex items-end gap-2" data-recordable x-show="exact" x-cloak>
                             <flux:field class="flex-1">
                                 <flux:label class="text-xs">
                                     @if ($entry['target'] > 0)
@@ -854,6 +955,7 @@ new class extends Component
                             <flux:button variant="primary" wire:click="save({{ $item->id }})" class="mb-0.5">
                                 {{ __('تأكيد') }}
                             </flux:button>
+                        </div>
                         </div>
                     @else
                         <div class="text-xs text-zinc-400 dark:text-zinc-500">

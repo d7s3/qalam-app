@@ -148,3 +148,15 @@ it('lets him open another week of his programme', function () {
         ->assertSee('العواصم من القواصم')
         ->screenshot(filename: 'student-pick-week');
 });
+
+it('offers the weekly harvest as one tap per field', function () {
+    $this->actingAs($this->student, 'student');
+
+    $page = visit('/student/self-program');
+
+    $page->assertNoJavaScriptErrors()
+        ->assertSee('كم أنجزت من مقرر الأسبوع؟')
+        ->click('[data-harvest] button:nth-child(2)')
+        ->assertSee('سمّعت')
+        ->screenshot(filename: 'student-harvest');
+});
