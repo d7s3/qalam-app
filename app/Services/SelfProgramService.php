@@ -130,6 +130,35 @@ class SelfProgramService
     }
 
     /**
+     * Every week of a student's own programme, in the order they run, so he can
+     * work on one other than the current.
+     *
+     * Read the way `currentWeek` reads a single one: his cohort's own week where
+     * one was written for those dates, the programme's otherwise.
+     *
+     * @return Collection<int, SelfProgramWeek>
+     */
+    public function weeksFor(Student $student): Collection
+    {
+        if (! $student->effective_stage_id) {
+            return collect();
+        }
+
+        return SelfProgramWeek::self()
+            ->where(function ($q) use ($student) {
+                $q->when($student->circle_id, fn ($c) => $c->where('circle_id', $student->circle_id))
+                    ->orWhere(fn ($w) => $w->whereNull('circle_id')
+                        ->where('stage_id', $student->effective_stage_id));
+            })
+            ->orderBy('starts_on')
+            ->orderByRaw('circle_id is null')
+            ->with('items')
+            ->get()
+            ->unique(fn (SelfProgramWeek $week) => $week->starts_on->toDateString())
+            ->values();
+    }
+
+    /**
      * The enrichment week running for a student's circle.
      *
      * It is only his to open once he is half way through his own week — the

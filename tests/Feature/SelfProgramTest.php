@@ -305,6 +305,72 @@ describe('the student page', function () {
             ->call('save', $foreign->id)
             ->assertStatus(404);
     });
+
+    describe('choosing another week', function () {
+        beforeEach(function () {
+            $this->weekAt = fn (int $number, string $starts, string $ends) => SelfProgramWeek::create([
+                'stage_id' => $this->stage->id,
+                'program_type' => SelfProgramWeek::TYPE_SELF,
+                'week_number' => $number,
+                'starts_on' => $starts,
+                'ends_on' => $ends,
+            ]);
+        });
+
+        // Asked for by Faisal, 2 Nov 2026: a student may work on any week of his
+        // programme, earlier or later, and what he does is dated the day he did it.
+        it('records against a later week under today\'s date', function () {
+            $later = track(($this->weekAt)(3, '2026-09-20', '2026-09-26'), SelfProgramTrack::MAQROU, 40);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->assertSet('weekId', $this->week->id)
+                ->set('weekId', $later->self_program_week_id)
+                ->assertSee('هذا ليس أسبوعك الحالي')
+                ->set("amounts.{$later->id}", 12)
+                ->call('save', $later->id)
+                ->assertHasNoErrors();
+
+            $entry = StudentSelfProgramEntry::where('self_program_item_id', $later->id)->sole();
+
+            expect((float) $entry->amount_done)->toEqual(12.0)
+                ->and($entry->entry_date->toDateString())->toBe('2026-09-06');
+        });
+
+        it('records against an earlier week under today\'s date', function () {
+            Carbon::setTestNow('2026-09-14 08:00:00');
+            ($this->weekAt)(2, '2026-09-13', '2026-09-19');
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->set('weekId', $this->week->id)
+                ->set("clock.{$this->manual->id}.minutes", 30)
+                ->call('save', $this->manual->id)
+                ->assertHasNoErrors();
+
+            $entry = StudentSelfProgramEntry::where('self_program_item_id', $this->manual->id)->sole();
+
+            expect($entry->entry_date->toDateString())->toBe('2026-09-14');
+        });
+
+        it('will not open another programme\'s week', function () {
+            $foreign = SelfProgramWeek::create([
+                'stage_id' => Stage::factory()->create()->id,
+                'program_type' => SelfProgramWeek::TYPE_SELF,
+                'week_number' => 2,
+                'starts_on' => '2026-09-13',
+                'ends_on' => '2026-09-19',
+            ]);
+            $foreignItem = track($foreign, SelfProgramTrack::MASMOU, 20);
+
+            Livewire::actingAs($this->student, 'student')
+                ->test('student.self-program')
+                ->set('weekId', $foreign->id)
+                ->set("amounts.{$foreignItem->id}", 5)
+                ->call('save', $foreignItem->id)
+                ->assertStatus(404);
+        });
+    });
 });
 
 describe('the year tools', function () {

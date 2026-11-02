@@ -25,18 +25,45 @@ new class extends Component
     /** The day being recorded against — today unless the student picks another. */
     public string $day = '';
 
+    /**
+     * The week he chose to work on; null is the current one. Work put against
+     * any other week is written under today's date, since that is when it was
+     * done.
+     */
+    public ?int $weekId = null;
+
     /** What the student is settling against each overdue track, keyed by item id. */
     public array $settleAmounts = [];
 
     public function mount(): void
     {
         $this->day = Carbon::today()->toDateString();
+        $this->weekId = $this->week()?->id;
         $this->loadAmounts();
     }
 
     public function updatedDay(): void
     {
         $this->loadAmounts();
+    }
+
+    public function updatedWeekId(): void
+    {
+        $this->weekResolved = false;
+        $this->enrichmentResolved = false;
+        $this->day = Carbon::today()->toDateString();
+        $this->amounts = [];
+        $this->clock = [];
+        $this->loadAmounts();
+    }
+
+    /** Whether the week on screen is the one running today. */
+    private function onCurrentWeek(): bool
+    {
+        $week = $this->week();
+
+        return ! $week || $week->id === app(SelfProgramService::class)
+            ->currentWeek(Auth::guard('student')->user())?->id;
     }
 
     /**
@@ -73,7 +100,14 @@ new class extends Component
     private function week(): ?SelfProgramWeek
     {
         if (! $this->weekResolved) {
-            $this->loadedWeek = app(SelfProgramService::class)->currentWeek(Auth::guard('student')->user());
+            $service = app(SelfProgramService::class);
+            $student = Auth::guard('student')->user();
+
+            // Looked up among his own weeks, so an id from elsewhere falls back
+            // to the current week rather than opening another programme's.
+            $this->loadedWeek = ($this->weekId
+                ? $service->weeksFor($student)->firstWhere('id', $this->weekId)
+                : null) ?? $service->currentWeek($student);
             $this->weekResolved = true;
         }
 
@@ -83,8 +117,9 @@ new class extends Component
     private function enrichmentWeek(): ?SelfProgramWeek
     {
         if (! $this->enrichmentResolved) {
-            $this->loadedEnrichment = app(SelfProgramService::class)
-                ->currentEnrichmentWeek(Auth::guard('student')->user());
+            $this->loadedEnrichment = $this->onCurrentWeek()
+                ? app(SelfProgramService::class)->currentEnrichmentWeek(Auth::guard('student')->user())
+                : null;
             $this->enrichmentResolved = true;
         }
 
@@ -217,14 +252,18 @@ new class extends Component
     {
         try {
             $student = Auth::guard('student')->user();
+            $current = $this->onCurrentWeek();
 
             app(SelfProgramService::class)->record(
                 $student,
                 $item,
                 $amount,
-                Carbon::parse($this->day),
+                $current ? Carbon::parse($this->day) : Carbon::today(),
                 recitationConfirmed: $recited,
                 by: $student,
+                // Another week's days are not today, so its day-bound fields are
+                // not held to them.
+                makingUp: ! $current,
             );
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
@@ -319,9 +358,12 @@ new class extends Component
         $service = app(SelfProgramService::class);
         $week = $this->week();
         $arrears = $service->arrears($student);
+        $weeks = $service->weeksFor($student);
+        $onCurrent = $this->onCurrentWeek();
 
         if (! $week) {
             return [
+                'weeks' => $weeks, 'onCurrent' => true,
                 'week' => null, 'tracks' => [], 'overall' => 0, 'days' => [], 'plans' => [],
                 'unlocked' => false, 'arrears' => $arrears, 'bridged' => [], 'fromPlan' => [],
                 'enrichment' => null, 'enrichmentProgress' => null,
@@ -366,6 +408,8 @@ new class extends Component
         }
 
         return [
+            'weeks' => $weeks,
+            'onCurrent' => $onCurrent,
             'week' => $week,
             'grid' => $grid,
             'wide' => $wide,
@@ -396,6 +440,22 @@ new class extends Component
         </flux:subheading>
     </div>
 
+    {{-- الأسبوع الذي يعمل عليه --}}
+    @if ($weeks->count() > 1)
+        <flux:card>
+            <flux:field>
+                <flux:label>{{ __('الأسبوع') }}</flux:label>
+                <flux:select wire:model.live="weekId" data-week-picker>
+                    @foreach ($weeks as $option)
+                        <flux:select.option value="{{ $option->id }}">
+                            {{ __('الأسبوع') }} {{ $option->week_number }} — {{ \App\Support\HijriDate::dayMonth($option->starts_on) }} – {{ \App\Support\HijriDate::dayMonth($option->ends_on) }}{{ $option->starts_on->lte(today()) && $option->ends_on->gte(today()) ? ' ('.__('الحالي').')' : '' }}
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:description>{{ __('تستطيع أن تعمل على أي أسبوع، سابق أو لاحق، ويُسجَّل إنجازك فيه بتاريخ اليوم.') }}</flux:description>
+            </flux:field>
+        </flux:card>
+    @endif
 
     @if ($askingRecitationFor)
         <div class="fixed inset-0 z-overlay flex items-center justify-center bg-black/40 p-4">
@@ -680,6 +740,11 @@ new class extends Component
         </flux:card>
 
         {{-- اليوم الذي يسجّل عليه --}}
+        @if (! $onCurrent)
+            <flux:callout icon="calendar" color="amber" data-other-week>
+                {{ __('هذا ليس أسبوعك الحالي، وما تسجّله فيه يُحسب له بتاريخ اليوم.') }}
+            </flux:callout>
+        @else
         <flux:card>
             <flux:field>
                 <flux:label>{{ __('سجّل إنجاز يوم') }}</flux:label>
@@ -692,6 +757,7 @@ new class extends Component
                 </flux:select>
             </flux:field>
         </flux:card>
+        @endif
 
         {{-- المجالات الخمسة --}}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">

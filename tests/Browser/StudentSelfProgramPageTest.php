@@ -120,3 +120,31 @@ it('never makes the page itself scroll sideways, on a phone', function () {
 
     expect($overflow)->toBeLessThanOrEqual(1, 'الصفحة نفسها تنساح أفقياً على الجوّال');
 });
+
+it('lets him open another week of his programme', function () {
+    $next = SelfProgramWeek::create([
+        'stage_id' => $this->student->stage_id,
+        'program_type' => SelfProgramWeek::TYPE_SELF,
+        'week_number' => 2,
+        'starts_on' => now('Asia/Riyadh')->startOfWeek()->addDays(7)->format('Y-m-d'),
+        'ends_on' => now('Asia/Riyadh')->startOfWeek()->addDays(13)->format('Y-m-d'),
+    ]);
+
+    SelfProgramItem::create([
+        'self_program_week_id' => $next->id,
+        'track' => SelfProgramTrack::MAQROU,
+        'description' => 'العواصم من القواصم',
+        'target_amount' => 40,
+        'unit' => 'صفحة',
+    ]);
+
+    $this->actingAs($this->student, 'student');
+
+    $page = visit('/student/self-program');
+
+    $page->assertNoJavaScriptErrors()
+        ->select('[data-week-picker]', (string) $next->id)
+        ->assertSee('هذا ليس أسبوعك الحالي')
+        ->assertSee('العواصم من القواصم')
+        ->screenshot(filename: 'student-pick-week');
+});
