@@ -52,6 +52,11 @@
 @endif
 
 <flux:sidebar.group heading="المتابعة" class="grid">
+    @if($shows('manager.student-behavior'))
+        <flux:sidebar.item icon="eye" :href="route('manager.student-behavior')" :current="$on('manager.student-behavior')" wire:navigate>
+            {{ __('سلوك الطلاب') }}
+        </flux:sidebar.item>
+    @endif
     @if($shows('manager.reports'))
         <flux:sidebar.item icon="chart-bar-square" :href="route('manager.reports')" :current="$on('manager.reports')" wire:navigate>
             {{ __('التقارير') }}

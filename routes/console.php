@@ -7,6 +7,7 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+use App\Models\StudentEvent;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('db:backup')->daily();
@@ -25,3 +26,6 @@ Schedule::command('tasks:remind')->dailyAt('06:00');
 // Before the reminders go out, so a task raised this morning by its own pattern
 // is reminded about on the same morning rather than waiting a day for its turn.
 Schedule::command('tasks:follow-up')->dailyAt('05:30');
+
+// Students' visits and problems are kept ninety days; older ones are let go.
+Schedule::command('model:prune', ['--model' => [StudentEvent::class]])->dailyAt('03:30');

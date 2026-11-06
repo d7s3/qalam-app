@@ -438,6 +438,14 @@ new class extends Component
         $weeks = $service->weeksFor($student);
         $onCurrent = $this->onCurrentWeek();
 
+        // A page with nothing on it for him is the commonest reason a student
+        // stops coming, so it is noted where the manager will see it.
+        if (! $week) {
+            \App\Models\StudentEvent::signalOnceToday($student->id, 'self_program_no_week', 'student.self-program');
+        } elseif (! $week->items->contains(fn (SelfProgramItem $item) => $item->target_amount > 0 || filled($item->description))) {
+            \App\Models\StudentEvent::signalOnceToday($student->id, 'self_program_empty_week', 'student.self-program');
+        }
+
         if (! $week) {
             return [
                 'weeks' => $weeks, 'onCurrent' => true,
