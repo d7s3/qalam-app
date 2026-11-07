@@ -71,26 +71,14 @@ it('lets the free fields be done on any day, or all on one', function () {
         ->toBe(20.00);
 });
 
-it('binds التحضير to the day it was set for', function () {
+// Decided with Faisal, 6 Nov 2026: a field set for one day is still recorded
+// on any other day of its week, the last included.
+it('takes التحضير on any day of its week, not only the day it was set for', function () {
     SelfProgramDayOverride::create([
         'self_program_item_id' => $this->prep->id,
         'day_date' => '2026-09-08',
         'content' => 'شرح الدرس الثالث',
     ]);
-
-    expect($this->service->dayIsOpenFor($this->prep, $this->student, Carbon::parse('2026-09-08')))->toBeTrue();
-
-    // Preparing on Thursday for Sunday's lesson is not preparation.
-    expect($this->service->dayIsOpenFor($this->prep, $this->student, Carbon::parse('2026-09-10')))->toBeFalse();
-
-    expect(fn () => $this->service->record($this->student, $this->prep, 1, Carbon::parse('2026-09-10')))
-        ->toThrow(InvalidArgumentException::class);
-});
-
-it('leaves التحضير free when no day was set for it', function () {
-    // Nothing binds it, so it behaves like the rest rather than refusing every
-    // day of the week.
-    expect($this->service->dayIsOpenFor($this->prep, $this->student, Carbon::parse('2026-09-10')))->toBeTrue();
 
     $this->service->record($this->student, $this->prep, 1, Carbon::parse('2026-09-10'));
 
