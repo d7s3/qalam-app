@@ -226,8 +226,6 @@ new class extends Component
                 $today,
                 recitationConfirmed: $recited,
                 by: $student,
-                // A share of the whole week, not of one day.
-                makingUp: true,
             );
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
@@ -338,9 +336,6 @@ new class extends Component
                 $current ? Carbon::parse($this->day) : Carbon::today(),
                 recitationConfirmed: $recited,
                 by: $student,
-                // Another week's days are not today, so its day-bound fields are
-                // not held to them.
-                makingUp: ! $current,
             );
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
@@ -418,7 +413,6 @@ new class extends Component
                 $today,
                 recitationConfirmed: $recited,
                 by: $student,
-                makingUp: true,
             );
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
