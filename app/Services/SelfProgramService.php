@@ -159,6 +159,47 @@ class SelfProgramService
     }
 
     /**
+     * A programme's coming week, and whether anything is written in it yet.
+     *
+     * Asked by the supervisor's home page and by Thursday's reminder, so a week
+     * does not open empty on its students. Null for a programme that keeps no
+     * self programme, and for one whose weeks ran out more than a fortnight ago:
+     * that is a programme that has finished, not one about to open empty.
+     *
+     * @return array{starts_on: string, week_number: ?int, written: bool}|null
+     */
+    public function comingWeek(int $stageId, ?CarbonInterface $on = null): ?array
+    {
+        $today = ($on ?? Carbon::today())->copy()->startOfDay();
+        $weeks = fn () => SelfProgramWeek::self()->where('stage_id', $stageId)->whereNull('circle_id');
+
+        $next = $weeks()->whereDate('starts_on', '>', $today->toDateString())
+            ->orderBy('starts_on')
+            ->with('items')
+            ->first();
+
+        if ($next) {
+            return [
+                'starts_on' => $next->starts_on->toDateString(),
+                'week_number' => $next->week_number,
+                'written' => $next->items->contains(fn (SelfProgramItem $item) => $item->target_amount > 0 || filled($item->description)),
+            ];
+        }
+
+        $lastEnds = $weeks()->max('ends_on');
+
+        if (! $lastEnds || Carbon::parse($lastEnds)->lt($today->copy()->subDays(14))) {
+            return null;
+        }
+
+        return [
+            'starts_on' => Carbon::parse($lastEnds)->addDay()->toDateString(),
+            'week_number' => null,
+            'written' => false,
+        ];
+    }
+
+    /**
      * The enrichment week running for a student's circle.
      *
      * It is only his to open once he is half way through his own week — the
@@ -1066,40 +1107,13 @@ class SelfProgramService
      * work he did.
      */
     /**
-     * Whether this field will take an entry on this day.
-     *
-     * The programme's promise is that the student is free with his week. A
-     * day-bound field is the exception: preparing on Thursday for Sunday's
-     * lesson is not preparation. It binds only to the days it was actually
-     * written for — a field nobody set a day for has nothing to bind to, and
-     * stays as free as the rest.
-     */
-    public function dayIsOpenFor(SelfProgramItem $item, Student $student, CarbonInterface $day): bool
-    {
-        if (! $item->track?->is_day_bound) {
-            return true;
-        }
-
-        $written = $this->dayRowsFor($item, $student)
-            ->filter(fn (SelfProgramDayOverride $row) => filled($row->content) || $row->amount !== null);
-
-        if ($written->isEmpty()) {
-            return true;
-        }
-
-        return $written->contains(fn (SelfProgramDayOverride $row) => $row->day_date->isSameDay($day));
-    }
-
-    /**
      * Record what a student did.
      *
-     * Two fields refuse: one outside its own day, and one until the student
-     * says he has recited it. Both refuse here rather than only on the screen,
-     * so a second screen written later cannot forget them.
-     *
-     * Making up an ended week's arrear stands apart from the week being run:
-     * its days are behind it, so the day rule cannot hold it — the hearing
-     * still does.
+     * Any field takes an entry on any day of its week — decided with Faisal,
+     * 6 Nov 2026, after التحضير refused a student who did it on a day other than
+     * the one it was set for. Only المحفوظ still refuses, until the student
+     * says he has recited it; that refusal lives here rather than only on the
+     * screen, so a second screen written later cannot forget it.
      *
      * @throws \InvalidArgumentException
      */
@@ -1111,7 +1125,6 @@ class SelfProgramService
         string $source = StudentSelfProgramEntry::SOURCE_STUDENT,
         bool $recitationConfirmed = false,
         ?Model $by = null,
-        bool $makingUp = false,
     ): ?StudentSelfProgramEntry {
         // Bound as a Carbon rather than a bare "Y-m-d": the `date` cast writes
         // the full "Y-m-d H:i:s" form, and on SQLite the column is text, so a
@@ -1125,10 +1138,6 @@ class SelfProgramService
 
         if ($amount > 0 && $needsHearing && ! $recitationConfirmed) {
             throw new \InvalidArgumentException('لا يُحتسب المحفوظ حتى تُسمّعه.');
-        }
-
-        if ($amount > 0 && ! $makingUp && ! $this->dayIsOpenFor($item, $student, $day)) {
-            throw new \InvalidArgumentException('هذا المجال مقرَّر ليوم بعينه، ولا يُحتسب في غيره.');
         }
 
         $keys = [

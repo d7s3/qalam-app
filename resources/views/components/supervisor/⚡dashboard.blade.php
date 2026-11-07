@@ -56,6 +56,31 @@ new class extends Component
         };
     }
 
+    /**
+     * His programmes whose coming self-programme week is still unwritten, so it
+     * is written before the students open it. A sheikh narrowed to his own
+     * cohort does not write the programme and is not asked to.
+     *
+     * @return array<int, array{name: string, starts_on: string}>
+     */
+    private function emptyComingWeeks(): array
+    {
+        $scope = Scope::forRole('supervisor');
+
+        if ($scope->narrowsToCohorts()) {
+            return [];
+        }
+
+        $service = app(\App\Services\SelfProgramService::class);
+
+        return \App\Models\Stage::whereIn('id', $scope->reachableStageIds())->orderBy('name')->get()
+            ->map(fn ($stage) => ['name' => $stage->name, 'coming' => $service->comingWeek($stage->id)])
+            ->filter(fn (array $row) => $row['coming'] && ! $row['coming']['written'])
+            ->map(fn (array $row) => ['name' => $row['name'], 'starts_on' => $row['coming']['starts_on']])
+            ->values()
+            ->all();
+    }
+
     public function with(): array
     {
         $supervisor = Auth::guard('supervisor')->user();
@@ -92,6 +117,7 @@ new class extends Component
             'activeCompetitions' => Leaderboard::whereHas('circles', fn ($q) => $q->whereIn('circles.id', $circleIds))
                 ->where('is_active', true)
                 ->count(),
+            'emptyComing' => $this->emptyComingWeeks(),
             'waitingCount' => (clone $waiting)->count(),
             'waiting' => $waiting->take(3)->get(),
         ];
@@ -101,6 +127,17 @@ new class extends Component
 
 <div class="space-y-6 p-4 sm:p-6 lg:p-8" dir="rtl">
     <x-shared.pending-surveys />
+
+    @foreach ($emptyComing as $empty)
+        <a href="{{ route('supervisor.self-program-weeks') }}" wire:navigate data-empty-coming-week
+            class="flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            <flux:icon icon="exclamation-triangle" class="size-5 shrink-0" />
+            <span class="flex-1">
+                {{ __('الأسبوع القادم في :name (يبدأ :date) ليس فيه برنامج ذاتي بعد، فسيفتحه الطلاب فارغاً.', ['name' => $empty['name'], 'date' => HijriDate::withGregorian($empty['starts_on'])]) }}
+            </span>
+            <span class="font-bold shrink-0">{{ __('اكتبه الآن') }}</span>
+        </a>
+    @endforeach
 
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>

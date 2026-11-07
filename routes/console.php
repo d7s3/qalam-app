@@ -25,3 +25,7 @@ Schedule::command('tasks:remind')->dailyAt('06:00');
 // Before the reminders go out, so a task raised this morning by its own pattern
 // is reminded about on the same morning rather than waiting a day for its turn.
 Schedule::command('tasks:follow-up')->dailyAt('05:30');
+
+// Thursday, so the supervisor has the weekend to write a self-programme week
+// before it opens empty on his students.
+Schedule::command('self-program:remind-empty-weeks')->weeklyOn(4, '09:00');
