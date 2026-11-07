@@ -158,10 +158,15 @@
     @endif
 </flux:sidebar.group>
 
-<flux:sidebar.group heading="التواصل والسجل" expandable :expanded="$on('manager.portal', 'manager.student-log', 'manager.motivations', 'manager.event-visibility', 'manager.forms*')" class="grid">
+<flux:sidebar.group heading="التواصل والسجل" expandable :expanded="$on('manager.portal', 'manager.student-notices', 'manager.student-log', 'manager.motivations', 'manager.event-visibility', 'manager.forms*')" class="grid">
     @if($shows('manager.portal'))
         <flux:sidebar.item icon="megaphone" :href="route('manager.portal')" :current="$on('manager.portal')" wire:navigate>
             {{ __('بوابة الرسائل') }}
+        </flux:sidebar.item>
+    @endif
+    @if($shows('manager.student-notices'))
+        <flux:sidebar.item icon="envelope" :href="route('manager.student-notices')" :current="$on('manager.student-notices')" wire:navigate>
+            {{ __('رسائل خاصة للطلاب') }}
         </flux:sidebar.item>
     @endif
     @if($shows('manager.student-log'))

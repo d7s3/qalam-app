@@ -4,6 +4,7 @@ use App\Http\Middleware\EnsurePageIsEnabled;
 use App\Http\Middleware\EnsureStartingPasswordWasChanged;
 use App\Http\Middleware\EnsureUserIsApproved;
 use App\Http\Middleware\RequirePendingSurveys;
+use App\Http\Middleware\RequireStudentNotice;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'page.enabled' => EnsurePageIsEnabled::class,
             'surveys.required' => RequirePendingSurveys::class,
+            'student.notice' => RequireStudentNotice::class,
         ]);
 
         $middleware->redirectGuestsTo(fn () => route('login'));
