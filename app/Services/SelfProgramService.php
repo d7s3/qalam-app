@@ -159,6 +159,47 @@ class SelfProgramService
     }
 
     /**
+     * A programme's coming week, and whether anything is written in it yet.
+     *
+     * Asked by the supervisor's home page and by Thursday's reminder, so a week
+     * does not open empty on its students. Null for a programme that keeps no
+     * self programme, and for one whose weeks ran out more than a fortnight ago:
+     * that is a programme that has finished, not one about to open empty.
+     *
+     * @return array{starts_on: string, week_number: ?int, written: bool}|null
+     */
+    public function comingWeek(int $stageId, ?CarbonInterface $on = null): ?array
+    {
+        $today = ($on ?? Carbon::today())->copy()->startOfDay();
+        $weeks = fn () => SelfProgramWeek::self()->where('stage_id', $stageId)->whereNull('circle_id');
+
+        $next = $weeks()->whereDate('starts_on', '>', $today->toDateString())
+            ->orderBy('starts_on')
+            ->with('items')
+            ->first();
+
+        if ($next) {
+            return [
+                'starts_on' => $next->starts_on->toDateString(),
+                'week_number' => $next->week_number,
+                'written' => $next->items->contains(fn (SelfProgramItem $item) => $item->target_amount > 0 || filled($item->description)),
+            ];
+        }
+
+        $lastEnds = $weeks()->max('ends_on');
+
+        if (! $lastEnds || Carbon::parse($lastEnds)->lt($today->copy()->subDays(14))) {
+            return null;
+        }
+
+        return [
+            'starts_on' => Carbon::parse($lastEnds)->addDay()->toDateString(),
+            'week_number' => null,
+            'written' => false,
+        ];
+    }
+
+    /**
      * The enrichment week running for a student's circle.
      *
      * It is only his to open once he is half way through his own week — the
