@@ -7,6 +7,7 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+use App\Models\StudentEvent;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('db:backup')->daily();
@@ -29,3 +30,6 @@ Schedule::command('tasks:follow-up')->dailyAt('05:30');
 // Thursday, so the supervisor has the weekend to write a self-programme week
 // before it opens empty on his students.
 Schedule::command('self-program:remind-empty-weeks')->weeklyOn(4, '09:00');
+
+// Students' visits and problems are kept ninety days; older ones are let go.
+Schedule::command('model:prune', ['--model' => [StudentEvent::class]])->dailyAt('03:30');

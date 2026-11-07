@@ -5,12 +5,16 @@ namespace App\Providers;
 use App\Models\Guardian;
 use App\Models\Manager;
 use App\Models\Student;
+use App\Models\StudentEvent;
 use App\Models\Supervisor;
 use App\Models\Teacher;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Blaze\Blaze;
@@ -31,9 +35,29 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->recordStudentSignIns();
 
         Blaze::optimize()
             ->in(resource_path('views/components'));
+    }
+
+    /**
+     * A student signing in, or trying to and failing, is written down: several
+     * failures in a row is a student about to give up on his password.
+     */
+    protected function recordStudentSignIns(): void
+    {
+        Event::listen(Login::class, function (Login $event) {
+            if ($event->guard === 'student') {
+                StudentEvent::record($event->user->getAuthIdentifier(), StudentEvent::LOGIN);
+            }
+        });
+
+        Event::listen(Failed::class, function (Failed $event) {
+            if ($event->guard === 'student' && $event->user) {
+                StudentEvent::record($event->user->getAuthIdentifier(), StudentEvent::LOGIN_FAILED);
+            }
+        });
     }
 
     /**

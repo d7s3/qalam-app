@@ -105,6 +105,7 @@ Route::middleware('auth:manager,supervisor,teacher,student,guardian,staff')->gro
 
 Route::middleware(['auth:manager', 'approved', 'password.changed', 'page.enabled'])->prefix('manager')->name('manager.')->group(function () {
     Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
+    Route::view('/student-behavior', 'manager.student-behavior')->name('student-behavior');
     Route::view('/student-notices', 'manager.student-notices')->name('student-notices');
     Route::view('/student-log', 'shared.student-log')->name('student-log');
     Route::view('/motivations', 'shared.motivations')->name('motivations');
@@ -368,7 +369,7 @@ Route::middleware(['auth:teacher', 'approved', 'password.changed', 'page.enabled
 // group is what it stands in front of.
 Route::view('/student/notice', 'student.notice')->middleware(['auth:student', 'approved'])->name('student.notice');
 
-Route::middleware(['auth:student', 'approved', 'password.changed', 'page.enabled', 'surveys.required', 'student.notice'])->prefix('student')->name('student.')->group(function () {
+Route::middleware(['auth:student', 'student.visits', 'approved', 'password.changed', 'page.enabled', 'surveys.required', 'student.notice'])->prefix('student')->name('student.')->group(function () {
     Route::view('/motivations', 'shared.motivations')->name('motivations');
     Route::view('/my-day', 'shared.my-day')->name('my-day');
     Route::get('/dashboard', fn () => view('student.dashboard'))->name('dashboard');
