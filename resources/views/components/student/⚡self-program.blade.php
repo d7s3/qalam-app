@@ -530,6 +530,12 @@ new class extends Component
             'arrears' => $arrears,
             'enrichment' => $enrichment,
             'enrichmentProgress' => $enrichment ? $service->weekProgress($student, $enrichment) : null,
+            // The books on his «أقرؤه الآن» shelf, shown under المقروء, which
+            // the pages he reads in them already feed.
+            'books' => \App\Models\StudentBook::where('student_id', $student->id)
+                ->where('shelf', \App\Models\StudentBook::READING)
+                ->latest('updated_at')
+                ->get(),
         ];
     }
 };
@@ -912,6 +918,33 @@ new class extends Component
                     <div class="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                         <div class="h-full rounded-full bg-sky-500 transition-all duration-500" style="width: {{ $entry['percent'] }}%"></div>
                     </div>
+
+                    @if ($item->getRawOriginal('track') === SelfProgramTrack::MAQROU && \App\Support\RolePages::isEnabled('student', 'student.library'))
+                        <div class="space-y-2 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-800/60" data-reading-books>
+                            @foreach ($books as $book)
+                                <div wire:key="rb-{{ $book->id }}">
+                                    <div class="flex items-center justify-between gap-2 text-xs">
+                                        <span class="font-bold text-zinc-700 dark:text-zinc-200 truncate">{{ $book->title }}</span>
+                                        <span class="tabular-nums text-zinc-500 shrink-0">
+                                            @if ($book->total_pages)
+                                                {{ __('صفحة :at من :of', ['at' => $book->current_page, 'of' => $book->total_pages]) }} — {{ $book->percent() }}%
+                                            @else
+                                                {{ __('صفحة :at', ['at' => $book->current_page]) }}
+                                            @endif
+                                        </span>
+                                    </div>
+                                    @if ($book->total_pages)
+                                        <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                                            <div class="h-full rounded-full bg-emerald-500" style="width: {{ $book->percent() }}%"></div>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
+                            <a href="{{ route('student.library') }}" wire:navigate class="inline-block text-xs font-bold text-maroon hover:underline dark:text-red-secondary">
+                                {{ $books->isEmpty() ? __('أضف الكتاب الذي تقرؤه في مكتبتي') : __('حدّث تقدّمك في مكتبتي') }}
+                            </a>
+                        </div>
+                    @endif
 
                     @if ($entry['target'] > 0 && ($bridged[$item->id] ?? false))
                         {{-- يتحرك بطريقتين: بالتسميع عند المعلم، أو بما يكتبه الطالب هنا --}}
