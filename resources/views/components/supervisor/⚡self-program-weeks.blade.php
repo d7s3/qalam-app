@@ -835,21 +835,29 @@ new class extends Component
             'rows.*.target_amount' => ['nullable', 'numeric', 'min:0', 'max:9999'],
             'rows.*.unit' => ['nullable', 'string', 'max:30'],
             'rows.*.hours' => ['nullable', 'integer', 'min:0', 'max:99'],
-            'rows.*.minutes' => ['nullable', 'integer', 'min:0', 'max:59'],
+            'rows.*.minutes' => ['nullable', 'integer', 'min:0', 'max:999'], // «93» is read as an hour and thirty-three
             'rows.*.content_url' => ['nullable', 'url', 'max:2048'],
         ]);
 
         // The wird is left out: its amount comes from each student's own plan.
-        $missing = SelfProgramTrack::ordered()
+        $missingTracks = SelfProgramTrack::ordered()
             ->filter(fn (SelfProgramTrack $track) => ! $track->isQuranWird()
                 && filled($this->rows[$track->value]['description'] ?? null)
-                && $this->rowAmount($track, $this->rows[$track->value]) <= 0)
-            ->map(fn (SelfProgramTrack $track) => $track->label())
-            ->values()
-            ->all();
+                && $this->rowAmount($track, $this->rows[$track->value]) <= 0);
+        $missing = $missingTracks->map(fn (SelfProgramTrack $track) => $track->label())->values()->all();
 
         if ($missing !== [] && ! $anyway) {
             $this->missingAmounts = $missing;
+
+            // Said at the box itself as well, so he sees which one without
+            // reading the note at the foot of the page.
+            foreach ($missingTracks as $track) {
+                $unit = $track->unitFor($this->rows[$track->value]['unit'] ?? null);
+                $this->addError(
+                    'rows.'.$track->value.'.'.(SelfProgramUnit::isDuration($unit) ? 'minutes' : 'target_amount'),
+                    __('اكتب المقدار هنا.'),
+                );
+            }
 
             Flux::toast(__('لم تكتب مقدار: :fields', ['fields' => implode('، ', $missing)]), variant: 'warning');
 
@@ -884,6 +892,10 @@ new class extends Component
         }
 
         unset($this->week);
+
+        // Shown back as it was kept, so «‎204-‎» typed reads «204» once saved
+        // and ninety-three minutes reads one hour and thirty-three.
+        $this->loadRows();
 
         Flux::toast(text: 'حُفظ محتوى الأسبوع.', variant: 'success');
     }
