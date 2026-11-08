@@ -239,3 +239,32 @@ describe('amounts as typed', function () {
             ->assertHasErrors('rows.maqrou.target_amount');
     });
 });
+
+describe('after saving', function () {
+    it('points at the box that needs an amount', function () {
+        ($this->week)(8, '2026-11-01');
+
+        Livewire::actingAs($this->supervisor, 'supervisor')
+            ->test('supervisor.self-program-weeks')
+            ->set('rows.maqrou.description', 'مقدمة الحوار')
+            ->set('rows.masmou.description', 'تائية الألبيري')
+            ->call('save')
+            ->assertHasErrors(['rows.maqrou.target_amount', 'rows.masmou.minutes']);
+    });
+
+    it('shows the amounts back as they were kept', function () {
+        ($this->week)(8, '2026-11-01');
+
+        Livewire::actingAs($this->supervisor, 'supervisor')
+            ->test('supervisor.self-program-weeks')
+            ->set('rows.maqrou.description', 'مقدمة الحوار')
+            ->set('rows.maqrou.target_amount', '204-')
+            ->set('rows.tahdheer.description', 'الدرر المكية')
+            ->set('rows.tahdheer.unit', 'دقيقة')
+            ->set('rows.tahdheer.minutes', '93')
+            ->call('save')
+            ->assertSet('rows.maqrou.target_amount', 204.0)
+            ->assertSet('rows.tahdheer.hours', 1)
+            ->assertSet('rows.tahdheer.minutes', 33);
+    });
+});

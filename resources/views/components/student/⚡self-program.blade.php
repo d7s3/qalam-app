@@ -246,7 +246,7 @@ new class extends Component
         $this->validate([
             "amounts.{$itemId}" => ['nullable', 'numeric', 'min:0', 'max:9999'],
             "clock.{$itemId}.hours" => ['nullable', 'integer', 'min:0', 'max:99'],
-            "clock.{$itemId}.minutes" => ['nullable', 'integer', 'min:0', 'max:59'],
+            "clock.{$itemId}.minutes" => ['nullable', 'integer', 'min:0', 'max:999'],
         ], [], ["amounts.{$itemId}" => 'المقدار']);
 
         // Listening is reported in hours and minutes; everything else is
