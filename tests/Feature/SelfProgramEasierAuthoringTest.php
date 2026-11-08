@@ -10,6 +10,7 @@ use App\Models\Stage;
 use App\Models\Supervisor;
 use App\Models\UserRole;
 use App\Services\SelfProgramService;
+use App\Support\SelfProgramUnit;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -191,5 +192,50 @@ describe('a coming week left empty', function () {
             ->get(route('supervisor.dashboard'))
             ->assertOk()
             ->assertSee('الأسبوع القادم في تأهيل');
+    });
+});
+
+// A supervisor's «‎204-‎» showed in the browser's number box and reached the
+// platform empty, so the week would not save (8 Nov 2026). The boxes now take
+// text and the amount is read as it was typed.
+describe('amounts as typed', function () {
+    it('reads Arabic digits, a pasted dash and a word', function ($typed, $read) {
+        expect(SelfProgramUnit::parse($typed))->toBe($read);
+    })->with([
+        ['204', 204.0],
+        ['204-', 204.0],
+        ['- 204', 204.0],
+        ['٢٠٤', 204.0],
+        ['٦٫٥ صفحة', 6.5],
+        ['كثير', null],
+        ['', null],
+    ]);
+
+    it('saves the week when the supervisor typed a dash or Arabic digits', function () {
+        ($this->week)(8, '2026-11-01');
+
+        Livewire::actingAs($this->supervisor, 'supervisor')
+            ->test('supervisor.self-program-weeks')
+            ->set('rows.maqrou.description', 'مقدمة الحوار')
+            ->set('rows.maqrou.target_amount', '204-')
+            ->set('rows.tahdheer.description', 'الدرر المكية')
+            ->set('rows.tahdheer.hours', '١')
+            ->set('rows.tahdheer.minutes', '٣٣')
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('missingAmounts', []);
+
+        expect(SelfProgramItem::where('track', 'maqrou')->value('target_amount'))->toEqual(204)
+            ->and(SelfProgramItem::where('track', 'tahdheer')->value('target_amount'))->toEqual(93);
+    });
+
+    it('still refuses a box with no number in it', function () {
+        ($this->week)(8, '2026-11-01');
+
+        Livewire::actingAs($this->supervisor, 'supervisor')
+            ->test('supervisor.self-program-weeks')
+            ->set('rows.maqrou.target_amount', 'كثير')
+            ->call('save')
+            ->assertHasErrors('rows.maqrou.target_amount');
     });
 });

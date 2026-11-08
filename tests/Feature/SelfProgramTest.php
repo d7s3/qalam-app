@@ -248,6 +248,16 @@ describe('the student page', function () {
             ->toEqual(75.0);
     });
 
+    it('reads what the student typed in Arabic digits', function () {
+        Livewire::actingAs($this->student, 'student')
+            ->test('student.self-program')
+            ->set("clock.{$this->manual->id}.minutes", '٣٠')
+            ->call('save', $this->manual->id)
+            ->assertHasNoErrors();
+
+        expect(StudentSelfProgramEntry::where('student_id', $this->student->id)->sum('amount_done'))->toEqual(30.0);
+    });
+
     it('refuses an amount that is not a number', function () {
         Livewire::actingAs($this->student, 'student')
             ->test('student.self-program')
