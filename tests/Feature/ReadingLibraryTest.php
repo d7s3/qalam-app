@@ -105,6 +105,32 @@ it('ranks the cohort by pages read this week', function () {
         ->toBe([['خالد', 40], ['عمر محمد', 15]]);
 });
 
+// Asked for by Faisal, 8 Nov 2026: the book's progress in the self programme.
+it('shows the books he is reading under المقروء in his self programme', function () {
+    $week = SelfProgramWeek::create([
+        'stage_id' => $this->circle->stage_id,
+        'program_type' => SelfProgramWeek::TYPE_SELF,
+        'week_number' => 1,
+        'starts_on' => '2026-11-08',
+        'ends_on' => '2026-11-14',
+    ]);
+    SelfProgramItem::create([
+        'self_program_week_id' => $week->id,
+        'track' => SelfProgramTrack::MAQROU,
+        'description' => 'كتاب الأسبوع',
+        'target_amount' => 100,
+        'unit' => 'صفحة',
+    ]);
+    StudentBook::factory()->create(['student_id' => $this->student->id, 'title' => 'كتاب على رف آخر', 'shelf' => StudentBook::WANT]);
+
+    Livewire::actingAs($this->student, 'student')
+        ->test('student.self-program')
+        ->assertSee('العواصم من القواصم')
+        ->assertSee('صفحة 20 من 300')
+        ->assertDontSee('كتاب على رف آخر')
+        ->assertSee('حدّث تقدّمك في مكتبتي');
+});
+
 describe('the page', function () {
     it('adds a book, logs a page in Arabic digits and keeps a quote', function () {
         Livewire::actingAs($this->student, 'student')
