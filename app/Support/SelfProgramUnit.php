@@ -63,6 +63,32 @@ class SelfProgramUnit
         return $unit === self::PAGE;
     }
 
+    /**
+     * A number as a person typed or pasted it: Arabic-Indic digits, an Arabic
+     * decimal mark, and the dash or words pasted along with it from a message.
+     * Null when there is no number in it at all.
+     *
+     * The amount boxes take text rather than the browser's number box, because
+     * the number box sends nothing when it cannot read what is in it — a
+     * supervisor's «‎204-‎» showed on his screen and reached the platform empty.
+     */
+    public static function parse(mixed $typed): ?float
+    {
+        if (is_int($typed) || is_float($typed)) {
+            return (float) $typed;
+        }
+
+        $latin = strtr((string) $typed, [
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+            '٫' => '.',
+        ]);
+
+        return preg_match('/\d+(\.\d+)?/', $latin, $match) ? (float) $match[0] : null;
+    }
+
     /** The smallest step the form should offer. */
     public static function step(?string $unit): float
     {

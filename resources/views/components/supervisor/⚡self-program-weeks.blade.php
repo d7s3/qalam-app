@@ -826,6 +826,8 @@ new class extends Component
     {
         $week = $this->week;
 
+        $this->readTypedAmounts();
+
         abort_unless($week && $this->stages->contains('id', $week->stage_id), 403);
 
         $this->validate([
@@ -884,6 +886,30 @@ new class extends Component
         unset($this->week);
 
         Flux::toast(text: 'حُفظ محتوى الأسبوع.', variant: 'success');
+    }
+
+    /**
+     * Read each amount box as it was typed — Arabic digits, a pasted dash —
+     * before it is checked. What holds no number at all is left for the
+     * check to refuse aloud.
+     */
+    private function readTypedAmounts(): void
+    {
+        foreach ($this->rows as $key => $row) {
+            foreach (['target_amount', 'hours', 'minutes'] as $field) {
+                $typed = $row[$field] ?? null;
+
+                if ($typed === null || $typed === '') {
+                    continue;
+                }
+
+                $number = SelfProgramUnit::parse($typed);
+
+                if ($number !== null) {
+                    $this->rows[$key][$field] = $field === 'target_amount' ? $number : (int) $number;
+                }
+            }
+        }
     }
 
     /**
@@ -1364,19 +1390,18 @@ new class extends Component
                                 @if (SelfProgramUnit::isDuration($unit))
                                     {{-- Time is asked for as it is spoken. --}}
                                     <div class="flex items-center gap-1.5">
-                                        <flux:input type="number" min="0" max="99" class="text-center"
+                                        <flux:input type="text" inputmode="numeric" class="text-center"
                                             wire:model="rows.{{ $track->value }}.hours"
                                             placeholder="{{ __('ساعة') }}" />
                                         <span class="text-zinc-400 text-xs shrink-0">:</span>
-                                        <flux:input type="number" min="0" max="59" step="5" class="text-center"
+                                        <flux:input type="text" inputmode="numeric" class="text-center"
                                             wire:model="rows.{{ $track->value }}.minutes"
                                             placeholder="{{ __('دقيقة') }}" />
                                     </div>
                                     <flux:error name="rows.{{ $track->value }}.hours" />
                                     <flux:error name="rows.{{ $track->value }}.minutes" />
                                 @else
-                                    <flux:input type="number" min="0"
-                                        step="{{ SelfProgramUnit::step($unit) }}"
+                                    <flux:input type="text" inputmode="decimal"
                                         wire:model="rows.{{ $track->value }}.target_amount"
                                         placeholder="{{ __('المقدار') }}" />
                                     <flux:error name="rows.{{ $track->value }}.target_amount" />

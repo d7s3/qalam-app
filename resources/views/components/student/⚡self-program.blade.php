@@ -236,6 +236,7 @@ new class extends Component
 
     public function save(int $itemId): void
     {
+        $this->readTyped($itemId);
         $item = $this->openItems()->firstWhere('id', $itemId);
 
         // The item must belong to a week this student actually has open.
@@ -351,6 +352,7 @@ new class extends Component
      */
     public function settle(int $itemId): void
     {
+        $this->readTyped($itemId);
         $item = $this->arrear($itemId)['item'];
 
         $this->validateSettleAmount($itemId);
@@ -378,6 +380,30 @@ new class extends Component
         abort_unless($arrear !== null, 404);
 
         return $arrear;
+    }
+
+    /**
+     * Read a field's boxes as the student typed them — Arabic digits, a stray
+     * dash — before they are checked; what holds no number is left to be
+     * refused aloud rather than read as nothing done.
+     */
+    private function readTyped(int $itemId): void
+    {
+        foreach (['amounts', 'settleAmounts'] as $boxes) {
+            $typed = $this->{$boxes}[$itemId] ?? null;
+
+            if ($typed !== null && $typed !== '' && ($number = SelfProgramUnit::parse($typed)) !== null) {
+                $this->{$boxes}[$itemId] = $number;
+            }
+        }
+
+        foreach (['hours', 'minutes'] as $part) {
+            $typed = $this->clock[$itemId][$part] ?? null;
+
+            if ($typed !== null && $typed !== '' && ($number = SelfProgramUnit::parse($typed)) !== null) {
+                $this->clock[$itemId][$part] = (int) $number;
+            }
+        }
     }
 
     private function validateSettleAmount(int $itemId): void
@@ -747,8 +773,7 @@ new class extends Component
                         </div>
                         <div class="flex items-end gap-2">
                             <flux:field>
-                                <flux:input type="number" min="0" class="w-32"
-                                    step="{{ SelfProgramUnit::step($arrear['item']->displayUnit()) }}"
+                                <flux:input type="text" inputmode="decimal" class="w-32"
                                     wire:model="settleAmounts.{{ $arrear['item']->id }}"
                                     placeholder="{{ $arrear['item']->isDuration() ? __('دقيقة') : __('ما أنجزته') }}" />
                                 <flux:error name="settleAmounts.{{ $arrear['item']->id }}" />
@@ -936,19 +961,18 @@ new class extends Component
                                 </flux:label>
                                 @if ($item->isDuration())
                                     <div class="flex items-center gap-1.5">
-                                        <flux:input type="number" min="0" max="99" class="text-center"
+                                        <flux:input type="text" inputmode="numeric" class="text-center"
                                             wire:model="clock.{{ $item->id }}.hours"
                                             placeholder="{{ __('ساعة') }}" />
                                         <span class="text-zinc-400 text-xs shrink-0">:</span>
-                                        <flux:input type="number" min="0" max="59" step="5" class="text-center"
+                                        <flux:input type="text" inputmode="numeric" class="text-center"
                                             wire:model="clock.{{ $item->id }}.minutes"
                                             placeholder="{{ __('دقيقة') }}" />
                                     </div>
                                     <flux:error name="clock.{{ $item->id }}.hours" />
                                     <flux:error name="clock.{{ $item->id }}.minutes" />
                                 @else
-                                    <flux:input type="number" min="0"
-                                        step="{{ SelfProgramUnit::step($item->displayUnit()) }}"
+                                    <flux:input type="text" inputmode="decimal"
                                         wire:model="amounts.{{ $item->id }}"
                                         placeholder="{{ __('ما أنجزته') }}" />
                                     <flux:error name="amounts.{{ $item->id }}" />
@@ -1016,17 +1040,16 @@ new class extends Component
                                     <flux:field>
                                         @if ($extra['item']->isDuration())
                                             <div class="flex items-center gap-1.5 w-40">
-                                                <flux:input type="number" min="0" max="99" class="text-center"
+                                                <flux:input type="text" inputmode="numeric" class="text-center"
                                                     wire:model="clock.{{ $extra['item']->id }}.hours"
                                                     placeholder="{{ __('ساعة') }}" />
                                                 <span class="text-zinc-400 text-xs shrink-0">:</span>
-                                                <flux:input type="number" min="0" max="59" step="5" class="text-center"
+                                                <flux:input type="text" inputmode="numeric" class="text-center"
                                                     wire:model="clock.{{ $extra['item']->id }}.minutes"
                                                     placeholder="{{ __('دقيقة') }}" />
                                             </div>
                                         @else
-                                            <flux:input type="number" min="0" class="w-32"
-                                                step="{{ SelfProgramUnit::step($extra['item']->displayUnit()) }}"
+                                            <flux:input type="text" inputmode="decimal" class="w-32"
                                                 wire:model="amounts.{{ $extra['item']->id }}"
                                                 placeholder="{{ __('ما أنجزته') }}" />
                                             <flux:error name="amounts.{{ $extra['item']->id }}" />
