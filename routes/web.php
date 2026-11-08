@@ -375,6 +375,7 @@ Route::middleware(['auth:student', 'student.visits', 'approved', 'password.chang
     Route::get('/dashboard', fn () => view('student.dashboard'))->name('dashboard');
     Route::view('/self-program', 'student.self-program')->name('self-program');
     Route::view('/self-program-record', 'student.self-program-record')->name('self-program-record');
+    Route::view('/library', 'student.library')->name('library');
     Route::view('/plan', 'student.my-plan')->name('plan');
     Route::view('/plan/create', 'student.plan-creator')->name('plan-creator');
     Route::view('/plan/show/{id}', 'student.show-plan')->name('show-plan');

@@ -26,6 +26,11 @@
             {{ __('سجلّ إنجازي') }}
         </flux:sidebar.item>
     @endif
+    @if(\App\Support\RolePages::isEnabled('student', 'student.library'))
+        <flux:sidebar.item icon="book-open" :href="route('student.library')" :current="request()->routeIs('student.library')" wire:navigate>
+            {{ __('مكتبتي') }}
+        </flux:sidebar.item>
+    @endif
 {{-- المسار القرآني جزءٌ من البرنامج الذاتي لا جارٌ له، فينزل تحته بعنوانه. --}}
 @php $quranPages = collect(['student.plan', 'student.hifz', 'student.review'])
         ->filter(fn ($page) => \App\Support\RolePages::isEnabled('student', $page)); @endphp
