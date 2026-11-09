@@ -99,6 +99,7 @@ new class extends Component
             'started_on' => $this->newShelf === StudentBook::READING ? today() : null,
         ]);
 
+        \App\Models\StudentEvent::action('library_book_added');
         $this->shelf = $this->newShelf;
         $this->reset('title', 'author', 'totalPages');
         unset($this->books);
@@ -119,6 +120,7 @@ new class extends Component
         $book = $this->book($bookId);
         $session = app(ReadingService::class)->advance($book, (int) $page);
 
+        \App\Models\StudentEvent::action('library_page_logged');
         unset($this->reached[$bookId], $this->books);
 
         Flux::toast($session->pages > 0
@@ -153,6 +155,7 @@ new class extends Component
 
         $done = app(ReadingService::class)->finish($session, (int) $page);
 
+        \App\Models\StudentEvent::action('library_session_finished');
         $this->sessionId = null;
         unset($this->runningSession, $this->books);
 
@@ -204,6 +207,7 @@ new class extends Component
             'page' => $page ? (int) $page : null,
         ]);
 
+        \App\Models\StudentEvent::action('library_quote_added');
         $this->reset('quote', 'quotePage');
     }
 

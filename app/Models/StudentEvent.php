@@ -33,6 +33,20 @@ class StudentEvent extends Model
 
     public const SIGNAL = 'signal';
 
+    /** Something he did on a page: recorded an achievement, added a book… */
+    public const ACTION = 'action';
+
+    /** The actions, as the manager reads them. */
+    public const ACTIONS = [
+        'self_program_saved' => 'سجّل إنجازاً في البرنامج الذاتي',
+        'self_program_harvest' => 'استعمل أزرار الحصاد',
+        'self_program_made_up' => 'عوّض متأخراً',
+        'library_book_added' => 'أضاف كتاباً',
+        'library_page_logged' => 'سجّل تقدّمه في كتاب',
+        'library_session_finished' => 'أنهى جلسة قراءة',
+        'library_quote_added' => 'حفظ اقتباساً',
+    ];
+
     public const UPDATED_AT = null;
 
     protected $fillable = ['student_id', 'kind', 'route_name', 'detail', 'status', 'created_at'];
@@ -65,6 +79,26 @@ class StudentEvent extends Model
         } catch (\Throwable $e) {
             report($e);
         }
+    }
+
+    /** Note something the signed-in student did, by one of the ACTIONS keys. */
+    public static function action(string $what): void
+    {
+        $student = auth('student')->user();
+
+        if ($student) {
+            static::record($student->id, self::ACTION, request()->route()?->getName(), $what);
+        }
+    }
+
+    /** The kind of device a browser says it is, in words. */
+    public static function device(?string $userAgent): string
+    {
+        return match (true) {
+            (bool) preg_match('/iPad|Tablet/i', (string) $userAgent) => 'جهاز لوحي',
+            (bool) preg_match('/Mobi|Android|iPhone/i', (string) $userAgent) => 'جوال',
+            default => 'حاسب',
+        };
     }
 
     /**
