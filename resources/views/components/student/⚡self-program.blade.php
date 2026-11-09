@@ -227,6 +227,7 @@ new class extends Component
                 recitationConfirmed: $recited,
                 by: $student,
             );
+            \App\Models\StudentEvent::action('self_program_harvest');
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
         }
@@ -338,6 +339,7 @@ new class extends Component
                 recitationConfirmed: $recited,
                 by: $student,
             );
+            \App\Models\StudentEvent::action('self_program_saved');
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
         }
@@ -440,6 +442,7 @@ new class extends Component
                 recitationConfirmed: $recited,
                 by: $student,
             );
+            \App\Models\StudentEvent::action('self_program_made_up');
         } catch (\InvalidArgumentException $e) {
             Flux::toast($e->getMessage(), variant: 'danger');
 

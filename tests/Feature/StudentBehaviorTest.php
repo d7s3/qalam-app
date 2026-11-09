@@ -95,3 +95,48 @@ describe('the manager page', function () {
             ->assertSee('سلوك الطلاب');
     });
 });
+
+// Asked for by Faisal, 9 Nov 2026: what students do inside the pages, how long
+// they stay, and on what device.
+describe('what they do and how long they stay', function () {
+    it('notes the device a student signs in on', function () {
+        app('request')->headers->set('User-Agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148');
+
+        event(new Login('student', $this->student, false));
+
+        expect(StudentEvent::where('kind', StudentEvent::LOGIN)->value('detail'))->toBe('جوال')
+            ->and(StudentEvent::device('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)'))->toBe('حاسب')
+            ->and(StudentEvent::device('Mozilla/5.0 (iPad; CPU OS 17_0)'))->toBe('جهاز لوحي');
+    });
+
+    it('notes a book added in his library', function () {
+        Livewire::actingAs($this->student, 'student')
+            ->test('student.library')
+            ->set('title', 'العواصم من القواصم')
+            ->call('addBook');
+
+        expect(StudentEvent::where('kind', StudentEvent::ACTION)->value('detail'))->toBe('library_book_added');
+    });
+
+    it('reads time spent as visits split by half an hour of quiet', function () {
+        $at = fn (string $time) => (object) ['created_at' => Carbon\Carbon::parse("2026-11-09 {$time}")];
+
+        $spent = Livewire::new('manager.student-behavior')::timeSpent(
+            collect([$at('10:00'), $at('10:12'), $at('10:20'), $at('18:00'), $at('18:05')]),
+        );
+
+        expect($spent)->toBe(['minutes' => 25, 'visits' => 2]);
+    });
+
+    it('shows the manager what students did, and who opened the self programme without recording', function () {
+        StudentEvent::factory()->create(['student_id' => $this->student->id, 'kind' => StudentEvent::LOGIN, 'route_name' => null, 'detail' => 'جوال']);
+        StudentEvent::factory()->count(2)->create(['student_id' => $this->student->id, 'route_name' => 'student.self-program']);
+        StudentEvent::factory()->create(['student_id' => $this->student->id, 'kind' => StudentEvent::ACTION, 'detail' => 'library_book_added']);
+
+        Livewire::actingAs(Manager::factory()->create(), 'manager')
+            ->test('manager.student-behavior')
+            ->assertSee('فتح البرنامج الذاتي 2 مرات ولم يسجّل شيئاً')
+            ->assertSee('أضاف كتاباً')
+            ->assertSee('جوال');
+    });
+});

@@ -49,7 +49,11 @@ class AppServiceProvider extends ServiceProvider
     {
         Event::listen(Login::class, function (Login $event) {
             if ($event->guard === 'student') {
-                StudentEvent::record($event->user->getAuthIdentifier(), StudentEvent::LOGIN);
+                StudentEvent::record(
+                    $event->user->getAuthIdentifier(),
+                    StudentEvent::LOGIN,
+                    detail: StudentEvent::device(request()->userAgent()),
+                );
             }
         });
 

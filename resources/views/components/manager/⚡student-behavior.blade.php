@@ -58,6 +58,34 @@ new class extends Component
         return Screen::pluck('label', 'route_name')->all();
     }
 
+    /**
+     * Time on the platform, read off when things happened: a gap of half an
+     * hour or more starts a new visit, and a visit lasts from its first event
+     * to its last.
+     *
+     * @return array{minutes: int, visits: int}
+     */
+    public static function timeSpent(\Illuminate\Support\Collection $events): array
+    {
+        $minutes = 0;
+        $visits = 0;
+        $previous = null;
+
+        foreach ($events->sortBy('created_at') as $event) {
+            $at = $event->created_at;
+
+            if (! $previous || $previous->diffInMinutes($at) >= 30) {
+                $visits++;
+            } else {
+                $minutes += $previous->diffInMinutes($at);
+            }
+
+            $previous = $at;
+        }
+
+        return ['minutes' => (int) round($minutes), 'visits' => $visits];
+    }
+
     public function pageLabel(?string $route): string
     {
         return $this->pageLabels[$route] ?? ($route ?: '—');
@@ -84,6 +112,7 @@ new class extends Component
 
         $watch = $this->students->map(function (Student $student) use ($byStudent, $recorded, $lastSeen) {
             $mine = $byStudent->get($student->id, collect());
+            $spent = self::timeSpent($mine->whereIn('kind', [StudentEvent::LOGIN, StudentEvent::PAGE, StudentEvent::ACTION]));
             $came = $mine->whereIn('kind', [StudentEvent::LOGIN, StudentEvent::PAGE])->isNotEmpty();
             $reasons = [];
 
@@ -97,7 +126,11 @@ new class extends Component
                 $reasons[] = __('أخطأ في كلمة المرور :count مرات', ['count' => $failed]);
             }
 
-            if ($came && ! isset($recorded[$student->id])) {
+            $openedSelfProgram = $mine->where('kind', StudentEvent::PAGE)->where('route_name', 'student.self-program')->count();
+
+            if ($openedSelfProgram > 0 && ! isset($recorded[$student->id])) {
+                $reasons[] = __('فتح البرنامج الذاتي :count مرات ولم يسجّل شيئاً', ['count' => $openedSelfProgram]);
+            } elseif ($came && ! isset($recorded[$student->id])) {
                 $reasons[] = __('دخل ولم يسجّل إنجازاً في البرنامج الذاتي');
             }
 
@@ -109,12 +142,16 @@ new class extends Component
                 $reasons[] = (self::SIGNALS[$detail] ?? $detail).' — '.__(':count أيام', ['count' => $times]);
             }
 
-            return ['student' => $student, 'reasons' => $reasons, 'seen' => $lastSeen[$student->id] ?? null];
+            return ['student' => $student, 'reasons' => $reasons, 'seen' => $lastSeen[$student->id] ?? null, 'spent' => $spent];
         })->filter(fn (array $row) => $row['reasons'] !== [])
             ->sortByDesc(fn (array $row) => count($row['reasons']))
             ->values();
 
         $cameIds = $events->whereIn('kind', [StudentEvent::LOGIN, StudentEvent::PAGE])->pluck('student_id')->unique();
+
+        $spent = $byStudent->map(fn ($mine) => self::timeSpent($mine->whereIn('kind', [StudentEvent::LOGIN, StudentEvent::PAGE, StudentEvent::ACTION])));
+        $visits = $spent->sum('visits');
+        $logins = $events->where('kind', StudentEvent::LOGIN)->whereNotNull('detail');
 
         return [
             'total' => $this->students->count(),
@@ -126,6 +163,14 @@ new class extends Component
             'pages' => $events->where('kind', StudentEvent::PAGE)->countBy('route_name')->sortDesc()->take(8),
             'problems' => $events->where('kind', StudentEvent::PROBLEM)->sortByDesc('created_at')->take(15)->values(),
             'names' => $this->students->pluck('name', 'id'),
+            'perVisit' => $visits ? (int) round($spent->sum('minutes') / $visits) : 0,
+            'devices' => $logins->countBy('detail')->sortDesc(),
+            'deviceTotal' => $logins->count(),
+            'actions' => collect(StudentEvent::ACTIONS)->map(fn ($label, $key) => [
+                'label' => $label,
+                'times' => $events->where('kind', StudentEvent::ACTION)->where('detail', $key)->count(),
+                'students' => $events->where('kind', StudentEvent::ACTION)->where('detail', $key)->pluck('student_id')->unique()->count(),
+            ])->filter(fn ($row) => $row['times'] > 0)->sortByDesc('times'),
             'firstRecord' => StudentEvent::min('created_at'),
         ];
     }
@@ -164,6 +209,31 @@ new class extends Component
         @endforeach
     </div>
 
+    <div class="grid gap-6 lg:grid-cols-2">
+        <flux:card class="space-y-3" data-time-and-devices>
+            <flux:heading size="lg">{{ __('البقاء والأجهزة') }}</flux:heading>
+            <div class="text-sm">{{ __('متوسط الزيارة') }}: <span class="font-bold tabular-nums">{{ __(':m دقيقة', ['m' => $perVisit]) }}</span></div>
+            @foreach ($devices as $device => $times)
+                <div class="flex items-center justify-between text-sm">
+                    <span>{{ $device }}</span>
+                    <span class="tabular-nums text-zinc-500">{{ round($times / max(1, $deviceTotal) * 100) }}%</span>
+                </div>
+            @endforeach
+        </flux:card>
+
+        <flux:card class="space-y-3" data-actions>
+            <flux:heading size="lg">{{ __('ما يفعله الطلاب') }}</flux:heading>
+            @forelse ($actions as $row)
+                <div class="flex items-center justify-between text-sm">
+                    <span>{{ $row['label'] }}</span>
+                    <span class="tabular-nums text-zinc-500">{{ __(':times مرة، :students طالب', ['times' => $row['times'], 'students' => $row['students']]) }}</span>
+                </div>
+            @empty
+                <p class="text-sm text-zinc-500">{{ __('لم يُسجَّل شيء بعد في هذه المدة.') }}</p>
+            @endforelse
+        </flux:card>
+    </div>
+
     <flux:card class="space-y-3">
         <flux:heading size="lg">{{ __('يحتاجون متابعة') }}</flux:heading>
         @forelse ($watch as $row)
@@ -176,9 +246,12 @@ new class extends Component
                         @endforeach
                     </div>
                 </div>
-                <div class="text-xs text-zinc-400 shrink-0">
+                <div class="text-xs text-zinc-400 shrink-0 text-end">
                     @if ($row['seen'])
-                        {{ __('آخر دخول') }}: <x-hijri-date :date="$row['seen']" />
+                        <div>{{ __('آخر دخول') }}: <x-hijri-date :date="$row['seen']" /></div>
+                    @endif
+                    @if ($row['spent']['visits'] > 0)
+                        <div>{{ __(':visits زيارة، :minutes دقيقة', ['visits' => $row['spent']['visits'], 'minutes' => $row['spent']['minutes']]) }}</div>
                     @endif
                 </div>
             </div>
