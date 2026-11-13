@@ -8,8 +8,8 @@ use App\Services\ComplaintBot;
 use App\Services\TelegramService;
 use App\Support\AiSettings;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
@@ -30,7 +30,7 @@ beforeEach(function () {
         'api.telegram.org/file/*' => Http::response('jpeg-bytes'),
         'api.telegram.org/*' => Http::response(['ok' => true, 'result' => []]),
     ]);
-    Queue::fake();
+    Bus::fake();
 });
 
 /**
@@ -92,7 +92,7 @@ it('asks for a name, a role and a screenshot with its explanation', function () 
         ->media_file_id->toBe('large')
         ->description->toBe('أضغط حفظ في البرنامج الذاتي ولا يحفظ');
 
-    Queue::assertPushed(AnalyseAppComplaint::class);
+    Bus::assertDispatchedAfterResponse(AnalyseAppComplaint::class);
 });
 
 it('takes a clip without an explanation, and a returning sender is not asked again', function () {
