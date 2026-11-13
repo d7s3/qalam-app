@@ -42,4 +42,12 @@ return [
         'send_delay_max' => (int) env('WHATSAPP_SEND_DELAY_MAX', 14),
     ],
 
+    // The complaints bot. The secret is in the webhook's path and in Telegram's
+    // header, so nobody else can post complaints as Telegram.
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN', ''),
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET', ''),
+        'admin_chat_id' => env('TELEGRAM_ADMIN_CHAT_ID', ''),
+    ],
+
 ];
