@@ -211,6 +211,7 @@ class ComplaintBot
             ['keyboard' => [[['text' => 'شكوى جديدة']]], 'resize_keyboard' => true],
         );
 
-        AnalyseAppComplaint::dispatch($complaint);
+        // Qalam has no queue worker on the server; run it once Telegram has its answer.
+        AnalyseAppComplaint::dispatchAfterResponse($complaint);
     }
 }
