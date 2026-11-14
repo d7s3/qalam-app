@@ -771,6 +771,12 @@ new class extends Component
                                     — {{ __('الأسبوع') }} {{ $arrear['week']->week_number }}
                                 </span>
                             </div>
+                            {{-- What was asked, not only how much: «العواصم: من ص 265 إلى ص 395». --}}
+                            @if (filled($arrear['item']->wanted()))
+                                <div class="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5" data-arrear-wanted>
+                                    {{ __('المطلوب:') }} {{ $arrear['item']->wanted() }}
+                                </div>
+                            @endif
                             <div class="text-xs text-amber-600 dark:text-amber-400 tabular-nums mt-0.5">
                                 {{ __('بقي') }} {{ $arrear['item']->say($arrear['remaining']) }}
                                 <span class="text-zinc-400">
@@ -892,6 +898,13 @@ new class extends Component
                                 <div class="font-bold text-zinc-900 dark:text-white">{{ $item->track->label() }}</div>
                                 <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                     {{ ($fromPlan[$item->id] ?? false) ? __('حسب خطتك القرآنية: حفظك ومراجعتك هذا الأسبوع') : ($item->description ?: __('لم يُحدَّد محتوى')) }}
+                                    @if ($item->bookRanges() !== [])
+                                        <ul class="mt-1 space-y-0.5" data-book-ranges>
+                                            @foreach ($item->bookRanges() as $range)
+                                                <li class="font-medium text-zinc-700 dark:text-zinc-300">• {{ $range }}</li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
                                     @if ($item->content_url)
                                         <a href="{{ $item->content_url }}" target="_blank" rel="noopener noreferrer"
                                             class="inline-flex items-center gap-1 mt-1 text-xs font-bold text-maroon dark:text-red-secondary hover:underline">

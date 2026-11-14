@@ -16,12 +16,14 @@ class SelfProgramItem extends Model
         'content_url',
         'content_label',
         'description',
+        'books',
         'target_amount',
         'unit',
     ];
 
     protected $casts = [
         'target_amount' => 'decimal:2',
+        'books' => 'array',
     ];
 
     /** @return BelongsTo<SelfProgramWeek, $this> */
@@ -104,6 +106,39 @@ class SelfProgramItem extends Model
         return $this->unit !== null
             && $this->unit !== ''
             && ! $this->track->allowsUnit($this->unit);
+    }
+
+    /**
+     * Each book the field asks for, with its pages: «العواصم: من ص 265 إلى ص 395».
+     *
+     * @return list<string>
+     */
+    public function bookRanges(): array
+    {
+        return collect($this->books ?? [])
+            ->filter(fn ($book) => filled($book['title'] ?? null))
+            ->map(fn (array $book) => self::bookRange($book))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array{title?: string, from?: int|null, to?: int|null}  $book
+     */
+    public static function bookRange(array $book): string
+    {
+        $pages = trim(
+            (filled($book['from'] ?? null) ? 'من ص '.$book['from'] : '')
+            .' '.(filled($book['to'] ?? null) ? 'إلى ص '.$book['to'] : '')
+        );
+
+        return trim($book['title']).($pages !== '' ? ': '.$pages : '');
+    }
+
+    /** What the field asks for, in words: its books and pages, else its description. */
+    public function wanted(): string
+    {
+        return $this->bookRanges() !== [] ? implode('، ', $this->bookRanges()) : (string) $this->description;
     }
 
     /** Whether this item is a length of time rather than a count of things. */
