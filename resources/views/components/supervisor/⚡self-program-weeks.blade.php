@@ -359,7 +359,8 @@ new class extends Component
 
             $this->rows[$track->value] = [
                 'description' => $item?->description ?? '',
-                'books' => $item?->books ?? [],
+                // The reading field opens on a book row, so its pages are asked for every week.
+                'books' => $item?->books ?: ($track->key === SelfProgramTrack::MAQROU ? [['title' => '', 'from' => '', 'to' => '']] : []),
                 'content_url' => $item?->content_url ?? '',
                 'target_amount' => $amount,
                 'unit' => $track->unitFor($item?->unit),
@@ -877,13 +878,25 @@ new class extends Component
             return;
         }
 
+        // Asked for by Faisal, 14 Nov 2026: the platform works out where each
+        // book starts — the page after last week's end, or its first page.
+        $lastEnds = collect($this->previousWeekBooks())
+            ->filter(fn ($book) => filled($book['title'] ?? null) && filled($book['to'] ?? null))
+            ->mapWithKeys(fn (array $book) => [trim($book['title']) => (int) $book['to']]);
+
         $books = collect($row['books'] ?? [])
             ->filter(fn ($book) => filled(trim((string) ($book['title'] ?? ''))))
-            ->map(fn (array $book) => [
-                'title' => trim($book['title']),
-                'from' => ($from = SelfProgramUnit::parse($book['from'] ?? null)) !== null ? (int) $from : null,
-                'to' => ($to = SelfProgramUnit::parse($book['to'] ?? null)) !== null ? (int) $to : null,
-            ])->values();
+            ->map(function (array $book) use ($lastEnds) {
+                $title = trim($book['title']);
+                $from = SelfProgramUnit::parse($book['from'] ?? null);
+                $to = SelfProgramUnit::parse($book['to'] ?? null);
+
+                return [
+                    'title' => $title,
+                    'from' => $from !== null ? (int) $from : (isset($lastEnds[$title]) ? $lastEnds[$title] + 1 : 1),
+                    'to' => $to !== null ? (int) $to : null,
+                ];
+            })->values();
 
         $this->rows[SelfProgramTrack::MAQROU]['books'] = $books->all();
 
@@ -919,6 +932,24 @@ new class extends Component
         ]);
 
         $this->applyBooks();
+
+        // Asked for by Faisal, 14 Nov 2026: a student must know where to start
+        // and where to stop, so reading is not saved without its pages.
+        $reading = $this->rows[SelfProgramTrack::MAQROU] ?? null;
+        $books = $reading['books'] ?? [];
+
+        if ($reading
+            && (filled($reading['description'] ?? null) || (float) ($reading['target_amount'] ?: 0) > 0)
+            && ($books === [] || collect($books)->contains(fn (array $book) => $book['to'] === null))) {
+            $this->addError('rows.maqrou.books', __('اكتب لكل كتاب الصفحة التي يقف عندها الطالب هذا الأسبوع.'));
+            Flux::toast(__('اكتب صفحات كتب المقروء قبل الحفظ.'), variant: 'warning');
+
+            if ($books === []) {
+                $this->addBook();
+            }
+
+            return;
+        }
 
         foreach ($this->rows[SelfProgramTrack::MAQROU]['books'] ?? [] as $index => $book) {
             if ($book['from'] !== null && $book['to'] !== null && $book['to'] < $book['from']) {
@@ -1487,7 +1518,7 @@ new class extends Component
                                                     placeholder="{{ __('اسم الكتاب') }}" />
                                                 <flux:input class="w-20 text-center" type="text" inputmode="numeric"
                                                     wire:model="rows.{{ $track->value }}.books.{{ $index }}.from"
-                                                    placeholder="{{ __('من ص') }}" />
+                                                    placeholder="{{ __('من ص (تلقائي)') }}" />
                                                 <flux:input class="w-20 text-center" type="text" inputmode="numeric"
                                                     wire:model="rows.{{ $track->value }}.books.{{ $index }}.to"
                                                     placeholder="{{ __('إلى ص') }}" />
@@ -1496,6 +1527,8 @@ new class extends Component
                                             </div>
                                             <flux:error name="rows.{{ $track->value }}.books.{{ $index }}.to" />
                                         @endforeach
+
+                                        <flux:error name="rows.{{ $track->value }}.books" />
 
                                         <div class="flex flex-wrap gap-2">
                                             <flux:button size="sm" variant="ghost" icon="plus" wire:click="addBook">
@@ -1508,7 +1541,7 @@ new class extends Component
                                             @endif
                                         </div>
                                         @if (($rows[$track->value]['books'] ?? []) !== [])
-                                            <p class="text-[11px] text-zinc-500">{{ __('يُحسب المقدار من الصفحات تلقائياً.') }}</p>
+                                            <p class="text-[11px] text-zinc-500">{{ __('اكتب الصفحة التي يقف عندها. البداية تُحسب من حيث وقف الأسبوع الماضي، أو من أول الكتاب إن كان جديداً، والمقدار من الصفحات.') }}</p>
                                         @endif
                                     </div>
                                 @endif
@@ -1540,6 +1573,10 @@ new class extends Component
                                     </div>
                                     <flux:error name="rows.{{ $track->value }}.hours" />
                                     <flux:error name="rows.{{ $track->value }}.minutes" />
+                                @elseif ($track->key === SelfProgramTrack::MAQROU)
+                                    {{-- The reading's amount is its pages, counted on save. --}}
+                                    <flux:input disabled value="{{ (float) ($rows[$track->value]['target_amount'] ?: 0) ?: '' }}"
+                                        placeholder="{{ __('من الصفحات') }}" />
                                 @else
                                     <flux:input type="text" inputmode="decimal"
                                         wire:model="rows.{{ $track->value }}.target_amount"
