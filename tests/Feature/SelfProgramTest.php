@@ -793,7 +793,7 @@ describe('the unit fits the field', function () {
             ->call('openWeek', $this->week->id)
             ->set('rows.mahfoudh.unit', 'حديث')
             ->set('rows.mahfoudh.target_amount', 2.5)
-            ->set('rows.maqrou.target_amount', 3.5)
+            ->set('rows.quran_wird.target_amount', 3.5)
             ->call('save')
             ->assertHasNoErrors();
 
@@ -801,7 +801,7 @@ describe('the unit fits the field', function () {
 
         // Half a hadith is not a quantity; half a page is.
         expect((float) $items['mahfoudh']->target_amount)->toBe(3.0)
-            ->and((float) $items['maqrou']->target_amount)->toBe(3.5);
+            ->and((float) $items['quran_wird']->target_amount)->toBe(3.5);
     });
 
     it('lets التحضير be prepared either by listening or by reading', function () {

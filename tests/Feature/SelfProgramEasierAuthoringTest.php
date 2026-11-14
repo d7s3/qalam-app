@@ -216,8 +216,8 @@ describe('amounts as typed', function () {
 
         Livewire::actingAs($this->supervisor, 'supervisor')
             ->test('supervisor.self-program-weeks')
-            ->set('rows.maqrou.description', 'مقدمة الحوار')
-            ->set('rows.maqrou.target_amount', '204-')
+            ->set('rows.mahfoudh.description', 'مقدمة الحوار')
+            ->set('rows.mahfoudh.target_amount', '204-')
             ->set('rows.tahdheer.description', 'الدرر المكية')
             ->set('rows.tahdheer.hours', '١')
             ->set('rows.tahdheer.minutes', '٣٣')
@@ -225,7 +225,7 @@ describe('amounts as typed', function () {
             ->assertHasNoErrors()
             ->assertSet('missingAmounts', []);
 
-        expect(SelfProgramItem::where('track', 'maqrou')->value('target_amount'))->toEqual(204)
+        expect(SelfProgramItem::where('track', 'mahfoudh')->value('target_amount'))->toEqual(204)
             ->and(SelfProgramItem::where('track', 'tahdheer')->value('target_amount'))->toEqual(93);
     });
 
@@ -234,9 +234,9 @@ describe('amounts as typed', function () {
 
         Livewire::actingAs($this->supervisor, 'supervisor')
             ->test('supervisor.self-program-weeks')
-            ->set('rows.maqrou.target_amount', 'كثير')
+            ->set('rows.mahfoudh.target_amount', 'كثير')
             ->call('save')
-            ->assertHasErrors('rows.maqrou.target_amount');
+            ->assertHasErrors('rows.mahfoudh.target_amount');
     });
 });
 
@@ -246,10 +246,10 @@ describe('after saving', function () {
 
         Livewire::actingAs($this->supervisor, 'supervisor')
             ->test('supervisor.self-program-weeks')
-            ->set('rows.maqrou.description', 'مقدمة الحوار')
+            ->set('rows.mahfoudh.description', 'مقدمة الحوار')
             ->set('rows.masmou.description', 'تائية الألبيري')
             ->call('save')
-            ->assertHasErrors(['rows.maqrou.target_amount', 'rows.masmou.minutes']);
+            ->assertHasErrors(['rows.mahfoudh.target_amount', 'rows.masmou.minutes']);
     });
 
     it('shows the amounts back as they were kept', function () {
@@ -257,13 +257,13 @@ describe('after saving', function () {
 
         Livewire::actingAs($this->supervisor, 'supervisor')
             ->test('supervisor.self-program-weeks')
-            ->set('rows.maqrou.description', 'مقدمة الحوار')
-            ->set('rows.maqrou.target_amount', '204-')
+            ->set('rows.mahfoudh.description', 'مقدمة الحوار')
+            ->set('rows.mahfoudh.target_amount', '204-')
             ->set('rows.tahdheer.description', 'الدرر المكية')
             ->set('rows.tahdheer.unit', 'دقيقة')
             ->set('rows.tahdheer.minutes', '93')
             ->call('save')
-            ->assertSet('rows.maqrou.target_amount', 204.0)
+            ->assertSet('rows.mahfoudh.target_amount', 204.0)
             ->assertSet('rows.tahdheer.hours', 1)
             ->assertSet('rows.tahdheer.minutes', 33);
     });

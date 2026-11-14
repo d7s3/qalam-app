@@ -164,6 +164,8 @@ describe('the offices above', function () {
             ->test('supervisor.self-program-weeks')
             ->set('asRole', 'manager')
             ->call('openWeek', $week->id)
+            ->set('rows.maqrou.books.0.title', 'كتاب الأسبوع')
+            ->set('rows.maqrou.books.0.to', '20')
             ->set('rows.masmou.hours', 2)
             ->set('rows.masmou.minutes', 30)
             ->set('rows.mahfoudh.unit', 'حديث')
@@ -186,7 +188,9 @@ describe('the offices above', function () {
             ->test('supervisor.self-program-weeks')
             ->set('asRole', 'manager')
             ->call('openWeek', $week->id)
-            ->set('rows.maqrou.target_amount', 7.3)
+            ->set('rows.maqrou.books.0.title', 'كتاب الأسبوع')
+            ->set('rows.maqrou.books.0.to', '20')
+            ->set('rows.quran_wird.target_amount', 7.3)
             ->set('rows.tahdheer.unit', 'دقيقة')
             ->set('rows.tahdheer.minutes', 45)
             ->call('save')
@@ -196,7 +200,7 @@ describe('the offices above', function () {
 
         // Seeing everything is not the same as being able to write anything:
         // pages are halves at most, and التحضير by listening is a length of time.
-        expect((float) $items['maqrou']->target_amount)->toBe(7.5)
+        expect((float) $items['quran_wird']->target_amount)->toBe(7.5)
             ->and((float) $items['tahdheer']->target_amount)->toBe(45.0)
             ->and($items['tahdheer']->unit)->toBe('دقيقة');
     });

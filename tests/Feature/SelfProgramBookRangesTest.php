@@ -40,7 +40,6 @@ it('keeps each book with its pages and counts the pages as the amount', function
     Livewire::actingAs($this->supervisor, 'supervisor')
         ->test('supervisor.self-program-weeks')
         ->assertSet('weekId', $week->id)
-        ->call('addBook')
         ->set('rows.maqrou.books.0.title', 'العواصم من القواصم')
         ->set('rows.maqrou.books.0.from', '٢٦٥')
         ->set('rows.maqrou.books.0.to', '395')
@@ -58,12 +57,24 @@ it('keeps each book with its pages and counts the pages as the amount', function
         ->and($item->bookRanges())->toBe(['العواصم من القواصم: من ص 265 إلى ص 395', 'مدخل لفهم السيرة: من ص 1 إلى ص 10']);
 });
 
+it('will not save reading without the page each book stops at', function () {
+    $week = ($this->week)(9, '2026-11-08');
+
+    Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test('supervisor.self-program-weeks')
+        ->set('rows.maqrou.description', 'العواصم')
+        ->set('rows.maqrou.books.0.title', 'العواصم')
+        ->call('save')
+        ->assertHasErrors('rows.maqrou.books');
+
+    expect(SelfProgramItem::where('self_program_week_id', $week->id)->where('track', SelfProgramTrack::MAQROU)->value('description'))->toBeNull();
+});
+
 it('refuses a book that ends before it starts', function () {
     ($this->week)(9, '2026-11-08');
 
     Livewire::actingAs($this->supervisor, 'supervisor')
         ->test('supervisor.self-program-weeks')
-        ->call('addBook')
         ->set('rows.maqrou.books.0.title', 'العواصم')
         ->set('rows.maqrou.books.0.from', '300')
         ->set('rows.maqrou.books.0.to', '200')
@@ -112,4 +123,31 @@ it('shows the student each book\'s pages, and what an arrear asked for', functio
         ->assertSee('العواصم: من ص 265 إلى ص 395')
         ->assertSee('المتأخرات')
         ->assertSee('المطلوب: العواصم: من ص 120 إلى ص 264');
+});
+
+it('works out where each book starts from last week, or from its first page', function () {
+    $before = ($this->week)(8, '2026-11-01');
+    $week = ($this->week)(9, '2026-11-08');
+    SelfProgramItem::create([
+        'self_program_week_id' => $before->id,
+        'track' => SelfProgramTrack::MAQROU,
+        'books' => [['title' => 'العواصم', 'from' => 120, 'to' => 264]],
+        'target_amount' => 145,
+        'unit' => 'صفحة',
+    ]);
+
+    Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test('supervisor.self-program-weeks')
+        ->set('rows.maqrou.books.0.title', 'العواصم')
+        ->set('rows.maqrou.books.0.to', '395')
+        ->call('addBook')
+        ->set('rows.maqrou.books.1.title', 'مدخل لفهم السيرة')
+        ->set('rows.maqrou.books.1.to', '٩')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $item = SelfProgramItem::where('self_program_week_id', $week->id)->where('track', SelfProgramTrack::MAQROU)->sole();
+
+    expect($item->bookRanges())->toBe(['العواصم: من ص 265 إلى ص 395', 'مدخل لفهم السيرة: من ص 1 إلى ص 9'])
+        ->and((float) $item->target_amount)->toEqual(140.0);
 });
