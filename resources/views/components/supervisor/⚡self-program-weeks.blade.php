@@ -359,6 +359,7 @@ new class extends Component
 
             $this->rows[$track->value] = [
                 'description' => $item?->description ?? '',
+                'books' => $item?->books ?? [],
                 'content_url' => $item?->content_url ?? '',
                 'target_amount' => $amount,
                 'unit' => $track->unitFor($item?->unit),
@@ -822,6 +823,83 @@ new class extends Component
      * wrote a week's listening and preparation with nothing to measure them by,
      * and the week opened on his students with only one field counted.
      */
+    /** Another book in the reading field. */
+    public function addBook(): void
+    {
+        $this->rows[SelfProgramTrack::MAQROU]['books'][] = ['title' => '', 'from' => '', 'to' => ''];
+    }
+
+    public function removeBook(int $index): void
+    {
+        unset($this->rows[SelfProgramTrack::MAQROU]['books'][$index]);
+        $this->rows[SelfProgramTrack::MAQROU]['books'] = array_values($this->rows[SelfProgramTrack::MAQROU]['books']);
+    }
+
+    /**
+     * Last week's books, each starting the page after it stopped, so the
+     * supervisor only writes where this week ends.
+     */
+    public function carryBooks(): void
+    {
+        $previous = $this->previousWeekBooks();
+
+        $this->rows[SelfProgramTrack::MAQROU]['books'] = collect($previous)
+            ->map(fn (array $book) => [
+                'title' => $book['title'],
+                'from' => filled($book['to'] ?? null) ? (int) $book['to'] + 1 : '',
+                'to' => '',
+            ])->all();
+    }
+
+    /**
+     * @return list<array{title: string, from: int|null, to: int|null}>
+     */
+    private function previousWeekBooks(): array
+    {
+        $ids = $this->weeks->pluck('id')->values();
+        $position = $ids->search($this->weekId);
+        $previousId = $position ? $ids[$position - 1] : null;
+
+        return $previousId
+            ? (SelfProgramItem::where('self_program_week_id', $previousId)->where('track', SelfProgramTrack::MAQROU)->value('books') ?? [])
+            : [];
+    }
+
+    /**
+     * Keep the books that have a title. When each has its pages, they are the
+     * field's amount; when the content is not written, their titles are.
+     */
+    private function applyBooks(): void
+    {
+        $row = $this->rows[SelfProgramTrack::MAQROU] ?? null;
+
+        if (! $row) {
+            return;
+        }
+
+        $books = collect($row['books'] ?? [])
+            ->filter(fn ($book) => filled(trim((string) ($book['title'] ?? ''))))
+            ->map(fn (array $book) => [
+                'title' => trim($book['title']),
+                'from' => ($from = SelfProgramUnit::parse($book['from'] ?? null)) !== null ? (int) $from : null,
+                'to' => ($to = SelfProgramUnit::parse($book['to'] ?? null)) !== null ? (int) $to : null,
+            ])->values();
+
+        $this->rows[SelfProgramTrack::MAQROU]['books'] = $books->all();
+
+        if ($books->isEmpty()) {
+            return;
+        }
+
+        if ($books->every(fn (array $book) => $book['from'] !== null && $book['to'] !== null && $book['to'] >= $book['from'])) {
+            $this->rows[SelfProgramTrack::MAQROU]['target_amount'] = $books->sum(fn (array $book) => $book['to'] - $book['from'] + 1);
+        }
+
+        if (blank($row['description'] ?? null)) {
+            $this->rows[SelfProgramTrack::MAQROU]['description'] = mb_substr($books->pluck('title')->implode(' + '), 0, 500);
+        }
+    }
+
     public function save(bool $anyway = false): void
     {
         $week = $this->week;
@@ -837,7 +915,18 @@ new class extends Component
             'rows.*.hours' => ['nullable', 'integer', 'min:0', 'max:99'],
             'rows.*.minutes' => ['nullable', 'integer', 'min:0', 'max:999'], // «93» is read as an hour and thirty-three
             'rows.*.content_url' => ['nullable', 'url', 'max:2048'],
+            'rows.*.books.*.title' => ['nullable', 'string', 'max:150'],
         ]);
+
+        $this->applyBooks();
+
+        foreach ($this->rows[SelfProgramTrack::MAQROU]['books'] ?? [] as $index => $book) {
+            if ($book['from'] !== null && $book['to'] !== null && $book['to'] < $book['from']) {
+                $this->addError("rows.maqrou.books.{$index}.to", __('صفحة النهاية قبل صفحة البداية.'));
+
+                return;
+            }
+        }
 
         // The wird is left out: its amount comes from each student's own plan.
         $missingTracks = SelfProgramTrack::ordered()
@@ -880,6 +969,7 @@ new class extends Component
                 ['track' => $track->value],
                 [
                     'description' => $row['description'] ?: null,
+                    'books' => $track->key === SelfProgramTrack::MAQROU && ($row['books'] ?? []) !== [] ? $row['books'] : null,
                     // The Quran is in the application already; a link out of it
                     // would be a step backwards, so the wird never carries one.
                     'content_url' => $track->isQuranWird()
@@ -1055,7 +1145,10 @@ new class extends Component
 
     public function with(): array
     {
-        return ['tracks' => SelfProgramTrack::ordered()];
+        return [
+            'tracks' => SelfProgramTrack::ordered(),
+            'canCarryBooks' => $this->weekId && $this->previousWeekBooks() !== [],
+        ];
     }
 };
 ?>
@@ -1384,6 +1477,41 @@ new class extends Component
                                 <flux:input wire:model="rows.{{ $track->value }}.description"
                                     placeholder="{{ __('المحتوى، مثل: سورة الملك') }}" />
                                 <flux:error name="rows.{{ $track->value }}.description" />
+
+                                @if ($track->key === SelfProgramTrack::MAQROU)
+                                    {{-- كل كتاب بصفحاته، ليراها الطالب كل أسبوع --}}
+                                    <div class="mt-2 space-y-2" data-books>
+                                        @foreach ($rows[$track->value]['books'] ?? [] as $index => $book)
+                                            <div wire:key="book-{{ $index }}" class="flex items-start gap-1.5">
+                                                <flux:input class="flex-1" wire:model="rows.{{ $track->value }}.books.{{ $index }}.title"
+                                                    placeholder="{{ __('اسم الكتاب') }}" />
+                                                <flux:input class="w-20 text-center" type="text" inputmode="numeric"
+                                                    wire:model="rows.{{ $track->value }}.books.{{ $index }}.from"
+                                                    placeholder="{{ __('من ص') }}" />
+                                                <flux:input class="w-20 text-center" type="text" inputmode="numeric"
+                                                    wire:model="rows.{{ $track->value }}.books.{{ $index }}.to"
+                                                    placeholder="{{ __('إلى ص') }}" />
+                                                <flux:button size="sm" variant="ghost" icon="x-mark" class="mt-1"
+                                                    wire:click="removeBook({{ $index }})" aria-label="{{ __('احذف الكتاب') }}" />
+                                            </div>
+                                            <flux:error name="rows.{{ $track->value }}.books.{{ $index }}.to" />
+                                        @endforeach
+
+                                        <div class="flex flex-wrap gap-2">
+                                            <flux:button size="sm" variant="ghost" icon="plus" wire:click="addBook">
+                                                {{ __('أضف كتاباً بصفحاته') }}
+                                            </flux:button>
+                                            @if ($canCarryBooks)
+                                                <flux:button size="sm" variant="ghost" icon="arrow-uturn-left" wire:click="carryBooks">
+                                                    {{ __('أكمل كتب الأسبوع الماضي') }}
+                                                </flux:button>
+                                            @endif
+                                        </div>
+                                        @if (($rows[$track->value]['books'] ?? []) !== [])
+                                            <p class="text-[11px] text-zinc-500">{{ __('يُحسب المقدار من الصفحات تلقائياً.') }}</p>
+                                        @endif
+                                    </div>
+                                @endif
 
                                 @unless ($track->isQuranWird())
                                     <flux:input class="mt-2" type="url" dir="ltr"
