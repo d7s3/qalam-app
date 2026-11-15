@@ -931,6 +931,16 @@ new class extends Component
             'rows.*.books.*.title' => ['nullable', 'string', 'max:150'],
         ]);
 
+        // A book given pages and no name would be dropped without a word.
+        foreach ($this->rows[SelfProgramTrack::MAQROU]['books'] ?? [] as $index => $book) {
+            if (blank(trim((string) ($book['title'] ?? ''))) && (filled($book['from'] ?? null) || filled($book['to'] ?? null))) {
+                $this->addError("rows.maqrou.books.{$index}.title", __('اكتب اسم الكتاب.'));
+                Flux::toast(__('اكتب اسم كل كتاب كتبت صفحاته.'), variant: 'warning');
+
+                return;
+            }
+        }
+
         $this->applyBooks();
 
         // Asked for by Faisal, 14 Nov 2026: a student must know where to start
@@ -1513,18 +1523,26 @@ new class extends Component
                                     {{-- كل كتاب بصفحاته، ليراها الطالب كل أسبوع --}}
                                     <div class="mt-2 space-y-2" data-books>
                                         @foreach ($rows[$track->value]['books'] ?? [] as $index => $book)
-                                            <div wire:key="book-{{ $index }}" class="flex items-start gap-1.5">
-                                                <flux:input class="flex-1" wire:model="rows.{{ $track->value }}.books.{{ $index }}.title"
-                                                    placeholder="{{ __('اسم الكتاب') }}" />
-                                                <flux:input class="w-20 text-center" type="text" inputmode="numeric"
-                                                    wire:model="rows.{{ $track->value }}.books.{{ $index }}.from"
-                                                    placeholder="{{ __('من ص (تلقائي)') }}" />
-                                                <flux:input class="w-20 text-center" type="text" inputmode="numeric"
-                                                    wire:model="rows.{{ $track->value }}.books.{{ $index }}.to"
-                                                    placeholder="{{ __('إلى ص') }}" />
-                                                <flux:button size="sm" variant="ghost" icon="x-mark" class="mt-1"
+                                            {{-- Flux puts w-full on its own wrapper, so each box is sized by a div of ours. --}}
+                                            <div wire:key="book-{{ $index }}" class="flex flex-wrap sm:flex-nowrap items-start gap-1.5" data-book-row>
+                                                <div class="w-full sm:flex-1 sm:min-w-0">
+                                                    <flux:input wire:model="rows.{{ $track->value }}.books.{{ $index }}.title"
+                                                        placeholder="{{ __('اسم الكتاب') }}" />
+                                                </div>
+                                                <div class="w-24 shrink-0">
+                                                    <flux:input class="text-center" type="text" inputmode="numeric"
+                                                        wire:model="rows.{{ $track->value }}.books.{{ $index }}.from"
+                                                        placeholder="{{ __('من ص') }}" />
+                                                </div>
+                                                <div class="w-24 shrink-0">
+                                                    <flux:input class="text-center" type="text" inputmode="numeric"
+                                                        wire:model="rows.{{ $track->value }}.books.{{ $index }}.to"
+                                                        placeholder="{{ __('إلى ص') }}" />
+                                                </div>
+                                                <flux:button size="sm" variant="ghost" icon="x-mark" class="mt-1 shrink-0"
                                                     wire:click="removeBook({{ $index }})" aria-label="{{ __('احذف الكتاب') }}" />
                                             </div>
+                                            <flux:error name="rows.{{ $track->value }}.books.{{ $index }}.title" />
                                             <flux:error name="rows.{{ $track->value }}.books.{{ $index }}.to" />
                                         @endforeach
 
