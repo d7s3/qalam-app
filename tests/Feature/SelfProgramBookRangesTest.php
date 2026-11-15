@@ -151,3 +151,26 @@ it('works out where each book starts from last week, or from its first page', fu
     expect($item->bookRanges())->toBe(['العواصم: من ص 265 إلى ص 395', 'مدخل لفهم السيرة: من ص 1 إلى ص 9'])
         ->and((float) $item->target_amount)->toEqual(140.0);
 });
+
+it('says so when a book has pages but no name, instead of dropping it', function () {
+    $week = ($this->week)(9, '2026-11-08');
+
+    Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test('supervisor.self-program-weeks')
+        ->set('rows.maqrou.description', 'الداء والدواء')
+        ->set('rows.maqrou.books.0.from', '5')
+        ->set('rows.maqrou.books.0.to', '97')
+        ->call('save')
+        ->assertHasErrors('rows.maqrou.books.0.title');
+
+    expect(SelfProgramItem::where('self_program_week_id', $week->id)->where('track', SelfProgramTrack::MAQROU)->value('description'))->toBeNull();
+});
+
+it('gives the book name a box of its own width', function () {
+    ($this->week)(9, '2026-11-08');
+
+    Livewire::actingAs($this->supervisor, 'supervisor')
+        ->test('supervisor.self-program-weeks')
+        ->assertSeeHtml('class="w-full sm:flex-1 sm:min-w-0"')
+        ->assertSeeHtml('data-book-row');
+});
