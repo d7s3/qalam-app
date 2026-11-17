@@ -27,6 +27,10 @@ Schedule::command('tasks:remind')->dailyAt('06:00');
 // is reminded about on the same morning rather than waiting a day for its turn.
 Schedule::command('tasks:follow-up')->dailyAt('05:30');
 
+// Between the tasks and their reminders: last week's students below the line
+// reach their teachers, and those left two days reach the supervisor.
+Schedule::command('commitment:follow-up')->dailyAt('05:45');
+
 // Thursday, so the supervisor has the weekend to write a self-programme week
 // before it opens empty on his students.
 Schedule::command('self-program:remind-empty-weeks')->weeklyOn(4, '09:00');

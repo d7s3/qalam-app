@@ -70,10 +70,15 @@
     @endif
 </flux:sidebar.group>
 
-<flux:sidebar.group heading="البرنامج الذاتي" expandable :expanded="$on('supervisor.self-program-*', 'supervisor.period-values')" class="grid">
+<flux:sidebar.group heading="البرنامج الذاتي" expandable :expanded="$on('supervisor.self-program-*', 'supervisor.period-values', 'supervisor.commitment')" class="grid">
     @if($shows('supervisor.self-program-weeks'))
         <flux:sidebar.item icon="squares-2x2" :href="route('supervisor.self-program-weeks')" :current="$on('supervisor.self-program-weeks')" wire:navigate>
             {{ __('البرنامج الذاتي') }}
+        </flux:sidebar.item>
+    @endif
+    @if($shows('supervisor.commitment'))
+        <flux:sidebar.item icon="presentation-chart-line" :href="route('supervisor.commitment')" :current="$on('supervisor.commitment')" wire:navigate>
+            {{ __('التزام الطلاب') }}
         </flux:sidebar.item>
     @endif
     @if($shows('supervisor.self-program-progress'))

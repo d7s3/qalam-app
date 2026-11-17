@@ -126,7 +126,12 @@
     @endif
 </flux:sidebar.group>
 
-<flux:sidebar.group heading="الانضباط" expandable :expanded="$on('teacher.discipline', 'teacher.quranic-discipline', 'teacher.exceeded-limits')" class="grid">
+<flux:sidebar.group heading="الانضباط" expandable :expanded="$on('teacher.commitment', 'teacher.discipline', 'teacher.quranic-discipline', 'teacher.exceeded-limits')" class="grid">
+    @if($shows('teacher.commitment'))
+        <flux:sidebar.item icon="presentation-chart-line" :href="route('teacher.commitment')" :current="$on('teacher.commitment')" wire:navigate>
+            {{ __('التزام الطلاب') }}
+        </flux:sidebar.item>
+    @endif
     @if($shows('teacher.discipline'))
         <flux:sidebar.item icon="chart-bar" :href="route('teacher.discipline')" :current="$on('teacher.discipline')" wire:navigate>
             {{ __('الانضباط الحضوري') }}

@@ -107,10 +107,15 @@
     @endif
 </flux:sidebar.group>
 
-<flux:sidebar.group heading="البرنامج الذاتي" expandable :expanded="$on('manager.self-program-*', 'manager.period-values')" class="grid">
+<flux:sidebar.group heading="البرنامج الذاتي" expandable :expanded="$on('manager.self-program-*', 'manager.period-values', 'manager.commitment')" class="grid">
     @if($shows('manager.self-program-weeks'))
         <flux:sidebar.item icon="pencil-square" :href="route('manager.self-program-weeks')" :current="$on('manager.self-program-weeks')" wire:navigate>
             {{ __('كتابة البرنامج الذاتي') }}
+        </flux:sidebar.item>
+    @endif
+    @if($shows('manager.commitment'))
+        <flux:sidebar.item icon="presentation-chart-line" :href="route('manager.commitment')" :current="$on('manager.commitment')" wire:navigate>
+            {{ __('التزام الطلاب') }}
         </flux:sidebar.item>
     @endif
     @if($shows('manager.self-program-progress'))
