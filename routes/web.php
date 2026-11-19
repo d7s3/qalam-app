@@ -123,6 +123,7 @@ Route::middleware(['auth:manager', 'approved', 'password.changed', 'page.enabled
     Route::view('/teachers', 'manager.teachers')->name('teachers');
     Route::view('/students', 'manager.students')->name('students');
     Route::view('/self-program-progress', 'manager.self-program-progress')->name('self-program-progress');
+    Route::view('/commitment', 'shared.commitment', ['role' => 'manager'])->name('commitment');
     Route::view('/self-program-record', 'manager.self-program-record')->name('self-program-record');
     Route::view('/guardians', 'manager.guardians')->name('guardians');
     Route::view('/attendance-reports', 'manager.attendance-reports')->name('attendance-reports');
@@ -214,6 +215,7 @@ Route::middleware(['auth:supervisor', 'approved', 'password.changed', 'page.enab
     Route::view('/students', 'supervisor.students')->name('students');
     Route::view('/self-program-weeks', 'shared.self-program-weeks')->name('self-program-weeks');
     Route::view('/self-program-progress', 'supervisor.self-program-progress')->name('self-program-progress');
+    Route::view('/commitment', 'shared.commitment', ['role' => 'supervisor'])->name('commitment');
     Route::view('/self-program-record', 'supervisor.self-program-record')->name('self-program-record');
     Route::view('/reports', 'supervisor.reports')->name('reports');
 
@@ -278,6 +280,7 @@ Route::middleware(['auth:teacher', 'approved', 'password.changed', 'page.enabled
     // Standard Routes
     Route::view('/discipline', 'teacher.discipline')->name('discipline');
     Route::view('/quranic-discipline', 'teacher.quranic-discipline')->name('quranic-discipline');
+    Route::view('/commitment', 'shared.commitment', ['role' => 'teacher'])->name('commitment');
     Route::view('/self-program', 'teacher.self-program')->name('self-program');
     Route::view('/self-program-record', 'teacher.self-program-record')->name('self-program-record');
     Route::view('/reports', 'teacher.reports')->name('reports');
